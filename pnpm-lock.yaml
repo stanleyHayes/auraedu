@@ -57,12 +57,30 @@ importers:
 
   apps/web:
     dependencies:
+      '@auraedu/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
+      '@auraedu/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@auraedu/flags':
+        specifier: workspace:*
+        version: link:../../packages/feature-flags
+      '@auraedu/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@auraedu/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
       '@auraedu/tokens':
         specifier: workspace:*
         version: link:../../packages/tokens
       '@auraedu/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      lucide-react:
+        specifier: ^0.509.0
+        version: 0.509.0(react@19.2.7)
       next:
         specifier: '16'
         version: 16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -98,6 +116,9 @@ importers:
         specifier: workspace:*
         version: link:../shared-types
     devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
       typescript:
         specifier: ^5.9.2
         version: 5.9.3
@@ -108,6 +129,9 @@ importers:
         specifier: ^3.25.0
         version: 3.25.76
     devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
       typescript:
         specifier: ^5.9.2
         version: 5.9.3
@@ -117,15 +141,24 @@ importers:
       '@types/react':
         specifier: ^19.0.0
         version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19.0.0
+        version: 19.2.3(@types/react@19.2.17)
       react:
         specifier: ^19.0.0
         version: 19.2.7
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.7(react@19.2.7)
       typescript:
         specifier: ^5.9.2
         version: 5.9.3
 
   packages/logger:
     devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
       typescript:
         specifier: ^5.9.2
         version: 5.9.3
@@ -615,6 +648,11 @@ packages:
     resolution: {integrity: sha512-NXYBzinNrblfraPGyrbPoD19C1h9lfI/1mzgWYvXUTe414Gz/X1FD2XBZSZM7rRTrMA8JL3OtAaGifrIKhQ5yQ==}
     engines: {node: '>= 12.0.0'}
 
+  lucide-react@0.509.0:
+    resolution: {integrity: sha512-xCJHn6Uh5qF6PGml25vveCTrHJZcqS1G1MVzWZK54ZQsOiCVJk4fwY3oyo5EXS2S+aqvTpWYIfJN+PesJ0quxg==}
+    peerDependencies:
+      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
 
@@ -1049,6 +1087,10 @@ snapshots:
       lightningcss-linux-x64-musl: 1.32.0
       lightningcss-win32-arm64-msvc: 1.32.0
       lightningcss-win32-x64-msvc: 1.32.0
+
+  lucide-react@0.509.0(react@19.2.7):
+    dependencies:
+      react: 19.2.7
 
   magic-string@0.30.21:
     dependencies:
