@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/auraedu/tenant-service/internal/ports"
 	"github.com/auraedu/platform/config"
+	"github.com/auraedu/tenant-service/internal/ports"
 	"github.com/nats-io/nats.go"
 )
 

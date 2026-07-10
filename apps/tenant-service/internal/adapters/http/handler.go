@@ -45,12 +45,12 @@ func (h *Handler) listTenants(w http.ResponseWriter, r *http.Request) {
 }
 
 type createTenantBody struct {
-	Code     string           `json:"tenant_code"`
-	Name     string           `json:"name"`
-	Short    string           `json:"short"`
-	Status   string           `json:"status"`
-	Plan     string           `json:"plan"`
-	Branding domain.Branding  `json:"branding"`
+	Code     string          `json:"tenant_code"`
+	Name     string          `json:"name"`
+	Short    string          `json:"short"`
+	Status   string          `json:"status"`
+	Plan     string          `json:"plan"`
+	Branding domain.Branding `json:"branding"`
 }
 
 func (h *Handler) createTenant(w http.ResponseWriter, r *http.Request) {
