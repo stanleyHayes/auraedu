@@ -57,12 +57,30 @@ importers:
 
   apps/web:
     dependencies:
+      '@auraedu/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
+      '@auraedu/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@auraedu/flags':
+        specifier: workspace:*
+        version: link:../../packages/feature-flags
+      '@auraedu/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@auraedu/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
       '@auraedu/tokens':
         specifier: workspace:*
         version: link:../../packages/tokens
       '@auraedu/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      lucide-react:
+        specifier: ^0.509.0
+        version: 0.509.0(react@19.2.7)
       next:
         specifier: '16'
         version: 16.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -88,6 +106,59 @@ importers:
       tailwindcss:
         specifier: ^4.0.0
         version: 4.3.2
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+
+  packages/api-client:
+    dependencies:
+      '@auraedu/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+
+  packages/config:
+    dependencies:
+      zod:
+        specifier: ^3.25.0
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+
+  packages/feature-flags:
+    devDependencies:
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19.0.0
+        version: 19.2.3(@types/react@19.2.17)
+      react:
+        specifier: ^19.0.0
+        version: 19.2.7
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.7(react@19.2.7)
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+
+  packages/logger:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
       typescript:
         specifier: ^5.9.2
         version: 5.9.3
@@ -917,6 +988,11 @@ packages:
   lodash@4.18.1:
     resolution: {integrity: sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==}
 
+  lucide-react@0.509.0:
+    resolution: {integrity: sha512-xCJHn6Uh5qF6PGml25vveCTrHJZcqS1G1MVzWZK54ZQsOiCVJk4fwY3oyo5EXS2S+aqvTpWYIfJN+PesJ0quxg==}
+    peerDependencies:
+      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
 
@@ -1083,6 +1159,9 @@ packages:
   yargs-parser@21.1.1:
     resolution: {integrity: sha512-tVpsJW7DdjecAiFpbIB1e3qxIQsE6NoPc5/eTdrbbIC4h0LVsWhnoa3g+m2HclBIujHzsxZ4VJVA+GUuc2/LBw==}
     engines: {node: '>=12'}
+
+  zod@3.25.76:
+    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
 snapshots:
 
@@ -1647,6 +1726,10 @@ snapshots:
 
   lodash@4.18.1: {}
 
+  lucide-react@0.509.0(react@19.2.7):
+    dependencies:
+      react: 19.2.7
+
   magic-string@0.30.21:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.5.5
@@ -1815,3 +1898,5 @@ snapshots:
   yaml-ast-parser@0.0.43: {}
 
   yargs-parser@21.1.1: {}
+
+  zod@3.25.76: {}

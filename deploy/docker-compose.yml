@@ -5,10 +5,11 @@
 name: auraedu
 
 include:
+  # Shared infra: Postgres (logical DB-per-service), Valkey, NATS JetStream, OTel collector.
   - path: ./docker-compose.infra.yml
 
 services:
-  # ---- Go platform services --------------------------------------------------
+  # ---- Go platform services -------------------------------------------------
   identity-service:
     build:
       context: ..
@@ -26,6 +27,7 @@ services:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
       nats: { condition: service_healthy }
+    restart: unless-stopped
 
   tenant-service:
     build:
@@ -41,6 +43,7 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       nats: { condition: service_healthy }
+    restart: unless-stopped
 
   api-gateway:
     build:
@@ -61,8 +64,9 @@ services:
       tenant-service: { condition: service_started }
       redis: { condition: service_healthy }
       nats: { condition: service_healthy }
+    restart: unless-stopped
 
-  # ---- Frontends -------------------------------------------------------------
+  # ---- Frontends ------------------------------------------------------------
   web:
     build:
       context: ..
@@ -75,6 +79,7 @@ services:
       NEXT_PUBLIC_API_URL: http://localhost:8080
     depends_on:
       api-gateway: { condition: service_started }
+    restart: unless-stopped
 
   marketing:
     build:
@@ -85,3 +90,4 @@ services:
       PORT: 3001
     depends_on:
       api-gateway: { condition: service_started }
+    restart: unless-stopped
