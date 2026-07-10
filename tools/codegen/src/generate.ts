@@ -155,7 +155,7 @@ async function generateIndexFiles(): Promise<void> {
   // Package index
   await fs.writeFile(
     path.join(OUT, "src", "index.ts"),
-    `// Generated barrel — safe to re-export generated modules.\nexport * as OpenAPI from "./generated/openapi/index.js";\nexport * as Events from "./generated/events/index.js";\n`,
+    `// Generated barrel — safe to re-export generated modules.\nexport * as OpenAPI from "./generated/openapi/index.js";\nexport * as Events from "./generated/events/index.js";\nexport * from "./runtime.js";\n`,
     "utf8",
   );
 }
