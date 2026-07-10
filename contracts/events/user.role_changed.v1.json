@@ -4,18 +4,19 @@
   "required": ["specversion", "type", "source", "id", "tenant_id", "data"],
   "properties": {
     "specversion": { "const": "1.0" },
-    "type": { "const": "tenant.created.v1" },
+    "type": { "const": "user.role_changed.v1" },
     "source": { "type": "string" },
     "id": { "type": "string", "format": "uuid" },
     "tenant_id": { "type": "string" },
     "datacontenttype": { "const": "application/json" },
     "data": {
       "type": "object",
-      "required": ["tenant_code", "name"],
+      "required": ["user_id", "new_role"],
       "properties": {
-        "tenant_code": { "type": "string" },
-        "name": { "type": "string" },
-        "plan": { "type": "string" }
+        "user_id": { "type": "string" },
+        "previous_role": { "type": "string" },
+        "new_role": { "type": "string" },
+        "permissions": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": false
     }

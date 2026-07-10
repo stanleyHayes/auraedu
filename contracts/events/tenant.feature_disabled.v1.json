@@ -4,17 +4,17 @@
   "required": ["specversion", "type", "source", "id", "tenant_id", "data"],
   "properties": {
     "specversion": { "const": "1.0" },
-    "type": { "const": "tenant.created.v1" },
+    "type": { "const": "tenant.feature_disabled.v1" },
     "source": { "type": "string" },
     "id": { "type": "string", "format": "uuid" },
     "tenant_id": { "type": "string" },
     "datacontenttype": { "const": "application/json" },
     "data": {
       "type": "object",
-      "required": ["tenant_code", "name"],
+      "required": ["feature_key", "is_enabled"],
       "properties": {
-        "tenant_code": { "type": "string" },
-        "name": { "type": "string" },
+        "feature_key": { "type": "string" },
+        "is_enabled": { "const": false },
         "plan": { "type": "string" }
       },
       "additionalProperties": false
