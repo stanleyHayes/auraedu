@@ -1,0 +1,23 @@
+# Shared env groups used across all Render services.
+# Add envVars here only when every service needs them; keep secrets in auraedu-secrets.
+
+envVarGroups:
+  - name: auraedu-shared-config
+    envVars:
+      - key: LOG_LEVEL
+        value: info
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: "" # set to Grafana Cloud / collector endpoint in the dashboard
+      - key: ENVIRONMENT
+        value: production
+
+  - name: auraedu-secrets
+    envVars:
+      - key: JWT_SIGNING_KEY
+        generateValue: true # 256-bit; Identity signs, Gateway verifies
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false # set in the dashboard
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false

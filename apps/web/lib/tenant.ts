@@ -1,29 +1,13 @@
-export interface FeatureFlag {
-  feature_key: string;
-  is_enabled: boolean;
-  plan_required?: string;
-}
+import { publicApiUrl, tenantHeaderName } from "@auraedu/config";
+import type { TenantData, FeatureFlag } from "@auraedu/shared-types";
 
 export interface Branding {
   logo_url?: string;
   brand: { primary: string; secondary?: string };
 }
 
-export interface TenantData {
-  code: string;
-  name: string;
-  short: string;
-  plan: string;
-  branding: Branding;
-  features: FeatureFlag[];
-}
+export { type TenantData, type FeatureFlag };
 
-/**
- * Schools for the "Preview as" switcher — a dev affordance until real tenant
- * resolution by subdomain lands via the gateway (EP-05, AURA-5.4). Branding and
- * feature flags are fetched live from the Tenant Service; only these codes/labels
- * are local, so the switcher can list schools without a super-admin call.
- */
 export const SWITCHER = [
   { code: "upshs", short: "UPSHS", swatch: "#7B1113" },
   { code: "aboom-ame-zion-c", short: "Aboom", swatch: "#1E7D52" },
@@ -33,14 +17,8 @@ export const SWITCHER = [
 export const DEFAULT_CODE = SWITCHER[0].code;
 export const DEFAULT_BRAND = SWITCHER[0].swatch;
 
-/**
- * Tenant codes the demo preview proxy (`/api/tenant/[code]`) is allowed to serve.
- * A guardrail for the temporary forged-actor shim: it may only read these known
- * demo tenants, never arbitrary ones. Retired when the gateway injects the real actor.
- */
 export const PREVIEW_TENANT_CODES: readonly string[] = SWITCHER.map((school) => school.code);
 
-/** Nav item tagged with the feature flag that gates it (undefined = always shown). */
 export interface NavItemDef {
   label: string;
   href: string;
@@ -52,7 +30,6 @@ export interface NavGroupDef {
   items: NavItemDef[];
 }
 
-/** Portal nav — items appear only when their feature is enabled for the tenant. */
 export const NAV: NavGroupDef[] = [
   {
     heading: "People",
@@ -80,11 +57,29 @@ export const NAV: NavGroupDef[] = [
   },
 ];
 
-/**
- * Fetch a tenant's record + feature snapshot from the Tenant Service, via the app's
- * server-side proxy route (`/api/tenant/[code]`). Real resolution is by subdomain
- * through the gateway; this powers the preview switcher today.
- */
+export function resolveTenantFromHost(host: string): string {
+  const [name] = host.split(":");
+  if (!name) return DEFAULT_CODE;
+
+  const lower = name.toLowerCase();
+  if (lower === "localhost" || lower === "auraedu.com" || lower === "www.auraedu.com") {
+    return DEFAULT_CODE;
+  }
+
+  if (lower.endsWith(".localhost") || lower.endsWith(".auraedu.com")) {
+    const code = lower.split(".")[0];
+    return code || DEFAULT_CODE;
+  }
+
+  return DEFAULT_CODE;
+}
+
+export function getTenantCodeFromHeaders(headers: Headers): string {
+  const host = headers.get("host") ?? "";
+  const headerCode = headers.get(tenantHeaderName);
+  return headerCode ?? resolveTenantFromHost(host);
+}
+
 export async function fetchTenant(code: string): Promise<TenantData> {
   const res = await fetch(`/api/tenant/${code}`, { cache: "no-store" });
   if (!res.ok) {
@@ -102,4 +97,36 @@ export async function fetchTenant(code: string): Promise<TenantData> {
     branding: json.tenant.branding,
     features: json.features,
   };
+}
+
+export async function fetchTenantBranding(code: string): Promise<TenantData> {
+  try {
+    const res = await fetch(`${publicApiUrl}/api/v1/tenant/branding?tenant=${encodeURIComponent(code)}`, {
+      headers: { [tenantHeaderName]: code },
+      next: { revalidate: 60 },
+    });
+    if (!res.ok) throw new Error(`branding fetch failed: ${res.status}`);
+    const data = (await res.json()) as TenantData;
+    return data;
+  } catch {
+    return makeFallbackTenant(code);
+  }
+}
+
+export function makeFallbackTenant(code: string): TenantData {
+  const known = SWITCHER.find((s) => s.code === code);
+  return {
+    code,
+    name: known?.short ?? code,
+    short: known?.short ?? code,
+    plan: "starter",
+    branding: {
+      brand: { primary: known?.swatch ?? DEFAULT_BRAND },
+    },
+    features: [],
+  };
+}
+
+export function toFeatureSnapshot(tenant: TenantData): { tenantCode: string; flags: FeatureFlag[] } {
+  return { tenantCode: tenant.code, flags: tenant.features };
 }

@@ -1,0 +1,95 @@
+# Render Postgres databases: one per service (agent_plan Appendix D).
+# Each service connects only to its own database; logical DB names match
+# deploy/postgres-init.sql.
+
+databases:
+  - name: identity-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: identity
+    postgresMajorVersion: "17"
+  - name: tenant-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: tenant
+    postgresMajorVersion: "17"
+  - name: student-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: student
+    postgresMajorVersion: "17"
+  - name: staff-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: staff
+    postgresMajorVersion: "17"
+  - name: academic-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: academic
+    postgresMajorVersion: "17"
+  - name: attendance-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: attendance
+    postgresMajorVersion: "17"
+  - name: assessment-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: assessment
+    postgresMajorVersion: "17"
+  - name: report-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: report
+    postgresMajorVersion: "17"
+  - name: fees-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: fees
+    postgresMajorVersion: "17"
+  - name: payment-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: payment
+    postgresMajorVersion: "17"
+  - name: notification-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: notification
+    postgresMajorVersion: "17"
+  - name: website-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: website
+    postgresMajorVersion: "17"
+  - name: file-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: file
+    postgresMajorVersion: "17"
+  - name: analytics-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: analytics
+    postgresMajorVersion: "17"
+  - name: billing-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: billing
+    postgresMajorVersion: "17"
+  - name: cbt-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: cbt
+    postgresMajorVersion: "17"
+  - name: audit-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: audit
+    postgresMajorVersion: "17"
+  - name: ai-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: ai
+    postgresMajorVersion: "17"
