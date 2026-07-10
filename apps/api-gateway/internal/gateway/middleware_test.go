@@ -68,7 +68,7 @@ func TestRequestIDGeneratedAndPropagated(t *testing.T) {
 		}
 	}))
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/identity/login", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/students/1", nil)
 	req.Header.Set("X-Tenant-ID", "upshs")
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
@@ -123,7 +123,7 @@ func TestAuthAllowsPublicRoute(t *testing.T) {
 		called = true
 	}))
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/identity/login", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/students/1", nil)
 	req.Header.Set("X-Tenant-ID", "upshs")
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
