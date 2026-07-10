@@ -33,6 +33,13 @@ export const SWITCHER = [
 export const DEFAULT_CODE = SWITCHER[0].code;
 export const DEFAULT_BRAND = SWITCHER[0].swatch;
 
+/**
+ * Tenant codes the demo preview proxy (`/api/tenant/[code]`) is allowed to serve.
+ * A guardrail for the temporary forged-actor shim: it may only read these known
+ * demo tenants, never arbitrary ones. Retired when the gateway injects the real actor.
+ */
+export const PREVIEW_TENANT_CODES: readonly string[] = SWITCHER.map((school) => school.code);
+
 /** Nav item tagged with the feature flag that gates it (undefined = always shown). */
 export interface NavItemDef {
   label: string;
