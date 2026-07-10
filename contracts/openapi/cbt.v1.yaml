@@ -1,0 +1,296 @@
+openapi: 3.1.0
+info:
+  title: AuraEDU CBT Service API
+  version: 1.0.0
+  description: >
+    Computer-based / online exams: question banks, sessions, submissions, and auto-grading (spec \u00a77). Owned by lane L2 (EP-24). Feature flag: cbt_exams.
+servers:
+  - url: /api/v1
+tags:
+  - name: exams
+  - name: question-banks
+  - name: submissions
+
+paths:
+    /exams:
+      get:
+            operationId: listExams
+            tags: ['exams']
+            summary: List exams
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/Limit'
+              - $ref: '#/components/parameters/Cursor'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/ExamList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      post:
+            operationId: createExam
+            tags: ['exams']
+            summary: Create an exam
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/CreateExam' }
+            responses:
+              '201':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Exam' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /exams/{exam_id}:
+      get:
+            operationId: getExam
+            tags: ['exams']
+            summary: Get an exam
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/TenantId'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Exam' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /exams/{exam_id}/sessions:
+      post:
+            operationId: startExamSession
+            tags: ['exams']
+            summary: Start an exam session
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/TenantId'
+            responses:
+              '201':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/ExamSession' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /submissions:
+      post:
+            operationId: submitExam
+            tags: ['submissions']
+            summary: Submit an exam
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/CreateSubmission' }
+            responses:
+              '201':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Submission' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /question-banks:
+      get:
+            operationId: listQuestionBanks
+            tags: ['question-banks']
+            summary: List question banks
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/Limit'
+              - $ref: '#/components/parameters/Cursor'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/QuestionBankList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      post:
+            operationId: createQuestionBank
+            tags: ['question-banks']
+            summary: Create a question bank
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/CreateQuestionBank' }
+            responses:
+              '201':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/QuestionBank' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+
+components:
+  parameters:
+    TenantId:
+      name: tenant_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    TenantHeader:
+      name: X-Tenant-Code
+      in: header
+      required: false
+      description: Optional tenant code for resolution when the gateway cannot derive it from the host.
+      schema: { type: string, example: upshs }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, enum: [forbidden, feature_disabled, tenant_mismatch, validation_error, not_found, unauthorized] }
+        message: { type: string }
+        request_id: { type: string }
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: unauthorized, message: "Authentication required" }
+    Forbidden:
+      description: Not permitted (auth, tenant scope, RBAC, or feature disabled)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            forbidden: { value: { code: forbidden, message: "Missing required permission" } }
+            feature_disabled: { value: { code: feature_disabled, message: "Feature not enabled for tenant" } }
+            tenant_mismatch: { value: { code: tenant_mismatch, message: "Resource belongs to another tenant" } }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: not_found, message: "Resource not found" }
+    ValidationError:
+      description: Request failed validation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: validation_error, message: "request body is invalid" }
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
+
+    Exam:
+        type: object
+        required: [id, tenant_id, title, subject_id]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          title: { type: string }
+          subject_id: { type: string, format: uuid }
+          duration_minutes: { type: integer, minimum: 1 }
+          question_count: { type: integer, minimum: 0 }
+          starts_at: { type: [string, 'null'], format: date-time }
+          ends_at: { type: [string, 'null'], format: date-time }
+    CreateExam:
+        type: object
+        required: [title, subject_id]
+        properties:
+          title: { type: string }
+          subject_id: { type: string, format: uuid }
+          duration_minutes: { type: integer, minimum: 1 }
+          question_ids: { type: array, items: { type: string, format: uuid } }
+          starts_at: { type: [string, 'null'], format: date-time }
+          ends_at: { type: [string, 'null'], format: date-time }
+    ExamSession:
+        type: object
+        required: [id, exam_id, student_id, started_at]
+        properties:
+          id: { type: string, format: uuid }
+          exam_id: { type: string, format: uuid }
+          student_id: { type: string, format: uuid }
+          started_at: { type: string, format: date-time }
+          expires_at: { type: string, format: date-time }
+    Submission:
+        type: object
+        required: [id, exam_id, student_id, answers]
+        properties:
+          id: { type: string, format: uuid }
+          exam_id: { type: string, format: uuid }
+          student_id: { type: string, format: uuid }
+          answers: { type: array, items: { type: object, properties: { question_id: { type: string, format: uuid }, selected_option: { type: [string, 'null'] }, text_answer: { type: [string, 'null'] } } } }
+          score: { type: [number, 'null'], minimum: 0 }
+          max_score: { type: [number, 'null'], minimum: 0 }
+          submitted_at: { type: string, format: date-time }
+    CreateSubmission:
+        type: object
+        required: [exam_id, student_id, answers]
+        properties:
+          exam_id: { type: string, format: uuid }
+          student_id: { type: string, format: uuid }
+          answers: { type: array, items: { type: object, properties: { question_id: { type: string, format: uuid }, selected_option: { type: [string, 'null'] }, text_answer: { type: [string, 'null'] } } } }
+    QuestionBank:
+        type: object
+        required: [id, tenant_id, name]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          name: { type: string }
+          subject_id: { type: [string, 'null'], format: uuid }
+          question_count: { type: integer, minimum: 0 }
+    CreateQuestionBank:
+        type: object
+        required: [name]
+        properties:
+          name: { type: string }
+          subject_id: { type: [string, 'null'], format: uuid }
+    ExamList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/Exam' } }
+          next_cursor: { type: [string, 'null'] }
+    QuestionBankList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/QuestionBank' } }
+          next_cursor: { type: [string, 'null'] }

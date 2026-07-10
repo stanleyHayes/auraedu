@@ -1,0 +1,275 @@
+openapi: 3.1.0
+info:
+  title: AuraEDU Assessment Service API
+  version: 1.0.0
+  description: >
+    Assignments, tests, exams, and scores (spec \u00a77). Owned by lane L2 (EP-14). Feature flags: assessments, assignments.
+servers:
+  - url: /api/v1
+tags:
+  - name: assessments
+  - name: scores
+  - name: assignments
+
+paths:
+    /assessments:
+      get:
+            operationId: listAssessments
+            tags: ['assessments']
+            summary: List assessments
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/Limit'
+              - $ref: '#/components/parameters/Cursor'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/AssessmentList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      post:
+            operationId: createAssessment
+            tags: ['assessments']
+            summary: Create an assessment
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/CreateAssessment' }
+            responses:
+              '201':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Assessment' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /assessments/{assessment_id}:
+      get:
+            operationId: getAssessment
+            tags: ['assessments']
+            summary: Get an assessment
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/TenantId'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Assessment' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /assessments/{assessment_id}/scores:
+      post:
+            operationId: recordScore
+            tags: ['scores']
+            summary: Record a score
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/TenantId'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/CreateScore' }
+            responses:
+              '201':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Score' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /assignments:
+      get:
+            operationId: listAssignments
+            tags: ['assignments']
+            summary: List assignments
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/Limit'
+              - $ref: '#/components/parameters/Cursor'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/AssignmentList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      post:
+            operationId: createAssignment
+            tags: ['assignments']
+            summary: Create an assignment
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/CreateAssignment' }
+            responses:
+              '201':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Assignment' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+
+components:
+  parameters:
+    TenantId:
+      name: tenant_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    TenantHeader:
+      name: X-Tenant-Code
+      in: header
+      required: false
+      description: Optional tenant code for resolution when the gateway cannot derive it from the host.
+      schema: { type: string, example: upshs }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, enum: [forbidden, feature_disabled, tenant_mismatch, validation_error, not_found, unauthorized] }
+        message: { type: string }
+        request_id: { type: string }
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: unauthorized, message: "Authentication required" }
+    Forbidden:
+      description: Not permitted (auth, tenant scope, RBAC, or feature disabled)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            forbidden: { value: { code: forbidden, message: "Missing required permission" } }
+            feature_disabled: { value: { code: feature_disabled, message: "Feature not enabled for tenant" } }
+            tenant_mismatch: { value: { code: tenant_mismatch, message: "Resource belongs to another tenant" } }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: not_found, message: "Resource not found" }
+    ValidationError:
+      description: Request failed validation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: validation_error, message: "request body is invalid" }
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
+
+    Assessment:
+        type: object
+        required: [id, tenant_id, name, type, subject_id]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          name: { type: string }
+          type: { type: string, enum: [test, exam, quiz] }
+          subject_id: { type: string, format: uuid }
+          class_id: { type: [string, 'null'], format: uuid }
+          term_id: { type: [string, 'null'], format: uuid }
+          max_score: { type: number, minimum: 0 }
+          scheduled_at: { type: [string, 'null'], format: date-time }
+    CreateAssessment:
+        type: object
+        required: [name, type, subject_id]
+        properties:
+          name: { type: string }
+          type: { type: string, enum: [test, exam, quiz] }
+          subject_id: { type: string, format: uuid }
+          class_id: { type: [string, 'null'], format: uuid }
+          term_id: { type: [string, 'null'], format: uuid }
+          max_score: { type: number, minimum: 0 }
+          scheduled_at: { type: [string, 'null'], format: date-time }
+    Score:
+        type: object
+        required: [id, assessment_id, student_id, score]
+        properties:
+          id: { type: string, format: uuid }
+          assessment_id: { type: string, format: uuid }
+          student_id: { type: string, format: uuid }
+          score: { type: number, minimum: 0 }
+          max_score: { type: [number, 'null'], minimum: 0 }
+          recorded_by: { type: [string, 'null'], format: uuid }
+    CreateScore:
+        type: object
+        required: [student_id, score]
+        properties:
+          student_id: { type: string, format: uuid }
+          score: { type: number, minimum: 0 }
+          max_score: { type: [number, 'null'], minimum: 0 }
+    Assignment:
+        type: object
+        required: [id, tenant_id, title, subject_id]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          title: { type: string }
+          subject_id: { type: string, format: uuid }
+          class_ids: { type: array, items: { type: string, format: uuid } }
+          due_date: { type: [string, 'null'], format: date-time }
+          published_at: { type: [string, 'null'], format: date-time }
+    CreateAssignment:
+        type: object
+        required: [title, subject_id]
+        properties:
+          title: { type: string }
+          subject_id: { type: string, format: uuid }
+          class_ids: { type: array, items: { type: string, format: uuid } }
+          due_date: { type: [string, 'null'], format: date-time }
+    AssessmentList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/Assessment' } }
+          next_cursor: { type: [string, 'null'] }
+    AssignmentList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/Assignment' } }
+          next_cursor: { type: [string, 'null'] }

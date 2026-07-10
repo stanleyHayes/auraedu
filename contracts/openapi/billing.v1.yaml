@@ -1,0 +1,210 @@
+openapi: 3.1.0
+info:
+  title: AuraEDU Billing Service API
+  version: 1.0.0
+  description: >
+    SaaS plans, subscriptions, and invoices (spec \u00a77). Owned by lane L2 (EP-22). Feature flag: billing.
+servers:
+  - url: /api/v1
+tags:
+  - name: plans
+  - name: subscriptions
+  - name: invoices
+
+paths:
+    /plans:
+      get:
+            operationId: listPlans
+            tags: ['plans']
+            summary: List SaaS plans
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/PlanList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /subscriptions:
+      get:
+            operationId: listSubscriptions
+            tags: ['subscriptions']
+            summary: List tenant subscriptions
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/Limit'
+              - $ref: '#/components/parameters/Cursor'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/SubscriptionList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      post:
+            operationId: createSubscription
+            tags: ['subscriptions']
+            summary: Create or update subscription
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/CreateSubscription' }
+            responses:
+              '201':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Subscription' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /saas-invoices:
+      get:
+            operationId: listSaasInvoices
+            tags: ['invoices']
+            summary: List SaaS invoices
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/Limit'
+              - $ref: '#/components/parameters/Cursor'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/SaasInvoiceList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+
+components:
+  parameters:
+    TenantId:
+      name: tenant_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    TenantHeader:
+      name: X-Tenant-Code
+      in: header
+      required: false
+      description: Optional tenant code for resolution when the gateway cannot derive it from the host.
+      schema: { type: string, example: upshs }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, enum: [forbidden, feature_disabled, tenant_mismatch, validation_error, not_found, unauthorized] }
+        message: { type: string }
+        request_id: { type: string }
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: unauthorized, message: "Authentication required" }
+    Forbidden:
+      description: Not permitted (auth, tenant scope, RBAC, or feature disabled)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            forbidden: { value: { code: forbidden, message: "Missing required permission" } }
+            feature_disabled: { value: { code: feature_disabled, message: "Feature not enabled for tenant" } }
+            tenant_mismatch: { value: { code: tenant_mismatch, message: "Resource belongs to another tenant" } }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: not_found, message: "Resource not found" }
+    ValidationError:
+      description: Request failed validation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: validation_error, message: "request body is invalid" }
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
+
+    Plan:
+        type: object
+        required: [id, key, name]
+        properties:
+          id: { type: string, format: uuid }
+          key: { type: string }
+          name: { type: string }
+          features: { type: array, items: { type: string } }
+          price_monthly: { type: [number, 'null'], minimum: 0 }
+    Subscription:
+        type: object
+        required: [id, tenant_id, plan_key, status]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          plan_key: { type: string }
+          status: { type: string, enum: [active, canceled, past_due] }
+          current_period_start: { type: string, format: date-time }
+          current_period_end: { type: string, format: date-time }
+    CreateSubscription:
+        type: object
+        required: [tenant_id, plan_key]
+        properties:
+          tenant_id: { type: string, format: uuid }
+          plan_key: { type: string }
+          billing_email: { type: [string, 'null'], format: email }
+    SaasInvoice:
+        type: object
+        required: [id, tenant_id, amount, status]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          amount: { type: number, minimum: 0 }
+          status: { type: string, enum: [draft, open, paid, void] }
+          due_date: { type: [string, 'null'], format: date }
+    PlanList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/Plan' } }
+          next_cursor: { type: [string, 'null'] }
+    SubscriptionList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/Subscription' } }
+          next_cursor: { type: [string, 'null'] }
+    SaasInvoiceList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/SaasInvoice' } }
+          next_cursor: { type: [string, 'null'] }

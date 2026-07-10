@@ -1,0 +1,231 @@
+openapi: 3.1.0
+info:
+  title: AuraEDU Website Service API
+  version: 1.0.0
+  description: >
+    Public site content, pages, and menus (spec \u00a77). Owned by lane L2 (EP-19). Feature flag: public_website.
+servers:
+  - url: /api/v1
+tags:
+  - name: pages
+  - name: sections
+  - name: menus
+
+paths:
+    /pages:
+      get:
+            operationId: listPages
+            tags: ['pages']
+            summary: List pages
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/Limit'
+              - $ref: '#/components/parameters/Cursor'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/PageList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      post:
+            operationId: createPage
+            tags: ['pages']
+            summary: Create a page
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/CreatePage' }
+            responses:
+              '201':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Page' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /pages/{slug}:
+      get:
+            operationId: getPageBySlug
+            tags: ['pages']
+            summary: Get a public page by slug
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/TenantId'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Page' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /menus:
+      get:
+            operationId: listMenus
+            tags: ['menus']
+            summary: List menus
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/MenuList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      post:
+            operationId: createMenu
+            tags: ['menus']
+            summary: Create a menu
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/CreateMenu' }
+            responses:
+              '201':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Menu' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+
+components:
+  parameters:
+    TenantId:
+      name: tenant_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    TenantHeader:
+      name: X-Tenant-Code
+      in: header
+      required: false
+      description: Optional tenant code for resolution when the gateway cannot derive it from the host.
+      schema: { type: string, example: upshs }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, enum: [forbidden, feature_disabled, tenant_mismatch, validation_error, not_found, unauthorized] }
+        message: { type: string }
+        request_id: { type: string }
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: unauthorized, message: "Authentication required" }
+    Forbidden:
+      description: Not permitted (auth, tenant scope, RBAC, or feature disabled)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            forbidden: { value: { code: forbidden, message: "Missing required permission" } }
+            feature_disabled: { value: { code: feature_disabled, message: "Feature not enabled for tenant" } }
+            tenant_mismatch: { value: { code: tenant_mismatch, message: "Resource belongs to another tenant" } }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: not_found, message: "Resource not found" }
+    ValidationError:
+      description: Request failed validation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: validation_error, message: "request body is invalid" }
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
+
+    Page:
+        type: object
+        required: [id, tenant_id, slug, title]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          slug: { type: string }
+          title: { type: string }
+          sections: { type: array, items: { $ref: '#/components/schemas/Section' } }
+          is_published: { type: boolean }
+          published_at: { type: [string, 'null'], format: date-time }
+    CreatePage:
+        type: object
+        required: [slug, title]
+        properties:
+          slug: { type: string }
+          title: { type: string }
+          sections: { type: array, items: { $ref: '#/components/schemas/Section' } }
+          is_published: { type: boolean, default: false }
+    Section:
+        type: object
+        required: [type]
+        properties:
+          type: { type: string, enum: [hero, text, gallery, call_to_action] }
+          title: { type: [string, 'null'] }
+          content: { type: [string, 'null'] }
+          media: { type: array, items: { type: string } }
+    Menu:
+        type: object
+        required: [id, tenant_id, name]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          name: { type: string }
+          items: { type: array, items: { type: object, properties: { label: { type: string }, url: { type: string }, page_id: { type: [string, 'null'], format: uuid } } } }
+    CreateMenu:
+        type: object
+        required: [name]
+        properties:
+          name: { type: string }
+          items: { type: array, items: { type: object, properties: { label: { type: string }, url: { type: string }, page_id: { type: [string, 'null'], format: uuid } } } }
+    PageList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/Page' } }
+          next_cursor: { type: [string, 'null'] }
+    MenuList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/Menu' } }
+          next_cursor: { type: [string, 'null'] }

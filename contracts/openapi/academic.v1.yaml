@@ -1,0 +1,393 @@
+openapi: 3.1.0
+info:
+  title: AuraEDU Academic Service API
+  version: 1.0.0
+  description: >
+    Academic years, terms, classes, subjects, curriculum, and grading scales (spec \u00a77). Owned by lane L2 (EP-12).
+servers:
+  - url: /api/v1
+tags:
+  - name: academic-years
+  - name: terms
+  - name: classes
+  - name: subjects
+  - name: grading
+
+paths:
+    /academic-years:
+      get:
+            operationId: listAcademicYears
+            tags: ['academic-years']
+            summary: List academic years
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/Limit'
+              - $ref: '#/components/parameters/Cursor'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/AcademicYearList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      post:
+            operationId: createAcademicYear
+            tags: ['academic-years']
+            summary: Create an academic year
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/CreateAcademicYear' }
+            responses:
+              '201':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/AcademicYear' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /terms:
+      get:
+            operationId: listTerms
+            tags: ['terms']
+            summary: List terms
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/Limit'
+              - $ref: '#/components/parameters/Cursor'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/TermList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      post:
+            operationId: createTerm
+            tags: ['terms']
+            summary: Create a term
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/CreateTerm' }
+            responses:
+              '201':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Term' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /classes:
+      get:
+            operationId: listClasses
+            tags: ['classes']
+            summary: List classes
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/Limit'
+              - $ref: '#/components/parameters/Cursor'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/ClassList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      post:
+            operationId: createClass
+            tags: ['classes']
+            summary: Create a class
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/CreateClass' }
+            responses:
+              '201':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Class' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /subjects:
+      get:
+            operationId: listSubjects
+            tags: ['subjects']
+            summary: List subjects
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/Limit'
+              - $ref: '#/components/parameters/Cursor'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/SubjectList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      post:
+            operationId: createSubject
+            tags: ['subjects']
+            summary: Create a subject
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/CreateSubject' }
+            responses:
+              '201':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Subject' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /grading-scales:
+      get:
+            operationId: listGradingScales
+            tags: ['grading']
+            summary: List grading scales
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/GradingScaleList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      post:
+            operationId: createGradingScale
+            tags: ['grading']
+            summary: Create a grading scale
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/CreateGradingScale' }
+            responses:
+              '201':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/GradingScale' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+
+components:
+  parameters:
+    TenantId:
+      name: tenant_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    TenantHeader:
+      name: X-Tenant-Code
+      in: header
+      required: false
+      description: Optional tenant code for resolution when the gateway cannot derive it from the host.
+      schema: { type: string, example: upshs }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, enum: [forbidden, feature_disabled, tenant_mismatch, validation_error, not_found, unauthorized] }
+        message: { type: string }
+        request_id: { type: string }
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: unauthorized, message: "Authentication required" }
+    Forbidden:
+      description: Not permitted (auth, tenant scope, RBAC, or feature disabled)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            forbidden: { value: { code: forbidden, message: "Missing required permission" } }
+            feature_disabled: { value: { code: feature_disabled, message: "Feature not enabled for tenant" } }
+            tenant_mismatch: { value: { code: tenant_mismatch, message: "Resource belongs to another tenant" } }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: not_found, message: "Resource not found" }
+    ValidationError:
+      description: Request failed validation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: validation_error, message: "request body is invalid" }
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
+
+    AcademicYear:
+        type: object
+        required: [id, tenant_id, name, start_date, end_date]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          name: { type: string }
+          start_date: { type: string, format: date }
+          end_date: { type: string, format: date }
+          is_current: { type: boolean }
+    CreateAcademicYear:
+        type: object
+        required: [name, start_date, end_date]
+        properties:
+          name: { type: string }
+          start_date: { type: string, format: date }
+          end_date: { type: string, format: date }
+          is_current: { type: boolean, default: false }
+    Term:
+        type: object
+        required: [id, tenant_id, academic_year_id, name, start_date, end_date]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          academic_year_id: { type: string, format: uuid }
+          name: { type: string }
+          start_date: { type: string, format: date }
+          end_date: { type: string, format: date }
+    CreateTerm:
+        type: object
+        required: [academic_year_id, name, start_date, end_date]
+        properties:
+          academic_year_id: { type: string, format: uuid }
+          name: { type: string }
+          start_date: { type: string, format: date }
+          end_date: { type: string, format: date }
+    Class:
+        type: object
+        required: [id, tenant_id, name, academic_year_id]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          name: { type: string }
+          academic_year_id: { type: string, format: uuid }
+          class_teacher_id: { type: [string, 'null'], format: uuid }
+          capacity: { type: [integer, 'null'] }
+    CreateClass:
+        type: object
+        required: [name, academic_year_id]
+        properties:
+          name: { type: string }
+          academic_year_id: { type: string, format: uuid }
+          class_teacher_id: { type: [string, 'null'], format: uuid }
+          capacity: { type: [integer, 'null'] }
+    Subject:
+        type: object
+        required: [id, tenant_id, name]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          name: { type: string }
+          code: { type: [string, 'null'] }
+          description: { type: [string, 'null'] }
+    CreateSubject:
+        type: object
+        required: [name]
+        properties:
+          name: { type: string }
+          code: { type: [string, 'null'] }
+          description: { type: [string, 'null'] }
+    GradingScale:
+        type: object
+        required: [id, tenant_id, name]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          name: { type: string }
+          ranges: { type: array, items: { type: object, properties: { min: { type: number }, max: { type: number }, grade: { type: string }, remark: { type: string } } } }
+    CreateGradingScale:
+        type: object
+        required: [name]
+        properties:
+          name: { type: string }
+          ranges: { type: array, items: { type: object, properties: { min: { type: number }, max: { type: number }, grade: { type: string }, remark: { type: string } } } }
+    AcademicYearList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/AcademicYear' } }
+          next_cursor: { type: [string, 'null'] }
+    TermList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/Term' } }
+          next_cursor: { type: [string, 'null'] }
+    ClassList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/Class' } }
+          next_cursor: { type: [string, 'null'] }
+    SubjectList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/Subject' } }
+          next_cursor: { type: [string, 'null'] }
+    GradingScaleList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/GradingScale' } }
+          next_cursor: { type: [string, 'null'] }
