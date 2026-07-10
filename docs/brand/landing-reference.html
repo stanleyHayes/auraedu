@@ -1,0 +1,511 @@
+<title>AuraEDU — one platform, every school</title>
+<style>
+  :root {
+    /* Chalkboard & Register — light (chalk paper) */
+    --paper:#F4F5F1; --surface:#FBFCF9; --sunk:#EFF1EB;
+    --ink:#16241D; --ink-2:#48594F; --ink-3:#7C8B82;
+    --rule:#DCE0D8; --rule-2:#CBD1C6;
+    --mark:#C6402F; --mark-deep:#9A2E20; --mark-wash:#F3DED9;
+    --gold:#A9781F;
+    --ok:#2F7D53; --warn:#A9781F;
+
+    --display:"Helvetica Neue",Helvetica,Arial,sans-serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+
+    --r:7px; --r-sm:4px;
+    --edge:1px solid var(--rule);
+    --wrap:1140px;
+    --ease:cubic-bezier(.25,1,.5,1);
+    --shadow:0 1px 0 rgba(22,36,29,.04), 0 18px 40px -28px rgba(22,36,29,.30);
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --paper:#16241D; --surface:#1D2F27; --sunk:#132019;
+      --ink:#EAEDE6; --ink-2:#A6B2AA; --ink-3:#7B897F;
+      --rule:#2B3D34; --rule-2:#34483E;
+      --mark:#E36A54; --mark-deep:#E9836F; --mark-wash:#3A2620;
+      --gold:#D3A44E;
+      --ok:#57B37F; --warn:#D3A44E;
+      --shadow:0 1px 0 rgba(0,0,0,.20), 0 24px 50px -30px rgba(0,0,0,.65);
+    }
+  }
+  :root[data-theme="light"]{
+    --paper:#F4F5F1; --surface:#FBFCF9; --sunk:#EFF1EB;
+    --ink:#16241D; --ink-2:#48594F; --ink-3:#7C8B82;
+    --rule:#DCE0D8; --rule-2:#CBD1C6;
+    --mark:#C6402F; --mark-deep:#9A2E20; --mark-wash:#F3DED9;
+    --gold:#A9781F; --ok:#2F7D53; --warn:#A9781F;
+    --shadow:0 1px 0 rgba(22,36,29,.04), 0 18px 40px -28px rgba(22,36,29,.30);
+  }
+  :root[data-theme="dark"]{
+    --paper:#16241D; --surface:#1D2F27; --sunk:#132019;
+    --ink:#EAEDE6; --ink-2:#A6B2AA; --ink-3:#7B897F;
+    --rule:#2B3D34; --rule-2:#34483E;
+    --mark:#E36A54; --mark-deep:#E9836F; --mark-wash:#3A2620;
+    --gold:#D3A44E; --ok:#57B37F; --warn:#D3A44E;
+    --shadow:0 1px 0 rgba(0,0,0,.20), 0 24px 50px -30px rgba(0,0,0,.65);
+  }
+
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);
+    font-family:var(--sans);font-size:16px;line-height:1.55;
+    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+  .wrap{max-width:var(--wrap);margin:0 auto;padding:0 24px}
+  a{color:inherit;text-decoration:none}
+  h1,h2,h3{margin:0;font-family:var(--display);font-weight:800;
+    letter-spacing:-.02em;line-height:1.02;text-wrap:balance}
+  p{margin:0}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .label{font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--ink-3)}
+  :focus-visible{outline:2px solid var(--mark);outline-offset:3px;border-radius:2px}
+
+  /* ---- eyebrow with red tick (the signature mark) ---- */
+  .eyebrow{display:inline-flex;align-items:center;gap:9px;
+    font-family:var(--mono);font-size:12px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--ink-2)}
+  .eyebrow::before{content:"";width:15px;height:11px;flex:none;
+    background:var(--mark);
+    -webkit-mask:var(--tick) center/contain no-repeat;mask:var(--tick) center/contain no-repeat;}
+  :root{--tick:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 12'%3E%3Cpath d='M1 6.5 5.2 10.5 15 1' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")}
+
+  /* ---- buttons ---- */
+  .btn{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 20px;
+    border-radius:var(--r-sm);font-family:var(--sans);font-weight:700;font-size:14.5px;
+    border:var(--edge);background:transparent;color:var(--ink);cursor:pointer;
+    transition:transform .12s var(--ease),background .18s,border-color .18s}
+  .btn:hover{transform:translateY(-1px)}
+  .btn--mark{background:var(--mark);border-color:var(--mark);color:#fff}
+  .btn--mark:hover{background:var(--mark-deep);border-color:var(--mark-deep)}
+  .btn--ghost:hover{background:var(--sunk);border-color:var(--rule-2)}
+
+  /* ---- top bar ---- */
+  .topbar{position:sticky;top:0;z-index:20;background:color-mix(in oklab,var(--paper) 88%,transparent);
+    backdrop-filter:blur(10px);border-bottom:var(--edge)}
+  .topbar__in{display:flex;align-items:center;gap:20px;height:64px}
+  .brand{display:flex;align-items:center;gap:10px;font-family:var(--display);
+    font-weight:800;font-size:20px;letter-spacing:-.02em}
+  .brand .glyph{width:26px;height:26px;border-radius:6px;background:var(--ink);
+    display:grid;place-items:center;flex:none}
+  .brand .glyph::after{content:"";width:14px;height:10px;background:var(--mark);
+    -webkit-mask:var(--tick) center/contain no-repeat;mask:var(--tick) center/contain no-repeat}
+  .nav{display:flex;gap:26px;margin-left:14px}
+  .nav a{font-size:14.5px;color:var(--ink-2);padding:4px 0;position:relative}
+  .nav a:hover{color:var(--ink)}
+  .spacer{flex:1}
+  .toggle{width:44px;height:44px;border:var(--edge);border-radius:var(--r-sm);
+    background:transparent;color:var(--ink);cursor:pointer;display:grid;place-items:center}
+  .toggle:hover{background:var(--sunk)}
+  @media(max-width:820px){.nav{display:none}}
+
+  /* ---- hero ---- */
+  .hero{padding:74px 0 40px}
+  .hero__grid{display:grid;grid-template-columns:1.04fr .96fr;gap:56px;align-items:center}
+  .hero h1{font-size:clamp(40px,6.2vw,68px);margin:20px 0 0}
+  .hero h1 em{font-style:normal;color:var(--mark);
+    box-shadow:inset 0 -.09em 0 var(--mark-wash)}
+  .hero__sub{margin-top:22px;font-size:18.5px;line-height:1.5;color:var(--ink-2);max-width:33ch}
+  .hero__cta{display:flex;gap:12px;margin-top:30px;flex-wrap:wrap}
+  .hero__trust{margin-top:26px;display:flex;align-items:center;gap:12px;color:var(--ink-3)}
+  .hero__trust .dot{width:4px;height:4px;border-radius:50%;background:var(--ink-3)}
+  @media(max-width:900px){.hero__grid{grid-template-columns:1fr;gap:40px}.hero{padding:48px 0 24px}}
+
+  /* ---- the living register (hero signature) ---- */
+  .register{background:var(--surface);border:var(--edge);border-radius:var(--r);
+    box-shadow:var(--shadow);overflow:hidden;position:relative}
+  .register::before{content:"";position:absolute;left:52px;top:0;bottom:0;width:1px;background:var(--rule);opacity:.7}
+  .register__head{display:flex;justify-content:space-between;align-items:center;
+    padding:15px 18px;border-bottom:2px solid var(--ink);background:var(--sunk)}
+  .register__head .label{color:var(--ink)}
+  .register__rows{list-style:none;margin:0;padding:0}
+  .reg-row{display:grid;grid-template-columns:52px 1fr auto;align-items:center;
+    height:46px;padding-right:16px;border-bottom:1px solid var(--rule)}
+  .reg-no{font-family:var(--mono);font-size:12px;color:var(--ink-3);text-align:center}
+  .reg-name{font-size:15px;font-weight:500}
+  .reg-mark{width:22px;height:22px;border:1.5px solid var(--rule-2);border-radius:4px;
+    display:grid;place-items:center;background:var(--paper)}
+  .reg-mark svg{width:14px;height:11px;display:block}
+  .reg-mark svg path{fill:none;stroke:var(--mark);stroke-width:2.4;stroke-linecap:round;
+    stroke-linejoin:round;stroke-dasharray:22;stroke-dashoffset:22}
+  .reg-row[data-state="present"] .reg-mark{border-color:var(--mark)}
+  .reg-row.is-ticked .reg-mark svg path{stroke-dashoffset:0;transition:stroke-dashoffset .42s var(--ease)}
+  .reg-row[data-state="absent"] .reg-mark{border-color:var(--rule-2)}
+  .reg-row[data-state="absent"] .reg-mark::after{content:"";width:9px;height:2px;background:var(--ink-3);border-radius:2px}
+  .reg-row[data-state="absent"] .reg-name{color:var(--ink-3)}
+  .register__foot{display:flex;justify-content:space-between;align-items:center;
+    padding:14px 18px;border-top:2px solid var(--ink);background:var(--sunk)}
+  .register__foot .count{font-family:var(--mono);font-size:14px}
+  .register__foot .count b{font-size:19px;color:var(--mark)}
+
+  /* ---- section frame ---- */
+  section{padding:64px 0}
+  .sechead{display:flex;flex-direction:column;gap:14px;margin-bottom:34px}
+  .sechead h2{font-size:clamp(26px,3.6vw,38px)}
+  .sechead p{color:var(--ink-2);font-size:17px;max-width:56ch}
+  .rule-top{border-top:var(--edge)}
+
+  /* ---- multi-tenant band ---- */
+  .tenants__grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  .school{--accent:var(--mark);background:var(--surface);border:var(--edge);
+    border-radius:var(--r);padding:18px;box-shadow:var(--shadow)}
+  .school__top{display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px solid var(--rule)}
+  .crest{width:38px;height:38px;border-radius:8px;flex:none;display:grid;place-items:center;
+    font-family:var(--display);font-weight:800;font-size:14px;color:#fff;background:var(--accent);letter-spacing:-.02em}
+  .school__name{font-weight:700;font-size:15px;line-height:1.2}
+  .school__code{font-family:var(--mono);font-size:11.5px;color:var(--ink-3);margin-top:2px}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px}
+  .chip{font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:5px 9px;border-radius:20px;
+    border:1px solid color-mix(in oklab,var(--accent) 34%,var(--rule));
+    color:var(--accent);background:color-mix(in oklab,var(--accent) 8%,var(--surface))}
+  .chip--off{color:var(--ink-3);border-color:var(--rule);background:transparent}
+  .school__active{display:flex;align-items:center;gap:8px;margin-top:15px;font-size:13px;color:var(--ink-2)}
+  .school__active .tk{width:15px;height:11px;background:var(--accent);
+    -webkit-mask:var(--tick) center/contain no-repeat;mask:var(--tick) center/contain no-repeat}
+  @media(max-width:840px){.tenants__grid{grid-template-columns:1fr}}
+
+  /* ---- modules as a register ---- */
+  .modreg{border:var(--edge);border-radius:var(--r);overflow:hidden;background:var(--surface)}
+  .modreg__row{display:grid;grid-template-columns:200px 1fr 88px;gap:16px;align-items:center;
+    padding:15px 20px;border-bottom:1px solid var(--rule)}
+  .modreg__row:last-child{border-bottom:0}
+  .modreg__row:hover{background:var(--sunk)}
+  .modreg__key{font-family:var(--mono);font-size:13px;color:var(--ink)}
+  .modreg__name{font-weight:600;font-size:15px}
+  .modreg__desc{color:var(--ink-2);font-size:14px;margin-top:1px}
+  .state{justify-self:end;display:inline-flex;align-items:center;gap:7px;
+    font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+  .state--on{color:var(--mark)}
+  .state--on .tk{width:14px;height:10px;background:var(--mark);
+    -webkit-mask:var(--tick) center/contain no-repeat;mask:var(--tick) center/contain no-repeat}
+  .state--off{color:var(--ink-3)}
+  .state--off .tk{width:10px;height:2px;background:var(--ink-3);border-radius:2px}
+  @media(max-width:720px){.modreg__row{grid-template-columns:1fr auto}.modreg__desc{display:none}}
+
+  /* ---- product peek (the app shell) ---- */
+  .peek{display:grid;grid-template-columns:236px 1fr;border:var(--edge);border-radius:var(--r);
+    overflow:hidden;box-shadow:var(--shadow);background:var(--surface);min-height:340px}
+  .side{background:var(--sunk);border-right:var(--edge);padding:16px 0}
+  .side__brand{display:flex;align-items:center;gap:9px;padding:4px 18px 16px;
+    font-family:var(--display);font-weight:800;font-size:16px}
+  .side__brand .glyph{width:22px;height:22px;border-radius:5px;background:var(--ink);display:grid;place-items:center;flex:none}
+  .side__brand .glyph::after{content:"";width:12px;height:9px;background:var(--mark);-webkit-mask:var(--tick) center/contain no-repeat;mask:var(--tick) center/contain no-repeat}
+  .grp{padding:10px 0 2px}
+  .grp__h{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-3);padding:6px 18px}
+  .navi{position:relative;display:flex;align-items:center;gap:10px;height:38px;padding-left:40px;
+    font-size:13.5px;color:var(--ink-2)}
+  .navi svg.conn{position:absolute;left:18px;top:0;height:100%;width:20px;color:var(--rule-2)}
+  .navi.active{color:var(--mark);font-weight:600}
+  .navi.active svg.conn{color:var(--mark)}
+  .navi.active::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:3px;
+    background:var(--mark);border-radius:0 3px 3px 0}
+  .navi .tk{width:13px;height:10px;background:currentColor;-webkit-mask:var(--tick) center/contain no-repeat;mask:var(--tick) center/contain no-repeat;opacity:0}
+  .navi.active .tk{opacity:1}
+  .panel{padding:26px 28px}
+  .pagehead{display:flex;gap:14px;align-items:flex-start}
+  .pagehead__ic{width:44px;height:44px;border-radius:10px;flex:none;display:grid;place-items:center;
+    background:var(--mark-wash);color:var(--mark)}
+  .pagehead h3{font-size:22px}
+  .pagehead p{color:var(--ink-2);font-size:14.5px;margin-top:4px}
+  .stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:22px}
+  .stat{border:var(--edge);border-radius:var(--r-sm);padding:14px}
+  .stat .k{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+  .stat .v{font-family:var(--display);font-weight:800;font-size:26px;margin-top:6px;letter-spacing:-.02em}
+  .stat .v small{font-size:14px;color:var(--ink-3);font-weight:700}
+  @media(max-width:760px){.peek{grid-template-columns:1fr}.side{display:none}}
+
+  /* ---- roles ---- */
+  .roles__grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .role{border:var(--edge);border-radius:var(--r);padding:18px;background:var(--surface)}
+  .role h3{font-family:var(--sans);font-weight:700;font-size:16px;letter-spacing:0}
+  .role p{color:var(--ink-2);font-size:13.5px;margin-top:6px}
+  .role .plat{margin-top:14px;display:inline-flex;gap:6px;font-family:var(--mono);font-size:10.5px;
+    letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+  .role .plat b{color:var(--ok);font-weight:700}
+  @media(max-width:860px){.roles__grid{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:480px){.roles__grid{grid-template-columns:1fr}}
+
+  /* ---- closing CTA ---- */
+  .cta{background:var(--ink);color:#EAEDE6;border-radius:var(--r);margin:0 24px;
+    padding:56px;text-align:left;position:relative;overflow:hidden}
+  .cta .wrap2{max-width:var(--wrap);margin:0 auto}
+  .cta h2{font-size:clamp(30px,4.4vw,46px);max-width:18ch}
+  .cta p{color:#A6B2AA;margin-top:16px;font-size:16px;max-width:46ch}
+  .cta__row{display:flex;gap:12px;margin-top:28px;flex-wrap:wrap}
+  .cta .btn--ghost{color:#EAEDE6;border-color:#34483E}
+  .cta .btn--ghost:hover{background:#1D2F27;border-color:#43594d}
+  .cta__note{margin-top:26px;color:#7B897F;font-size:12.5px}
+
+  footer{padding:40px 0 56px}
+  .foot{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;
+    border-top:var(--edge);padding-top:26px;color:var(--ink-3);font-size:13px}
+  .foot__nav{display:flex;gap:22px}
+  .foot__nav a:hover{color:var(--ink)}
+
+  .reveal{opacity:0;transform:translateY(14px)}
+  .reveal.in{opacity:1;transform:none;transition:opacity .6s var(--ease),transform .6s var(--ease)}
+
+  @media(prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important}
+    .reveal{opacity:1;transform:none}
+    .reg-row .reg-mark svg path{stroke-dashoffset:0}
+  }
+</style>
+
+<div class="page">
+  <header class="topbar">
+    <div class="wrap topbar__in">
+      <a class="brand" href="#top" aria-label="AuraEDU home"><span class="glyph" aria-hidden="true"></span>AuraEDU</a>
+      <nav class="nav" aria-label="Primary">
+        <a href="#product">Product</a>
+        <a href="#schools">Schools</a>
+        <a href="#modules">Modules</a>
+        <a href="#roles">Who it's for</a>
+      </nav>
+      <span class="spacer"></span>
+      <button class="toggle" id="themeBtn" aria-label="Switch theme" aria-pressed="false" title="Switch light / dark">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg>
+      </button>
+      <a class="btn btn--mark" href="#join">Sign up your school</a>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- HERO: the school's daily ritual, digitised -->
+    <section class="hero">
+      <div class="wrap hero__grid">
+        <div class="hero__copy">
+          <span class="eyebrow">School operating system · Ghana</span>
+          <h1>Every student<br>accounted for. <em>Every school</em>, one platform.</h1>
+          <p class="hero__sub">AuraEDU runs the whole school — admissions, registers, results, report cards and fees — for many schools at once. Each keeps its own brand, its own data, and only the features it needs.</p>
+          <div class="hero__cta">
+            <a class="btn btn--mark" href="#join">Sign up your school</a>
+            <a class="btn btn--ghost" href="#product">See a live school</a>
+          </div>
+          <div class="hero__trust mono label">
+            <span>UPSHS</span><span class="dot" aria-hidden="true"></span>
+            <span>Aboom AME Zion C</span><span class="dot" aria-hidden="true"></span>
+            <span>+ new schools weekly</span>
+          </div>
+        </div>
+
+        <div class="register" id="register" aria-label="Attendance register — Form 2 Science, today">
+          <div class="register__head">
+            <span class="label">Attendance · Form 2 Science</span>
+            <span class="mono label">Mon 10 Jul</span>
+          </div>
+          <ol class="register__rows" id="regRows"></ol>
+          <div class="register__foot">
+            <span class="label">Present today</span>
+            <span class="count"><b id="presentCount">0</b> / 36</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MULTI-TENANT: one platform, every school its own -->
+    <section id="schools" class="rule-top">
+      <div class="wrap">
+        <div class="sechead">
+          <span class="eyebrow">One codebase · many schools</span>
+          <h2>The same system, wearing each school's colours.</h2>
+          <p>No school gets a separate app. Branding, academic structure, grading and enabled features are configuration — so a new school is onboarded, not rebuilt. Data stays isolated, tenant by tenant.</p>
+        </div>
+        <div class="tenants__grid">
+          <div class="school" style="--accent:#7B1113">
+            <div class="school__top"><span class="crest">UP</span>
+              <div><div class="school__name">University Practice SHS</div><div class="school__code mono">upshs · Senior High</div></div></div>
+            <div class="chips"><span class="chip">attendance</span><span class="chip">assessments</span><span class="chip">fees</span><span class="chip">ai_recommendations</span><span class="chip chip--off">library</span></div>
+            <div class="school__active"><span class="tk" aria-hidden="true"></span>AI recommendations enabled</div>
+          </div>
+          <div class="school" style="--accent:#1E7D52">
+            <div class="school__top"><span class="crest">AZ</span>
+              <div><div class="school__name">Aboom AME Zion C Basic</div><div class="school__code mono">aboom-ame-zion-c · Basic</div></div></div>
+            <div class="chips"><span class="chip">attendance</span><span class="chip">report_cards</span><span class="chip">announcements</span><span class="chip chip--off">cbt_exams</span><span class="chip chip--off">payments</span></div>
+            <div class="school__active"><span class="tk" aria-hidden="true"></span>Report cards enabled</div>
+          </div>
+          <div class="school" style="--accent:#2456A6">
+            <div class="school__top"><span class="crest">CC</span>
+              <div><div class="school__name">Cape Coast Prep</div><div class="school__code mono">cape-coast-prep · Basic</div></div></div>
+            <div class="chips"><span class="chip">admissions</span><span class="chip">fees</span><span class="chip">online_payments</span><span class="chip chip--off">hostel</span></div>
+            <div class="school__active"><span class="tk" aria-hidden="true"></span>Online payments enabled</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MODULES as a register of what's switched on -->
+    <section id="modules" class="rule-top">
+      <div class="wrap">
+        <div class="sechead">
+          <span class="eyebrow">Features toggle per school</span>
+          <h2>A register of everything a school can switch on.</h2>
+          <p>Each module is an independent feature flag. Turn it on and it appears in the portal, the API and the reports; leave it off and it stays out of the way. Shown below: UPSHS.</p>
+        </div>
+        <div class="modreg reveal">
+          <div class="modreg__row"><div class="modreg__key">admissions</div><div><div class="modreg__name">Admissions</div><div class="modreg__desc">Applications, offers and enrolment</div></div><span class="state state--on"><span class="tk" aria-hidden="true"></span>On</span></div>
+          <div class="modreg__row"><div class="modreg__key">attendance</div><div><div class="modreg__name">Attendance</div><div class="modreg__desc">Daily and per-subject registers</div></div><span class="state state--on"><span class="tk" aria-hidden="true"></span>On</span></div>
+          <div class="modreg__row"><div class="modreg__key">assessments</div><div><div class="modreg__name">Assessments</div><div class="modreg__desc">Tests, exams and recorded scores</div></div><span class="state state--on"><span class="tk" aria-hidden="true"></span>On</span></div>
+          <div class="modreg__row"><div class="modreg__key">report_cards</div><div><div class="modreg__name">Report cards</div><div class="modreg__desc">Termly reports and transcripts, as PDF</div></div><span class="state state--on"><span class="tk" aria-hidden="true"></span>On</span></div>
+          <div class="modreg__row"><div class="modreg__key">fees</div><div><div class="modreg__name">Fees &amp; payments</div><div class="modreg__desc">Invoices, balances and receipts</div></div><span class="state state--on"><span class="tk" aria-hidden="true"></span>On</span></div>
+          <div class="modreg__row"><div class="modreg__key">ai_recommendations</div><div><div class="modreg__name">AI recommendations</div><div class="modreg__desc">Learning suggestions a teacher approves first</div></div><span class="state state--on"><span class="tk" aria-hidden="true"></span>On</span></div>
+          <div class="modreg__row"><div class="modreg__key">library</div><div><div class="modreg__name">Library</div><div class="modreg__desc">Catalogue and lending</div></div><span class="state state--off"><span class="tk" aria-hidden="true"></span>Off</span></div>
+          <div class="modreg__row"><div class="modreg__key">hostel</div><div><div class="modreg__name">Hostel</div><div class="modreg__desc">Boarding house and room allocation</div></div><span class="state state--off"><span class="tk" aria-hidden="true"></span>Off</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PRODUCT PEEK: the chalkboard shell + red-tick active nav + connector threads -->
+    <section id="product" class="rule-top">
+      <div class="wrap">
+        <div class="sechead">
+          <span class="eyebrow">Inside the portal</span>
+          <h2>Built like the room it runs.</h2>
+          <p>A grouped, threaded sidebar; the current page marked with a red tick; the summary before the detail. Themed to the school on every screen.</p>
+        </div>
+        <div class="peek reveal">
+          <aside class="side" aria-label="Example navigation">
+            <div class="side__brand"><span class="glyph" aria-hidden="true"></span>UPSHS</div>
+            <div class="grp"><div class="grp__h">People</div>
+              <div class="navi"><svg class="conn" viewBox="0 0 24 40" preserveAspectRatio="none" aria-hidden="true"><path d="M7 0V40M7 23q0 0 6 0h4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Students</div>
+              <div class="navi"><svg class="conn" viewBox="0 0 24 40" preserveAspectRatio="none" aria-hidden="true"><path d="M7 0V23q0 6 6 6h4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Staff</div>
+            </div>
+            <div class="grp"><div class="grp__h">Teaching</div>
+              <div class="navi active"><svg class="conn" viewBox="0 0 24 40" preserveAspectRatio="none" aria-hidden="true"><path d="M7 0V40M7 23q0 0 6 0h4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Attendance<span class="tk" aria-hidden="true" style="margin-left:auto;margin-right:14px"></span></div>
+              <div class="navi"><svg class="conn" viewBox="0 0 24 40" preserveAspectRatio="none" aria-hidden="true"><path d="M7 0V40M7 23q0 0 6 0h4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Assessments</div>
+              <div class="navi"><svg class="conn" viewBox="0 0 24 40" preserveAspectRatio="none" aria-hidden="true"><path d="M7 0V23q0 6 6 6h4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Report cards</div>
+            </div>
+            <div class="grp"><div class="grp__h">Money</div>
+              <div class="navi"><svg class="conn" viewBox="0 0 24 40" preserveAspectRatio="none" aria-hidden="true"><path d="M7 0V23q0 6 6 6h4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Fees</div>
+            </div>
+          </aside>
+          <div class="panel">
+            <div class="pagehead">
+              <span class="pagehead__ic" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+              <div><h3>Take the register</h3><p>Mark today's attendance for Form 2 Science, then publish to parents.</p></div>
+            </div>
+            <div class="stat-row">
+              <div class="stat"><div class="k">Present now</div><div class="v">34<small> / 36</small></div></div>
+              <div class="stat"><div class="k">Term average</div><div class="v">96.4<small>%</small></div></div>
+              <div class="stat"><div class="k">Flagged</div><div class="v" style="color:var(--warn)">2<small> absences</small></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ROLES -->
+    <section id="roles" class="rule-top">
+      <div class="wrap">
+        <div class="sechead">
+          <span class="eyebrow">Who it's for</span>
+          <h2>Everyone at the school, on the right screen.</h2>
+          <p>Teachers, parents and students get both web and a mobile app. Administrators run the school from the web console.</p>
+        </div>
+        <div class="roles__grid">
+          <div class="role"><h3>School admin</h3><p>Onboarding, staff, academic structure, fees and settings.</p><span class="plat">Web</span></div>
+          <div class="role"><h3>Teacher</h3><p>Registers, scores, assignments and approving AI suggestions.</p><span class="plat">Web <b>+ Mobile</b></span></div>
+          <div class="role"><h3>Parent</h3><p>Attendance, results, report cards, invoices and payments.</p><span class="plat">Web <b>+ Mobile</b></span></div>
+          <div class="role"><h3>Student</h3><p>Timetable, assignments, results and recommendations.</p><span class="plat">Web <b>+ Mobile</b></span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CLOSING -->
+    <section id="join" style="padding-bottom:0">
+      <div class="cta">
+        <div class="wrap2">
+          <span class="eyebrow" style="color:#A6B2AA">Onboard in a day</span>
+          <h2 style="margin-top:14px">Bring your school onto AuraEDU.</h2>
+          <p>Create the school, choose a plan, switch on the features you need, upload your logo and colours, import students and staff — then go live.</p>
+          <div class="cta__row">
+            <a class="btn btn--mark" href="#top">Sign up your school</a>
+            <a class="btn btn--ghost" href="#top">Book a walkthrough</a>
+          </div>
+          <p class="cta__note mono">Built for Ghanaian schools · Tenant-isolated data · Features you control</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap foot">
+      <span class="brand" style="font-size:16px"><span class="glyph" aria-hidden="true"></span>AuraEDU</span>
+      <nav class="foot__nav" aria-label="Footer"><a href="#product">Product</a><a href="#schools">Schools</a><a href="#modules">Modules</a><a href="#roles">Roles</a></nav>
+      <span class="mono">© 2026 · One platform, every school</span>
+    </div>
+  </footer>
+</div>
+
+<script>
+(function(){
+  var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // Theme toggle — persists in-session; uses View Transition circular reveal where supported.
+  var root = document.documentElement, btn = document.getElementById("themeBtn");
+  function current(){ return root.getAttribute("data-theme") ||
+    (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); }
+  function apply(t){ root.setAttribute("data-theme", t);
+    btn.setAttribute("aria-pressed", String(t==="dark")); }
+  apply(current());
+  btn.addEventListener("click", function(e){
+    var next = current()==="dark" ? "light" : "dark";
+    if (document.startViewTransition && !reduce){
+      root.style.setProperty("--rx", e.clientX+"px"); root.style.setProperty("--ry", e.clientY+"px");
+      document.startViewTransition(function(){ apply(next); });
+    } else { apply(next); }
+  });
+
+  // Build the living register and tick names in on load.
+  var names = ["Ama Owusu","Kwame Mensah","Efua Sarpong","Yaw Boateng",
+               "Adjoa Nyarko","Kojo Amaning","Abena Darko","Kofi Asante"];
+  var absent = 5; // one pupil marked absent
+  var rows = document.getElementById("regRows");
+  var checkSVG = '<svg viewBox="0 0 16 12" aria-hidden="true"><path d="M1 6.5 5.2 10.5 15 1"/></svg>';
+  names.forEach(function(n,i){
+    var li = document.createElement("li");
+    li.className = "reg-row";
+    li.setAttribute("data-state", i===absent ? "absent" : "present");
+    li.innerHTML = '<span class="reg-no">'+String(i+1).padStart(2,"0")+
+      '</span><span class="reg-name">'+n+'</span><span class="reg-mark">'+
+      (i===absent ? "" : checkSVG)+'</span>';
+    rows.appendChild(li);
+  });
+  var present = rows.querySelectorAll('.reg-row[data-state="present"]');
+  var counter = document.getElementById("presentCount");
+  if (reduce){
+    present.forEach(function(r){ r.classList.add("is-ticked"); });
+    counter.textContent = "34";
+  } else {
+    present.forEach(function(r,i){ setTimeout(function(){ r.classList.add("is-ticked"); }, 300 + i*130); });
+    var end = 34, t0 = 300 + present.length*130, dur = 900;
+    setTimeout(function(){
+      var s = performance.now();
+      (function step(now){
+        var p = Math.min(1,(now-s)/dur);
+        counter.textContent = Math.round(p*end);
+        if (p<1) requestAnimationFrame(step);
+      })(performance.now());
+    }, t0);
+  }
+
+  // Scroll reveals.
+  if (!reduce && "IntersectionObserver" in window){
+    var io = new IntersectionObserver(function(es){
+      es.forEach(function(en){ if(en.isIntersecting){ en.target.classList.add("in"); io.unobserve(en.target); } });
+    }, {threshold:.16, rootMargin:"0px 0px -8% 0px"});
+    document.querySelectorAll(".reveal").forEach(function(el){ io.observe(el); });
+  } else {
+    document.querySelectorAll(".reveal").forEach(function(el){ el.classList.add("in"); });
+  }
+})();
+</script>
+
+<style>
+  /* View-transition circular reveal for the theme toggle (progressive enhancement). */
+  ::view-transition-old(root){ animation:none }
+  ::view-transition-new(root){ animation:vt .42s var(--ease) }
+  @keyframes vt{ from{ clip-path:circle(0 at var(--rx,50%) var(--ry,0)) } to{ clip-path:circle(150vmax at var(--rx,50%) var(--ry,0)) } }
+  @media(prefers-reduced-motion:reduce){ ::view-transition-new(root){ animation:none } }
+</style>

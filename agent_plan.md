@@ -9,7 +9,7 @@
 > This is the single source of truth for *how the work is decomposed and sequenced*.
 > The spec says **what** to build. This plan says **who builds what, in what order, against which contracts, and how to avoid stepping on each other.**
 >
-> **Companion docs:** [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md) — the mandatory UI/UX + animation spec for all frontend work (theming, sidebar, tour, theme toggle, menus, motion), distilled from the `aura` and `uposa` reference apps. Frontend agents (L4) build to it.
+> **Companion docs:** [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md) — the mandatory UI/UX + animation spec (theming, sidebar, tour, theme toggle, menus, motion). [`BRAND.md`](BRAND.md) — the AuraEDU visual identity, *Chalkboard & Register* (colour, type, the red-tick signature, per-tenant re-skin rule). Frontend agents (L4/L7) build to both.
 
 ---
 

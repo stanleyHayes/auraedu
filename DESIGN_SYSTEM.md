@@ -2,6 +2,7 @@
 
 **Version:** 1.0
 **Status:** Mandatory for all frontend work (EP-06 Web Shell, EP-46 Design System, EP-40–EP-45 portals)
+**Visual identity:** [`BRAND.md`](BRAND.md) — *Chalkboard & Register*. That doc is the character (colour/type/signature); this doc is the mechanics. The token defaults below are the AuraEDU identity (chalkboard-green neutrals + red-pen accent); tenants override the accent only.
 **Distilled from two shipping reference codebases:** `aura` (Ashesi "AURA" Classroom Booking System — Next.js 16 + Tailwind v4 + shadcn/Radix, pure-CSS motion) and `uposa` (UPOSA alumni monorepo — Vite/React + Tailwind v4 + Framer Motion + daisyUI).
 
 > **Why this document exists.** Both reference apps independently arrived at the *same* signature UX: a View-Transitions circular theme reveal, a bespoke spotlight product tour driven by `data-tour` attributes, Web-Speech-API page narration, rich icon+title+description dropdown rows, a collapsible grouped sidebar with tree-connector lines and persisted state, skeletons instead of spinners, and reduced-motion honoured everywhere. That convergence is the strongest possible signal that these are the **AuraEDU house style**. This spec makes them mandatory and shows how to build each one — **re-skinned per tenant**, which is the one thing neither reference app had to solve.
@@ -157,19 +158,19 @@ Author in Tailwind v4 `@theme` (`packages/ui/src/styles/tokens.css`). Use **OKLC
   --text-xs: 0.75rem; /* … */ --text-4xl: 2.25rem; --text-5xl: 3.25rem;
   --radius-sm: 0.375rem; --radius-lg: 0.625rem; --radius-2xl: 1.5rem;
 
-  /* Brand slots — DEFAULTS; Layer-3 overrides per tenant */
-  --brand:        oklch(0.55 0.13 255);   /* neutral default until a tenant loads */
-  --brand-dark:   oklch(0.46 0.12 255);
-  --brand-tint:   oklch(0.93 0.03 255);
-  --brand-contrast: oklch(0.985 0 0);
+  /* Brand slots — AuraEDU DEFAULT = the red marking pen (BRAND.md §2); Layer-3 overrides per tenant */
+  --brand:        oklch(0.548 0.165 33);   /* #C6402F red pen — default action colour */
+  --brand-dark:   oklch(0.455 0.155 32);   /* #9A2E20 */
+  --brand-tint:   oklch(0.905 0.045 30);   /* #F3DED9 */
+  --brand-contrast: oklch(0.99 0 0);
 
-  /* Warm ink neutrals (text) */
-  --color-ink-50: oklch(0.97 0.004 60); /* … */ --color-ink-950: oklch(0.252 0.006 45);
-  /* Warm paper neutrals (surfaces) */
-  --color-paper-50: oklch(0.988 0.003 106); /* app bg */
-  --color-paper-300: oklch(0.90 0.004 80);  /* border */
-  --color-paper-600: oklch(0.55 0.006 60);  /* muted text */
-  --color-paper-950: oklch(0.20 0.006 60);
+  /* Chalkboard-GREEN-biased ink neutrals (text) — the constant AuraEDU character (BRAND.md §2) */
+  --color-ink-50: oklch(0.96 0.006 150); /* … */ --color-ink-950: oklch(0.255 0.02 155); /* #16241D */
+  /* Cool chalk-paper neutrals (surfaces) — NOT warm cream */
+  --color-paper-50: oklch(0.968 0.004 140); /* #F4F5F1 app bg */
+  --color-paper-300: oklch(0.89 0.006 140); /* #DCE0D8 ruled lines/border */
+  --color-paper-600: oklch(0.56 0.012 150); /* muted text */
+  --color-paper-950: oklch(0.255 0.02 155); /* #16241D the board (dark bg) */
 
   /* Status — kept DISTINCT from brand so approved/pending/rejected never read as brand */
   --color-success: oklch(0.525 0.11 159);
