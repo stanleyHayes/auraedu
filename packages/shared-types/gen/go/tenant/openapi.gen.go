@@ -9,27 +9,33 @@ import (
 
 // Tenant generated from OpenAPI schema.
 type Tenant struct {
-	Id         string  `json:"id"`
-	TenantCode string  `json:"tenant_code"`
-	Name       string  `json:"name"`
-	Status     string  `json:"status"`
-	Domain     *string `json:"domain,omitempty"`
-	Branding   *struct {
-		LogoUrl *string `json:"logo_url,omitempty"`
-		Brand   *struct {
-			Primary   *string `json:"primary,omitempty"`
-			Secondary *string `json:"secondary,omitempty"`
-		} `json:"brand,omitempty"`
-	} `json:"branding,omitempty"`
-	CreatedAt *string `json:"created_at,omitempty"`
-	UpdatedAt *string `json:"updated_at,omitempty"`
+	TenantCode string    `json:"tenant_code"`
+	Name       string    `json:"name"`
+	Short      *string   `json:"short,omitempty"`
+	Status     string    `json:"status"`
+	Domain     *string   `json:"domain,omitempty"`
+	Plan       *string   `json:"plan,omitempty"`
+	Branding   *Branding `json:"branding,omitempty"`
 }
 
-// CreateTenant generated from OpenAPI schema.
-type CreateTenant struct {
-	TenantCode string  `json:"tenant_code"`
-	Name       string  `json:"name"`
-	Plan       *string `json:"plan,omitempty"`
+// TenantCreate generated from OpenAPI schema.
+type TenantCreate struct {
+	TenantCode string    `json:"tenant_code"`
+	Name       string    `json:"name"`
+	Short      *string   `json:"short,omitempty"`
+	Status     *string   `json:"status,omitempty"`
+	Domain     *string   `json:"domain,omitempty"`
+	Plan       *string   `json:"plan,omitempty"`
+	Branding   *Branding `json:"branding,omitempty"`
+}
+
+// Branding generated from OpenAPI schema.
+type Branding struct {
+	LogoUrl *string `json:"logo_url,omitempty"`
+	Brand   *struct {
+		Primary   *string `json:"primary,omitempty"`
+		Secondary *string `json:"secondary,omitempty"`
+	} `json:"brand,omitempty"`
 }
 
 // FeatureFlag generated from OpenAPI schema.
@@ -38,6 +44,14 @@ type FeatureFlag struct {
 	IsEnabled    bool                    `json:"is_enabled"`
 	PlanRequired *string                 `json:"plan_required,omitempty"`
 	Config       *map[string]interface{} `json:"config,omitempty"`
+	Rollout      *RolloutConfig          `json:"rollout,omitempty"`
+}
+
+// RolloutConfig generated from OpenAPI schema.
+type RolloutConfig struct {
+	Percentage *int    `json:"percentage,omitempty"`
+	UpdatedBy  *string `json:"updated_by,omitempty"`
+	Reason     *string `json:"reason,omitempty"`
 }
 
 // ServerInterface is implemented by the service HTTP adapter.
@@ -45,7 +59,11 @@ type ServerInterface interface {
 	listTenants(w http.ResponseWriter, r *http.Request)
 	createTenant(w http.ResponseWriter, r *http.Request)
 	getTenant(w http.ResponseWriter, r *http.Request)
+	getBranding(w http.ResponseWriter, r *http.Request)
+	resolveTenant(w http.ResponseWriter, r *http.Request)
 	getFeatureSnapshot(w http.ResponseWriter, r *http.Request)
+	setFeature(w http.ResponseWriter, r *http.Request)
+	superAdminFeatureOverride(w http.ResponseWriter, r *http.Request)
 }
 
 // ClientInterface is the generated consumer stub for this service.
@@ -53,5 +71,9 @@ type ClientInterface interface {
 	listTenants(ctx context.Context) (*http.Response, error)
 	createTenant(ctx context.Context) (*http.Response, error)
 	getTenant(ctx context.Context) (*http.Response, error)
+	getBranding(ctx context.Context) (*http.Response, error)
+	resolveTenant(ctx context.Context) (*http.Response, error)
 	getFeatureSnapshot(ctx context.Context) (*http.Response, error)
+	setFeature(ctx context.Context) (*http.Response, error)
+	superAdminFeatureOverride(ctx context.Context) (*http.Response, error)
 }

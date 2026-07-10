@@ -20,16 +20,52 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/tenants/{tenant_id}": {
+    "/tenants/{code}": {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                code: components["parameters"]["TenantCode"];
             };
             cookie?: never;
         };
         get: operations["getTenant"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tenants/{code}/branding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: components["parameters"]["TenantCode"];
+            };
+            cookie?: never;
+        };
+        /** Public branding for a tenant */
+        get: operations["getBranding"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tenants/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Resolve tenant by domain or subdomain */
+        get: operations["resolveTenant"];
         put?: never;
         post?: never;
         delete?: never;
@@ -55,37 +91,78 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/features/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Enable or disable a feature for the resolved tenant */
+        put: operations["setFeature"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/super-admin/features/{key}/override": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Platform super admin override for a tenant feature */
+        post: operations["superAdminFeatureOverride"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 };
 export type webhooks = Record<string, never>;
 export type components = {
     schemas: {
         Tenant: {
-            /** Format: uuid */
-            id: string;
             /** @example upshs */
             tenant_code: string;
             name: string;
+            short?: string;
             /** @enum {string} */
             status: "active" | "suspended" | "onboarding";
             domain?: string | null;
-            branding?: {
-                logo_url?: string | null;
-                brand?: {
-                    /** @example #7B1113 */
-                    primary?: string;
-                    secondary?: string | null;
-                };
-            };
-            /** Format: date-time */
-            created_at?: string;
-            /** Format: date-time */
-            updated_at?: string;
-        };
-        CreateTenant: {
-            tenant_code: string;
-            name: string;
             /** @enum {string} */
             plan?: "starter" | "growth" | "professional" | "ai_plus" | "enterprise";
+            branding?: components["schemas"]["Branding"];
+        };
+        TenantCreate: {
+            tenant_code: string;
+            name: string;
+            short?: string;
+            /** @enum {string} */
+            status?: "active" | "suspended" | "onboarding";
+            domain?: string | null;
+            /** @enum {string} */
+            plan?: "starter" | "growth" | "professional" | "ai_plus" | "enterprise";
+            branding?: components["schemas"]["Branding"];
+        };
+        Branding: {
+            logo_url?: string | null;
+            brand?: {
+                /** @example #7B1113 */
+                primary?: string;
+                secondary?: string | null;
+            };
         };
         FeatureFlag: {
             /** @example ai_recommendations */
@@ -95,6 +172,12 @@ export type components = {
             config?: {
                 [key: string]: unknown;
             } | null;
+            rollout?: components["schemas"]["RolloutConfig"];
+        };
+        RolloutConfig: {
+            percentage?: number;
+            updated_by?: string;
+            reason?: string;
         };
         Error: {
             code: string;
@@ -129,7 +212,7 @@ export type components = {
         };
     };
     parameters: {
-        TenantId: string;
+        TenantCode: string;
         Limit: number;
         Cursor: string;
     };
@@ -175,7 +258,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CreateTenant"];
+                "application/json": components["schemas"]["TenantCreate"];
             };
         };
         responses: {
@@ -196,7 +279,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                code: components["parameters"]["TenantCode"];
             };
             cookie?: never;
         };
@@ -212,6 +295,65 @@ export interface operations {
                 };
             };
             403: components["responses"]["Forbidden"];
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getBranding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: components["parameters"]["TenantCode"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Branding"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    resolveTenant: {
+        parameters: {
+            query?: {
+                domain?: string;
+                subdomain?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tenant"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -237,10 +379,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        /** Format: uuid */
-                        tenant_id?: string;
-                        features?: components["schemas"]["FeatureFlag"][];
+                        /** @example upshs */
+                        tenant_code: string;
+                        features: components["schemas"]["FeatureFlag"][];
                     };
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    setFeature: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    tenant_code?: string;
+                    is_enabled: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeatureFlag"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    superAdminFeatureOverride: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    tenant_code: string;
+                    is_enabled: boolean;
+                    reason?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeatureFlag"];
                 };
             };
             403: components["responses"]["Forbidden"];

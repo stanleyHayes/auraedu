@@ -244,38 +244,38 @@ export interface StudentUpdatedData {
 
 export type StudentUpdatedEvent = CloudEventEnvelope<StudentUpdatedData>;
 
-/** Emitted by Tenant Service when a school is created. Consumed by Academic, Website, Billing, Audit (agent_plan Appendix B). */
-export interface TenantCreatedV1Data {
+/** tenant.created */
+export interface TenantCreatedData {
   tenant_code: string;
   name: string;
-  plan: "starter" | "growth" | "professional" | "ai_plus" | "enterprise";
+  plan?: string;
 }
 
-export type TenantCreatedV1Event = CloudEventEnvelope<TenantCreatedV1Data>;
+export type TenantCreatedEvent = CloudEventEnvelope<TenantCreatedData>;
 
-/** Emitted when a feature flag is disabled for a tenant. */
+/** tenant.feature_disabled */
 export interface TenantFeatureDisabledData {
   feature_key: string;
+  is_enabled: false;
+  plan?: string;
 }
 
 export type TenantFeatureDisabledEvent = CloudEventEnvelope<TenantFeatureDisabledData>;
 
-/** Emitted when a feature flag is enabled for a tenant. */
+/** tenant.feature_enabled */
 export interface TenantFeatureEnabledData {
   feature_key: string;
-  plan_required?: string | null;
-  config?: {
-    [k: string]: unknown;
-  } | null;
+  is_enabled: true;
+  plan?: string;
 }
 
 export type TenantFeatureEnabledEvent = CloudEventEnvelope<TenantFeatureEnabledData>;
 
-/** Emitted when a user's role or permissions change. */
+/** user.role_changed */
 export interface UserRoleChangedData {
   user_id: string;
-  role: string;
-  previous_role?: string | null;
+  previous_role?: string;
+  new_role: string;
   permissions?: string[];
 }
 
