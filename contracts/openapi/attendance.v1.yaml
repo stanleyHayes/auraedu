@@ -1,0 +1,169 @@
+openapi: 3.1.0
+info:
+  title: AuraEDU Attendance Service API
+  version: 1.0.0
+  description: >
+    Daily and subject attendance (spec \u00a77). Owned by lane L2 (EP-13). Feature flag: attendance.
+servers:
+  - url: /api/v1
+tags:
+  - name: attendance
+
+paths:
+    /attendance:
+      get:
+            operationId: listAttendance
+            tags: ['attendance']
+            summary: List attendance records
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/Limit'
+              - $ref: '#/components/parameters/Cursor'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/AttendanceRecordList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /attendance/bulk:
+      post:
+            operationId: markAttendanceBulk
+            tags: ['attendance']
+            summary: Mark attendance in bulk
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/BulkAttendanceRequest' }
+            responses:
+              '201':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/AttendanceRecordList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /students/{student_id}/attendance:
+      get:
+            operationId: getStudentAttendance
+            tags: ['attendance']
+            summary: Get attendance for a student
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/TenantId'
+              - $ref: '#/components/parameters/Limit'
+              - $ref: '#/components/parameters/Cursor'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/AttendanceRecordList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+
+components:
+  parameters:
+    TenantId:
+      name: tenant_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    TenantHeader:
+      name: X-Tenant-Code
+      in: header
+      required: false
+      description: Optional tenant code for resolution when the gateway cannot derive it from the host.
+      schema: { type: string, example: upshs }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, enum: [forbidden, feature_disabled, tenant_mismatch, validation_error, not_found, unauthorized] }
+        message: { type: string }
+        request_id: { type: string }
+    AttendanceRecord:
+        type: object
+        required: [id, tenant_id, student_id, date, status]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          student_id: { type: string, format: uuid }
+          class_id: { type: [string, 'null'], format: uuid }
+          subject_id: { type: [string, 'null'], format: uuid }
+          date: { type: string, format: date }
+          status: { type: string, enum: [present, absent, late, excused] }
+          recorded_by: { type: string, format: uuid }
+          recorded_at: { type: string, format: date-time }
+    BulkAttendanceRequest:
+        type: object
+        required: [date, records]
+        properties:
+          date: { type: string, format: date }
+          class_id: { type: [string, 'null'], format: uuid }
+          subject_id: { type: [string, 'null'], format: uuid }
+          records: { type: array, items: { type: object, required: [student_id, status], properties: { student_id: { type: string, format: uuid }, status: { type: string, enum: [present, absent, late, excused] }, remark: { type: [string, 'null'] } } } }
+    AttendanceRecordList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/AttendanceRecord' } }
+          next_cursor: { type: [string, 'null'] }
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: unauthorized, message: "Authentication required" }
+    Forbidden:
+      description: Not permitted (auth, tenant scope, RBAC, or feature disabled)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            forbidden: { value: { code: forbidden, message: "Missing required permission" } }
+            feature_disabled: { value: { code: feature_disabled, message: "Feature not enabled for tenant" } }
+            tenant_mismatch: { value: { code: tenant_mismatch, message: "Resource belongs to another tenant" } }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: not_found, message: "Resource not found" }
+    ValidationError:
+      description: Request failed validation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: validation_error, message: "request body is invalid" }
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
+

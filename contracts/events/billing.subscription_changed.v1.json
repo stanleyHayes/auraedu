@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.auraedu.dev/events/billing.subscription_changed.v1.json",
+  "title": "billing.subscription_changed",
+  "description": "Emitted when a tenant subscription changes.",
+  "type": "object",
+  "required": [
+    "specversion",
+    "type",
+    "source",
+    "id",
+    "time",
+    "tenant_id",
+    "data"
+  ],
+  "properties": {
+    "specversion": {
+      "const": "1.0"
+    },
+    "type": {
+      "const": "billing.subscription_changed"
+    },
+    "source": {
+      "const": "billing-service"
+    },
+    "subject": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tenant_id": {
+      "type": "string"
+    },
+    "datacontenttype": {
+      "const": "application/json"
+    },
+    "data": {
+      "type": "object",
+      "required": [
+        "tenant_id",
+        "plan_key",
+        "status"
+      ],
+      "properties": {
+        "tenant_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "plan_key": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "canceled",
+            "past_due"
+          ]
+        }
+      }
+    }
+  }
+}

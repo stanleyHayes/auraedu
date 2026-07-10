@@ -1,0 +1,327 @@
+openapi: 3.1.0
+info:
+  title: AuraEDU Student Service API
+  version: 1.0.0
+  description: >
+    Students, guardians, and enrollment (spec \u00a77). Owned by lane L2 (EP-10). Feature flag: student_management.
+servers:
+  - url: /api/v1
+tags:
+  - name: students
+  - name: guardians
+  - name: enrollments
+
+paths:
+    /students:
+      get:
+            operationId: listStudents
+            tags: ['students']
+            summary: List students
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/Limit'
+              - $ref: '#/components/parameters/Cursor'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/StudentList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      post:
+            operationId: createStudent
+            tags: ['students']
+            summary: Create a student
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/CreateStudent' }
+            responses:
+              '201':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Student' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /students/{student_id}:
+      get:
+            operationId: getStudent
+            tags: ['students']
+            summary: Get a student
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/TenantId'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Student' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      patch:
+            operationId: updateStudent
+            tags: ['students']
+            summary: Update a student
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/TenantId'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/UpdateStudent' }
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Student' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      delete:
+            operationId: deleteStudent
+            tags: ['students']
+            summary: Delete a student
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/TenantId'
+            responses:
+              '204':
+                description: No content
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /students/{student_id}/enrollments:
+      get:
+            operationId: listEnrollments
+            tags: ['enrollments']
+            summary: List student enrollments
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/TenantId'
+              - $ref: '#/components/parameters/Limit'
+              - $ref: '#/components/parameters/Cursor'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/EnrollmentList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      post:
+            operationId: createEnrollment
+            tags: ['enrollments']
+            summary: Enroll a student
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/TenantId'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/CreateEnrollment' }
+            responses:
+              '201':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Enrollment' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /students/{student_id}/guardians:
+      get:
+            operationId: listStudentGuardians
+            tags: ['guardians']
+            summary: List a student's guardians
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/TenantId'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/GuardianList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /guardians/{guardian_id}:
+      get:
+            operationId: getGuardian
+            tags: ['guardians']
+            summary: Get a guardian
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/TenantId'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Guardian' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+
+components:
+  parameters:
+    TenantId:
+      name: tenant_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    TenantHeader:
+      name: X-Tenant-Code
+      in: header
+      required: false
+      description: Optional tenant code for resolution when the gateway cannot derive it from the host.
+      schema: { type: string, example: upshs }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, enum: [forbidden, feature_disabled, tenant_mismatch, validation_error, not_found, unauthorized] }
+        message: { type: string }
+        request_id: { type: string }
+    Student:
+        type: object
+        required: [id, tenant_id, first_name, last_name, student_code]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          first_name: { type: string }
+          last_name: { type: string }
+          student_code: { type: string }
+          date_of_birth: { type: [string, 'null'], format: date }
+          gender: { type: [string, 'null'], enum: [male, female, other] }
+          status: { type: string, enum: [active, withdrawn, graduated] }
+          created_at: { type: string, format: date-time }
+          updated_at: { type: string, format: date-time }
+    CreateStudent:
+        type: object
+        required: [first_name, last_name]
+        properties:
+          first_name: { type: string }
+          last_name: { type: string }
+          date_of_birth: { type: [string, 'null'], format: date }
+          gender: { type: [string, 'null'], enum: [male, female, other] }
+          class_id: { type: [string, 'null'], format: uuid }
+    UpdateStudent:
+        type: object
+        properties:
+          first_name: { type: string }
+          last_name: { type: string }
+          status: { type: string, enum: [active, withdrawn, graduated] }
+          class_id: { type: [string, 'null'], format: uuid }
+    Guardian:
+        type: object
+        required: [id, tenant_id, first_name, last_name, relationship]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          first_name: { type: string }
+          last_name: { type: string }
+          relationship: { type: string }
+          phone: { type: [string, 'null'] }
+          email: { type: [string, 'null'], format: email }
+    Enrollment:
+        type: object
+        required: [id, student_id, class_id, academic_year_id]
+        properties:
+          id: { type: string, format: uuid }
+          student_id: { type: string, format: uuid }
+          class_id: { type: string, format: uuid }
+          academic_year_id: { type: string, format: uuid }
+          enrolled_at: { type: string, format: date-time }
+    CreateEnrollment:
+        type: object
+        required: [class_id, academic_year_id]
+        properties:
+          class_id: { type: string, format: uuid }
+          academic_year_id: { type: string, format: uuid }
+    StudentList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/Student' } }
+          next_cursor: { type: [string, 'null'] }
+    GuardianList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/Guardian' } }
+          next_cursor: { type: [string, 'null'] }
+    EnrollmentList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/Enrollment' } }
+          next_cursor: { type: [string, 'null'] }
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: unauthorized, message: "Authentication required" }
+    Forbidden:
+      description: Not permitted (auth, tenant scope, RBAC, or feature disabled)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            forbidden: { value: { code: forbidden, message: "Missing required permission" } }
+            feature_disabled: { value: { code: feature_disabled, message: "Feature not enabled for tenant" } }
+            tenant_mismatch: { value: { code: tenant_mismatch, message: "Resource belongs to another tenant" } }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: not_found, message: "Resource not found" }
+    ValidationError:
+      description: Request failed validation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: validation_error, message: "request body is invalid" }
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
+

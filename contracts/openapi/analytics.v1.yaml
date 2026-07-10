@@ -1,0 +1,150 @@
+openapi: 3.1.0
+info:
+  title: AuraEDU Analytics Service API
+  version: 1.0.0
+  description: >
+    KPIs, dashboards, and projections (spec \u00a77). Owned by lane L2 (EP-21). Feature flag: analytics.
+servers:
+  - url: /api/v1
+tags:
+  - name: kpis
+  - name: projections
+
+paths:
+    /kpis:
+      get:
+            operationId: listKpis
+            tags: ['kpis']
+            summary: List KPI snapshots
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/Limit'
+              - $ref: '#/components/parameters/Cursor'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/KpiSnapshotList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /projections:
+      get:
+            operationId: listProjections
+            tags: ['projections']
+            summary: List projections
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/Limit'
+              - $ref: '#/components/parameters/Cursor'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/ProjectionList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+
+components:
+  parameters:
+    TenantId:
+      name: tenant_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    TenantHeader:
+      name: X-Tenant-Code
+      in: header
+      required: false
+      description: Optional tenant code for resolution when the gateway cannot derive it from the host.
+      schema: { type: string, example: upshs }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, enum: [forbidden, feature_disabled, tenant_mismatch, validation_error, not_found, unauthorized] }
+        message: { type: string }
+        request_id: { type: string }
+    KpiSnapshot:
+        type: object
+        required: [id, tenant_id, metric_key, value]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          metric_key: { type: string }
+          value: { type: number }
+          recorded_at: { type: string, format: date-time }
+    Projection:
+        type: object
+        required: [id, tenant_id, metric_key, projected_value]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          metric_key: { type: string }
+          projected_value: { type: number }
+          horizon: { type: string }
+          generated_at: { type: string, format: date-time }
+    KpiSnapshotList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/KpiSnapshot' } }
+          next_cursor: { type: [string, 'null'] }
+    ProjectionList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/Projection' } }
+          next_cursor: { type: [string, 'null'] }
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: unauthorized, message: "Authentication required" }
+    Forbidden:
+      description: Not permitted (auth, tenant scope, RBAC, or feature disabled)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            forbidden: { value: { code: forbidden, message: "Missing required permission" } }
+            feature_disabled: { value: { code: feature_disabled, message: "Feature not enabled for tenant" } }
+            tenant_mismatch: { value: { code: tenant_mismatch, message: "Resource belongs to another tenant" } }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: not_found, message: "Resource not found" }
+    ValidationError:
+      description: Request failed validation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: validation_error, message: "request body is invalid" }
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
+

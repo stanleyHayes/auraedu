@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.auraedu.dev/events/notification.sent.v1.json",
+  "title": "notification.sent",
+  "description": "Emitted when a notification is sent.",
+  "type": "object",
+  "required": [
+    "specversion",
+    "type",
+    "source",
+    "id",
+    "time",
+    "tenant_id",
+    "data"
+  ],
+  "properties": {
+    "specversion": {
+      "const": "1.0"
+    },
+    "type": {
+      "const": "notification.sent"
+    },
+    "source": {
+      "const": "notification-service"
+    },
+    "subject": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tenant_id": {
+      "type": "string"
+    },
+    "datacontenttype": {
+      "const": "application/json"
+    },
+    "data": {
+      "type": "object",
+      "required": [
+        "message_id",
+        "channel",
+        "recipient_id"
+      ],
+      "properties": {
+        "message_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "channel": {
+          "type": "string",
+          "enum": [
+            "email",
+            "sms",
+            "whatsapp",
+            "in_app"
+          ]
+        },
+        "recipient_id": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    }
+  }
+}

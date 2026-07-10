@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.auraedu.dev/events/ai.recommendation_generated.v1.json",
+  "title": "ai.recommendation_generated",
+  "description": "Emitted when an AI learning recommendation is generated.",
+  "type": "object",
+  "required": [
+    "specversion",
+    "type",
+    "source",
+    "id",
+    "time",
+    "tenant_id",
+    "data"
+  ],
+  "properties": {
+    "specversion": {
+      "const": "1.0"
+    },
+    "type": {
+      "const": "ai.recommendation_generated"
+    },
+    "source": {
+      "const": "ai-recommendation-service"
+    },
+    "subject": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tenant_id": {
+      "type": "string"
+    },
+    "datacontenttype": {
+      "const": "application/json"
+    },
+    "data": {
+      "type": "object",
+      "required": [
+        "student_id",
+        "recommendation_type"
+      ],
+      "properties": {
+        "student_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "recommendation_type": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "explanation": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

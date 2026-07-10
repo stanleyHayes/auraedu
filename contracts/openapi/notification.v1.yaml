@@ -1,0 +1,275 @@
+openapi: 3.1.0
+info:
+  title: AuraEDU Notification Service API
+  version: 1.0.0
+  description: >
+    Email, SMS, WhatsApp, in-app, and announcements (spec \u00a77). Owned by lane L2 (EP-18). Feature flags: email_notifications, sms_notifications, whatsapp_notifications, announcements.
+servers:
+  - url: /api/v1
+tags:
+  - name: messages
+  - name: templates
+  - name: subscriptions
+
+paths:
+    /messages:
+      get:
+            operationId: listMessages
+            tags: ['messages']
+            summary: List messages
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/Limit'
+              - $ref: '#/components/parameters/Cursor'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/MessageList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /messages/send:
+      post:
+            operationId: sendMessage
+            tags: ['messages']
+            summary: Send a message
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/SendMessageRequest' }
+            responses:
+              '201':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Message' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /templates:
+      get:
+            operationId: listTemplates
+            tags: ['templates']
+            summary: List templates
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/Limit'
+              - $ref: '#/components/parameters/Cursor'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/TemplateList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      post:
+            operationId: createTemplate
+            tags: ['templates']
+            summary: Create a template
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/CreateTemplate' }
+            responses:
+              '201':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Template' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /subscriptions:
+      get:
+            operationId: listSubscriptions
+            tags: ['subscriptions']
+            summary: List subscriptions
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/Limit'
+              - $ref: '#/components/parameters/Cursor'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/SubscriptionList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      post:
+            operationId: createSubscription
+            tags: ['subscriptions']
+            summary: Create a subscription
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/CreateSubscription' }
+            responses:
+              '201':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Subscription' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+
+components:
+  parameters:
+    TenantId:
+      name: tenant_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    TenantHeader:
+      name: X-Tenant-Code
+      in: header
+      required: false
+      description: Optional tenant code for resolution when the gateway cannot derive it from the host.
+      schema: { type: string, example: upshs }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, enum: [forbidden, feature_disabled, tenant_mismatch, validation_error, not_found, unauthorized] }
+        message: { type: string }
+        request_id: { type: string }
+    Message:
+        type: object
+        required: [id, tenant_id, channel, recipient_id, status]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          channel: { type: string, enum: [email, sms, whatsapp, in_app] }
+          recipient_id: { type: string, format: uuid }
+          subject: { type: [string, 'null'] }
+          body: { type: [string, 'null'] }
+          status: { type: string, enum: [queued, sent, delivered, failed] }
+    SendMessageRequest:
+        type: object
+        required: [channel, recipient_id]
+        properties:
+          channel: { type: string, enum: [email, sms, whatsapp, in_app] }
+          recipient_id: { type: string, format: uuid }
+          subject: { type: [string, 'null'] }
+          body: { type: [string, 'null'] }
+          template_id: { type: [string, 'null'], format: uuid }
+          variables: { type: [object, 'null'], additionalProperties: true }
+    Template:
+        type: object
+        required: [id, tenant_id, name, channel]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          name: { type: string }
+          channel: { type: string, enum: [email, sms, whatsapp, in_app] }
+          subject_template: { type: [string, 'null'] }
+          body_template: { type: string }
+    CreateTemplate:
+        type: object
+        required: [name, channel, body_template]
+        properties:
+          name: { type: string }
+          channel: { type: string, enum: [email, sms, whatsapp, in_app] }
+          subject_template: { type: [string, 'null'] }
+          body_template: { type: string }
+    Subscription:
+        type: object
+        required: [id, tenant_id, user_id, channel]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          user_id: { type: string, format: uuid }
+          channel: { type: string, enum: [email, sms, whatsapp, in_app] }
+          is_enabled: { type: boolean }
+    CreateSubscription:
+        type: object
+        required: [user_id, channel]
+        properties:
+          user_id: { type: string, format: uuid }
+          channel: { type: string, enum: [email, sms, whatsapp, in_app] }
+          is_enabled: { type: boolean, default: true }
+    MessageList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/Message' } }
+          next_cursor: { type: [string, 'null'] }
+    TemplateList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/Template' } }
+          next_cursor: { type: [string, 'null'] }
+    SubscriptionList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/Subscription' } }
+          next_cursor: { type: [string, 'null'] }
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: unauthorized, message: "Authentication required" }
+    Forbidden:
+      description: Not permitted (auth, tenant scope, RBAC, or feature disabled)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            forbidden: { value: { code: forbidden, message: "Missing required permission" } }
+            feature_disabled: { value: { code: feature_disabled, message: "Feature not enabled for tenant" } }
+            tenant_mismatch: { value: { code: tenant_mismatch, message: "Resource belongs to another tenant" } }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: not_found, message: "Resource not found" }
+    ValidationError:
+      description: Request failed validation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: validation_error, message: "request body is invalid" }
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
+

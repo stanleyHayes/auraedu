@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.auraedu.dev/events/cbt.exam_submitted.v1.json",
+  "title": "cbt.exam_submitted",
+  "description": "Emitted when a CBT exam is submitted.",
+  "type": "object",
+  "required": [
+    "specversion",
+    "type",
+    "source",
+    "id",
+    "time",
+    "tenant_id",
+    "data"
+  ],
+  "properties": {
+    "specversion": {
+      "const": "1.0"
+    },
+    "type": {
+      "const": "cbt.exam_submitted"
+    },
+    "source": {
+      "const": "cbt-service"
+    },
+    "subject": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tenant_id": {
+      "type": "string"
+    },
+    "datacontenttype": {
+      "const": "application/json"
+    },
+    "data": {
+      "type": "object",
+      "required": [
+        "exam_id",
+        "student_id",
+        "submission_id"
+      ],
+      "properties": {
+        "exam_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "student_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "submission_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "submitted_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}

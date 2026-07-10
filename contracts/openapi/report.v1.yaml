@@ -1,0 +1,232 @@
+openapi: 3.1.0
+info:
+  title: AuraEDU Report Service API
+  version: 1.0.0
+  description: >
+    Report cards, transcripts, and templates (spec \u00a77). Owned by lane L2 (EP-15). Feature flag: report_cards.
+servers:
+  - url: /api/v1
+tags:
+  - name: report-cards
+  - name: transcripts
+  - name: templates
+
+paths:
+    /report-cards:
+      get:
+            operationId: listReportCards
+            tags: ['report-cards']
+            summary: List report cards
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/Limit'
+              - $ref: '#/components/parameters/Cursor'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/ReportCardList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /report-cards/generate:
+      post:
+            operationId: generateReportCard
+            tags: ['report-cards']
+            summary: Generate a report card
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/GenerateReportCardRequest' }
+            responses:
+              '201':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/ReportCard' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /transcripts/{student_id}:
+      get:
+            operationId: getTranscript
+            tags: ['transcripts']
+            summary: Get a student transcript
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/TenantId'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Transcript' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /report-templates:
+      get:
+            operationId: listReportTemplates
+            tags: ['templates']
+            summary: List report templates
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/ReportTemplateList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      post:
+            operationId: createReportTemplate
+            tags: ['templates']
+            summary: Create a report template
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/CreateReportTemplate' }
+            responses:
+              '201':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/ReportTemplate' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+
+components:
+  parameters:
+    TenantId:
+      name: tenant_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    TenantHeader:
+      name: X-Tenant-Code
+      in: header
+      required: false
+      description: Optional tenant code for resolution when the gateway cannot derive it from the host.
+      schema: { type: string, example: upshs }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, enum: [forbidden, feature_disabled, tenant_mismatch, validation_error, not_found, unauthorized] }
+        message: { type: string }
+        request_id: { type: string }
+    ReportCard:
+        type: object
+        required: [id, tenant_id, student_id, term_id]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          student_id: { type: string, format: uuid }
+          term_id: { type: string, format: uuid }
+          file_url: { type: [string, 'null'] }
+          generated_at: { type: string, format: date-time }
+    GenerateReportCardRequest:
+        type: object
+        required: [student_id, term_id]
+        properties:
+          student_id: { type: string, format: uuid }
+          term_id: { type: string, format: uuid }
+    Transcript:
+        type: object
+        required: [id, tenant_id, student_id]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          student_id: { type: string, format: uuid }
+          file_url: { type: [string, 'null'] }
+          entries: { type: array, items: { type: object, properties: { subject_id: { type: string, format: uuid }, subject_name: { type: string }, score: { type: number }, grade: { type: string } } } }
+    ReportTemplate:
+        type: object
+        required: [id, tenant_id, name]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          name: { type: string }
+          layout: { type: [string, 'null'] }
+          is_default: { type: boolean }
+    CreateReportTemplate:
+        type: object
+        required: [name]
+        properties:
+          name: { type: string }
+          layout: { type: [string, 'null'] }
+          is_default: { type: boolean, default: false }
+    ReportCardList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/ReportCard' } }
+          next_cursor: { type: [string, 'null'] }
+    ReportTemplateList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/ReportTemplate' } }
+          next_cursor: { type: [string, 'null'] }
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: unauthorized, message: "Authentication required" }
+    Forbidden:
+      description: Not permitted (auth, tenant scope, RBAC, or feature disabled)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            forbidden: { value: { code: forbidden, message: "Missing required permission" } }
+            feature_disabled: { value: { code: feature_disabled, message: "Feature not enabled for tenant" } }
+            tenant_mismatch: { value: { code: tenant_mismatch, message: "Resource belongs to another tenant" } }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: not_found, message: "Resource not found" }
+    ValidationError:
+      description: Request failed validation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: validation_error, message: "request body is invalid" }
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
+

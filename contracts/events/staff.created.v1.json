@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.auraedu.dev/events/staff.created.v1.json",
+  "title": "staff.created",
+  "description": "Emitted when a staff record is created.",
+  "type": "object",
+  "required": [
+    "specversion",
+    "type",
+    "source",
+    "id",
+    "time",
+    "tenant_id",
+    "data"
+  ],
+  "properties": {
+    "specversion": {
+      "const": "1.0"
+    },
+    "type": {
+      "const": "staff.created"
+    },
+    "source": {
+      "const": "staff-service"
+    },
+    "subject": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tenant_id": {
+      "type": "string"
+    },
+    "datacontenttype": {
+      "const": "application/json"
+    },
+    "data": {
+      "type": "object",
+      "required": [
+        "staff_id",
+        "staff_type"
+      ],
+      "properties": {
+        "staff_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "staff_type": {
+          "type": "string",
+          "enum": [
+            "teacher",
+            "non_teaching"
+          ]
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

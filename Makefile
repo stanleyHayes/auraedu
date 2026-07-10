@@ -62,13 +62,15 @@ typecheck: ## Typecheck TS workspaces
 .PHONY: contracts
 contracts: ## Regenerate types/stubs from contracts/ (OpenAPI + events)
 	@echo "==> validating contracts"; $(MAKE) contracts-lint
-	@if [ -f pnpm-lock.yaml ] && [ -f packages/shared-types/package.json ]; then \
-		pnpm install --frozen-lockfile >/dev/null 2>&1 || true; \
-		pnpm run contracts || echo "contracts: TS codegen not ready (AURA-1.4)"; \
-	else \
-		echo "contracts: pnpm workspace / shared-types not ready; skipping TS codegen"; \
-	fi
-	@echo "==> contract generation complete"
+	@echo "==> installing workspace dependencies"
+	pnpm install
+	@echo "==> generating OpenAPI/CloudEvents stubs + validators + types"
+	pnpm --filter @auraedu/shared-types run generate
+	@echo "==> building generated TypeScript package"
+	pnpm --filter @auraedu/shared-types run build
+	@echo "==> compiling generated Go stubs"
+	cd packages/shared-types/gen/go && gofmt -w . && GOWORK=off go build ./...
+	@echo "==> contracts generation complete"
 
 .PHONY: contracts-lint
 contracts-lint: ## Lint OpenAPI + validate event JSON schemas

@@ -1,0 +1,335 @@
+openapi: 3.1.0
+info:
+  title: AuraEDU Identity Service API
+  version: 1.0.0
+  description: >
+    Authentication, users, roles, and sessions (spec \u00a77). Owned by lane L1 (EP-04).
+servers:
+  - url: /api/v1
+tags:
+  - name: auth
+  - name: users
+  - name: roles
+  - name: sessions
+
+paths:
+    /auth/login:
+      post:
+            operationId: login
+            tags: ['auth']
+            summary: Exchange credentials for JWT tokens
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/LoginRequest' }
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/TokenPair' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+            security: []
+    /auth/refresh:
+      post:
+            operationId: refreshToken
+            tags: ['auth']
+            summary: Rotate access token using refresh token
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/RefreshRequest' }
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/TokenPair' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+            security: []
+    /auth/sessions/{session_id}:
+      delete:
+            operationId: revokeSession
+            tags: ['sessions']
+            summary: Revoke a session
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/TenantId'
+            responses:
+              '204':
+                description: No content
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /users:
+      get:
+            operationId: listUsers
+            tags: ['users']
+            summary: List users for the tenant
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/Limit'
+              - $ref: '#/components/parameters/Cursor'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/UserList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      post:
+            operationId: createUser
+            tags: ['users']
+            summary: Create a user in the tenant
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/CreateUser' }
+            responses:
+              '201':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/User' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /users/{user_id}:
+      get:
+            operationId: getUser
+            tags: ['users']
+            summary: Get a user
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/TenantId'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/User' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      patch:
+            operationId: updateUser
+            tags: ['users']
+            summary: Update a user
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/TenantId'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/UpdateUser' }
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/User' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /users/{user_id}/roles:
+      post:
+            operationId: assignRole
+            tags: ['users', 'roles']
+            summary: Assign a role to a user
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/TenantId'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/RoleAssignment' }
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/User' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /roles:
+      get:
+            operationId: listRoles
+            tags: ['roles']
+            summary: List available roles
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/RoleList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+
+components:
+  parameters:
+    TenantId:
+      name: tenant_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    TenantHeader:
+      name: X-Tenant-Code
+      in: header
+      required: false
+      description: Optional tenant code for resolution when the gateway cannot derive it from the host.
+      schema: { type: string, example: upshs }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, enum: [forbidden, feature_disabled, tenant_mismatch, validation_error, not_found, unauthorized] }
+        message: { type: string }
+        request_id: { type: string }
+    LoginRequest:
+        type: object
+        required: [identifier, password]
+        properties:
+          identifier: { type: string }
+          password: { type: string, format: password }
+    RefreshRequest:
+        type: object
+        required: [refresh_token]
+        properties:
+          refresh_token: { type: string }
+    TokenPair:
+        type: object
+        required: [access_token, refresh_token, expires_in]
+        properties:
+          access_token: { type: string }
+          refresh_token: { type: string }
+          expires_in: { type: integer }
+          token_type: { type: string, default: Bearer }
+    User:
+        type: object
+        required: [id, tenant_id, email, role, status]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          email: { type: string, format: email }
+          username: { type: [string, 'null'] }
+          role: { type: string }
+          status: { type: string, enum: [active, suspended, pending] }
+          created_at: { type: string, format: date-time }
+          updated_at: { type: string, format: date-time }
+    CreateUser:
+        type: object
+        required: [email, role]
+        properties:
+          email: { type: string, format: email }
+          username: { type: [string, 'null'] }
+          role: { type: string }
+          password: { type: string, format: password }
+    UpdateUser:
+        type: object
+        properties:
+          email: { type: string, format: email }
+          username: { type: [string, 'null'] }
+          role: { type: string }
+          status: { type: string, enum: [active, suspended, pending] }
+    RoleAssignment:
+        type: object
+        required: [role]
+        properties:
+          role: { type: string }
+          permissions: { type: array, items: { type: string } }
+    Role:
+        type: object
+        required: [key, name]
+        properties:
+          key: { type: string }
+          name: { type: string }
+          permissions: { type: array, items: { type: string } }
+    UserList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/User' } }
+          next_cursor: { type: [string, 'null'] }
+    RoleList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/Role' } }
+          next_cursor: { type: [string, 'null'] }
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: unauthorized, message: "Authentication required" }
+    Forbidden:
+      description: Not permitted (auth, tenant scope, RBAC, or feature disabled)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            forbidden: { value: { code: forbidden, message: "Missing required permission" } }
+            feature_disabled: { value: { code: feature_disabled, message: "Feature not enabled for tenant" } }
+            tenant_mismatch: { value: { code: tenant_mismatch, message: "Resource belongs to another tenant" } }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: not_found, message: "Resource not found" }
+    ValidationError:
+      description: Request failed validation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: validation_error, message: "request body is invalid" }
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
+
