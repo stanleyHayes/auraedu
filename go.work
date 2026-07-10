@@ -3,11 +3,12 @@
 go 1.25.7
 
 use (
-	./apps/file-service
 	./apps/academic-service
-	./apps/staff-service
 	./apps/api-gateway
+	./apps/audit-service
+	./apps/file-service
 	./apps/identity-service
+	./apps/staff-service
 	./apps/student-service
 	./apps/tenant-service
 	./platform
