@@ -7,6 +7,7 @@ import "github.com/auraedu/tenant-service/internal/domain"
 type Repository interface {
 	ListTenants() []domain.Tenant
 	GetTenant(code string) (domain.Tenant, error)
+	CreateTenant(t domain.Tenant) error
 	Features(code string) ([]domain.FeatureFlag, error)
 	SetFeature(code, key string, enabled bool) (domain.FeatureFlag, error)
 }

@@ -21,6 +21,7 @@ func NewHandler(svc *application.Service) *Handler { return &Handler{svc: svc} }
 
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/tenants", h.listTenants)
+	mux.HandleFunc("POST /api/v1/tenants", h.createTenant)
 	mux.HandleFunc("GET /api/v1/tenants/{code}", h.getTenant)
 	mux.HandleFunc("GET /api/v1/tenants/{code}/branding", h.branding)
 	mux.HandleFunc("GET /api/v1/features", h.features)
@@ -41,6 +42,37 @@ func (h *Handler) listTenants(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": tenants, "next_cursor": nil})
+}
+
+type createTenantBody struct {
+	Code     string           `json:"tenant_code"`
+	Name     string           `json:"name"`
+	Short    string           `json:"short"`
+	Status   string           `json:"status"`
+	Plan     string           `json:"plan"`
+	Branding domain.Branding  `json:"branding"`
+}
+
+func (h *Handler) createTenant(w http.ResponseWriter, r *http.Request) {
+	var body createTenantBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, errEnv("validation_error", "invalid request body"))
+		return
+	}
+	t := domain.Tenant{
+		Code:     body.Code,
+		Name:     body.Name,
+		Short:    body.Short,
+		Status:   body.Status,
+		Plan:     body.Plan,
+		Branding: body.Branding,
+	}
+	created, err := h.svc.CreateTenant(auth.FromHeaders(r.Header), t)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, created)
 }
 
 func (h *Handler) getTenant(w http.ResponseWriter, r *http.Request) {

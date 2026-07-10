@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -12,12 +13,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/auraedu/tenant-service/internal/adapters/events"
 	svchttp "github.com/auraedu/tenant-service/internal/adapters/http"
 	"github.com/auraedu/tenant-service/internal/adapters/memory"
 	"github.com/auraedu/tenant-service/internal/application"
 
 	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/httpx"
 )
 
 const service = "tenant-service"
@@ -31,13 +32,18 @@ func main() {
 		version = config.Getenv("GIT_SHA", "dev")
 	}
 
+	ctx := context.Background()
+
 	// In-memory seeded store today; Postgres+RLS adapter is the next story.
 	repo := memory.New()
-	svc := application.NewService(repo)
+	pub := mustInitPublisher(ctx, log)
+	svc := application.NewService(repo, pub)
 	handler := svchttp.NewHandler(svc)
 
 	mux := http.NewServeMux()
-	httpx.NewHealth(service, version).WithLogger(log).Register(mux)
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"service": service, "version": version, "status": "healthy"})
+	})
 	handler.Register(mux)
 
 	addr := ":" + strconv.Itoa(config.Port(8082))
@@ -60,8 +66,23 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_ = srv.Shutdown(ctx)
+	_ = srv.Shutdown(shutdownCtx)
 	log.Info(service + " stopped")
+}
+
+func mustInitPublisher(ctx context.Context, log *slog.Logger) application.Option {
+	pub, err := events.NewPublisher(ctx, log)
+	if err != nil {
+		log.Error("event publisher init failed", "err", err)
+		os.Exit(1)
+	}
+	return application.WithPublisher(pub)
+}
+
+func writeJSON(w http.ResponseWriter, code int, body any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(body)
 }
