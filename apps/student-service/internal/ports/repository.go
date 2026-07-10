@@ -9,7 +9,9 @@ import (
 // Repository persists Student aggregates. Implementations MUST scope every query by
 // tenantID (defense-in-depth with Postgres RLS, agent_plan §7).
 type Repository interface {
-	Create(ctx context.Context, tenantID string, e *domain.Student) error
+	Create(ctx context.Context, tenantID string, s *domain.Student) error
 	GetByID(ctx context.Context, tenantID, id string) (*domain.Student, error)
 	List(ctx context.Context, tenantID string, limit int, cursor string) ([]*domain.Student, string, error)
+	Update(ctx context.Context, tenantID string, s *domain.Student) error
+	Delete(ctx context.Context, tenantID, id string) error
 }
