@@ -1,0 +1,114 @@
+package gateway
+
+import (
+	"encoding/json"
+	"log/slog"
+	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"time"
+)
+
+type ReverseProxy struct {
+	log        *slog.Logger
+	transports map[string]*httputil.ReverseProxy
+}
+
+func NewReverseProxy(registry ServiceRegistry, log *slog.Logger) (*ReverseProxy, error) {
+	transports := make(map[string]*httputil.ReverseProxy, len(registry))
+	for _, rt := range registry {
+		target, err := url.Parse(rt.Target)
+		if err != nil {
+			return nil, err
+		}
+		transports[rt.Prefix] = httputil.NewSingleHostReverseProxy(target)
+	}
+	return &ReverseProxy{log: log, transports: transports}, nil
+}
+
+type ActorContext struct {
+	UserID      string
+	Role        string
+	Permissions string
+	Platform    bool
+}
+
+func (a ActorContext) IsEmpty() bool { return a.UserID == "" }
+
+func (p *ReverseProxy) Handler(registry ServiceRegistry) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rt, ok := registry.Match(r.URL.Path)
+		if !ok {
+			writeJSONError(w, http.StatusNotFound, "route_not_found", "no downstream service for path")
+			return
+		}
+
+		proxy, ok := p.transports[rt.Prefix]
+		if !ok {
+			writeJSONError(w, http.StatusNotFound, "route_not_found", "proxy not configured")
+			return
+		}
+
+		out := r.Clone(r.Context())
+		out.URL.Path = rt.StripPrefix(r.URL.Path)
+		out.URL.RawPath = ""
+		if out.URL.Path == "" {
+			out.URL.Path = "/"
+		}
+
+		out.Header.Set("X-Forwarded-Host", r.Host)
+		out.Header.Set("X-Forwarded-Proto", scheme(r))
+		if rid := RequestIDFrom(r.Context()); rid != "" {
+			out.Header.Set("X-Request-Id", rid)
+		}
+		if tenant := TenantIDFrom(r.Context()); tenant != "" {
+			out.Header.Set("X-Tenant-ID", tenant)
+			out.Header.Set("X-Actor-Tenant", tenant)
+		}
+		if actor := ActorFrom(r.Context()); !actor.IsEmpty() {
+			out.Header.Set("X-Actor-User", actor.UserID)
+			out.Header.Set("X-Actor-Role", actor.Role)
+			if actor.Permissions != "" {
+				out.Header.Set("X-Actor-Permissions", actor.Permissions)
+			}
+		}
+
+		originalDirector := proxy.Director
+		proxy.Director = func(req *http.Request) {
+			originalDirector(req)
+			req.URL.Path = out.URL.Path
+			req.URL.RawQuery = out.URL.RawQuery
+		}
+
+		if proxy.Transport == nil {
+			proxy.Transport = &http.Transport{
+				MaxIdleConns:        100,
+				MaxIdleConnsPerHost: 10,
+				IdleConnTimeout:     90 * time.Second,
+			}
+		}
+
+		proxy.ServeHTTP(w, out)
+	})
+}
+
+func scheme(r *http.Request) string {
+	if r.TLS != nil {
+		return "https"
+	}
+	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+		return proto
+	}
+	return "http"
+}
+
+func writeJSONError(w http.ResponseWriter, code int, errCode, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"error": map[string]any{
+			"code":    errCode,
+			"message": message,
+		},
+	})
+}
