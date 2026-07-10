@@ -1,0 +1,15 @@
+**/node_modules
+**/.next
+**/.turbo
+**/dist
+**/bin
+.git
+.github
+*.md
+!README.md
+**/*_test.go
+**/coverage
+**/.pgdata
+**/test-results
+**/playwright-report
+docs/brand/*.html

@@ -1,0 +1,6 @@
+/* Marketing app stylesheet. Pulls in the AuraEDU design system (Tailwind v4 + tokens +
+   semantic themes + keyframes) and tells Tailwind to also scan the @auraedu/ui source
+   for class names (workspace packages live under node_modules and are skipped by default). */
+@import "@auraedu/tokens/globals.css";
+
+@source "../../../packages/ui/src";
