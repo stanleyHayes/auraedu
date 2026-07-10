@@ -1,0 +1,4 @@
+/* Portal app stylesheet — the AuraEDU design system + scan @auraedu/ui for classes. */
+@import "@auraedu/tokens/globals.css";
+
+@source "../../../packages/ui/src";
