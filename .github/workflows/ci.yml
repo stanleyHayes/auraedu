@@ -1,5 +1,9 @@
-# AuraEDU CI — path-filtered gates (agent_plan §13, EP-07). Render deploys only after
-# these pass (render.yaml autoDeployTrigger: checksPass). Expand per-service as they land.
+# AuraEDU CI — path-filtered gates with contract drift, security scans, Docker build
+# validation, and migration lint placeholders (agent_plan §13, EP-07).
+#
+# Render deploys only after these pass (render.yaml autoDeployTrigger: checksPass).
+# Expand per-service matrix entries as services land.
+
 name: ci
 
 on:
@@ -18,8 +22,12 @@ jobs:
       go: ${{ steps.filter.outputs.go }}
       web: ${{ steps.filter.outputs.web }}
       python: ${{ steps.filter.outputs.python }}
+      root: ${{ steps.filter.outputs.root }}
+      docker: ${{ steps.filter.outputs.docker }}
+      contracts: ${{ steps.filter.outputs.contracts }}
     steps:
       - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -30,7 +38,6 @@ jobs:
               - 'platform/**'
               - 'go.work'
               - '.tool-versions'
-              - '.github/workflows/ci.yml'
             web:
               - 'apps/web/**'
               - 'apps/marketing/**'
@@ -38,10 +45,29 @@ jobs:
             python:
               - 'apps/ai-**'
               - 'apps/career-guidance-service/**'
+            root:
+              - 'Makefile'
+              - '.tool-versions'
+              - '.nvmrc'
+              - 'go.work'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - 'pyproject.toml'
+              - 'pnpm-lock.yaml'
+              - 'uv.lock'
+              - 'render.yaml'
+              - '.github/workflows/ci.yml'
+            docker:
+              - 'apps/**/Dockerfile'
+              - 'infrastructure/docker/**'
+            contracts:
+              - 'contracts/**'
+              - 'packages/shared-types/**'
+              - 'tools/codegen/**'
 
   go:
     needs: changes
-    if: needs.changes.outputs.go == 'true'
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.root == 'true'
     runs-on: ubuntu-latest
     env:
       GOFLAGS: -mod=readonly
@@ -49,8 +75,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
-        with: { go-version: 'stable' } # always newest patched Go so the blocking govulncheck gate stays green
-      - name: Go gates per module (build, vet, govulncheck) — auto-discovers every service
+        with: { go-version: 'stable' }
+      - name: Go gates per module (build, vet, govulncheck)
         run: |
           set -euo pipefail
           mods=$(find platform apps -name go.mod -exec dirname {} \; | sort)
@@ -66,32 +92,163 @@ jobs:
 
   web:
     needs: changes
-    if: needs.changes.outputs.web == 'true'
+    if: needs.changes.outputs.web == 'true' || needs.changes.outputs.root == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: TS gates (activate once the workspace is scaffolded)
-        run: |
-          if [ ! -f pnpm-lock.yaml ]; then
-            echo "::notice::No pnpm-lock.yaml yet — TS workspace not scaffolded; skipping gates."
-            exit 0
-          fi
-          corepack enable
-          pnpm install --frozen-lockfile
-          pnpm lint && pnpm typecheck && pnpm test
+      - uses: pnpm/action-setup@v4
+        with: { version: '10.27.0' }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Test
+        run: pnpm test
 
   python:
     needs: changes
-    if: needs.changes.outputs.python == 'true'
+    if: needs.changes.outputs.python == 'true' || needs.changes.outputs.root == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Python gates (activate once a service is implemented)
+      - uses: astral-sh/setup-uv@v5
+      - name: Python gates
         run: |
           if [ ! -f uv.lock ]; then
             echo "::notice::No uv.lock yet — Python services not scaffolded; skipping gates."
             exit 0
           fi
-          pipx install uv || pip install uv
           uv sync
-          uv run ruff check . && uv run pytest
+          uv run ruff check .
+          uv run pytest
+
+  contracts:
+    needs: changes
+    if: needs.changes.outputs.contracts == 'true' || needs.changes.outputs.root == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '10.27.0' }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Lint contracts
+        run: make contracts-lint
+      - name: Regenerate contract stubs/types
+        run: make contracts
+      - name: Check for contract drift
+        run: git diff --exit-code
+
+  security:
+    needs: changes
+    if: |
+      needs.changes.outputs.web == 'true' ||
+      needs.changes.outputs.python == 'true' ||
+      needs.changes.outputs.go == 'true' ||
+      needs.changes.outputs.root == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '10.27.0' }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - name: Install JS dependencies (required for audit)
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            pnpm install --frozen-lockfile
+          else
+            echo "::notice::No pnpm-lock.yaml yet — skipping pnpm audit."
+          fi
+      - name: pnpm audit
+        run: pnpm audit --audit-level moderate || true
+      - uses: astral-sh/setup-uv@v5
+      - name: pip-audit
+        run: |
+          if [ ! -f uv.lock ]; then
+            echo "::notice::No uv.lock yet — skipping pip-audit."
+            exit 0
+          fi
+          uv run pip-audit || true
+
+  docker:
+    needs: changes
+    if: needs.changes.outputs.docker == 'true' || needs.changes.outputs.root == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Determine changed services with Dockerfiles
+        id: changed
+        run: |
+          set -euo pipefail
+          base=${GITHUB_BASE_REF:-main}
+          git fetch origin "$base" --depth=1 || true
+          changed=$(git diff --name-only "origin/$base"...HEAD | grep -E '^apps/[^/]+/|^infrastructure/docker/' || true)
+          services=""
+          add_svc() {
+            case "$services" in
+              *" $1 "*) ;;
+              *) services="$services $1 " ;;
+            esac
+          }
+          for f in $changed; do
+            dir=$(echo "$f" | cut -d/ -f1-2)
+            if [ -f "$dir/Dockerfile" ]; then
+              add_svc "$dir"
+            fi
+          done
+          if echo "$changed" | grep -q '^infrastructure/docker/' && [ -f infrastructure/docker/nats.Dockerfile ]; then
+            add_svc "infrastructure/docker"
+          fi
+          echo "services=$services" >> "$GITHUB_OUTPUT"
+          matrix=$(printf '%s\n' $services | jq -R . | jq -s -c .)
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+      - name: Build changed Docker images
+        if: steps.changed.outputs.services != ''
+        run: |
+          for svc in ${{ steps.changed.outputs.services }}; do
+            if [ "$svc" = "infrastructure/docker" ]; then
+              echo "::group::build infrastructure/docker/nats.Dockerfile"
+              docker build -f infrastructure/docker/nats.Dockerfile -t auraedu/nats:pr .
+              echo "::endgroup::"
+            else
+              tag=$(basename "$svc")
+              echo "::group::build $svc/Dockerfile"
+              docker build -f "$svc/Dockerfile" -t "auraedu/$tag:pr" .
+              echo "::endgroup::"
+            fi
+          done
+
+  migrations:
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.root == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Migration validation placeholder
+        run: |
+          set -euo pipefail
+          base=${GITHUB_BASE_REF:-main}
+          git fetch origin "$base" --depth=1 || true
+          changed=$(git diff --name-only "origin/$base"...HEAD | grep -E '^apps/[^/]+/migrations/' || true)
+          if [ -z "$changed" ]; then
+            echo "::notice::No migrations changed."
+            exit 0
+          fi
+          echo "Changed migrations:"
+          echo "$changed"
+          echo "TODO: run per-service migration lint/validate (AURA-2.5, EP-07)"
