@@ -1,3 +1,7 @@
+// Command server is the AuraEDU API Gateway — the single public entry point.
+// Sprint 1 (EP-03): service registry + reverse proxy, JWT verification, tenant
+// resolution, rate limiting, request-id, CORS, structured access logging, and
+// feature-flag edge pre-checks.
 package main
 
 import (
@@ -17,6 +21,8 @@ import (
 
 const service = "api-gateway"
 
+// version is injected at build time via -ldflags "-X main.version=<sha>" (see Dockerfile);
+// falls back to GIT_SHA env, then "dev".
 var version = ""
 
 func main() {
@@ -41,6 +47,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Local stubs for platform/tenancy and platform/flags until those packages land.
+	// In production these will be replaced by calls to the Tenant Service and a
+	// flag snapshot client (agent_plan §15 EP-03).
 	tenantResolver := &stubs.TenantResolver{
 		BySubdomain: map[string]string{
 			"upshs": "upshs",
@@ -129,6 +138,7 @@ func main() {
 		}
 	}()
 
+	// Graceful shutdown.
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
