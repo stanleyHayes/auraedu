@@ -91,6 +91,17 @@ func (r *Repository) GetTenant(code string) (domain.Tenant, error) {
 	return t, nil
 }
 
+func (r *Repository) CreateTenant(t domain.Tenant) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, exists := r.tenants[t.Code]; exists {
+		return domain.ErrValidation
+	}
+	r.tenants[t.Code] = t
+	r.order = append(r.order, t.Code)
+	return nil
+}
+
 func (r *Repository) Features(code string) ([]domain.FeatureFlag, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

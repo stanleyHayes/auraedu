@@ -1,35 +1,45 @@
 package domain
 
 import (
-	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/base64"
+
+	"golang.org/x/crypto/argon2"
 )
 
-// pbkdf2Iterations is the work factor for PBKDF2-HMAC-SHA256 (OWASP 2023 guidance).
-// argon2id is the eventual target (AURA-4.1); PBKDF2 keeps the service dependency-free.
-const pbkdf2Iterations = 600_000
+const (
+	argon2Time    = 1
+	argon2Memory  = 16 * 1024
+	argon2Threads = 4
+	argon2KeyLen  = 32
+	argon2SaltLen = 16
+)
 
-// Credential is a salted, stretched password hash. Plaintext passwords never leave
-// this package and are never stored or logged.
-type Credential struct {
-	Salt       []byte
-	Hash       []byte
-	Iterations int
+type argonParams struct {
+	Time    uint32 `json:"time"`
+	Memory  uint32 `json:"memory"`
+	Threads uint8  `json:"threads"`
+	KeyLen  uint32 `json:"keyLen"`
 }
 
-// NewCredential hashes a password with a fresh random 16-byte salt.
+// Credential is an argon2id password hash.
+type Credential struct {
+	Salt   []byte
+	Hash   []byte
+	Algo   string
+	Params argonParams
+}
+
+// NewCredential hashes a password with argon2id and a fresh random salt.
 func NewCredential(password string) (Credential, error) {
-	salt := make([]byte, 16)
+	salt := make([]byte, argon2SaltLen)
 	if _, err := rand.Read(salt); err != nil {
 		return Credential{}, err
 	}
-	return Credential{
-		Salt:       salt,
-		Hash:       pbkdf2SHA256([]byte(password), salt, pbkdf2Iterations),
-		Iterations: pbkdf2Iterations,
-	}, nil
+	params := argonParams{Time: argon2Time, Memory: argon2Memory, Threads: argon2Threads, KeyLen: argon2KeyLen}
+	hash := argon2.IDKey([]byte(password), salt, params.Time, params.Memory, params.Threads, params.KeyLen)
+	return Credential{Salt: salt, Hash: hash, Algo: "argon2id", Params: params}, nil
 }
 
 // Verify reports whether the password matches, in constant time.
@@ -37,27 +47,21 @@ func (c Credential) Verify(password string) bool {
 	if len(c.Hash) == 0 {
 		return false
 	}
-	got := pbkdf2SHA256([]byte(password), c.Salt, c.Iterations)
+	got := argon2.IDKey([]byte(password), c.Salt, c.Params.Time, c.Params.Memory, c.Params.Threads, c.Params.KeyLen)
 	return subtle.ConstantTimeCompare(got, c.Hash) == 1
 }
 
-// pbkdf2SHA256 derives a 32-byte key (RFC 8018). dkLen == hLen (SHA-256 = 32 bytes),
-// so a single block T_1 suffices.
-func pbkdf2SHA256(password, salt []byte, iterations int) []byte {
-	prf := func(data []byte) []byte {
-		m := hmac.New(sha256.New, password)
-		m.Write(data)
-		return m.Sum(nil)
+// HashToken hashes a random token for safe storage.
+func HashToken(token string) string {
+	h := argon2.IDKey([]byte(token), []byte("auraedu-token-pepper"), 1, 8*1024, 2, 32)
+	return base64.RawURLEncoding.EncodeToString(h)
+}
+
+// RandomToken returns a cryptographically random URL-safe token.
+func RandomToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
 	}
-	// U_1 = PRF(salt || INT_32_BE(1))
-	u := prf(append(append([]byte{}, salt...), 0, 0, 0, 1))
-	out := make([]byte, len(u))
-	copy(out, u)
-	for i := 1; i < iterations; i++ {
-		u = prf(u)
-		for j := range out {
-			out[j] ^= u[j]
-		}
-	}
-	return out
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }

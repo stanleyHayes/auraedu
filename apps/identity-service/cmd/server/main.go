@@ -1,23 +1,27 @@
-// Command server is the Identity Service HTTP entrypoint — login + token verification.
+// Command server is the Identity Service HTTP entrypoint.
 package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
+	"github.com/auraedu/identity-service/internal/adapters/events"
 	svchttp "github.com/auraedu/identity-service/internal/adapters/http"
 	"github.com/auraedu/identity-service/internal/adapters/memory"
+	"github.com/auraedu/identity-service/internal/adapters/postgres"
+	"github.com/auraedu/identity-service/internal/adapters/session"
 	"github.com/auraedu/identity-service/internal/application"
+	"github.com/auraedu/identity-service/internal/db"
+	"github.com/auraedu/identity-service/internal/ports"
 
 	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/httpx"
 )
 
 const service = "identity-service"
@@ -31,23 +35,27 @@ func main() {
 		version = config.Getenv("GIT_SHA", "dev")
 	}
 
-	// The gateway verifies tokens with the SAME key (JWT_SIGNING_KEY). Dev default is
-	// insecure and must be overridden in every real environment (Render env group).
-	signingKey := []byte(config.Getenv("JWT_SIGNING_KEY", "dev-insecure-signing-key-change-me"))
+	ctx := context.Background()
 
-	repo, err := memory.New()
-	if err != nil {
-		log.Error("seed failed", "err", err)
-		os.Exit(1)
-	}
-	svc := application.NewService(repo, signingKey, time.Hour)
+	signingKey := []byte(config.Getenv("JWT_SIGNING_KEY", "dev-insecure-signing-key-change-me"))
+	accessTTL := envDuration("JWT_ACCESS_TTL", 15*time.Minute)
+	refreshTTL := envDuration("JWT_REFRESH_TTL", 7*24*time.Hour)
+
+	repo := mustInitRepo(ctx, log)
+	sessions := mustInitSessions(ctx, log)
+	publisher := mustInitPublisher(ctx, log)
+
+	svc := application.NewService(repo, sessions, publisher, signingKey, accessTTL, refreshTTL)
 	handler := svchttp.NewHandler(svc)
 
 	mux := http.NewServeMux()
-	httpx.NewHealth(service, version).WithLogger(log).Register(mux)
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"service": service, "version": version, "status": "healthy"})
+	})
 	handler.Register(mux)
 
-	addr := ":" + strconv.Itoa(config.Port(8081))
+	port := config.Getenv("PORT", "8081")
+	addr := ":" + port
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           mux,
@@ -67,8 +75,67 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_ = srv.Shutdown(ctx)
+	_ = srv.Shutdown(shutdownCtx)
 	log.Info(service + " stopped")
+}
+
+func mustInitRepo(ctx context.Context, log *slog.Logger) ports.Repository {
+	databaseURL := config.Getenv("DATABASE_URL", "")
+	if databaseURL == "" {
+		log.Info("DATABASE_URL not set; using in-memory repository")
+		repo, err := memory.New()
+		if err != nil {
+			log.Error("memory seed failed", "err", err)
+			os.Exit(1)
+		}
+		return repo
+	}
+	pool, err := db.Open(ctx, databaseURL)
+	if err != nil {
+		log.Error("open database failed", "err", err)
+		os.Exit(1)
+	}
+	if err := db.Migrate(ctx, pool); err != nil {
+		log.Error("migrations failed", "err", err)
+		os.Exit(1)
+	}
+	return postgres.NewRepository(pool)
+}
+
+func mustInitSessions(ctx context.Context, log *slog.Logger) ports.SessionStore {
+	store, err := session.NewFromEnv(ctx)
+	if err != nil {
+		log.Error("session store init failed", "err", err)
+		os.Exit(1)
+	}
+	return store
+}
+
+func mustInitPublisher(ctx context.Context, log *slog.Logger) ports.EventPublisher {
+	pub, err := events.NewPublisher(ctx, log)
+	if err != nil {
+		log.Error("event publisher init failed", "err", err)
+		os.Exit(1)
+	}
+	return pub
+}
+
+func envDuration(key string, fallback time.Duration) time.Duration {
+	v := config.Getenv(key, "")
+	if v == "" {
+		return fallback
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil {
+		return fallback
+	}
+	return d
+}
+
+func writeJSON(w http.ResponseWriter, code int, body any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(body)
 }

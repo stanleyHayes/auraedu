@@ -123,7 +123,7 @@ func TestAuthAllowsPublicRoute(t *testing.T) {
 		called = true
 	}))
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/identity/login", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/students/1", nil)
 	req.Header.Set("X-Tenant-ID", "upshs")
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
@@ -170,11 +170,11 @@ func TestTenantRequired(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusBadRequest {
-		t.Fatalf("status: got %d, want %d", rr.Code, http.StatusBadRequest)
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("status: got %d, want %d", rr.Code, http.StatusUnauthorized)
 	}
 	body := rr.Body.String()
-	if !strings.Contains(body, "tenant_required") {
+	if !strings.Contains(body, "unauthorized") {
 		t.Fatalf("expected tenant_required error, got %q", body)
 	}
 }

@@ -1,54 +1,24 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://contracts.auraedu.dev/events/tenant.feature_disabled.v1.json",
-  "title": "tenant.feature_disabled",
-  "description": "Emitted when a feature flag is disabled for a tenant.",
+  "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
-  "required": [
-    "specversion",
-    "type",
-    "source",
-    "id",
-    "time",
-    "tenant_id",
-    "data"
-  ],
+  "required": ["specversion", "type", "source", "id", "tenant_id", "data"],
   "properties": {
-    "specversion": {
-      "const": "1.0"
-    },
-    "type": {
-      "const": "tenant.feature_disabled"
-    },
-    "source": {
-      "const": "tenant-service"
-    },
-    "subject": {
-      "type": "string"
-    },
-    "id": {
-      "type": "string"
-    },
-    "time": {
-      "type": "string",
-      "format": "date-time"
-    },
-    "tenant_id": {
-      "type": "string"
-    },
-    "datacontenttype": {
-      "const": "application/json"
-    },
+    "specversion": { "const": "1.0" },
+    "type": { "const": "tenant.feature_disabled.v1" },
+    "source": { "type": "string" },
+    "id": { "type": "string", "format": "uuid" },
+    "tenant_id": { "type": "string" },
+    "datacontenttype": { "const": "application/json" },
     "data": {
       "type": "object",
-      "required": [
-        "feature_key"
-      ],
+      "required": ["feature_key", "is_enabled"],
       "properties": {
-        "feature_key": {
-          "type": "string"
-        }
-      }
+        "feature_key": { "type": "string" },
+        "is_enabled": { "const": false },
+        "plan": { "type": "string" }
+      },
+      "additionalProperties": false
     }
-  }
+  },
+  "additionalProperties": false
 }

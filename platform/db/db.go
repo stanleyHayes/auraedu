@@ -1,0 +1,155 @@
+package db
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+
+	"github.com/auraedu/platform/tenancy"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/pressly/goose/v3"
+)
+
+type DB struct {
+	pool *pgxpool.Pool
+	dsn  string
+}
+
+type Config struct {
+	DSN        string
+	MaxConns   int32
+	MinConns   int32
+	Migrations string
+}
+
+func Open(ctx context.Context, cfg Config) (*DB, error) {
+	poolCfg, err := pgxpool.ParseConfig(cfg.DSN)
+	if err != nil {
+		return nil, fmt.Errorf("db: parse DSN: %w", err)
+	}
+	if cfg.MaxConns > 0 {
+		poolCfg.MaxConns = cfg.MaxConns
+	}
+	if cfg.MinConns > 0 {
+		poolCfg.MinConns = cfg.MinConns
+	}
+
+	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
+	if err != nil {
+		return nil, fmt.Errorf("db: create pool: %w", err)
+	}
+	if err := pool.Ping(ctx); err != nil {
+		return nil, fmt.Errorf("db: ping: %w", err)
+	}
+
+	d := &DB{pool: pool, dsn: cfg.DSN}
+	if cfg.Migrations != "" {
+		if err := d.RunMigrations(cfg.Migrations); err != nil {
+			return nil, fmt.Errorf("db: run migrations: %w", err)
+		}
+	}
+	return d, nil
+}
+
+func (d *DB) Close() {
+	if d != nil && d.pool != nil {
+		d.pool.Close()
+	}
+}
+
+func (d *DB) Pool() *pgxpool.Pool {
+	return d.pool
+}
+
+func (d *DB) Ping(ctx context.Context) error {
+	return d.pool.Ping(ctx)
+}
+
+func (d *DB) RunMigrations(dir string) error {
+	sqlDB, err := sql.Open("pgx", d.dsn)
+	if err != nil {
+		return fmt.Errorf("open sql db for migrations: %w", err)
+	}
+	defer sqlDB.Close()
+	if err := sqlDB.Ping(); err != nil {
+		return fmt.Errorf("ping sql db for migrations: %w", err)
+	}
+	if err := goose.SetDialect("postgres"); err != nil {
+		return fmt.Errorf("set dialect: %w", err)
+	}
+	return goose.Up(sqlDB, dir)
+}
+
+type TxFn func(ctx context.Context, tx pgx.Tx) error
+
+func (d *DB) WithTx(ctx context.Context, fn TxFn) error {
+	tx, err := d.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("db: begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	if err := SetTenantID(ctx, tx); err != nil {
+		return err
+	}
+
+	if err := fn(ctx, tx); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func (d *DB) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	if err := d.setTenantID(ctx); err != nil {
+		return pgconn.CommandTag{}, err
+	}
+	return d.pool.Exec(ctx, sql, args...)
+}
+
+func (d *DB) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+	if err := d.setTenantID(ctx); err != nil {
+		return nil, err
+	}
+	return d.pool.Query(ctx, sql, args...)
+}
+
+func (d *DB) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	_ = d.setTenantID(ctx)
+	return d.pool.QueryRow(ctx, sql, args...)
+}
+
+func (d *DB) setTenantID(ctx context.Context) error {
+	if id := tenancy.TenantID(ctx); id != "" {
+		_, err := d.pool.Exec(ctx, "SELECT set_config('app.tenant_id', $1, false)", id)
+		if err != nil {
+			return fmt.Errorf("db: set tenant_id: %w", err)
+		}
+	}
+	return nil
+}
+
+type Querier interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+func SetTenantID(ctx context.Context, q Querier) error {
+	id := tenancy.TenantID(ctx)
+	if id == "" {
+		return errors.New("db: cannot set app.tenant_id: tenant_id missing from context")
+	}
+	_, err := q.Exec(ctx, "SELECT set_config('app.tenant_id', $1, false)", id)
+	if err != nil {
+		return fmt.Errorf("db: set app.tenant_id: %w", err)
+	}
+	return nil
+}
+
+func ResetTenantID(ctx context.Context, q Querier) error {
+	_, err := q.Exec(ctx, "SELECT set_config('app.tenant_id', '', false)")
+	return err
+}

@@ -59,15 +59,11 @@ func (b *Builder) Build() http.Handler {
 }
 
 func (b *Builder) chain(next http.Handler) http.Handler {
-	h := next
-	h = b.accessLog(h)
-	h = b.cors(h)
-	h = b.requestID(h)
-	h = b.auth(h)
-	h = b.tenant(h)
-	h = b.featureFlag(h)
-	h = b.rateLimit(h)
-	return h
+	// Order matters: access log wraps everything; CORS handles preflight early;
+	// request-id is generated before auth/tenant so all logs carry it; auth and
+	// tenant resolve the caller; feature-flag and rate-limit are edge gates
+	// immediately before the upstream proxy.
+	return b.accessLog(b.cors(b.requestID(b.auth(b.tenant(b.featureFlag(b.rateLimit(next)))))))
 }
 
 func (b *Builder) skipAuth(r *http.Request) bool {
@@ -300,6 +296,10 @@ func (b *Builder) accessLog(next http.Handler) http.Handler {
 		rr := newResponseRecorder(w)
 		next.ServeHTTP(rr, r)
 
+		rid := rr.Header().Get("X-Request-Id")
+		if rid == "" {
+			rid = RequestIDFrom(r.Context())
+		}
 		actor := ActorFrom(r.Context())
 		b.Log.Info("access",
 			"method", r.Method,
@@ -308,7 +308,7 @@ func (b *Builder) accessLog(next http.Handler) http.Handler {
 			"status", rr.status,
 			"size", rr.size,
 			"duration_ms", time.Since(start).Milliseconds(),
-			"request_id", RequestIDFrom(r.Context()),
+			"request_id", rid,
 			"tenant_id", TenantIDFrom(r.Context()),
 			"user_id", actor.UserID,
 			"remote_addr", r.RemoteAddr,
