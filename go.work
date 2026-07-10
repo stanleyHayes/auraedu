@@ -17,5 +17,6 @@ use (
 	./apps/staff-service
 	./apps/student-service
 	./apps/tenant-service
+	./apps/website-service
 	./platform
 )
