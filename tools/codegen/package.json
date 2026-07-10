@@ -1,0 +1,23 @@
+{
+  "name": "@auraedu/codegen",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AuraEDU contract codegen: OpenAPI → Go/TS, CloudEvents JSON Schema → validators/types.",
+  "scripts": {
+    "generate": "tsx src/generate.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.15.12",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "js-yaml": "^4.1.0",
+    "json-schema-to-typescript": "^15.0.4",
+    "openapi-typescript": "^7.6.1",
+    "tsx": "^4.19.4",
+    "typescript": "^5.9.2"
+  }
+}
