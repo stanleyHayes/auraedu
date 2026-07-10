@@ -15,8 +15,7 @@ ROOT = Path(__file__).resolve().parents[3]
 OPENAPI_DIR = ROOT / "contracts" / "openapi"
 EVENTS_DIR = ROOT / "contracts" / "events"
 
-STANDARD_ERRORS = """components:
-  parameters:
+COMMON_PARAMETERS = """  parameters:
     TenantId:
       name: tenant_id
       in: path
@@ -35,18 +34,17 @@ STANDARD_ERRORS = """components:
     Cursor:
       name: cursor
       in: query
-      schema: { type: string }
+      schema: { type: string }"""
 
-  schemas:
-    Error:
+COMMON_ERROR_SCHEMA = """    Error:
       type: object
       required: [code, message]
       properties:
         code: { type: string, enum: [forbidden, feature_disabled, tenant_mismatch, validation_error, not_found, unauthorized] }
         message: { type: string }
-        request_id: { type: string }
+        request_id: { type: string }"""
 
-  responses:
+COMMON_RESPONSES = """  responses:
     Unauthorized:
       description: Missing or invalid bearer token
       content:
@@ -114,8 +112,14 @@ tags:
 paths:
 {indent(paths, width=2)}
 
-{STANDARD_ERRORS}
+components:
+{COMMON_PARAMETERS}
+
+  schemas:
+{COMMON_ERROR_SCHEMA}
 {extra_schemas}
+
+{COMMON_RESPONSES}
 """
 
 
@@ -586,9 +590,6 @@ def write_openapi_specs() -> None:
     OPENAPI_DIR.mkdir(parents=True, exist_ok=True)
     for spec in OPENAPI_SPECS:
         dest = OPENAPI_DIR / f"{spec['key']}.v1.yaml"
-        if dest.exists():
-            print(f"skip existing {dest}")
-            continue
         paths_yaml = render_paths(spec)
         schemas_yaml = "\n".join(spec["schemas"])
         content = make_openapi(

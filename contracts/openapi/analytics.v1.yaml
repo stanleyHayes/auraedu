@@ -80,6 +80,35 @@ components:
         code: { type: string, enum: [forbidden, feature_disabled, tenant_mismatch, validation_error, not_found, unauthorized] }
         message: { type: string }
         request_id: { type: string }
+    KpiSnapshot:
+        type: object
+        required: [id, tenant_id, metric_key, value]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          metric_key: { type: string }
+          value: { type: number }
+          recorded_at: { type: string, format: date-time }
+    Projection:
+        type: object
+        required: [id, tenant_id, metric_key, projected_value]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          metric_key: { type: string }
+          projected_value: { type: number }
+          horizon: { type: string }
+          generated_at: { type: string, format: date-time }
+    KpiSnapshotList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/KpiSnapshot' } }
+          next_cursor: { type: [string, 'null'] }
+    ProjectionList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/Projection' } }
+          next_cursor: { type: [string, 'null'] }
 
   responses:
     Unauthorized:
@@ -119,32 +148,3 @@ components:
 security:
   - bearerAuth: []
 
-    KpiSnapshot:
-        type: object
-        required: [id, tenant_id, metric_key, value]
-        properties:
-          id: { type: string, format: uuid }
-          tenant_id: { type: string, format: uuid }
-          metric_key: { type: string }
-          value: { type: number }
-          recorded_at: { type: string, format: date-time }
-    Projection:
-        type: object
-        required: [id, tenant_id, metric_key, projected_value]
-        properties:
-          id: { type: string, format: uuid }
-          tenant_id: { type: string, format: uuid }
-          metric_key: { type: string }
-          projected_value: { type: number }
-          horizon: { type: string }
-          generated_at: { type: string, format: date-time }
-    KpiSnapshotList:
-        type: object
-        properties:
-          data: { type: array, items: { $ref: '#/components/schemas/KpiSnapshot' } }
-          next_cursor: { type: [string, 'null'] }
-    ProjectionList:
-        type: object
-        properties:
-          data: { type: array, items: { $ref: '#/components/schemas/Projection' } }
-          next_cursor: { type: [string, 'null'] }

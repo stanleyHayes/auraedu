@@ -115,6 +115,39 @@ components:
         code: { type: string, enum: [forbidden, feature_disabled, tenant_mismatch, validation_error, not_found, unauthorized] }
         message: { type: string }
         request_id: { type: string }
+    SignedUploadRequest:
+        type: object
+        required: [folder, file_name]
+        properties:
+          folder: { type: string, example: upshs/documents }
+          file_name: { type: string }
+          resource_type: { type: string, enum: [image, raw, video], default: image }
+    SignedUploadResponse:
+        type: object
+        required: [signature, timestamp, api_key, folder]
+        properties:
+          signature: { type: string }
+          timestamp: { type: integer }
+          api_key: { type: string }
+          folder: { type: string }
+          cloud_name: { type: string }
+          upload_url: { type: string }
+    File:
+        type: object
+        required: [id, tenant_id, public_id, secure_url]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          public_id: { type: string }
+          secure_url: { type: string }
+          resource_type: { type: string, enum: [image, raw, video] }
+          folder: { type: string }
+          uploaded_by: { type: [string, 'null'], format: uuid }
+    FileList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/File' } }
+          next_cursor: { type: [string, 'null'] }
 
   responses:
     Unauthorized:
@@ -154,36 +187,3 @@ components:
 security:
   - bearerAuth: []
 
-    SignedUploadRequest:
-        type: object
-        required: [folder, file_name]
-        properties:
-          folder: { type: string, example: upshs/documents }
-          file_name: { type: string }
-          resource_type: { type: string, enum: [image, raw, video], default: image }
-    SignedUploadResponse:
-        type: object
-        required: [signature, timestamp, api_key, folder]
-        properties:
-          signature: { type: string }
-          timestamp: { type: integer }
-          api_key: { type: string }
-          folder: { type: string }
-          cloud_name: { type: string }
-          upload_url: { type: string }
-    File:
-        type: object
-        required: [id, tenant_id, public_id, secure_url]
-        properties:
-          id: { type: string, format: uuid }
-          tenant_id: { type: string, format: uuid }
-          public_id: { type: string }
-          secure_url: { type: string }
-          resource_type: { type: string, enum: [image, raw, video] }
-          folder: { type: string }
-          uploaded_by: { type: [string, 'null'], format: uuid }
-    FileList:
-        type: object
-        properties:
-          data: { type: array, items: { $ref: '#/components/schemas/File' } }
-          next_cursor: { type: [string, 'null'] }

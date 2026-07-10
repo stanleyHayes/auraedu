@@ -164,45 +164,6 @@ components:
         code: { type: string, enum: [forbidden, feature_disabled, tenant_mismatch, validation_error, not_found, unauthorized] }
         message: { type: string }
         request_id: { type: string }
-
-  responses:
-    Unauthorized:
-      description: Missing or invalid bearer token
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/Error' }
-          example: { code: unauthorized, message: "Authentication required" }
-    Forbidden:
-      description: Not permitted (auth, tenant scope, RBAC, or feature disabled)
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/Error' }
-          examples:
-            forbidden: { value: { code: forbidden, message: "Missing required permission" } }
-            feature_disabled: { value: { code: feature_disabled, message: "Feature not enabled for tenant" } }
-            tenant_mismatch: { value: { code: tenant_mismatch, message: "Resource belongs to another tenant" } }
-    NotFound:
-      description: Resource not found
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/Error' }
-          example: { code: not_found, message: "Resource not found" }
-    ValidationError:
-      description: Request failed validation
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/Error' }
-          example: { code: validation_error, message: "request body is invalid" }
-
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-
-security:
-  - bearerAuth: []
-
     Assessment:
         type: object
         required: [id, tenant_id, name, type, subject_id]
@@ -273,3 +234,42 @@ security:
         properties:
           data: { type: array, items: { $ref: '#/components/schemas/Assignment' } }
           next_cursor: { type: [string, 'null'] }
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: unauthorized, message: "Authentication required" }
+    Forbidden:
+      description: Not permitted (auth, tenant scope, RBAC, or feature disabled)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            forbidden: { value: { code: forbidden, message: "Missing required permission" } }
+            feature_disabled: { value: { code: feature_disabled, message: "Feature not enabled for tenant" } }
+            tenant_mismatch: { value: { code: tenant_mismatch, message: "Resource belongs to another tenant" } }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: not_found, message: "Resource not found" }
+    ValidationError:
+      description: Request failed validation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: validation_error, message: "request body is invalid" }
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
+

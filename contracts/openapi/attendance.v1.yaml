@@ -102,6 +102,32 @@ components:
         code: { type: string, enum: [forbidden, feature_disabled, tenant_mismatch, validation_error, not_found, unauthorized] }
         message: { type: string }
         request_id: { type: string }
+    AttendanceRecord:
+        type: object
+        required: [id, tenant_id, student_id, date, status]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          student_id: { type: string, format: uuid }
+          class_id: { type: [string, 'null'], format: uuid }
+          subject_id: { type: [string, 'null'], format: uuid }
+          date: { type: string, format: date }
+          status: { type: string, enum: [present, absent, late, excused] }
+          recorded_by: { type: string, format: uuid }
+          recorded_at: { type: string, format: date-time }
+    BulkAttendanceRequest:
+        type: object
+        required: [date, records]
+        properties:
+          date: { type: string, format: date }
+          class_id: { type: [string, 'null'], format: uuid }
+          subject_id: { type: [string, 'null'], format: uuid }
+          records: { type: array, items: { type: object, required: [student_id, status], properties: { student_id: { type: string, format: uuid }, status: { type: string, enum: [present, absent, late, excused] }, remark: { type: [string, 'null'] } } } }
+    AttendanceRecordList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/AttendanceRecord' } }
+          next_cursor: { type: [string, 'null'] }
 
   responses:
     Unauthorized:
@@ -141,29 +167,3 @@ components:
 security:
   - bearerAuth: []
 
-    AttendanceRecord:
-        type: object
-        required: [id, tenant_id, student_id, date, status]
-        properties:
-          id: { type: string, format: uuid }
-          tenant_id: { type: string, format: uuid }
-          student_id: { type: string, format: uuid }
-          class_id: { type: [string, 'null'], format: uuid }
-          subject_id: { type: [string, 'null'], format: uuid }
-          date: { type: string, format: date }
-          status: { type: string, enum: [present, absent, late, excused] }
-          recorded_by: { type: string, format: uuid }
-          recorded_at: { type: string, format: date-time }
-    BulkAttendanceRequest:
-        type: object
-        required: [date, records]
-        properties:
-          date: { type: string, format: date }
-          class_id: { type: [string, 'null'], format: uuid }
-          subject_id: { type: [string, 'null'], format: uuid }
-          records: { type: array, items: { type: object, required: [student_id, status], properties: { student_id: { type: string, format: uuid }, status: { type: string, enum: [present, absent, late, excused] }, remark: { type: [string, 'null'] } } } }
-    AttendanceRecordList:
-        type: object
-        properties:
-          data: { type: array, items: { $ref: '#/components/schemas/AttendanceRecord' } }
-          next_cursor: { type: [string, 'null'] }

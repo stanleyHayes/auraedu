@@ -60,6 +60,23 @@ components:
         code: { type: string, enum: [forbidden, feature_disabled, tenant_mismatch, validation_error, not_found, unauthorized] }
         message: { type: string }
         request_id: { type: string }
+    AuditLog:
+        type: object
+        required: [id, tenant_id, event_type, actor_id, occurred_at]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          event_type: { type: string }
+          actor_id: { type: [string, 'null'], format: uuid }
+          resource_type: { type: [string, 'null'] }
+          resource_id: { type: [string, 'null'] }
+          metadata: { type: [object, 'null'], additionalProperties: true }
+          occurred_at: { type: string, format: date-time }
+    AuditLogList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/AuditLog' } }
+          next_cursor: { type: [string, 'null'] }
 
   responses:
     Unauthorized:
@@ -99,20 +116,3 @@ components:
 security:
   - bearerAuth: []
 
-    AuditLog:
-        type: object
-        required: [id, tenant_id, event_type, actor_id, occurred_at]
-        properties:
-          id: { type: string, format: uuid }
-          tenant_id: { type: string, format: uuid }
-          event_type: { type: string }
-          actor_id: { type: [string, 'null'], format: uuid }
-          resource_type: { type: [string, 'null'] }
-          resource_id: { type: [string, 'null'] }
-          metadata: { type: [object, 'null'], additionalProperties: true }
-          occurred_at: { type: string, format: date-time }
-    AuditLogList:
-        type: object
-        properties:
-          data: { type: array, items: { $ref: '#/components/schemas/AuditLog' } }
-          next_cursor: { type: [string, 'null'] }

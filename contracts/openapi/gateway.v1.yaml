@@ -116,6 +116,33 @@ components:
         code: { type: string, enum: [forbidden, feature_disabled, tenant_mismatch, validation_error, not_found, unauthorized] }
         message: { type: string }
         request_id: { type: string }
+    Health:
+        type: object
+        required: [status]
+        properties:
+          status: { type: string, enum: [ok, degraded, down] }
+          checks: { type: object, additionalProperties: true }
+    Route:
+        type: object
+        required: [path_prefix, upstream]
+        properties:
+          path_prefix: { type: string }
+          upstream: { type: string }
+          strip_prefix: { type: boolean, default: true }
+          require_auth: { type: boolean, default: true }
+    CreateRoute:
+        type: object
+        required: [path_prefix, upstream]
+        properties:
+          path_prefix: { type: string }
+          upstream: { type: string }
+          strip_prefix: { type: boolean, default: true }
+          require_auth: { type: boolean, default: true }
+    RouteList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/Route' } }
+          next_cursor: { type: [string, 'null'] }
 
   responses:
     Unauthorized:
@@ -155,30 +182,3 @@ components:
 security:
   - bearerAuth: []
 
-    Health:
-        type: object
-        required: [status]
-        properties:
-          status: { type: string, enum: [ok, degraded, down] }
-          checks: { type: object, additionalProperties: true }
-    Route:
-        type: object
-        required: [path_prefix, upstream]
-        properties:
-          path_prefix: { type: string }
-          upstream: { type: string }
-          strip_prefix: { type: boolean, default: true }
-          require_auth: { type: boolean, default: true }
-    CreateRoute:
-        type: object
-        required: [path_prefix, upstream]
-        properties:
-          path_prefix: { type: string }
-          upstream: { type: string }
-          strip_prefix: { type: boolean, default: true }
-          require_auth: { type: boolean, default: true }
-    RouteList:
-        type: object
-        properties:
-          data: { type: array, items: { $ref: '#/components/schemas/Route' } }
-          next_cursor: { type: [string, 'null'] }
