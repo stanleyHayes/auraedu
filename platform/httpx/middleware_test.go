@@ -1,0 +1,80 @@
+package httpx
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+func TestRequestIDMiddlewarePreservesInbound(t *testing.T) {
+	handler := RequestIDMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("GET", "/", nil)
+	req.Header.Set(RequestIDHeader, "existing-id")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get(RequestIDHeader); got != "existing-id" {
+		t.Fatalf("expected existing-id, got %q", got)
+	}
+}
+
+func TestRequestIDMiddlewareGeneratesMissing(t *testing.T) {
+	handler := RequestIDMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("GET", "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get(RequestIDHeader); got == "" {
+		t.Fatal("expected generated request id")
+	}
+}
+
+func TestCORSPreflight(t *testing.T) {
+	handler := CORS(DefaultCORS())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("OPTIONS", "/", nil)
+	req.Header.Set("Origin", "http://localhost:3000")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Fatalf("expected *, got %q", got)
+	}
+}
+
+func TestErrorResponses(t *testing.T) {
+	cases := []struct {
+		fn       func(http.ResponseWriter, *http.Request)
+		expected int
+		code     ErrorCode
+	}{
+		{func(w http.ResponseWriter, r *http.Request) { Forbidden(w, r, "") }, http.StatusForbidden, ErrForbidden},
+		{func(w http.ResponseWriter, r *http.Request) { FeatureDisabled(w, r, "billing") }, http.StatusForbidden, ErrFeatureDisabled},
+		{func(w http.ResponseWriter, r *http.Request) { TenantMismatch(w, r) }, http.StatusForbidden, ErrTenantMismatch},
+		{func(w http.ResponseWriter, r *http.Request) { ValidationError(w, r, nil) }, http.StatusUnprocessableEntity, ErrValidation},
+		{func(w http.ResponseWriter, r *http.Request) { NotFound(w, r, "student") }, http.StatusNotFound, ErrNotFound},
+		{func(w http.ResponseWriter, r *http.Request) { Unauthorized(w, r, "") }, http.StatusUnauthorized, ErrUnauthorized},
+	}
+
+	for _, c := range cases {
+		rec := httptest.NewRecorder()
+		c.fn(rec, httptest.NewRequest("GET", "/", nil))
+		if rec.Code != c.expected {
+			t.Fatalf("%s: expected %d, got %d", c.code, c.expected, rec.Code)
+		}
+		if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+			t.Fatalf("%s: expected json, got %s", c.code, ct)
+		}
+	}
+}
