@@ -4,5 +4,6 @@ go 1.25
 
 use (
 	./apps/api-gateway
+	./apps/student-service
 	./platform
 )

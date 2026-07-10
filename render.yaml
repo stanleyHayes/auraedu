@@ -8,9 +8,9 @@
 #   cron   → scheduled jobs (spec cron)
 #   databases (Postgres 17) → one per service    keyvalue → shared Redis/Valkey cache
 #
-# Sprint 0 seeds the FOUNDATION (gateway, identity, tenant, NATS, cache, 2 DBs, env groups).
-# tools/new-service appends a service + its database here. Region: frankfurt (nearest to Ghana).
-# CI gates run in GitHub Actions; autoDeployTrigger: checksPass means Render deploys only after they pass.
+# Region: frankfurt (nearest to Ghana). CI gates run in GitHub Actions; autoDeployTrigger:
+# checksPass means Render deploys only after they pass. `make new-service` prints the block
+# to append here (services:) plus a database (databases:).
 
 envVarGroups:
   - name: auraedu-shared-config
@@ -18,7 +18,7 @@ envVarGroups:
       - key: LOG_LEVEL
         value: info
       - key: OTEL_EXPORTER_OTLP_ENDPOINT
-        value: "" # set to Grafana Cloud / collector endpoint in dashboard
+        value: "" # set to Grafana Cloud / collector endpoint in the dashboard
       - key: ENVIRONMENT
         value: production
 
@@ -27,7 +27,7 @@ envVarGroups:
       - key: JWT_SIGNING_KEY
         generateValue: true # 256-bit; Identity signs, Gateway verifies
       - key: CLOUDINARY_CLOUD_NAME
-        sync: false # set in dashboard
+        sync: false # set in the dashboard
       - key: CLOUDINARY_API_KEY
         sync: false
       - key: CLOUDINARY_API_SECRET
@@ -43,6 +43,11 @@ databases:
     plan: basic-1gb
     region: frankfurt
     databaseName: tenant
+    postgresMajorVersion: "17"
+  - name: student-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: student
     postgresMajorVersion: "17"
 
 services:
@@ -78,20 +83,32 @@ services:
     healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
-      paths: ["apps/api-gateway/**", "platform/**", "go.work"]
-      ignoredPaths: ["**/*_test.go", "**/*.md"]
+      paths:
+        - apps/api-gateway/**
+        - platform/**
+      ignoredPaths:
+        - "**/*_test.go"
+        - "**/*.md"
     envVars:
       - key: NATS_HOST
-        fromService: { name: nats, property: host }
+        fromService:
+          name: nats
+          property: host
       - key: REDIS_URL
-        fromService: { name: auraedu-cache, property: connectionString }
+        fromService:
+          name: auraedu-cache
+          property: connectionString
       - key: IDENTITY_HOSTPORT
-        fromService: { name: identity-service, property: hostport }
+        fromService:
+          name: identity-service
+          property: hostport
       - key: TENANT_HOSTPORT
-        fromService: { name: tenant-service, property: hostport }
+        fromService:
+          name: tenant-service
+          property: hostport
       - key: JWT_SIGNING_KEY
         fromGroup: auraedu-secrets
-      - { fromGroup: auraedu-shared-config }
+      - fromGroup: auraedu-shared-config
 
   # ---- Identity Service (private) ------------------------------------------
   - name: identity-service
@@ -103,18 +120,25 @@ services:
     dockerContext: .
     autoDeployTrigger: checksPass
     buildFilter:
-      paths: ["apps/identity-service/**", "platform/**", "go.work"]
-      ignoredPaths: ["**/*_test.go", "**/*.md"]
+      paths:
+        - apps/identity-service/**
+        - platform/**
     envVars:
       - key: DATABASE_URL
-        fromDatabase: { name: identity-db, property: connectionString }
+        fromDatabase:
+          name: identity-db
+          property: connectionString
       - key: REDIS_URL
-        fromService: { name: auraedu-cache, property: connectionString }
+        fromService:
+          name: auraedu-cache
+          property: connectionString
       - key: NATS_HOST
-        fromService: { name: nats, property: host }
+        fromService:
+          name: nats
+          property: host
       - key: JWT_SIGNING_KEY
         fromGroup: auraedu-secrets
-      - { fromGroup: auraedu-shared-config }
+      - fromGroup: auraedu-shared-config
 
   # ---- Tenant Service (private) — schools, branding, FEATURE FLAGS ---------
   - name: tenant-service
@@ -126,14 +150,43 @@ services:
     dockerContext: .
     autoDeployTrigger: checksPass
     buildFilter:
-      paths: ["apps/tenant-service/**", "platform/**", "go.work"]
-      ignoredPaths: ["**/*_test.go", "**/*.md"]
+      paths:
+        - apps/tenant-service/**
+        - platform/**
     envVars:
       - key: DATABASE_URL
-        fromDatabase: { name: tenant-db, property: connectionString }
+        fromDatabase:
+          name: tenant-db
+          property: connectionString
       - key: NATS_HOST
-        fromService: { name: nats, property: host }
-      - { fromGroup: auraedu-shared-config }
+        fromService:
+          name: nats
+          property: host
+      - fromGroup: auraedu-shared-config
+
+  # ---- Student Service (private) — scaffolded via `make new-service` --------
+  - name: student-service
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/student-service/Dockerfile
+    dockerContext: .
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/student-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: student-db
+          property: connectionString
+      - key: NATS_HOST
+        fromService:
+          name: nats
+          property: host
+      - fromGroup: auraedu-shared-config
 
   # ---- Web app: portals + per-school public sites (public) -----------------
   - name: web
@@ -146,11 +199,15 @@ services:
     healthCheckPath: /api/health
     autoDeployTrigger: checksPass
     buildFilter:
-      paths: ["apps/web/**", "packages/**"]
+      paths:
+        - apps/web/**
+        - packages/**
     envVars:
       - key: NEXT_PUBLIC_API_URL
-        fromService: { name: api-gateway, property: host }
-      - { fromGroup: auraedu-shared-config }
+        fromService:
+          name: api-gateway
+          property: host
+      - fromGroup: auraedu-shared-config
 
   # ---- Company marketing site: auraedu.com (public) ------------------------
   - name: marketing
@@ -163,25 +220,8 @@ services:
     healthCheckPath: /api/health
     autoDeployTrigger: checksPass
     buildFilter:
-      paths: ["apps/marketing/**", "packages/**"]
+      paths:
+        - apps/marketing/**
+        - packages/**
     envVars:
-      - { fromGroup: auraedu-shared-config }
-
-  # ---- TEMPLATE for each new domain service (tools/new-service appends this) -
-  # - name: student-service
-  #   type: pserv
-  #   runtime: docker
-  #   region: frankfurt
-  #   plan: starter
-  #   dockerfilePath: ./apps/student-service/Dockerfile
-  #   dockerContext: .
-  #   autoDeployTrigger: checksPass
-  #   buildFilter:
-  #     paths: ["apps/student-service/**", "platform/**", "go.work"]
-  #   envVars:
-  #     - key: DATABASE_URL
-  #       fromDatabase: { name: student-db, property: connectionString }
-  #     - key: NATS_HOST
-  #       fromService: { name: nats, property: host }
-  #     - { fromGroup: auraedu-shared-config }
-  # (and add `- name: student-db` under top-level databases:)
+      - fromGroup: auraedu-shared-config
