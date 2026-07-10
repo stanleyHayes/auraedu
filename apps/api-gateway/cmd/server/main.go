@@ -19,11 +19,20 @@ import (
 
 const service = "api-gateway"
 
+// version is injected at build time via -ldflags "-X main.version=<sha>" (see Dockerfile);
+// falls back to GIT_SHA env, then "dev".
+var version = ""
+
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(log)
+
+	if version == "" {
+		version = config.Getenv("GIT_SHA", "dev")
+	}
 
 	mux := http.NewServeMux()
-	health := httpx.NewHealth(service, config.Getenv("GIT_SHA", "dev"))
+	health := httpx.NewHealth(service, version).WithLogger(log)
 	health.Register(mux)
 
 	addr := ":" + itoa(config.Port(8080))
@@ -31,6 +40,9 @@ func main() {
 		Addr:              addr,
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	go func() {

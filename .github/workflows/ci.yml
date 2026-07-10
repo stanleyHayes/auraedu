@@ -46,13 +46,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
-        with: { go-version: '1.25' }
+        with: { go-version: '1.25.11' } # >= patched stdlib (GO-2026-5037/4601); Renovate bumps this
       - run: go build ./platform/... ./apps/api-gateway/...
       - run: go vet ./platform/... ./apps/api-gateway/...
       - name: gofmt
         run: test -z "$(gofmt -l platform apps)"
       - name: govulncheck
-        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./platform/... || true
+        run: |
+          # govulncheck runs per-module (GOWORK=off); fails the build on CALLED vulns.
+          for m in platform apps/api-gateway; do
+            echo "::group::govulncheck $m"
+            ( cd "$m" && GOWORK=off go run golang.org/x/vuln/cmd/govulncheck@latest ./... )
+            echo "::endgroup::"
+          done
 
   web:
     needs: changes

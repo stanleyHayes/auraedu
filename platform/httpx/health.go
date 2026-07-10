@@ -5,28 +5,46 @@ package httpx
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 )
+
+// readinessCheck is a named dependency probe (e.g. "postgres", "nats").
+type readinessCheck struct {
+	name string
+	fn   func() error
+}
 
 // HealthState reports a service's liveness/readiness. Readiness callbacks
 // (DB ping, NATS ping, …) are registered per service and evaluated on /ready.
 type HealthState struct {
 	Service string
 	Version string
-	checks  []func() error
+	log     *slog.Logger
+	checks  []readinessCheck
 }
 
 // NewHealth creates a HealthState for a named service.
 func NewHealth(service, version string) *HealthState {
-	return &HealthState{Service: service, Version: version}
+	return &HealthState{Service: service, Version: version, log: slog.Default()}
 }
 
-// AddReadinessCheck registers a dependency probe evaluated on GET /ready.
-func (h *HealthState) AddReadinessCheck(fn func() error) {
-	h.checks = append(h.checks, fn)
+// WithLogger sets the logger used to record readiness failures server-side.
+func (h *HealthState) WithLogger(l *slog.Logger) *HealthState {
+	if l != nil {
+		h.log = l
+	}
+	return h
+}
+
+// AddReadinessCheck registers a named dependency probe evaluated on GET /ready.
+func (h *HealthState) AddReadinessCheck(name string, fn func() error) {
+	h.checks = append(h.checks, readinessCheck{name: name, fn: fn})
 }
 
 // Register wires GET /health (liveness) and GET /ready (readiness) onto mux.
+// Readiness failures are logged server-side; the response never echoes internal
+// error detail (only the safe check name) to avoid information disclosure.
 func (h *HealthState) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{
@@ -35,9 +53,10 @@ func (h *HealthState) Register(mux *http.ServeMux) {
 	})
 	mux.HandleFunc("GET /ready", func(w http.ResponseWriter, _ *http.Request) {
 		for _, c := range h.checks {
-			if err := c(); err != nil {
+			if err := c.fn(); err != nil {
+				h.log.Error("readiness check failed", "service", h.Service, "check", c.name, "err", err)
 				writeJSON(w, http.StatusServiceUnavailable, map[string]string{
-					"status": "not_ready", "service": h.Service, "error": err.Error(),
+					"status": "not_ready", "service": h.Service, "check": c.name,
 				})
 				return
 			}
