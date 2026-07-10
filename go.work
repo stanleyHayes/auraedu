@@ -6,11 +6,12 @@ use (
 	./apps/academic-service
 	./apps/api-gateway
 	./apps/assessment-service
-	./apps/report-service
 	./apps/attendance-service
 	./apps/audit-service
+	./apps/fees-service
 	./apps/file-service
 	./apps/identity-service
+	./apps/report-service
 	./apps/staff-service
 	./apps/student-service
 	./apps/tenant-service
