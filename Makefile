@@ -25,9 +25,13 @@ bootstrap: ## Install all toolchains + workspace deps (JS, Go, Python)
 dev: ## Boot the full local stack (infra + backend services + web + marketing)
 	docker compose -f deploy/docker-compose.yml up --build -d
 	@echo "==> AuraEDU stack is starting up."
-	@echo "    Gateway:  http://localhost:8080"
-	@echo "    Web:      http://localhost:3000"
+	@echo "    Gateway:   http://localhost:8080"
+	@echo "    Web:       http://localhost:3000"
 	@echo "    Marketing: http://localhost:3001"
+
+.PHONY: dev-down
+dev-down: ## Stop the full local stack
+	docker compose -f deploy/docker-compose.yml down
 
 .PHONY: infra-up
 infra-up: ## Start local infra (Postgres, Redis, NATS, OTel) via docker compose
@@ -42,13 +46,13 @@ infra-down: ## Stop local infra
 lint: ## Lint everything (turbo + go vet + ruff)
 	pnpm lint
 	@for m in $(GO_MODULES); do echo "==> go vet $$m"; (cd $$m && go vet ./...) || exit 1; done
-	uv run ruff check . || true
+	@if [ -f uv.lock ]; then uv run ruff check .; else echo "==> no uv.lock; skipping ruff"; fi
 
 .PHONY: test
 test: ## Run all tests (turbo + go test + pytest)
 	pnpm test
 	@for m in $(GO_MODULES); do echo "==> go test $$m"; (cd $$m && go test ./...) || exit 1; done
-	uv run pytest || true
+	@if [ -f uv.lock ]; then uv run pytest; else echo "==> no uv.lock; skipping pytest"; fi
 
 .PHONY: typecheck
 typecheck: ## Typecheck TS workspaces
@@ -58,11 +62,23 @@ typecheck: ## Typecheck TS workspaces
 .PHONY: contracts
 contracts: ## Regenerate types/stubs from contracts/ (OpenAPI + events)
 	@echo "==> validating contracts"; $(MAKE) contracts-lint
-	pnpm --filter @auraedu/shared-types run generate || echo "codegen: TODO (AURA-1.4)"
+	@if [ -f pnpm-lock.yaml ] && [ -f packages/shared-types/package.json ]; then \
+		pnpm install --frozen-lockfile >/dev/null 2>&1 || true; \
+		pnpm run contracts || echo "contracts: TS codegen not ready (AURA-1.4)"; \
+	else \
+		echo "contracts: pnpm workspace / shared-types not ready; skipping TS codegen"; \
+	fi
+	@echo "==> contract generation complete"
 
 .PHONY: contracts-lint
 contracts-lint: ## Lint OpenAPI + validate event JSON schemas
-	@command -v spectral >/dev/null 2>&1 && spectral lint 'contracts/openapi/*.yaml' || echo "spectral not installed (AURA-1.1)"
+	@if command -v spectral >/dev/null 2>&1; then \
+		spectral lint 'contracts/openapi/*.yaml'; \
+	else \
+		echo "==> spectral not installed locally; using npx..."; \
+		npx -y @stoplight/spectral-cli lint 'contracts/openapi/*.yaml'; \
+	fi
+	@echo "==> event JSON schema validation: TODO (AURA-1.2)"
 
 # ---- Scaffolding -----------------------------------------------------------
 .PHONY: new-service
@@ -78,6 +94,17 @@ migrate: ## Run all service DB migrations
 .PHONY: seed
 seed: ## Seed the two initial tenants (UPSHS, Aboom)
 	go run ./tools/seed || echo "seed: TODO (AURA-52.x)"
+
+# ---- Infra validation ------------------------------------------------------
+.PHONY: compose-validate
+compose-validate: ## Validate docker compose files with `docker compose config`
+	docker compose -f deploy/docker-compose.infra.yml config >/dev/null
+	docker compose -f deploy/docker-compose.yml config >/dev/null
+	@echo "==> docker compose files are valid"
+
+# ---- CI convenience --------------------------------------------------------
+.PHONY: ci-check
+ci-check: lint test contracts compose-validate ## Run the local subset of CI gates
 
 # ---- Help ------------------------------------------------------------------
 .PHONY: help
