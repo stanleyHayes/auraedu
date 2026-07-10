@@ -1,4 +1,8 @@
-import type { FeatureFlag } from "@auraedu/shared-types";
+export interface FeatureFlag {
+  feature_key: string;
+  is_enabled: boolean;
+  plan_required?: string;
+}
 
 export interface GatewayClientOptions {
   baseUrl: string;
