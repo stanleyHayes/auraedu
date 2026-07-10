@@ -1,6 +1,7 @@
 // Command server is the AuraEDU API Gateway — the single public entry point.
-// Sprint 0: liveness/readiness only. Auth verification, tenant resolution, rate
-// limiting and routing land in Sprint 1 (EP-03: AURA-3.1..3.5).
+// Sprint 1 (EP-03): service registry + reverse proxy, JWT verification, tenant
+// resolution, rate limiting, request-id, CORS, structured access logging, and
+// feature-flag edge pre-checks.
 package main
 
 import (
@@ -13,8 +14,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/auraedu/api-gateway/internal/gateway"
+	"github.com/auraedu/api-gateway/internal/stubs"
 	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/httpx"
 )
 
 const service = "api-gateway"
@@ -31,14 +33,97 @@ func main() {
 		version = config.Getenv("GIT_SHA", "dev")
 	}
 
-	mux := http.NewServeMux()
-	health := httpx.NewHealth(service, version).WithLogger(log)
-	health.Register(mux)
+	cfg, err := gateway.LoadConfig()
+	if err != nil {
+		log.Error("failed to load config", "err", err)
+		os.Exit(1)
+	}
 
-	addr := ":" + itoa(config.Port(8080))
+	health := gateway.NewHealth(service, version)
+
+	proxy, err := gateway.NewReverseProxy(cfg.Registry, log)
+	if err != nil {
+		log.Error("failed to build reverse proxy", "err", err)
+		os.Exit(1)
+	}
+
+	// Local stubs for platform/tenancy and platform/flags until those packages land.
+	// In production these will be replaced by calls to the Tenant Service and a
+	// flag snapshot client (agent_plan §15 EP-03).
+	tenantResolver := &stubs.TenantResolver{
+		BySubdomain: map[string]string{
+			"upshs": "upshs",
+			"aboom": "aboom",
+		},
+		ByHost: map[string]string{
+			"upshs.auraedu.test": "upshs",
+			"aboom.auraedu.test": "aboom",
+		},
+		TenantServiceURL: config.Getenv("SERVICE_TENANT_URL", "http://localhost:8082"),
+	}
+
+	flagClient := &stubs.FeatureFlagClient{
+		Defaults: map[string]bool{
+			"student_management": true,
+			"staff_management":   true,
+			"attendance":         true,
+			"assessments":        true,
+			"billing":            true,
+			"identity":           true,
+		},
+		TenantOverrides: map[string]map[string]bool{
+			"upshs": {
+				"student_management": true,
+				"online_payments":    true,
+				"cbt_exams":          true,
+			},
+			"aboom": {
+				"student_management": true,
+				"online_payments":    false,
+				"cbt_exams":          false,
+			},
+		},
+	}
+
+	var limiter gateway.RateLimiter
+	if cfg.RedisURL != "" {
+		redisClient, err := gateway.NewRedisClient(cfg.RedisURL)
+		if err != nil {
+			log.Error("failed to create redis client; rate limiting disabled", "err", err)
+		} else {
+			if err := redisClient.Ping(context.Background()); err != nil {
+				log.Error("redis ping failed; rate limiting disabled", "err", err)
+				_ = redisClient.Close()
+			} else {
+				limiter = &gateway.TokenBucket{
+					Store:  redisClient,
+					RPS:    cfg.RateLimitRPS,
+					Burst:  cfg.RateLimitBurst,
+					Window: cfg.RateLimitWindow,
+				}
+				health.AddReadinessCheck("redis", func() error {
+					return redisClient.Ping(context.Background())
+				})
+			}
+		}
+	}
+
+	builder := &gateway.Builder{
+		Log:         log,
+		Config:      cfg,
+		Registry:    cfg.Registry,
+		Proxy:       proxy,
+		Tenant:      tenantResolver,
+		Flags:       flagClient,
+		RateLimiter: limiter,
+		Service:     service,
+		Version:     version,
+	}
+
+	addr := ":" + itoa(cfg.Port)
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           mux,
+		Handler:           builder.Build(),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,
@@ -46,7 +131,7 @@ func main() {
 	}
 
 	go func() {
-		log.Info("gateway listening", "addr", addr)
+		log.Info("gateway listening", "addr", addr, "version", version)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Error("server error", "err", err)
 			os.Exit(1)

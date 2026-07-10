@@ -4,6 +4,9 @@
 package application
 
 import (
+	"context"
+	"strings"
+
 	"github.com/auraedu/platform/auth"
 	"github.com/auraedu/tenant-service/internal/domain"
 	"github.com/auraedu/tenant-service/internal/ports"
@@ -14,9 +17,26 @@ const FeatureManage = "features.manage"
 
 type Service struct {
 	repo ports.Repository
+	pub  ports.EventPublisher
 }
 
-func NewService(repo ports.Repository) *Service { return &Service{repo: repo} }
+type Option func(*Service)
+
+func WithPublisher(pub ports.EventPublisher) Option { return func(s *Service) { s.pub = pub } }
+
+type noopPublisher struct{}
+
+func (noopPublisher) Publish(ctx context.Context, eventType, tenantCode string, payload map[string]any) error {
+	return nil
+}
+
+func NewService(repo ports.Repository, opts ...Option) *Service {
+	s := &Service{repo: repo, pub: noopPublisher{}}
+	for _, o := range opts {
+		o(s)
+	}
+	return s
+}
 
 // ListTenants is a platform-wide operation — platform super admins only (spec §8.1).
 func (s *Service) ListTenants(actor auth.Actor) ([]domain.Tenant, error) {
@@ -24,6 +44,27 @@ func (s *Service) ListTenants(actor auth.Actor) ([]domain.Tenant, error) {
 		return nil, domain.ErrForbidden
 	}
 	return s.repo.ListTenants(), nil
+}
+
+// CreateTenant provisions a new school. Platform super admins only.
+func (s *Service) CreateTenant(actor auth.Actor, t domain.Tenant) (domain.Tenant, error) {
+	if !actor.PlatformAdmin {
+		return domain.Tenant{}, domain.ErrForbidden
+	}
+	if err := t.Validate(); err != nil {
+		return domain.Tenant{}, err
+	}
+	t.Code = strings.ToLower(strings.TrimSpace(t.Code))
+	t.Status = defaultStatus(t.Status, "active")
+	if err := s.repo.CreateTenant(t); err != nil {
+		return domain.Tenant{}, err
+	}
+	_ = s.pub.Publish(context.Background(), "tenant.created.v1", t.Code, map[string]any{
+		"tenant_code": t.Code,
+		"name":        t.Name,
+		"plan":        t.Plan,
+	})
+	return t, nil
 }
 
 // GetTenant returns a tenant record; the actor must belong to it (or be a platform admin).
@@ -78,6 +119,25 @@ func (s *Service) SetFeature(actor auth.Actor, code, key string, enabled bool) (
 			return domain.FeatureFlag{}, domain.ErrEntitlement
 		}
 	}
-	// TODO(AURA-5.3): emit tenant.feature_enabled/disabled via platform/eventbus.
-	return s.repo.SetFeature(code, key, enabled)
+	flag, err := s.repo.SetFeature(code, key, enabled)
+	if err != nil {
+		return domain.FeatureFlag{}, err
+	}
+	eventType := "tenant.feature_disabled.v1"
+	if enabled {
+		eventType = "tenant.feature_enabled.v1"
+	}
+	_ = s.pub.Publish(context.Background(), eventType, code, map[string]any{
+		"feature_key": key,
+		"is_enabled":  enabled,
+		"plan":        flag.PlanRequired,
+	})
+	return flag, nil
+}
+
+func defaultStatus(v, fallback string) string {
+	if v == "" {
+		return fallback
+	}
+	return v
 }
