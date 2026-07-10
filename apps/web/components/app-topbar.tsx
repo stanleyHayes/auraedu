@@ -1,16 +1,15 @@
 "use client";
 
 import { ThemeToggle, cn } from "@auraedu/ui";
-import type { Tenant } from "@/lib/tenant";
+import { SWITCHER } from "@/lib/tenant";
 
 interface AppTopbarProps {
-  tenants: Tenant[];
-  current: Tenant;
-  onSelect: (t: Tenant) => void;
+  currentCode: string;
+  onSelect: (code: string) => void;
 }
 
 /** Portal top bar: breadcrumb, the tenant "preview as" switcher, theme toggle, avatar. */
-export function AppTopbar({ tenants, current, onSelect }: AppTopbarProps) {
+export function AppTopbar({ currentCode, onSelect }: AppTopbarProps) {
   return (
     <header className="flex h-[60px] items-center gap-3 border-b border-border bg-background/90 px-5 backdrop-blur">
       <span className="font-mono text-xs text-muted-foreground max-sm:hidden">
@@ -19,13 +18,13 @@ export function AppTopbar({ tenants, current, onSelect }: AppTopbarProps) {
       <span className="flex-1" />
       <div className="hidden items-center gap-2 md:flex">
         <span className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">Preview as</span>
-        {tenants.map((t) => {
-          const isCurrent = t.code === current.code;
+        {SWITCHER.map((school) => {
+          const isCurrent = school.code === currentCode;
           return (
             <button
-              key={t.code}
+              key={school.code}
               type="button"
-              onClick={() => onSelect(t)}
+              onClick={() => onSelect(school.code)}
               aria-pressed={isCurrent}
               className={cn(
                 "flex h-8 items-center gap-2 rounded-full border px-3 text-xs transition-colors",
@@ -34,8 +33,8 @@ export function AppTopbar({ tenants, current, onSelect }: AppTopbarProps) {
                   : "border-border text-muted-foreground hover:text-foreground",
               )}
             >
-              <span className="size-3 rounded-full" style={{ backgroundColor: t.brand }} aria-hidden="true" />
-              {t.short}
+              <span className="size-3 rounded-full" style={{ backgroundColor: school.swatch }} aria-hidden="true" />
+              {school.short}
             </button>
           );
         })}

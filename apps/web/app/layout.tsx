@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, Public_Sans, Spline_Sans_Mono } from "next/font/google";
-import { DEFAULT_TENANT } from "@/lib/tenant";
+import { DEFAULT_BRAND } from "@/lib/tenant";
 import "./globals.css";
 
 const display = Bricolage_Grotesque({ subsets: ["latin"], weight: ["600", "700", "800"], variable: "--font-bricolage", display: "swap" });
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 };
 
 // No-FOUC: set theme + the tenant's brand accent before hydration so first paint is correct.
-const bootScript = `(function(){try{var r=document.documentElement;var m=localStorage.getItem('auraedu-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');r.classList.toggle('dark',m==='dark');r.style.colorScheme=m;r.style.setProperty('--color-brand',${JSON.stringify(DEFAULT_TENANT.brand)});}catch(e){}})();`;
+const bootScript = `(function(){try{var r=document.documentElement;var m=localStorage.getItem('auraedu-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');r.classList.toggle('dark',m==='dark');r.style.colorScheme=m;r.style.setProperty('--color-brand',${JSON.stringify(DEFAULT_BRAND)});}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
