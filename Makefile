@@ -9,6 +9,9 @@ SHELL := /bin/bash
 export GOFLAGS := -mod=readonly
 export GOTOOLCHAIN := local
 
+# Go modules in the workspace (platform + any service with a go.mod).
+GO_MODULES := $(shell find platform apps -name go.mod -exec dirname {} \; | sort)
+
 # ---- Toolchain bootstrap ---------------------------------------------------
 .PHONY: bootstrap
 bootstrap: ## Install all toolchains + workspace deps (JS, Go, Python)
@@ -19,8 +22,12 @@ bootstrap: ## Install all toolchains + workspace deps (JS, Go, Python)
 
 # ---- Local development -----------------------------------------------------
 .PHONY: dev
-dev: infra-up ## Boot the full local stack (infra + apps)
-	pnpm dev
+dev: ## Boot the full local stack (infra + backend services + web + marketing)
+	docker compose -f deploy/docker-compose.yml up --build -d
+	@echo "==> AuraEDU stack is starting up."
+	@echo "    Gateway:  http://localhost:8080"
+	@echo "    Web:      http://localhost:3000"
+	@echo "    Marketing: http://localhost:3001"
 
 .PHONY: infra-up
 infra-up: ## Start local infra (Postgres, Redis, NATS, OTel) via docker compose
@@ -33,14 +40,14 @@ infra-down: ## Stop local infra
 # ---- Quality ---------------------------------------------------------------
 .PHONY: lint
 lint: ## Lint everything (turbo + go vet + ruff)
-	pnpm lint || true
-	go vet ./... || true
+	pnpm lint
+	@for m in $(GO_MODULES); do echo "==> go vet $$m"; (cd $$m && go vet ./...) || exit 1; done
 	uv run ruff check . || true
 
 .PHONY: test
 test: ## Run all tests (turbo + go test + pytest)
-	pnpm test || true
-	go test ./... || true
+	pnpm test
+	@for m in $(GO_MODULES); do echo "==> go test $$m"; (cd $$m && go test ./...) || exit 1; done
 	uv run pytest || true
 
 .PHONY: typecheck

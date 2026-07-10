@@ -110,9 +110,9 @@ The spec is prescriptive; these are the locked choices. Agents do **not** re-lit
 
 **Every package is pinned to its latest stable major and kept current automatically.** Rules for all lanes:
 
-1. **Scaffold with latest.** When generating a service/app, use the toolchain's latest stable (`go 1.24.x`, `node 24 LTS`, `pnpm@latest`, `python 3.13.x`, latest Next/React/Tailwind/Expo) and **commit lockfiles** (`go.sum`, `pnpm-lock.yaml`, `uv.lock`).
+1. **Scaffold with latest.** When generating a service/app, use the toolchain's latest stable (`go 1.25.x`, `node 24 LTS`, `pnpm@latest`, `python 3.13.x`, latest Next/React/Tailwind/Expo) and **commit lockfiles** (`go.sum`, `pnpm-lock.yaml`, `uv.lock`).
 2. **Renovate bot** runs on the repo: grouped weekly PRs for minor/patch, separate PRs for majors, auto-merge for green patch updates. Also updates **GitHub Actions** action versions and **Dockerfile base images**.
-3. **Pinned baseline matrix** (verify latest at implement time — training data may lag): Go 1.24 · Node 24 LTS · pnpm 11 · Turborepo 2.5 · TypeScript 5.9 · Next.js 16 · React 19 · Tailwind v4 · Expo SDK 54 · RN 0.81 · Python 3.13 · FastAPI (latest) · Pydantic v2 · PostgreSQL 17 · NATS 2.11 · Cloudinary SDK v2.
+3. **Pinned baseline matrix** (verify latest at implement time — training data may lag): Go 1.25 · Node 24 LTS · pnpm 11 · Turborepo 2.5 · TypeScript 5.9 · Next.js 16 · React 19 · Tailwind v4 · Expo SDK 54 · RN 0.81 · Python 3.13 · FastAPI (latest) · Pydantic v2 · PostgreSQL 17 · NATS 2.11 · Cloudinary SDK v2.
 4. **CI enforces** `pnpm audit` / `govulncheck` / `pip-audit`; a failing security scan blocks merge (spec §13).
 
 > **Assumption note:** The Workflow Manual lists "Node.js/NestJS/Golang" generically. The AuraEDU spec §12 explicitly mandates **Go hexagonal** services and **Python** AI services, so those win. Go for the gateway + all domain services; TypeScript for `apps/{web,marketing,mobile}`; Python for `apps/ai-*`.
@@ -1023,7 +1023,7 @@ Ports are local-dev conventions. **Render service type** = how each deploys (§3
 | NATS JetStream | (infra) | — | — | 4222 | pserv + disk | — | 0 |
 | Web (portals + school sites) | `apps/web` | TS/Next | — | 3000 | web (public) | — | 1+ |
 | Marketing (auraedu.com) | `apps/marketing` | TS/Next | — | 3001 | web (public) | — | 1 |
-| Mobile (teacher/parent/student) | `apps/mobile` | TS/Expo | — | 8081(metro) | EAS (App Store/Play) | — | 2+ |
+| Mobile (teacher/parent/student) | `apps/mobile` | TS/Expo | — | 8085(metro) | EAS (App Store/Play) | — | 2+ |
 
 **Infra:** Render Postgres (one per service DB), Render Key Value (shared Redis/Valkey), Cloudinary (media), env groups for shared secrets. Scheduled work (spec cron jobs) → Render `cron` services.
 

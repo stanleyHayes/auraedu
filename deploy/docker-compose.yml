@@ -1,0 +1,87 @@
+# AuraEDU — full local stack (agent_plan §4, AURA-7.2).
+# Boots all backend services + web + marketing on top of the infra compose.
+# Usage: `make dev` or `docker compose -f deploy/docker-compose.yml up --build`.
+
+name: auraedu
+
+include:
+  - path: ./docker-compose.infra.yml
+
+services:
+  # ---- Go platform services --------------------------------------------------
+  identity-service:
+    build:
+      context: ..
+      dockerfile: ./apps/identity-service/Dockerfile
+      args:
+        GIT_SHA: local
+    ports: ["8081:8081"]
+    environment:
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/identity?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      NATS_HOST: nats:4222
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-local-dev-signing-key-change-me}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      nats: { condition: service_healthy }
+
+  tenant-service:
+    build:
+      context: ..
+      dockerfile: ./apps/tenant-service/Dockerfile
+      args:
+        GIT_SHA: local
+    ports: ["8082:8082"]
+    environment:
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/tenant?sslmode=disable
+      NATS_HOST: nats:4222
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      postgres: { condition: service_healthy }
+      nats: { condition: service_healthy }
+
+  api-gateway:
+    build:
+      context: ..
+      dockerfile: ./apps/api-gateway/Dockerfile
+      args:
+        GIT_SHA: local
+    ports: ["8080:8080"]
+    environment:
+      IDENTITY_HOSTPORT: identity-service:8081
+      TENANT_HOSTPORT: tenant-service:8082
+      REDIS_URL: redis://redis:6379
+      NATS_HOST: nats:4222
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-local-dev-signing-key-change-me}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      identity-service: { condition: service_started }
+      tenant-service: { condition: service_started }
+      redis: { condition: service_healthy }
+      nats: { condition: service_healthy }
+
+  # ---- Frontends -------------------------------------------------------------
+  web:
+    build:
+      context: ..
+      dockerfile: ./apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8080
+    ports: ["3000:3000"]
+    environment:
+      PORT: 3000
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+    depends_on:
+      api-gateway: { condition: service_started }
+
+  marketing:
+    build:
+      context: ..
+      dockerfile: ./apps/marketing/Dockerfile
+    ports: ["3001:3001"]
+    environment:
+      PORT: 3001
+    depends_on:
+      api-gateway: { condition: service_started }

@@ -19,6 +19,11 @@ coverage/
 # Go
 /vendor/
 
+# Local binary artifacts from `go build ./cmd/server` or `go build ./cmd/worker`
+/server
+/*/server
+/*/worker
+
 # Env & secrets (never commit)
 .env
 .env.*

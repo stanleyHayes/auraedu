@@ -206,7 +206,7 @@ services:
       - key: NEXT_PUBLIC_API_URL
         fromService:
           name: api-gateway
-          property: host
+          property: url
       - fromGroup: auraedu-shared-config
 
   # ---- Company marketing site: auraedu.com (public) ------------------------
