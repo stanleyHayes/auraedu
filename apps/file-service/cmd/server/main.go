@@ -1,4 +1,4 @@
-// Command server is the file-service HTTP entrypoint. Sprint scaffold: health + wiring.
+// Command server is the file-service HTTP entrypoint.
 package main
 
 import (
@@ -12,12 +12,19 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/auraedu/platform/config"
+	"github.com/auraedu/platform/db"
+	"github.com/auraedu/platform/eventbus"
+	"github.com/auraedu/platform/flags"
+	"github.com/auraedu/platform/httpx"
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/nats-io/nats.go"
+
+	svcevents "github.com/auraedu/file-service/internal/adapters/events"
 	svchttp "github.com/auraedu/file-service/internal/adapters/http"
 	"github.com/auraedu/file-service/internal/adapters/postgres"
+	"github.com/auraedu/file-service/internal/adapters/storage"
 	"github.com/auraedu/file-service/internal/application"
-
-	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/httpx"
 )
 
 const service = "file-service"
@@ -32,21 +39,39 @@ func main() {
 		version = config.Getenv("GIT_SHA", "dev")
 	}
 
-	repo := postgres.NewRepository()
-	svc := application.NewService(repo)
+	ctx := context.Background()
+	database, err := openDB(ctx)
+	if err != nil {
+		log.Error("failed to open database", "err", err)
+		os.Exit(1)
+	}
+	defer database.Close()
+
+	store := initStorage(log)
+	pub := publisher(ctx, log)
+	gates := featureGates(log)
+
+	repo := postgres.NewRepository(database)
+	svc := application.NewService(repo, store,
+		application.WithPublisher(pub),
+		application.WithFeatureGate(gates),
+	)
 	handler := svchttp.NewHandler(svc)
 
+	health := httpx.NewHealth(service, version).WithLogger(log)
+	health.AddReadinessCheck("postgres", func() error { return database.Ping(ctx) })
+
 	mux := http.NewServeMux()
-	httpx.NewHealth(service, version).WithLogger(log).Register(mux)
+	health.Register(mux)
 	handler.Register(mux)
 
 	addr := ":" + strconv.Itoa(config.Port(8080))
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           mux,
+		Handler:           httpx.RequestIDMiddleware(mux),
 		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       15 * time.Second,
-		WriteTimeout:      15 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
 	go func() {
@@ -60,8 +85,63 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctxShutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_ = srv.Shutdown(ctx)
+	_ = srv.Shutdown(ctxShutdown)
 	log.Info(service + " stopped")
+}
+
+func openDB(ctx context.Context) (*db.DB, error) {
+	dsn, err := config.MustGetenv("DATABASE_URL")
+	if err != nil {
+		return nil, err
+	}
+	return db.Open(ctx, db.Config{
+		DSN:        dsn,
+		Migrations: "migrations",
+	})
+}
+
+func initStorage(log *slog.Logger) *storage.LocalStorage {
+	dir := config.Getenv("FILE_STORAGE_DIR", "/tmp/auraedu-files")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		log.Error("failed to create storage directory", "dir", dir, "err", err)
+		os.Exit(1)
+	}
+	log.Info("local storage initialized", "dir", dir)
+	return storage.NewLocalStorage(dir)
+}
+
+func publisher(ctx context.Context, log *slog.Logger) *svcevents.Publisher {
+	natsURL := config.Getenv("NATS_URL", "")
+	if natsURL == "" {
+		log.Info("NATS_URL not set; event publishing disabled")
+		return svcevents.NewPublisher(nil)
+	}
+	nc, err := nats.Connect(natsURL)
+	if err != nil {
+		log.Error("failed to connect to NATS; event publishing disabled", "err", err)
+		return svcevents.NewPublisher(nil)
+	}
+	js, err := nc.JetStream()
+	if err != nil {
+		log.Error("failed to create JetStream context; event publishing disabled", "err", err)
+		return svcevents.NewPublisher(nil)
+	}
+	if _, err := eventbus.EnsureStream(js, "AURA"); err != nil {
+		log.Error("failed to ensure NATS stream; event publishing disabled", "err", err)
+		return svcevents.NewPublisher(nil)
+	}
+	log.Info("event publishing enabled", "nats_url", natsURL)
+	return svcevents.NewPublisher(eventbus.NewPublisher(js))
+}
+
+func featureGates(log *slog.Logger) flags.Gate {
+	path := config.Getenv("FEATURES_REGISTRY", "../../contracts/features/features.yaml")
+	reg, err := flags.LoadYAML(path)
+	if err != nil {
+		log.Warn("failed to load feature registry; all features disabled", "path", path, "err", err)
+		return flags.NewStaticSnapshot()
+	}
+	return reg.SnapshotFromRegistry()
 }

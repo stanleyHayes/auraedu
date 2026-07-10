@@ -1,28 +1,227 @@
 package application
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"fmt"
+	"io"
 
 	"github.com/auraedu/file-service/internal/domain"
 	"github.com/auraedu/file-service/internal/ports"
+	"github.com/auraedu/platform/auth"
+	"github.com/auraedu/platform/flags"
+	"github.com/auraedu/platform/tenancy"
 )
+
+// RBAC permission keys.
+const (
+	PermRead   = "files.read"
+	PermCreate = "files.create"
+	PermUpdate = "files.update"
+	PermDelete = "files.delete"
+)
+
+// Feature flag key for file management.
+const FeatureFileManagement = "file_management"
 
 // Service holds the file use cases. Tenant scope + RBAC + feature-flag checks belong
 // here (agent_plan §5), never in HTTP handlers.
 type Service struct {
-	repo ports.Repository
+	repo    ports.Repository
+	storage ports.Storage
+	pub     ports.EventPublisher
+	gates   flags.Gate
 }
 
-func NewService(repo ports.Repository) *Service { return &Service{repo: repo} }
+// Option configures the service.
+type Option func(*Service)
 
-// Create validates and persists a new File for the given tenant.
-func (s *Service) Create(ctx context.Context, tenantID, id, name string) (*domain.File, error) {
-	e, err := domain.NewFile(id, tenantID, name)
+// WithPublisher sets the event publisher.
+func WithPublisher(pub ports.EventPublisher) Option { return func(s *Service) { s.pub = pub } }
+
+// WithFeatureGate sets the feature-flag gate.
+func WithFeatureGate(g flags.Gate) Option { return func(s *Service) { s.gates = g } }
+
+type noopPublisher struct{}
+
+func (noopPublisher) Publish(context.Context, string, *domain.FileUpload, map[string]any) error {
+	return nil
+}
+
+// NewService constructs the application service.
+func NewService(repo ports.Repository, storage ports.Storage, opts ...Option) *Service {
+	s := &Service{repo: repo, storage: storage, pub: noopPublisher{}, gates: flags.NewStaticSnapshot()}
+	for _, o := range opts {
+		o(s)
+	}
+	return s
+}
+
+// CreateFileRequest is the input for uploading a file.
+type CreateFileRequest struct {
+	OriginalFilename string
+	ContentType      string
+	OwnerID          string
+	Purpose          string
+	Data             []byte
+	Metadata         map[string]any
+}
+
+// UpdateFileRequest is the input for patching a file record.
+type UpdateFileRequest struct {
+	OriginalFilename *string
+	ContentType      *string
+	Purpose          *string
+	Status           *string
+	Metadata         map[string]any
+}
+
+// Create validates, stores, and persists a new FileUpload for the actor's tenant.
+func (s *Service) Create(ctx context.Context, actor auth.Actor, req CreateFileRequest) (*domain.FileUpload, error) {
+	tenantID, err := s.requireAccess(ctx, actor, PermCreate)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.repo.Create(ctx, tenantID, e); err != nil {
+	ownerID := req.OwnerID
+	if ownerID == "" {
+		ownerID = actor.UserID
+	}
+	checksum := domain.ComputeChecksum(req.Data)
+	file, err := domain.NewFileUpload(tenantID, req.OriginalFilename, req.ContentType, ownerID, req.Purpose, int64(len(req.Data)), checksum)
+	if err != nil {
 		return nil, err
 	}
-	return e, nil
+	if len(req.Metadata) > 0 {
+		file.Metadata = req.Metadata
+	}
+	path, err := s.storage.Save(ctx, tenantID, file.ID, bytes.NewReader(req.Data))
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", domain.ErrStorage, err)
+	}
+	file.StoragePath = path
+	file.Status = string(domain.StatusActive)
+	if err := file.Validate(); err != nil {
+		return nil, err
+	}
+	if err := s.repo.Create(ctx, tenantID, file); err != nil {
+		return nil, err
+	}
+	_ = s.pub.Publish(ctx, "file.uploaded.v1", file, nil)
+	return file, nil
 }
+
+// List returns a tenant-scoped page of file uploads.
+func (s *Service) List(ctx context.Context, actor auth.Actor, limit int, cursor string) ([]*domain.FileUpload, string, error) {
+	tenantID, err := s.requireAccess(ctx, actor, PermRead)
+	if err != nil {
+		return nil, "", err
+	}
+	return s.repo.List(ctx, tenantID, normalizeLimit(limit), cursor)
+}
+
+// Get returns a single file upload if the actor may read the tenant's data.
+func (s *Service) Get(ctx context.Context, actor auth.Actor, id string) (*domain.FileUpload, error) {
+	tenantID, err := s.requireAccess(ctx, actor, PermRead)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.GetByID(ctx, tenantID, id)
+}
+
+// Update patches a file record.
+func (s *Service) Update(ctx context.Context, actor auth.Actor, id string, req UpdateFileRequest) (*domain.FileUpload, error) {
+	tenantID, err := s.requireAccess(ctx, actor, PermUpdate)
+	if err != nil {
+		return nil, err
+	}
+	file, err := s.repo.GetByID(ctx, tenantID, id)
+	if err != nil {
+		return nil, err
+	}
+	changed, err := file.ApplyUpdate(req.OriginalFilename, req.ContentType, req.Purpose, req.Status, req.Metadata)
+	if err != nil {
+		return nil, err
+	}
+	if len(changed) == 0 {
+		return file, nil
+	}
+	if err := file.Validate(); err != nil {
+		return nil, err
+	}
+	if err := s.repo.Update(ctx, tenantID, file); err != nil {
+		return nil, err
+	}
+	_ = s.pub.Publish(ctx, "file.updated.v1", file, map[string]any{"changed_fields": changed})
+	return file, nil
+}
+
+// Delete removes a file record and its stored bytes.
+func (s *Service) Delete(ctx context.Context, actor auth.Actor, id string) error {
+	tenantID, err := s.requireAccess(ctx, actor, PermDelete)
+	if err != nil {
+		return err
+	}
+	file, err := s.repo.GetByID(ctx, tenantID, id)
+	if err != nil {
+		return err
+	}
+	if err := s.storage.Delete(ctx, tenantID, file.StoragePath); err != nil {
+		return fmt.Errorf("%w: %v", domain.ErrStorage, err)
+	}
+	if err := s.repo.Delete(ctx, tenantID, id); err != nil {
+		return err
+	}
+	_ = s.pub.Publish(ctx, "file.deleted.v1", file, nil)
+	return nil
+}
+
+// Download returns a reader for the stored file bytes.
+func (s *Service) Download(ctx context.Context, actor auth.Actor, id string) (*domain.FileUpload, io.ReadCloser, error) {
+	tenantID, err := s.requireAccess(ctx, actor, PermRead)
+	if err != nil {
+		return nil, nil, err
+	}
+	file, err := s.repo.GetByID(ctx, tenantID, id)
+	if err != nil {
+		return nil, nil, err
+	}
+	rc, err := s.storage.Open(ctx, tenantID, file.StoragePath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("%w: %v", domain.ErrStorage, err)
+	}
+	return file, rc, nil
+}
+
+func (s *Service) requireAccess(ctx context.Context, actor auth.Actor, perm string) (string, error) {
+	if !actor.Authenticated() {
+		return "", domain.ErrForbidden
+	}
+	tenantID := tenancy.TenantID(ctx)
+	if tenantID == "" {
+		return "", domain.ErrMissingTenant
+	}
+	if !actor.CanAccessTenant(tenantID) {
+		return "", domain.ErrForbidden
+	}
+	if !actor.Has(perm) {
+		return "", domain.ErrForbidden
+	}
+	if s.gates != nil && !s.gates.IsEnabled(ctx, tenantID, FeatureFileManagement) {
+		return "", fmt.Errorf("%w: %s", flags.ErrFeatureDisabled, FeatureFileManagement)
+	}
+	return tenantID, nil
+}
+
+func normalizeLimit(n int) int {
+	if n <= 0 {
+		return 25
+	}
+	if n > 100 {
+		return 100
+	}
+	return n
+}
+
+// IsNotFound reports whether an error is a not-found domain error.
+func IsNotFound(err error) bool { return errors.Is(err, domain.ErrNotFound) }
