@@ -406,8 +406,11 @@ fi
 
 # --- format + self-verify build/test ---
 gofmt -w "$DIR"
-( cd "$DIR" && GOWORK=off GOFLAGS=-mod=readonly go build ./... && GOWORK=off GOFLAGS=-mod=readonly go vet ./... \
-  && GOWORK=off GOFLAGS=-mod=readonly go test ./... )
+# Use GOTOOLCHAIN=auto for the self-verify so a locally installed older 1.25 patch
+# can still compile the scaffold against platform/go.mod's go directive.
+( cd "$DIR" && GOWORK=off GOFLAGS=-mod=readonly GOTOOLCHAIN=auto go build ./... \
+  && GOWORK=off GOFLAGS=-mod=readonly GOTOOLCHAIN=auto go vet ./... \
+  && GOWORK=off GOFLAGS=-mod=readonly GOTOOLCHAIN=auto go test ./... )
 
 echo ""
 echo "✅ $DIR scaffolded, builds, vets, and tests pass."
