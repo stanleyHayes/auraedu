@@ -1,0 +1,10 @@
+[project]
+name = "auraedu-ai-recommendation-service"
+version = "0.1.0"
+description = "AuraEDU ai-recommendation-service (FastAPI). Scaffold — implemented in Sprint 5 (EP-30/31/32)."
+requires-python = ">=3.13"
+dependencies = ["fastapi", "uvicorn"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

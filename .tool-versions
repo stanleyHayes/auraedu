@@ -1,0 +1,7 @@
+# asdf / mise toolchain pins — latest stable as of Sprint 0 (2026-07).
+# Renovate keeps these current; verify latest at implement time.
+golang 1.25.5
+nodejs 24.9.0
+python 3.13.5
+pnpm 10.27.0
+uv 0.7.3

@@ -1,0 +1,25 @@
+{
+  "name": "auraedu",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AuraEDU — multi-tenant, feature-flag-configurable SaaS school operating system (monorepo)",
+  "packageManager": "pnpm@10.27.0",
+  "engines": {
+    "node": ">=24",
+    "pnpm": ">=10"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "clean": "turbo run clean",
+    "contracts": "turbo run generate --filter=@auraedu/shared-types"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.8",
+    "typescript": "^5.9.2",
+    "prettier": "^3.4.2"
+  }
+}

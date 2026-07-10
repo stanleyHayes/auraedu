@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.auraedu.dev/events/assessment.score_recorded.v1.json",
+  "title": "assessment.score_recorded.v1",
+  "description": "Emitted by Assessment Service when a score is recorded (spec §4.3). CloudEvents 1.0 envelope; every event MUST carry tenant_id.",
+  "type": "object",
+  "required": ["specversion", "type", "source", "id", "time", "tenant_id", "data"],
+  "properties": {
+    "specversion": { "const": "1.0" },
+    "type": { "const": "assessment.score_recorded.v1" },
+    "source": { "const": "assessment-service" },
+    "subject": { "type": "string", "description": "student id" },
+    "id": { "type": "string", "description": "unique event id (idempotency key)" },
+    "time": { "type": "string", "format": "date-time" },
+    "tenant_id": { "type": "string", "description": "REQUIRED — events without tenant_id are rejected" },
+    "datacontenttype": { "const": "application/json" },
+    "data": {
+      "type": "object",
+      "required": ["student_id", "subject_id", "score"],
+      "properties": {
+        "student_id": { "type": "string", "format": "uuid" },
+        "subject_id": { "type": "string", "format": "uuid" },
+        "assessment_id": { "type": "string", "format": "uuid" },
+        "score": { "type": "number", "minimum": 0 },
+        "max_score": { "type": "number", "minimum": 0 },
+        "term_id": { "type": "string", "format": "uuid" }
+      }
+    }
+  },
+  "examples": [
+    {
+      "specversion": "1.0",
+      "type": "assessment.score_recorded.v1",
+      "source": "assessment-service",
+      "subject": "student-uuid",
+      "id": "evt-8f3c",
+      "time": "2026-07-08T10:00:00Z",
+      "tenant_id": "upshs",
+      "data": { "student_id": "student-uuid", "subject_id": "subject-uuid", "score": 72, "max_score": 100 }
+    }
+  ]
+}

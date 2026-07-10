@@ -1,0 +1,47 @@
+# AuraEDU code ownership — enforces lane boundaries (AGENTS.md §lanes).
+# Replace @auraedu/* teams with real GitHub teams once the org is set up.
+
+# L0 Platform — shared libs, contracts, tooling
+/platform/                      @auraedu/platform
+/contracts/                     @auraedu/platform
+/tools/                         @auraedu/platform
+/packages/shared-types/         @auraedu/platform
+/packages/feature-flags/        @auraedu/platform
+/packages/api-client/           @auraedu/platform
+/packages/config/               @auraedu/platform
+/packages/logger/               @auraedu/platform
+
+# L1 Gateway / Identity / Tenant
+/apps/api-gateway/              @auraedu/platform-core
+/apps/identity-service/         @auraedu/platform-core
+/apps/tenant-service/           @auraedu/platform-core
+
+# L3 AI-Python
+/apps/ai-recommendation-service/  @auraedu/ai
+/apps/ai-prediction-service/      @auraedu/ai
+/apps/career-guidance-service/    @auraedu/ai
+/docs/ai/                         @auraedu/ai
+
+# L4 Frontend
+/apps/web/                      @auraedu/frontend
+/apps/marketing/                @auraedu/frontend
+/packages/ui/                   @auraedu/frontend
+/packages/tokens/               @auraedu/frontend
+
+# L5 Infra / DevX
+/infrastructure/                @auraedu/devx
+/deploy/                        @auraedu/devx
+/render.yaml                    @auraedu/devx
+/.github/                       @auraedu/devx
+/Makefile                       @auraedu/devx
+
+# L7 Mobile
+/apps/mobile/                   @auraedu/mobile
+/packages/ui-native/            @auraedu/mobile
+/eas.json                       @auraedu/mobile
+
+# Governance — require platform review
+/CLAUDE.md                      @auraedu/platform
+/AGENTS.md                      @auraedu/platform
+/agent_plan.md                  @auraedu/platform
+/DESIGN_SYSTEM.md               @auraedu/frontend @auraedu/platform

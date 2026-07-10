@@ -1,0 +1,187 @@
+# AuraEDU — Render Blueprint (agent_plan §3, EP-09).
+# Spec: https://render.com/docs/blueprint-spec
+#
+# Topology:
+#   web    → api-gateway (public), web (Next portals+school sites), marketing (auraedu.com)
+#   pserv  → every domain/AI service (internal only, reached via the gateway) + NATS JetStream
+#   worker → report/notification/analytics/AI background consumers (add per service)
+#   cron   → scheduled jobs (spec cron)
+#   databases (Postgres 17) → one per service    keyvalue → shared Redis/Valkey cache
+#
+# Sprint 0 seeds the FOUNDATION (gateway, identity, tenant, NATS, cache, 2 DBs, env groups).
+# tools/new-service appends a service + its database here. Region: frankfurt (nearest to Ghana).
+# CI gates run in GitHub Actions; autoDeployTrigger: checksPass means Render deploys only after they pass.
+
+envVarGroups:
+  - name: auraedu-shared-config
+    envVars:
+      - key: LOG_LEVEL
+        value: info
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: "" # set to Grafana Cloud / collector endpoint in dashboard
+      - key: ENVIRONMENT
+        value: production
+
+  - name: auraedu-secrets
+    envVars:
+      - key: JWT_SIGNING_KEY
+        generateValue: true # 256-bit; Identity signs, Gateway verifies
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false # set in dashboard
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+
+databases:
+  - name: identity-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: identity
+    postgresMajorVersion: "17"
+  - name: tenant-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: tenant
+    postgresMajorVersion: "17"
+
+services:
+  # ---- Shared cache (Redis/Valkey) ----------------------------------------
+  - name: auraedu-cache
+    type: keyvalue
+    plan: starter
+    region: frankfurt
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: [] # private only — reachable from services in the same Render project
+
+  # ---- Event bus: NATS JetStream (private + persistent disk) ---------------
+  - name: nats
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./infrastructure/docker/nats.Dockerfile
+    dockerContext: .
+    disk:
+      name: nats-jetstream
+      mountPath: /data
+      sizeGB: 10
+
+  # ---- API Gateway (the only public backend) -------------------------------
+  - name: api-gateway
+    type: web
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/api-gateway/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths: ["apps/api-gateway/**", "platform/**", "go.work"]
+      ignoredPaths: ["**/*_test.go", "**/*.md"]
+    envVars:
+      - key: NATS_HOST
+        fromService: { name: nats, property: host }
+      - key: REDIS_URL
+        fromService: { name: auraedu-cache, property: connectionString }
+      - key: IDENTITY_HOSTPORT
+        fromService: { name: identity-service, property: hostport }
+      - key: TENANT_HOSTPORT
+        fromService: { name: tenant-service, property: hostport }
+      - key: JWT_SIGNING_KEY
+        fromGroup: auraedu-secrets
+      - { fromGroup: auraedu-shared-config }
+
+  # ---- Identity Service (private) ------------------------------------------
+  - name: identity-service
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/identity-service/Dockerfile
+    dockerContext: .
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths: ["apps/identity-service/**", "platform/**", "go.work"]
+      ignoredPaths: ["**/*_test.go", "**/*.md"]
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase: { name: identity-db, property: connectionString }
+      - key: REDIS_URL
+        fromService: { name: auraedu-cache, property: connectionString }
+      - key: NATS_HOST
+        fromService: { name: nats, property: host }
+      - key: JWT_SIGNING_KEY
+        fromGroup: auraedu-secrets
+      - { fromGroup: auraedu-shared-config }
+
+  # ---- Tenant Service (private) — schools, branding, FEATURE FLAGS ---------
+  - name: tenant-service
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/tenant-service/Dockerfile
+    dockerContext: .
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths: ["apps/tenant-service/**", "platform/**", "go.work"]
+      ignoredPaths: ["**/*_test.go", "**/*.md"]
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase: { name: tenant-db, property: connectionString }
+      - key: NATS_HOST
+        fromService: { name: nats, property: host }
+      - { fromGroup: auraedu-shared-config }
+
+  # ---- Web app: portals + per-school public sites (public) -----------------
+  - name: web
+    type: web
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/web/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths: ["apps/web/**", "packages/**"]
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        fromService: { name: api-gateway, property: host }
+      - { fromGroup: auraedu-shared-config }
+
+  # ---- Company marketing site: auraedu.com (public) ------------------------
+  - name: marketing
+    type: web
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/marketing/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths: ["apps/marketing/**", "packages/**"]
+    envVars:
+      - { fromGroup: auraedu-shared-config }
+
+  # ---- TEMPLATE for each new domain service (tools/new-service appends this) -
+  # - name: student-service
+  #   type: pserv
+  #   runtime: docker
+  #   region: frankfurt
+  #   plan: starter
+  #   dockerfilePath: ./apps/student-service/Dockerfile
+  #   dockerContext: .
+  #   autoDeployTrigger: checksPass
+  #   buildFilter:
+  #     paths: ["apps/student-service/**", "platform/**", "go.work"]
+  #   envVars:
+  #     - key: DATABASE_URL
+  #       fromDatabase: { name: student-db, property: connectionString }
+  #     - key: NATS_HOST
+  #       fromService: { name: nats, property: host }
+  #     - { fromGroup: auraedu-shared-config }
+  # (and add `- name: student-db` under top-level databases:)

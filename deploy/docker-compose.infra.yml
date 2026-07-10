@@ -1,0 +1,57 @@
+# AuraEDU local infrastructure (agent_plan §3, AURA-7.2). `make infra-up`.
+# Mirrors prod dependencies: Postgres 17 (DB-per-service), Redis/Valkey, NATS JetStream,
+# OTel collector. Media uses Cloudinary (a dev cloud) even locally — no object store here.
+name: auraedu-infra
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: auraedu
+      POSTGRES_PASSWORD: auraedu
+      POSTGRES_DB: postgres
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auraedu"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: valkey/valkey:8-alpine
+    command: ["valkey-server", "--save", "60", "1"]
+    ports: ["6379:6379"]
+    volumes: ["redisdata:/data"]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  nats:
+    image: nats:2.11-alpine
+    command: ["-js", "-sd", "/data", "-m", "8222"]
+    ports: ["4222:4222", "8222:8222"]
+    volumes: ["natsdata:/data"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config=/etc/otel/config.yaml"]
+    volumes:
+      - ../infrastructure/docker/otel-collector-config.yaml:/etc/otel/config.yaml:ro
+    ports:
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+
+volumes:
+  pgdata:
+  redisdata:
+  natsdata:

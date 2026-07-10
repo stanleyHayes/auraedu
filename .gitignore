@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+__pycache__/
+.venv/
+*.egg-info/
+
+# Builds / outputs
+dist/
+build/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+bin/
+coverage/
+*.out
+
+# Go
+/vendor/
+
+# Env & secrets (never commit)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local data
+.pgdata/
+tmp/
+*.log
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Mobile / Expo
+apps/mobile/.expo/
+apps/mobile/ios/
+apps/mobile/android/
+*.jks
+*.keystore
+
+# Test artifacts
+playwright-report/
+test-results/

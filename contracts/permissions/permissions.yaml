@@ -1,0 +1,40 @@
+# AuraEDU RBAC registry — SOURCE OF TRUTH for permission keys + role mappings
+# (agent_plan Appendix C, spec §8). Format: <resource>.<action>.
+# Codegen emits typed constants for Go (platform/auth) + TS.
+#
+# Authorization rule (enforced in every service's application layer, spec §8.3):
+#   authenticated AND tenant_id matches request AND role has permission
+#   AND feature enabled AND resource belongs to tenant.
+
+version: 1
+
+permissions:
+  identity:   [features.manage, users.read, users.create, users.update, roles.assign]
+  students:   [students.read, students.create, students.update, students.delete]
+  staff:      [staff.read, staff.create, staff.update]
+  academic:   [academic.read, academic.manage]
+  attendance: [attendance.read, attendance.mark]
+  assessments: [assessments.read, assessments.record_scores, assessments.manage]
+  reports:    [reports.read, reports.publish]
+  fees:       [fees.read, fees.manage]
+  payments:   [payments.read, payments.initiate]
+  notifications: [notifications.read, notifications.send, notifications.manage]
+  website:    [website.read, website.manage]
+  files:      [files.read, files.upload, files.delete]
+  analytics:  [analytics.view]
+  billing:    [billing.read, billing.manage]
+  cbt:        [cbt.read, cbt.author, cbt.take, cbt.grade]
+  audit:      [audit.read]
+  ai:         [ai.view_recommendations, ai.approve_recommendations]
+
+# Role → scope (spec §8.1). Permission sets are assigned per role per tenant by Identity Service.
+roles:
+  platform_super_admin: { scope: all_tenants, note: "company admin — web only" }
+  school_admin:         { scope: single_tenant, note: "web only" }
+  principal:            { scope: single_tenant }
+  academic_head:        { scope: single_tenant }
+  accountant:           { scope: single_tenant }
+  teacher:              { scope: assigned_classes_subjects, platforms: [web, mobile] }
+  parent:               { scope: own_children, platforms: [web, mobile] }
+  student:              { scope: own_records, platforms: [web, mobile] }
+  support_agent:        { scope: limited_platform_support }

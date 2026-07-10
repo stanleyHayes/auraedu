@@ -1,0 +1,8 @@
+# TypeScript/JS workspace. Go services (apps/*-service) are a separate Go workspace (go.work);
+# Python AI services (apps/ai-*, career-guidance) are a uv workspace (pyproject.toml).
+packages:
+  - "apps/web"
+  - "apps/marketing"
+  - "apps/mobile"
+  - "packages/*"
+  - "tools/codegen"

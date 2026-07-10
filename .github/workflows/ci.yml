@@ -1,0 +1,77 @@
+# AuraEDU CI — path-filtered gates (agent_plan §13, EP-07). Render deploys only after
+# these pass (render.yaml autoDeployTrigger: checksPass). Expand per-service as they land.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # Detect which parts changed so we only run relevant gates.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.filter.outputs.go }}
+      web: ${{ steps.filter.outputs.web }}
+      python: ${{ steps.filter.outputs.python }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            go:
+              - 'apps/**/*.go'
+              - 'platform/**'
+              - 'go.work'
+            web:
+              - 'apps/web/**'
+              - 'apps/marketing/**'
+              - 'packages/**'
+            python:
+              - 'apps/ai-**'
+              - 'apps/career-guidance-service/**'
+
+  go:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    env:
+      GOFLAGS: -mod=readonly
+      GOTOOLCHAIN: local
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.25' }
+      - run: go build ./platform/... ./apps/api-gateway/...
+      - run: go vet ./platform/... ./apps/api-gateway/...
+      - name: gofmt
+        run: test -z "$(gofmt -l platform apps)"
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./platform/... || true
+
+  web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint && pnpm typecheck && pnpm test
+
+  python:
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync
+      - run: uv run ruff check . && uv run pytest

@@ -1,0 +1,150 @@
+# AuraEDU feature-flag registry — SOURCE OF TRUTH for feature keys (agent_plan Appendix A).
+# Codegen emits typed constants for Go (platform/flags) + TS (packages/feature-flags).
+# Every major feature is independently enable/disable-able per tenant (spec §3, §9).
+#
+# plan_required: minimum subscription plan that unlocks the feature (spec §16).
+#   core = always available. starter < growth < professional < ai_plus < enterprise.
+# defaults: initial-tenant seed values (spec §20). "optional" = off by default, admin may enable.
+
+version: 1
+
+features:
+  - key: public_website
+    plan_required: starter
+    description: Public school website
+    defaults: { upshs: on, aboom: on }
+
+  - key: admissions
+    plan_required: growth
+    description: Online admissions
+    defaults: { upshs: on, aboom: off }
+
+  - key: student_management
+    plan_required: starter
+    description: Students, guardians, enrollment
+    defaults: { upshs: on, aboom: on }
+
+  - key: staff_management
+    plan_required: starter
+    description: Teaching & non-teaching staff
+    defaults: { upshs: on, aboom: on }
+
+  - key: parent_portal
+    plan_required: starter
+    description: Parent portal (web + mobile)
+    defaults: { upshs: on, aboom: on }
+
+  - key: student_portal
+    plan_required: growth
+    description: Student portal (web + mobile)
+    defaults: { upshs: on, aboom: optional }
+
+  - key: teacher_portal
+    plan_required: starter
+    description: Teacher portal (web + mobile)
+    defaults: { upshs: on, aboom: on }
+
+  - key: attendance
+    plan_required: starter
+    description: Daily & subject attendance
+    defaults: { upshs: on, aboom: on }
+
+  - key: assignments
+    plan_required: growth
+    description: Assignments
+    defaults: { upshs: on, aboom: off }
+
+  - key: assessments
+    plan_required: growth
+    description: Tests, exams, scores
+    defaults: { upshs: on, aboom: on }
+
+  - key: cbt_exams
+    plan_required: professional
+    description: Computer-based / online exams
+    defaults: { upshs: on, aboom: off }
+
+  - key: report_cards
+    plan_required: starter
+    description: Report cards & transcripts (PDF)
+    defaults: { upshs: on, aboom: on }
+
+  - key: fees
+    plan_required: growth
+    description: Fees, invoices, balances
+    defaults: { upshs: on, aboom: on }
+
+  - key: online_payments
+    plan_required: professional
+    description: Payment gateway integrations
+    defaults: { upshs: optional, aboom: off }
+
+  - key: timetable
+    plan_required: growth
+    description: Timetabling
+    defaults: { upshs: on, aboom: off }
+
+  - key: library
+    plan_required: professional
+    description: Library management
+    defaults: { upshs: off, aboom: off }
+
+  - key: hostel
+    plan_required: professional
+    description: Hostel management
+    defaults: { upshs: off, aboom: off }
+
+  - key: transport
+    plan_required: professional
+    description: Transport management
+    defaults: { upshs: off, aboom: off }
+
+  - key: announcements
+    plan_required: starter
+    description: Announcements
+    defaults: { upshs: on, aboom: on }
+
+  - key: email_notifications
+    plan_required: starter
+    description: Email notifications
+    defaults: { upshs: on, aboom: on }
+
+  - key: sms_notifications
+    plan_required: growth
+    description: SMS notifications
+    defaults: { upshs: optional, aboom: optional }
+
+  - key: whatsapp_notifications
+    plan_required: professional
+    description: WhatsApp notifications
+    defaults: { upshs: optional, aboom: optional }
+
+  - key: analytics
+    plan_required: professional
+    description: Dashboards & KPIs
+    defaults: { upshs: on, aboom: off }
+
+  - key: ai_recommendations
+    plan_required: ai_plus
+    description: AI learning recommendations
+    defaults: { upshs: on, aboom: optional }
+
+  - key: ai_predictions
+    plan_required: ai_plus
+    description: AI risk & performance predictions
+    defaults: { upshs: on, aboom: off }
+
+  - key: career_guidance
+    plan_required: ai_plus
+    description: AI career/course guidance
+    defaults: { upshs: on, aboom: off }
+
+  - key: billing
+    plan_required: core
+    description: SaaS subscription & billing
+    defaults: { upshs: on, aboom: on }
+
+  - key: custom_domain
+    plan_required: professional
+    description: Custom domain for the school
+    defaults: { upshs: on, aboom: off }

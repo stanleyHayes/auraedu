@@ -1,0 +1,52 @@
+# AuraEDU
+
+**Multi-tenant, feature-flag-configurable SaaS school operating system.** One platform, many
+schools (tenants) — each with its own branded portal, users, academic structure, and enabled
+features. Built as Go microservices + Python AI services + a Next.js web app + an Expo mobile app.
+
+> UPSHS and Aboom AME Zion C Basic School are the **first two tenants**, not separate apps.
+
+## Docs
+| Doc | What |
+|---|---|
+| [`agent_plan.md`](agent_plan.md) | Sprints, epics, stories, lanes, Definition of Done — how the work is built in parallel |
+| [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md) | Mandatory UI/UX + animation spec (theming, sidebar, tour, mobile) |
+| [`CLAUDE.md`](CLAUDE.md) / [`AGENTS.md`](AGENTS.md) | Non-negotiable rules + lane ownership |
+| [`AuraEDU_Microservices_Multi_Tenant_SaaS_Specification.md`](AuraEDU_Microservices_Multi_Tenant_SaaS_Specification.md) | The product/technical spec |
+
+## Stack
+Go 1.25 (hexagonal) · Python 3.13/FastAPI · Next.js 16 + React 19 · Expo/React Native · Postgres 17 (DB-per-service + RLS) · NATS JetStream · **Render** (deploy) · **Cloudinary** (media) · Render Key Value (Redis).
+
+## Repo layout
+```
+apps/            web, marketing, mobile, api-gateway, <domain>-service (Go), ai-* (Python)
+packages/        ui, ui-native, tokens, shared-types, feature-flags, api-client, config, logger
+platform/        shared Go libs (tenancy, auth, flags, httpx, eventbus, db, observ, config, testkit)
+contracts/       SOURCE OF TRUTH — openapi/, events/, permissions/, features/
+infrastructure/  docker/, render/        deploy/  docker-compose (local)
+tools/           codegen, new-service, seed        docs/  architecture, api, onboarding, ai, runbooks
+render.yaml      Render Blueprint      eas.json  Expo build/submit
+```
+
+## Quick start
+```bash
+make bootstrap     # install toolchains + workspace deps (pnpm, go work, uv)
+make infra-up      # start Postgres/Redis/NATS/OTel via docker compose
+make dev           # run the stack
+make new-service NAME=student   # scaffold a new hexagonal Go service
+```
+
+### Verify the toolchain (Sprint 0)
+```bash
+GOFLAGS=-mod=readonly go build ./apps/api-gateway/... ./platform/...
+GOFLAGS=-mod=readonly go run ./apps/api-gateway/cmd/server &
+curl localhost:8080/health   # {"service":"api-gateway","status":"ok",...}
+```
+
+> **Go note:** this repo is a **Go workspace** (`go.work`). If you've set a global
+> `go env -w GOFLAGS=-mod=mod`, direct `go` commands will error (`-mod may only be set to
+> readonly…`). Run with `GOFLAGS=-mod=readonly`; all `make` targets already do.
+
+## Status
+**Sprint 0 — Foundation** (in progress): monorepo scaffolded, workspace configs, contracts seed,
+Render Blueprint, local infra, gateway `/health`+`/ready` verified. See `agent_plan.md` §14.

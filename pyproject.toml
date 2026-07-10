@@ -1,0 +1,18 @@
+# Root of the uv workspace for Python AI services (apps/ai-*, career-guidance-service).
+# Each service is its own member with its own pyproject.toml.
+[tool.uv.workspace]
+members = [
+  "apps/ai-recommendation-service",
+  "apps/ai-prediction-service",
+  "apps/career-guidance-service",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+
+[tool.pytest.ini_options]
+addopts = "-q"

@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.auraedu.dev/events/tenant.created.v1.json",
+  "title": "tenant.created.v1",
+  "description": "Emitted by Tenant Service when a school is created. Consumed by Academic, Website, Billing, Audit (agent_plan Appendix B).",
+  "type": "object",
+  "required": ["specversion", "type", "source", "id", "time", "tenant_id", "data"],
+  "properties": {
+    "specversion": { "const": "1.0" },
+    "type": { "const": "tenant.created.v1" },
+    "source": { "const": "tenant-service" },
+    "id": { "type": "string" },
+    "time": { "type": "string", "format": "date-time" },
+    "tenant_id": { "type": "string" },
+    "datacontenttype": { "const": "application/json" },
+    "data": {
+      "type": "object",
+      "required": ["tenant_code", "name", "plan"],
+      "properties": {
+        "tenant_code": { "type": "string" },
+        "name": { "type": "string" },
+        "plan": { "type": "string", "enum": ["starter", "growth", "professional", "ai_plus", "enterprise"] }
+      }
+    }
+  },
+  "examples": [
+    {
+      "specversion": "1.0",
+      "type": "tenant.created.v1",
+      "source": "tenant-service",
+      "id": "evt-1a2b",
+      "time": "2026-07-10T09:00:00Z",
+      "tenant_id": "aboom-ame-zion-c",
+      "data": { "tenant_code": "aboom-ame-zion-c", "name": "Aboom AME Zion C Basic School", "plan": "starter" }
+    }
+  ]
+}
