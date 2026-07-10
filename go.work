@@ -11,6 +11,7 @@ use (
 	./apps/fees-service
 	./apps/file-service
 	./apps/identity-service
+	./apps/notification-service
 	./apps/payment-service
 	./apps/report-service
 	./apps/staff-service
