@@ -142,6 +142,8 @@ jobs:
           cache: 'pnpm'
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Install Spectral
+        run: npm install -g @stoplight/spectral-cli
       - name: Lint contracts
         run: make contracts-lint
       - name: Regenerate contract stubs/types
