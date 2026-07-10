@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/auraedu/platform/auth"
 	"github.com/auraedu/tenant-service/internal/application"
 	"github.com/auraedu/tenant-service/internal/domain"
 )
@@ -33,12 +34,17 @@ func tenantCode(r *http.Request) string {
 	return r.URL.Query().Get("tenant")
 }
 
-func (h *Handler) listTenants(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"data": h.svc.ListTenants(), "next_cursor": nil})
+func (h *Handler) listTenants(w http.ResponseWriter, r *http.Request) {
+	tenants, err := h.svc.ListTenants(auth.FromHeaders(r.Header))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": tenants, "next_cursor": nil})
 }
 
 func (h *Handler) getTenant(w http.ResponseWriter, r *http.Request) {
-	t, err := h.svc.GetTenant(r.PathValue("code"))
+	t, err := h.svc.GetTenant(auth.FromHeaders(r.Header), r.PathValue("code"))
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -57,7 +63,7 @@ func (h *Handler) branding(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) features(w http.ResponseWriter, r *http.Request) {
 	code := tenantCode(r)
-	fs, err := h.svc.Features(code)
+	fs, err := h.svc.Features(auth.FromHeaders(r.Header), code)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -80,7 +86,7 @@ func (h *Handler) setFeature(w http.ResponseWriter, r *http.Request) {
 	if code == "" {
 		code = tenantCode(r)
 	}
-	f, err := h.svc.SetFeature(code, r.PathValue("key"), body.Enabled)
+	f, err := h.svc.SetFeature(auth.FromHeaders(r.Header), code, r.PathValue("key"), body.Enabled)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -102,6 +108,10 @@ func errEnv(code, msg string) map[string]string {
 
 func writeErr(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, domain.ErrForbidden):
+		writeJSON(w, http.StatusForbidden, errEnv("forbidden", "not permitted for this actor or tenant"))
+	case errors.Is(err, domain.ErrEntitlement):
+		writeJSON(w, http.StatusForbidden, errEnv("plan_required", "the tenant's plan does not include this feature"))
 	case errors.Is(err, domain.ErrNotFound):
 		writeJSON(w, http.StatusNotFound, errEnv("not_found", "tenant not found"))
 	case errors.Is(err, domain.ErrNoTenant):

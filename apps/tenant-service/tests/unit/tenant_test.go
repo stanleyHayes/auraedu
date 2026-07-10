@@ -3,6 +3,7 @@ package unit
 import (
 	"testing"
 
+	"github.com/auraedu/platform/auth"
 	"github.com/auraedu/tenant-service/internal/adapters/memory"
 	"github.com/auraedu/tenant-service/internal/application"
 	"github.com/auraedu/tenant-service/internal/domain"
@@ -10,63 +11,103 @@ import (
 
 func newSvc() *application.Service { return application.NewService(memory.New()) }
 
-func TestSeededTenants(t *testing.T) {
+var (
+	anon        = auth.Actor{}
+	platformAdm = auth.Actor{UserID: "p1", Role: auth.RolePlatformSuperAdmin, PlatformAdmin: true}
+	upshsAdmin  = auth.Actor{UserID: "u1", TenantID: "upshs", Role: "school_admin", Permissions: []string{"features.manage"}}
+	upshsUser   = auth.Actor{UserID: "u2", TenantID: "upshs", Role: "teacher"}
+	aboomUser   = auth.Actor{UserID: "a1", TenantID: "aboom-ame-zion-c", Role: "teacher"}
+)
+
+func TestListTenantsRequiresPlatformAdmin(t *testing.T) {
 	svc := newSvc()
-	if got := len(svc.ListTenants()); got != 3 {
-		t.Fatalf("expected 3 seeded tenants, got %d", got)
+	if _, err := svc.ListTenants(anon); err != domain.ErrForbidden {
+		t.Fatalf("anon should be forbidden, got %v", err)
 	}
-	upshs, err := svc.GetTenant("upshs")
+	if _, err := svc.ListTenants(upshsAdmin); err != domain.ErrForbidden {
+		t.Fatalf("school admin should not list all tenants, got %v", err)
+	}
+	got, err := svc.ListTenants(platformAdm)
+	if err != nil || len(got) != 3 {
+		t.Fatalf("platform admin should list 3 tenants, got %d err %v", len(got), err)
+	}
+}
+
+func TestBrandingIsPublic(t *testing.T) {
+	b, err := newSvc().Branding("upshs")
 	if err != nil {
-		t.Fatalf("upshs not found: %v", err)
+		t.Fatalf("branding should be public: %v", err)
 	}
-	if upshs.Branding.Brand.Primary != "#7B1113" {
-		t.Fatalf("upshs brand = %q, want #7B1113", upshs.Branding.Brand.Primary)
-	}
-}
-
-func TestUnknownTenantNotFound(t *testing.T) {
-	if _, err := newSvc().GetTenant("nope"); err != domain.ErrNotFound {
-		t.Fatalf("expected ErrNotFound, got %v", err)
+	if b.Brand.Primary != "#7B1113" {
+		t.Fatalf("upshs brand = %q, want #7B1113", b.Brand.Primary)
 	}
 }
 
-func TestFeaturesRequireTenant(t *testing.T) {
-	if _, err := newSvc().Features(""); err != domain.ErrNoTenant {
-		t.Fatalf("expected ErrNoTenant, got %v", err)
-	}
-}
-
-func TestFeatureFlagsPerTenant(t *testing.T) {
+func TestGetTenantTenantScope(t *testing.T) {
 	svc := newSvc()
-	// UPSHS has AI recommendations on; Aboom does not (spec §20).
-	if !enabled(t, svc, "upshs", "ai_recommendations") {
-		t.Fatal("expected ai_recommendations enabled for upshs")
+	if _, err := svc.GetTenant(upshsUser, "upshs"); err != nil {
+		t.Fatalf("own tenant should be readable: %v", err)
 	}
-	if enabled(t, svc, "aboom-ame-zion-c", "ai_recommendations") {
-		t.Fatal("expected ai_recommendations disabled for aboom")
+	if _, err := svc.GetTenant(upshsUser, "aboom-ame-zion-c"); err != domain.ErrForbidden {
+		t.Fatalf("cross-tenant read should be forbidden, got %v", err)
+	}
+	if _, err := svc.GetTenant(platformAdm, "aboom-ame-zion-c"); err != nil {
+		t.Fatalf("platform admin should read any tenant: %v", err)
 	}
 }
 
-func TestSetFeatureToggles(t *testing.T) {
+func TestFeaturesTenantScope(t *testing.T) {
 	svc := newSvc()
-	f, err := svc.SetFeature("aboom-ame-zion-c", "ai_recommendations", true)
-	if err != nil {
-		t.Fatalf("SetFeature: %v", err)
+	if _, err := svc.Features(upshsUser, ""); err != domain.ErrNoTenant {
+		t.Fatalf("empty tenant should be ErrNoTenant, got %v", err)
 	}
-	if !f.Enabled {
-		t.Fatal("flag should be enabled after SetFeature(true)")
+	if _, err := svc.Features(aboomUser, "upshs"); err != domain.ErrForbidden {
+		t.Fatalf("cross-tenant feature read should be forbidden, got %v", err)
 	}
-	if !enabled(t, svc, "aboom-ame-zion-c", "ai_recommendations") {
-		t.Fatal("snapshot should reflect the toggle")
+	if !enabled(t, svc, upshsUser, "upshs", "ai_recommendations") {
+		t.Fatal("upshs should have ai_recommendations on")
 	}
-	if _, err := svc.SetFeature("aboom-ame-zion-c", "not_a_feature", true); err != domain.ErrValidation {
-		t.Fatalf("expected ErrValidation for unknown key, got %v", err)
+	if enabled(t, svc, aboomUser, "aboom-ame-zion-c", "ai_recommendations") {
+		t.Fatal("aboom should have ai_recommendations off")
 	}
 }
 
-func enabled(t *testing.T, svc *application.Service, code, key string) bool {
+func TestSetFeatureRBACAndScope(t *testing.T) {
+	svc := newSvc()
+	// teacher lacks features.manage
+	if _, err := svc.SetFeature(upshsUser, "upshs", "analytics", false); err != domain.ErrForbidden {
+		t.Fatalf("teacher should not manage features, got %v", err)
+	}
+	// school admin may manage own tenant (analytics is professional; upshs is ai_plus → allowed)
+	if _, err := svc.SetFeature(upshsAdmin, "upshs", "analytics", true); err != nil {
+		t.Fatalf("school admin should manage own tenant's in-plan feature: %v", err)
+	}
+	// school admin may NOT manage another tenant
+	if _, err := svc.SetFeature(upshsAdmin, "aboom-ame-zion-c", "analytics", true); err != domain.ErrForbidden {
+		t.Fatalf("cross-tenant management should be forbidden, got %v", err)
+	}
+}
+
+func TestSetFeatureEntitlement(t *testing.T) {
+	svc := newSvc()
+	// Aboom is on the 'starter' plan; ai_recommendations needs 'ai_plus'. Even a platform
+	// admin cannot ENABLE it above the plan (spec §3.3: billing controls entitlement).
+	if _, err := svc.SetFeature(platformAdm, "aboom-ame-zion-c", "ai_recommendations", true); err != domain.ErrEntitlement {
+		t.Fatalf("enabling above plan should be ErrEntitlement, got %v", err)
+	}
+	// Disabling is always allowed.
+	if _, err := svc.SetFeature(platformAdm, "aboom-ame-zion-c", "ai_recommendations", false); err != nil {
+		t.Fatalf("disabling should be allowed: %v", err)
+	}
+	// Unknown key.
+	if _, err := svc.SetFeature(platformAdm, "upshs", "not_a_feature", true); err != domain.ErrValidation {
+		t.Fatalf("unknown key should be ErrValidation, got %v", err)
+	}
+}
+
+func enabled(t *testing.T, svc *application.Service, actor auth.Actor, code, key string) bool {
 	t.Helper()
-	fs, err := svc.Features(code)
+	fs, err := svc.Features(actor, code)
 	if err != nil {
 		t.Fatalf("Features(%q): %v", code, err)
 	}

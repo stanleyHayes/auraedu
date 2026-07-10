@@ -11,47 +11,6 @@ import (
 	"github.com/auraedu/tenant-service/internal/ports"
 )
 
-// catalog is the stable feature key list + plan tier (spec §9, §16).
-var catalog = []domain.FeatureFlag{
-	{Key: "public_website", PlanRequired: "starter"},
-	{Key: "admissions", PlanRequired: "growth"},
-	{Key: "student_management", PlanRequired: "starter"},
-	{Key: "staff_management", PlanRequired: "starter"},
-	{Key: "parent_portal", PlanRequired: "starter"},
-	{Key: "student_portal", PlanRequired: "growth"},
-	{Key: "teacher_portal", PlanRequired: "starter"},
-	{Key: "attendance", PlanRequired: "starter"},
-	{Key: "assignments", PlanRequired: "growth"},
-	{Key: "assessments", PlanRequired: "growth"},
-	{Key: "cbt_exams", PlanRequired: "professional"},
-	{Key: "report_cards", PlanRequired: "starter"},
-	{Key: "fees", PlanRequired: "growth"},
-	{Key: "online_payments", PlanRequired: "professional"},
-	{Key: "timetable", PlanRequired: "growth"},
-	{Key: "library", PlanRequired: "professional"},
-	{Key: "hostel", PlanRequired: "professional"},
-	{Key: "transport", PlanRequired: "professional"},
-	{Key: "announcements", PlanRequired: "starter"},
-	{Key: "email_notifications", PlanRequired: "starter"},
-	{Key: "sms_notifications", PlanRequired: "growth"},
-	{Key: "whatsapp_notifications", PlanRequired: "professional"},
-	{Key: "analytics", PlanRequired: "professional"},
-	{Key: "ai_recommendations", PlanRequired: "ai_plus"},
-	{Key: "ai_predictions", PlanRequired: "ai_plus"},
-	{Key: "career_guidance", PlanRequired: "ai_plus"},
-	{Key: "billing", PlanRequired: "core"},
-	{Key: "custom_domain", PlanRequired: "professional"},
-}
-
-func planOf(key string) string {
-	for _, f := range catalog {
-		if f.Key == key {
-			return f.PlanRequired
-		}
-	}
-	return ""
-}
-
 // Repository is the seeded in-memory tenant + feature-flag store.
 type Repository struct {
 	mu      sync.RWMutex
@@ -139,8 +98,8 @@ func (r *Repository) Features(code string) ([]domain.FeatureFlag, error) {
 	if !ok {
 		return nil, domain.ErrNotFound
 	}
-	out := make([]domain.FeatureFlag, 0, len(catalog))
-	for _, f := range catalog {
+	out := make([]domain.FeatureFlag, 0, len(domain.FeatureCatalog))
+	for _, f := range domain.FeatureCatalog {
 		out = append(out, domain.FeatureFlag{Key: f.Key, Enabled: on[f.Key], PlanRequired: f.PlanRequired})
 	}
 	return out, nil
@@ -153,9 +112,10 @@ func (r *Repository) SetFeature(code, key string, enabled bool) (domain.FeatureF
 	if !ok {
 		return domain.FeatureFlag{}, domain.ErrNotFound
 	}
-	if planOf(key) == "" {
+	plan, known := domain.FeaturePlan(key)
+	if !known {
 		return domain.FeatureFlag{}, domain.ErrValidation
 	}
 	on[key] = enabled
-	return domain.FeatureFlag{Key: key, Enabled: enabled, PlanRequired: planOf(key)}, nil
+	return domain.FeatureFlag{Key: key, Enabled: enabled, PlanRequired: plan}, nil
 }
