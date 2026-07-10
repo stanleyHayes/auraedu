@@ -12,8 +12,14 @@
     "test": "echo \"no tests yet\""
   },
   "dependencies": {
+    "@auraedu/api-client": "workspace:*",
+    "@auraedu/config": "workspace:*",
+    "@auraedu/flags": "workspace:*",
+    "@auraedu/logger": "workspace:*",
+    "@auraedu/shared-types": "workspace:*",
     "@auraedu/tokens": "workspace:*",
     "@auraedu/ui": "workspace:*",
+    "lucide-react": "^0.509.0",
     "next": "16",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
