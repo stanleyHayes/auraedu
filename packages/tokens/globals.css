@@ -1,0 +1,90 @@
+/* AuraEDU global stylesheet — semantic (shadcn-style) binding, light/dark themes,
+   signature keyframes, and the reduced-motion kill-switch. Import once in the app root.
+   Components reference the SEMANTIC vars (--primary, --ring, --border, …), never brand hex. */
+@import "./tokens.css";
+
+/* Dark mode is a class on <html>, not a media query (next-themes-compatible contract). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-card: var(--surface);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-ring: var(--ring);
+  --radius: var(--radius-md);
+}
+
+/* ---- LIGHT (chalk paper) ---- */
+:root {
+  --background: var(--color-paper-50);
+  --surface: var(--color-paper-100);
+  --foreground: var(--color-ink-950);
+  --muted: var(--color-paper-200);
+  --muted-foreground: var(--color-ink-400);
+  --border: var(--color-paper-300);
+  --primary: var(--color-brand);
+  --primary-foreground: var(--color-brand-contrast);
+  --accent: var(--color-brand-tint);
+  --ring: var(--color-brand);
+}
+
+/* ---- DARK (the chalkboard) — accent brightened for contrast on the board ---- */
+.dark {
+  --background: var(--color-ink-950);
+  --surface: var(--color-ink-900);
+  --foreground: var(--color-paper-50);
+  --muted: #132019;
+  --muted-foreground: var(--color-ink-200);
+  --border: #2B3D34;
+  --primary: color-mix(in oklab, var(--color-brand) 60%, #EAEDE6);
+  --primary-foreground: var(--color-ink-950);
+  --accent: color-mix(in oklab, var(--color-brand) 26%, var(--color-ink-900));
+  --ring: color-mix(in oklab, var(--color-brand) 60%, #EAEDE6);
+}
+
+/* ---- base ---- */
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* ---- signature keyframes ---- */
+@keyframes button-wave {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.55; }
+  30% { transform: translateY(-0.28rem); opacity: 1; }
+}
+@keyframes tick-draw { from { stroke-dashoffset: 22; } to { stroke-dashoffset: 0; } }
+@keyframes empty-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-0.35rem); } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slide-up { from { opacity: 0; transform: translateY(0.5rem); } to { opacity: 1; transform: none; } }
+
+/* ---- theme toggle: circular reveal via the View Transitions API ---- */
+html.theme-reveal::view-transition-new(root) { animation: aura-reveal 450ms var(--ease-out-quart); }
+html.theme-reveal::view-transition-old(root) { animation: none; }
+@keyframes aura-reveal {
+  from { clip-path: circle(0 at var(--theme-reveal-x) var(--theme-reveal-y)); }
+  to   { clip-path: circle(150vmax at var(--theme-reveal-x) var(--theme-reveal-y)); }
+}
+
+/* ---- reduced-motion kill-switch (four-layer strategy starts here) ---- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  html.theme-reveal::view-transition-new(root) { animation: none; }
+}

@@ -1,0 +1,9 @@
+// @auraedu/ui — the AuraEDU web design system (BRAND.md + DESIGN_SYSTEM.md).
+// Import the styles once in the app root: `@auraedu/tokens/globals.css`.
+export { cn } from "./lib/cn";
+export { useTheme, type Theme } from "./lib/use-theme";
+export { Button, type ButtonProps, type ButtonVariant } from "./components/button";
+export { ThemeToggle } from "./components/theme-toggle";
+export { Skeleton } from "./components/skeleton";
+export { RegisterCard, type RegisterCardProps, type Pupil } from "./components/register";
+export { StatCard, type StatCardProps } from "./components/stat-card";
