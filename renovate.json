@@ -1,0 +1,51 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticPrefixChore",
+    ":preserveSemverRanges"
+  ],
+  "timezone": "UTC",
+  "schedule": ["before 10am on Monday"],
+  "prHourlyLimit": 4,
+  "prConcurrentLimit": 10,
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 10am on Monday"]
+  },
+  "packageRules": [
+    {
+      "description": "Group weekly minor/patch/digest updates into one PR",
+      "groupName": "weekly non-major dependencies",
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "schedule": ["before 10am on Monday"]
+    },
+    {
+      "description": "Keep major updates in their own PRs for manual review",
+      "groupName": "major dependencies",
+      "matchUpdateTypes": ["major"],
+      "addLabels": ["major", "dependencies"],
+      "automerge": false
+    },
+    {
+      "description": "Auto-merge green patch updates",
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    {
+      "description": "Group GitHub Actions updates",
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions",
+      "schedule": ["before 10am on Monday"]
+    },
+    {
+      "description": "Group Dockerfile base image updates",
+      "matchManagers": ["dockerfile"],
+      "groupName": "Dockerfile base images",
+      "schedule": ["before 10am on Monday"]
+    }
+  ]
+}

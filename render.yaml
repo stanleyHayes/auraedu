@@ -34,6 +34,8 @@ envVarGroups:
         sync: false
 
 databases:
+  # One Render Postgres per service DB (agent_plan Appendix D). Each service connects only
+  # to its own database; logical DB names match deploy/postgres-init.sql.
   - name: identity-db
     plan: basic-1gb
     region: frankfurt
@@ -48,6 +50,81 @@ databases:
     plan: basic-1gb
     region: frankfurt
     databaseName: student
+    postgresMajorVersion: "17"
+  - name: staff-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: staff
+    postgresMajorVersion: "17"
+  - name: academic-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: academic
+    postgresMajorVersion: "17"
+  - name: attendance-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: attendance
+    postgresMajorVersion: "17"
+  - name: assessment-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: assessment
+    postgresMajorVersion: "17"
+  - name: report-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: report
+    postgresMajorVersion: "17"
+  - name: fees-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: fees
+    postgresMajorVersion: "17"
+  - name: payment-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: payment
+    postgresMajorVersion: "17"
+  - name: notification-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: notification
+    postgresMajorVersion: "17"
+  - name: website-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: website
+    postgresMajorVersion: "17"
+  - name: file-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: file
+    postgresMajorVersion: "17"
+  - name: analytics-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: analytics
+    postgresMajorVersion: "17"
+  - name: billing-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: billing
+    postgresMajorVersion: "17"
+  - name: cbt-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: cbt
+    postgresMajorVersion: "17"
+  - name: audit-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: audit
+    postgresMajorVersion: "17"
+  - name: ai-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: ai
     postgresMajorVersion: "17"
 
 services:
@@ -67,6 +144,7 @@ services:
     plan: starter
     dockerfilePath: ./infrastructure/docker/nats.Dockerfile
     dockerContext: .
+    healthCheckPath: /healthz
     disk:
       name: nats-jetstream
       mountPath: /data
@@ -118,6 +196,7 @@ services:
     plan: starter
     dockerfilePath: ./apps/identity-service/Dockerfile
     dockerContext: .
+    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -148,6 +227,7 @@ services:
     plan: starter
     dockerfilePath: ./apps/tenant-service/Dockerfile
     dockerContext: .
+    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -172,6 +252,7 @@ services:
     plan: starter
     dockerfilePath: ./apps/student-service/Dockerfile
     dockerContext: .
+    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -202,6 +283,10 @@ services:
       paths:
         - apps/web/**
         - packages/**
+        - pnpm-lock.yaml
+        - package.json
+        - turbo.json
+        - pnpm-workspace.yaml
     envVars:
       - key: NEXT_PUBLIC_API_URL
         fromService:
@@ -223,5 +308,114 @@ services:
       paths:
         - apps/marketing/**
         - packages/**
+        - pnpm-lock.yaml
+        - package.json
+        - turbo.json
+        - pnpm-workspace.yaml
     envVars:
       - fromGroup: auraedu-shared-config
+
+  # ---- Worker / Cron patterns ----------------------------------------------
+  # Render `worker` services run continuously (event consumers / background jobs).
+  # Render `cron` services run on a schedule. Both can reuse a service's Dockerfile
+  # with a different start command, or use a dedicated worker Dockerfile.
+  #
+  # Example worker (uncomment once the service has a worker entrypoint):
+  # - name: report-worker
+  #   type: worker
+  #   runtime: docker
+  #   region: frankfurt
+  #   plan: starter
+  #   dockerfilePath: ./apps/report-service/Dockerfile
+  #   dockerContext: .
+  #   autoDeployTrigger: checksPass
+  #   buildFilter:
+  #     paths:
+  #       - apps/report-service/**
+  #       - platform/**
+  #   envVars:
+  #     - key: DATABASE_URL
+  #       fromDatabase:
+  #         name: report-db
+  #         property: connectionString
+  #     - key: NATS_HOST
+  #       fromService:
+  #         name: nats
+  #         property: host
+  #     - fromGroup: auraedu-shared-config
+  #
+  # Example cron (uncomment once a scheduled job is implemented):
+  # - name: nightly-analytics-cron
+  #   type: cron
+  #   schedule: "0 2 * * *"
+  #   runtime: docker
+  #   region: frankfurt
+  #   plan: starter
+  #   dockerfilePath: ./apps/analytics-service/Dockerfile
+  #   dockerContext: .
+  #   buildFilter:
+  #     paths:
+  #       - apps/analytics-service/**
+  #       - platform/**
+  #   envVars:
+  #     - key: DATABASE_URL
+  #       fromDatabase:
+  #         name: analytics-db
+  #         property: connectionString
+  #     - fromGroup: auraedu-shared-config
+
+  # ---- Remaining services (agent_plan Appendix D) --------------------------
+  # Uncomment and deploy as each service gets a Dockerfile and migrations.
+  # See infrastructure/render/30-service-pattern.yaml for a reusable template.
+  #
+  # - name: staff-service
+  #   type: pserv
+  #   ...
+  # - name: academic-service
+  #   type: pserv
+  #   ...
+  # - name: attendance-service
+  #   type: pserv
+  #   ...
+  # - name: assessment-service
+  #   type: pserv
+  #   ...
+  # - name: report-service
+  #   type: pserv
+  #   ...
+  # - name: fees-service
+  #   type: pserv
+  #   ...
+  # - name: payment-service
+  #   type: pserv
+  #   ...
+  # - name: notification-service
+  #   type: pserv
+  #   ...
+  # - name: website-service
+  #   type: pserv
+  #   ...
+  # - name: file-service
+  #   type: pserv
+  #   ...
+  # - name: analytics-service
+  #   type: pserv
+  #   ...
+  # - name: billing-service
+  #   type: pserv
+  #   ...
+  # - name: cbt-service
+  #   type: pserv
+  #   ...
+  # - name: audit-service
+  #   type: pserv
+  #   ...
+  # - name: ai-recommendation-service
+  #   type: pserv
+  #   ...
+  # - name: ai-prediction-service
+  #   type: pserv
+  #   ...
+  # - name: career-guidance-service
+  #   type: pserv
+  #   ...
