@@ -46,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
-        with: { go-version: '1.25.11' } # >= patched stdlib (GO-2026-5037/4601); Renovate bumps this
+        with: { go-version: 'stable' } # always newest patched Go so the blocking govulncheck gate stays green
       - run: go build ./platform/... ./apps/api-gateway/...
       - run: go vet ./platform/... ./apps/api-gateway/...
       - name: gofmt
