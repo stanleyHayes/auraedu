@@ -17,21 +17,12 @@ const marketingClientSchema = z.object({
   NEXT_PUBLIC_LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
 });
 
-function parseEnv<T>(schema: z.ZodSchema<T>, label: string): T {
-  const result = schema.safeParse(process.env);
-  if (!result.success) {
-    const issues = result.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
-    throw new Error(`Invalid ${label} environment: ${issues}`);
-  }
-  return result.data;
-}
-
 export const webEnv = {
-  client: parseEnv(webClientSchema, "web client"),
-  server: parseEnv(webServerSchema, "web server"),
+  client: webClientSchema.parse(process.env),
+  server: webServerSchema.parse(process.env),
 };
 
-export const marketingEnv = parseEnv(marketingClientSchema, "marketing");
+export const marketingEnv = marketingClientSchema.parse(process.env);
 
 export const publicApiUrl = webEnv.client.NEXT_PUBLIC_API_URL;
 export const publicAppUrl = webEnv.client.NEXT_PUBLIC_APP_URL;

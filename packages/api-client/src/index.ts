@@ -116,6 +116,6 @@ export function createGatewayClient(options: GatewayClientOptions): GatewayClien
   };
 }
 
-export function toFeatureSnapshot(tenantCode: string, flags: FeatureFlag[]): FeatureSnapshot {
+export function toFeatureSnapshot(tenantCode: string, flags: FeatureFlag[]): { tenantCode: string; flags: FeatureFlag[] } {
   return { tenantCode, flags };
 }

@@ -11,5 +11,8 @@
     "test": "echo \"no tests yet\""
   },
   "dependencies": { "@auraedu/shared-types": "workspace:*" },
-  "devDependencies": { "typescript": "^5.9.2" }
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.2"
+  }
 }
