@@ -60,11 +60,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '24', cache: 'pnpm' }
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm lint && pnpm typecheck && pnpm test
+      - name: TS gates (activate once the workspace is scaffolded)
+        run: |
+          if [ ! -f pnpm-lock.yaml ]; then
+            echo "::notice::No pnpm-lock.yaml yet — TS workspace not scaffolded; skipping gates."
+            exit 0
+          fi
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm lint && pnpm typecheck && pnpm test
 
   python:
     needs: changes
@@ -72,6 +76,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-      - run: uv sync
-      - run: uv run ruff check . && uv run pytest
+      - name: Python gates (activate once a service is implemented)
+        run: |
+          if [ ! -f uv.lock ]; then
+            echo "::notice::No uv.lock yet — Python services not scaffolded; skipping gates."
+            exit 0
+          fi
+          pipx install uv || pip install uv
+          uv sync
+          uv run ruff check . && uv run pytest
