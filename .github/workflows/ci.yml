@@ -26,8 +26,11 @@ jobs:
           filters: |
             go:
               - 'apps/**/*.go'
+              - 'apps/**/go.mod'
               - 'platform/**'
               - 'go.work'
+              - '.tool-versions'
+              - '.github/workflows/ci.yml'
             web:
               - 'apps/web/**'
               - 'apps/marketing/**'
