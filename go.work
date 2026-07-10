@@ -4,6 +4,7 @@ go 1.25
 
 use (
 	./apps/api-gateway
+	./apps/identity-service
 	./apps/student-service
 	./apps/tenant-service
 	./platform
