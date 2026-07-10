@@ -1,0 +1,24 @@
+# Shared infrastructure services used by the whole Render project.
+
+services:
+  # ---- Shared cache (Redis/Valkey) ----------------------------------------
+  - name: auraedu-cache
+    type: keyvalue
+    plan: starter
+    region: frankfurt
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: [] # private only — reachable from services in the same Render project
+
+  # ---- Event bus: NATS JetStream (private + persistent disk) ---------------
+  - name: nats
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./infrastructure/docker/nats.Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    disk:
+      name: nats-jetstream
+      mountPath: /data
+      sizeGB: 10
