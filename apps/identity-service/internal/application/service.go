@@ -3,6 +3,7 @@ package application
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -86,7 +87,54 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (accessToken
 	if err != nil {
 		return "", "", domain.User{}, time.Time{}, domain.ErrExpiredToken
 	}
+	if s.sessions != nil {
+		if err := s.sessions.Revoke(ctx, u.TenantID, tokenHash); err != nil {
+			slog.Default().ErrorContext(ctx, "failed to revoke old session", "err", err)
+		}
+	}
 	return s.issueSession(ctx, u)
+}
+
+func (s *Service) Logout(ctx context.Context, actor auth.Actor, refreshToken string) error {
+	if refreshToken == "" {
+		return domain.ErrValidation
+	}
+	return s.revokeSessionByToken(ctx, actor, refreshToken)
+}
+
+func (s *Service) RevokeSession(ctx context.Context, actor auth.Actor, sessionID string) error {
+	if sessionID == "" {
+		return domain.ErrValidation
+	}
+	return s.revokeSessionByHash(ctx, actor, sessionID)
+}
+
+func (s *Service) revokeSessionByToken(ctx context.Context, actor auth.Actor, refreshToken string) error {
+	return s.revokeSessionByHash(ctx, actor, domain.HashToken(refreshToken))
+}
+
+func (s *Service) revokeSessionByHash(ctx context.Context, actor auth.Actor, tokenHash string) error {
+	userID, err := s.repo.FindRefreshToken(ctx, tokenHash)
+	if err != nil {
+		return domain.ErrExpiredToken
+	}
+	privileged := tenancy.WithActor(ctx, auth.Actor{PlatformAdmin: true})
+	u, err := s.repo.GetUser(privileged, userID)
+	if err != nil {
+		return err
+	}
+	if !actor.CanAccessTenant(u.TenantID) {
+		return domain.ErrForbidden
+	}
+	if err := s.repo.RevokeRefreshToken(ctx, tokenHash); err != nil {
+		return err
+	}
+	if s.sessions != nil {
+		if err := s.sessions.Revoke(ctx, u.TenantID, tokenHash); err != nil {
+			slog.Default().ErrorContext(ctx, "failed to revoke session", "err", err)
+		}
+	}
+	return nil
 }
 
 func (s *Service) Verify(token string) (jwt.Claims, error) {

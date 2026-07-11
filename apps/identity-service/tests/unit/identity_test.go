@@ -109,6 +109,52 @@ func TestRefreshRotatesToken(t *testing.T) {
 	}
 }
 
+func TestLogoutRevokesRefreshToken(t *testing.T) {
+	svc, _ := newSvc(t)
+	ctx := context.Background()
+	_, refresh, _, _, err := svc.Login(ctx, "e.mensah@upshs.edu.gh", "password123") //nolint:dogsled // only refresh token needed
+	if err != nil {
+		t.Fatalf("login: %v", err)
+	}
+	actor := auth.Actor{UserID: "u-teacher", TenantID: "upshs", Role: "teacher"}
+	if err := svc.Logout(ctx, actor, refresh); err != nil {
+		t.Fatalf("logout: %v", err)
+	}
+	if _, _, _, _, err := svc.Refresh(ctx, refresh); !errors.Is(err, domain.ErrExpiredToken) {
+		t.Fatalf("refresh after logout should fail, got %v", err)
+	}
+}
+
+func TestLogoutCrossTenantForbidden(t *testing.T) {
+	svc, _ := newSvc(t)
+	ctx := context.Background()
+	_, refresh, _, _, err := svc.Login(ctx, "e.mensah@upshs.edu.gh", "password123") //nolint:dogsled // only refresh token needed
+	if err != nil {
+		t.Fatalf("login: %v", err)
+	}
+	other := auth.Actor{UserID: "u-other", TenantID: "aboom", Role: "teacher"}
+	if err := svc.Logout(ctx, other, refresh); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("cross-tenant logout should be forbidden, got %v", err)
+	}
+}
+
+func TestRevokeSessionByHash(t *testing.T) {
+	svc, _ := newSvc(t)
+	ctx := context.Background()
+	_, refresh, _, _, err := svc.Login(ctx, "e.mensah@upshs.edu.gh", "password123") //nolint:dogsled // only refresh token needed
+	if err != nil {
+		t.Fatalf("login: %v", err)
+	}
+	tokenHash := domain.HashToken(refresh)
+	actor := auth.Actor{UserID: "u-teacher", TenantID: "upshs", Role: "teacher"}
+	if err := svc.RevokeSession(ctx, actor, tokenHash); err != nil {
+		t.Fatalf("revoke session: %v", err)
+	}
+	if _, _, _, _, err := svc.Refresh(ctx, refresh); !errors.Is(err, domain.ErrExpiredToken) {
+		t.Fatalf("refresh after revoke should fail, got %v", err)
+	}
+}
+
 func TestUserCRUD(t *testing.T) {
 	svc, pub := newSvc(t)
 	actor := auth.Actor{UserID: "u-admin", TenantID: "upshs", Role: "school_admin", Permissions: []string{"users.create", "users.read", "users.update", "roles.assign"}}

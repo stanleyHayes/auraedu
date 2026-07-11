@@ -88,6 +88,7 @@ This section tracks work currently in-flight and recently completed. It is updat
 | AURA-5.5 | EP-05 Tenant Service | **Done** | Kimi Code CLI | Super-admin feature override matches OpenAPI: `POST /api/v1/super-admin/features/{key}/override` with `tenant_code`, `is_enabled`, `reason`; gateway route added; reason persisted in `tenant_features`. |
 | AURA-5.3 | EP-05 Tenant Service | **Done** | Kimi Code CLI | Feature-flag rollout model (`config`, `rollout` percentage/updated_by/reason), DB migration, Postgres snapshot scan, and plan-based defaults on tenant creation. |
 | AURA-5.2 | EP-05 Tenant Service | **Done** | Kimi Code CLI | Tenant operational settings (`locale`, `timezone`, `date_format`, `academic_year_start_month`, `primary_contact_email`), GET/PATCH `/tenants/{code}/settings`, `tenant.settings_updated.v1` event. |
+| AURA-4.4 | EP-04 Identity Service | **Done** | Kimi Code CLI | Session/logout: `POST /auth/logout`, `DELETE /auth/sessions/{session_id}`, refresh rotation revokes old session, unit tests, OpenAPI contract updated. |
 | — | Backlog / Deferred | **Done** | Kimi Code CLI | Added cobra-based CLI to every Go service: `cmd/<service>` with `server`, `worker` (where applicable) and `migrate` (where migrations exist) subcommands. Dockerfiles default to `CMD ["server"]`. |
 
 ---

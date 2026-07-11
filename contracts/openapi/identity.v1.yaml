@@ -59,6 +59,32 @@ paths:
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
             security: []
+    /auth/logout:
+      post:
+            operationId: logout
+            tags: ['auth']
+            summary: Log out by revoking the refresh token
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/LogoutRequest' }
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema:
+                      type: object
+                      properties:
+                        status: { type: string }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+            security: []
     /auth/sessions/{session_id}:
       delete:
             operationId: revokeSession
@@ -232,6 +258,11 @@ components:
           identifier: { type: string }
           password: { type: string, format: password }
     RefreshRequest:
+        type: object
+        required: [refresh_token]
+        properties:
+          refresh_token: { type: string }
+    LogoutRequest:
         type: object
         required: [refresh_token]
         properties:

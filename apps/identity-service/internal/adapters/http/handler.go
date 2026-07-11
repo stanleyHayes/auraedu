@@ -24,6 +24,8 @@ func NewHandler(svc *application.Service) *Handler { return &Handler{svc: svc} }
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/auth/login", h.login)
 	mux.HandleFunc("POST /api/v1/auth/refresh", h.refresh)
+	mux.HandleFunc("POST /api/v1/auth/logout", h.logout)
+	mux.HandleFunc("DELETE /api/v1/auth/sessions/{session_id}", h.revokeSession)
 	mux.HandleFunc("GET /api/v1/auth/me", h.me)
 	mux.HandleFunc("POST /api/v1/auth/forgot-password", h.forgotPassword)
 	mux.HandleFunc("POST /api/v1/auth/reset-password", h.resetPassword)
@@ -101,6 +103,31 @@ func (h *Handler) refresh(w http.ResponseWriter, r *http.Request) {
 		"expires_at":    expires.UTC().Format(time.RFC3339),
 		"user":          userDTO(user),
 	})
+}
+
+type logoutRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
+	var body logoutRequest
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "validation_error", "invalid request body")
+		return
+	}
+	if err := h.svc.Logout(h.ctx(r), h.actor(r), body.RefreshToken); err != nil {
+		writeErr(w, mapStatus(err), codeFor(err), err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) revokeSession(w http.ResponseWriter, r *http.Request) {
+	if err := h.svc.RevokeSession(h.ctx(r), h.actor(r), r.PathValue("session_id")); err != nil {
+		writeErr(w, mapStatus(err), codeFor(err), err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
