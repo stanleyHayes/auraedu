@@ -76,6 +76,7 @@ This section tracks work currently in-flight and recently completed. It is updat
 | AURA-23.1 | EP-23 Audit (base) | **Done** | Kimi Code CLI | Audit sink service + worker already implemented; added Docker worker build and deployment wiring in `docker-compose.yml` and `render.yaml`. |
 | AURA-10.1 | EP-10 Student Service | **Done** | Kimi Code CLI | Student CRUD spine: domain, repository, service, HTTP, events, feature-flag gating, tenant-isolation tests; wired into gateway, docker-compose, and render.yaml. |
 | AURA-10.10 | EP-10 Student Service | **Done** | Kimi Code CLI | Guardian↔student links: Guardian domain, repository, link table, HTTP endpoints, OpenAPI updates, tenant-isolation tests. |
+| AURA-10.9 | EP-10 Student Service | **Done** | Kimi Code CLI | Bulk import students+guardians via CSV (`POST /students/import`), per-row error collection, dedupe by guardian email, tenant-scoped. |
 
 ---
 

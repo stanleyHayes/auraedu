@@ -2,10 +2,13 @@ package http
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/auraedu/platform/auth"
 	"github.com/auraedu/platform/flags"
@@ -28,6 +31,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// Students
 	mux.HandleFunc("GET /api/v1/students", h.list)
 	mux.HandleFunc("POST /api/v1/students", h.create)
+	mux.HandleFunc("POST /api/v1/students/import", h.importStudents)
 	mux.HandleFunc("GET /api/v1/students/{student_id}", h.get)
 	mux.HandleFunc("PATCH /api/v1/students/{student_id}", h.update)
 	mux.HandleFunc("DELETE /api/v1/students/{student_id}", h.delete)
@@ -89,6 +93,99 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = body.ClassID
 	httpx.RespondJSON(w, r, http.StatusCreated, student)
+}
+
+func (h *Handler) importStudents(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		httpx.ValidationError(w, r, map[string]any{"file": "missing or invalid multipart file"})
+		return
+	}
+	defer file.Close()
+
+	rows, parseErr := parseStudentCSV(file)
+	if parseErr != nil {
+		h.writeErr(w, r, parseErr)
+		return
+	}
+	result, err := h.svc.ImportStudents(ctx, actor, rows)
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, result)
+}
+
+func parseStudentCSV(r io.Reader) ([]application.ImportStudentRow, error) {
+	reader := csv.NewReader(r)
+	reader.FieldsPerRecord = -1
+	reader.TrimLeadingSpace = true
+
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, domain.ErrValidation
+	}
+	if len(records) == 0 {
+		return nil, domain.ErrValidation
+	}
+
+	header := make(map[string]int)
+	for i, h := range records[0] {
+		header[strings.ToLower(strings.TrimSpace(h))] = i
+	}
+	required := []string{"first_name", "last_name"}
+	for _, key := range required {
+		if _, ok := header[key]; !ok {
+			return nil, domain.ErrValidation
+		}
+	}
+
+	var rows []application.ImportStudentRow
+	for i, record := range records[1:] {
+		row, err := csvRowToImportRow(header, record)
+		if err != nil {
+			return nil, err
+		}
+		// csvRowToImportRow currently returns error per row; we could enrich later.
+		_ = i
+		rows = append(rows, row)
+	}
+	return rows, nil
+}
+
+func csvRowToImportRow(header map[string]int, record []string) (application.ImportStudentRow, error) {
+	get := func(key string) *string {
+		idx, ok := header[key]
+		if !ok || idx >= len(record) {
+			return nil
+		}
+		v := strings.TrimSpace(record[idx])
+		if v == "" {
+			return nil
+		}
+		return &v
+	}
+
+	fn := get("first_name")
+	ln := get("last_name")
+	if fn == nil || ln == nil {
+		return application.ImportStudentRow{}, domain.ErrValidation
+	}
+	return application.ImportStudentRow{
+		FirstName:         *fn,
+		LastName:          *ln,
+		DateOfBirth:       get("date_of_birth"),
+		Gender:            get("gender"),
+		Relationship:      get("relationship"),
+		GuardianFirstName: get("guardian_first_name"),
+		GuardianLastName:  get("guardian_last_name"),
+		GuardianPhone:     get("guardian_phone"),
+		GuardianEmail:     get("guardian_email"),
+	}, nil
 }
 
 func (h *Handler) get(w http.ResponseWriter, r *http.Request) {

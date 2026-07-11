@@ -52,6 +52,34 @@ paths:
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
+    /students/import:
+      post:
+            operationId: importStudents
+            tags: ['students']
+            summary: Bulk import students and guardians from CSV
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                multipart/form-data:
+                  schema:
+                    type: object
+                    properties:
+                      file:
+                        type: string
+                        format: binary
+                        description: CSV with columns first_name,last_name,date_of_birth,gender,relationship,guardian_first_name,guardian_last_name,guardian_phone,guardian_email
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/ImportResult' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
     /students/{student_id}:
       get:
             operationId: getStudent
@@ -385,6 +413,21 @@ components:
           guardian_id: { type: string, format: uuid }
           relationship: { type: [string, 'null'] }
           is_primary: { type: boolean }
+    ImportResult:
+        type: object
+        required: [students_created, guardians_created, links_created, errors]
+        properties:
+          students_created: { type: integer }
+          guardians_created: { type: integer }
+          links_created: { type: integer }
+          errors:
+            type: array
+            items:
+              type: object
+              required: [row, message]
+              properties:
+                row: { type: integer }
+                message: { type: string }
     Enrollment:
         type: object
         required: [id, student_id, class_id, academic_year_id]

@@ -95,6 +95,33 @@ type LinkGuardianRequest struct {
 	IsPrimary    bool
 }
 
+// ImportStudentRow is one row from a bulk-import CSV/JSON payload.
+type ImportStudentRow struct {
+	FirstName           string
+	LastName            string
+	DateOfBirth         *string
+	Gender              *string
+	Relationship        *string
+	GuardianFirstName   *string
+	GuardianLastName    *string
+	GuardianPhone       *string
+	GuardianEmail       *string
+}
+
+// ImportError describes a single row that failed.
+type ImportError struct {
+	Row     int    `json:"row"`
+	Message string `json:"message"`
+}
+
+// ImportResult summarizes a bulk import.
+type ImportResult struct {
+	StudentsCreated  int           `json:"students_created"`
+	GuardiansCreated int           `json:"guardians_created"`
+	LinksCreated     int           `json:"links_created"`
+	Errors           []ImportError `json:"errors"`
+}
+
 // Create validates and persists a new Student for the actor's tenant.
 func (s *Service) Create(ctx context.Context, actor auth.Actor, req CreateStudentRequest) (*domain.Student, error) {
 	tenantID, err := s.requireAccess(ctx, actor, PermCreate)
@@ -344,6 +371,106 @@ func (s *Service) UnlinkGuardian(ctx context.Context, actor auth.Actor, studentI
 	})
 	return nil
 }
+
+// ImportStudents bulk-creates students and optionally their guardians from a parsed slice.
+// Rows that fail validation or persistence are collected as errors; successful rows commit.
+func (s *Service) ImportStudents(ctx context.Context, actor auth.Actor, rows []ImportStudentRow) (*ImportResult, error) {
+	tenantID, err := s.requireAccess(ctx, actor, PermCreate)
+	if err != nil {
+		return nil, err
+	}
+
+	result := &ImportResult{Errors: []ImportError{}}
+	// Reuse an existing guardian within the batch when email matches.
+	guardianByEmail := make(map[string]*domain.Guardian)
+
+	for i, row := range rows {
+		rowNum := i + 1
+		if err := s.importRow(ctx, tenantID, row, result, guardianByEmail); err != nil {
+			result.Errors = append(result.Errors, ImportError{Row: rowNum, Message: err.Error()})
+		}
+	}
+	return result, nil
+}
+
+func (s *Service) importRow(ctx context.Context, tenantID string, row ImportStudentRow, result *ImportResult, guardianByEmail map[string]*domain.Guardian) error {
+	student, err := domain.NewStudent(tenantID, row.FirstName, row.LastName)
+	if err != nil {
+		return err
+	}
+	student.DateOfBirth = row.DateOfBirth
+	student.Gender = row.Gender
+	if err := student.Validate(); err != nil {
+		return err
+	}
+	if err := s.repo.Create(ctx, tenantID, student); err != nil {
+		return err
+	}
+	result.StudentsCreated++
+	_ = s.pub.Publish(ctx, "student.created.v1", student, nil)
+
+	// Create/link guardian if any guardian field is present.
+	if row.GuardianFirstName != nil || row.GuardianLastName != nil || row.GuardianEmail != nil || row.GuardianPhone != nil {
+		gf := stringPtr("")
+		if row.GuardianFirstName != nil {
+			gf = row.GuardianFirstName
+		}
+		gl := stringPtr("")
+		if row.GuardianLastName != nil {
+			gl = row.GuardianLastName
+		}
+		rel := "parent"
+		if row.Relationship != nil && *row.Relationship != "" {
+			rel = *row.Relationship
+		}
+
+		var guardian *domain.Guardian
+		if row.GuardianEmail != nil && *row.GuardianEmail != "" {
+			if existing, ok := guardianByEmail[*row.GuardianEmail]; ok {
+				guardian = existing
+			}
+		}
+
+		if guardian == nil {
+			if gf == nil || gl == nil || *gf == "" || *gl == "" {
+				return domain.ErrValidation
+			}
+			guardian, err = domain.NewGuardian(tenantID, *gf, *gl, rel)
+			if err != nil {
+				return err
+			}
+			guardian.Phone = row.GuardianPhone
+			guardian.Email = row.GuardianEmail
+			if err := guardian.Validate(); err != nil {
+				return err
+			}
+			if err := s.repo.CreateGuardian(ctx, tenantID, guardian); err != nil {
+				return err
+			}
+			result.GuardiansCreated++
+			_ = s.pub.Publish(ctx, "guardian.created.v1", nil, map[string]any{"guardian_id": guardian.ID, "tenant_id": guardian.TenantID})
+			if guardian.Email != nil && *guardian.Email != "" {
+				guardianByEmail[*guardian.Email] = guardian
+			}
+		}
+
+		link, err := domain.NewStudentGuardian(tenantID, student.ID, guardian.ID, row.Relationship, false)
+		if err != nil {
+			return err
+		}
+		if err := s.repo.LinkGuardianToStudent(ctx, tenantID, link); err != nil {
+			return err
+		}
+		result.LinksCreated++
+		_ = s.pub.Publish(ctx, "guardian.linked.v1", nil, map[string]any{
+			"student_id":  student.ID,
+			"guardian_id": guardian.ID,
+		})
+	}
+	return nil
+}
+
+func stringPtr(s string) *string { return &s }
 
 // IsNotFound reports whether an error is a not-found domain error.
 func IsNotFound(err error) bool { return errors.Is(err, domain.ErrNotFound) }

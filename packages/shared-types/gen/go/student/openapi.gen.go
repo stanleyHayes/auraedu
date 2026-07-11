@@ -84,6 +84,17 @@ type StudentGuardianLink struct {
 	IsPrimary    bool    `json:"is_primary"`
 }
 
+// ImportResult generated from OpenAPI schema.
+type ImportResult struct {
+	StudentsCreated  int `json:"students_created"`
+	GuardiansCreated int `json:"guardians_created"`
+	LinksCreated     int `json:"links_created"`
+	Errors           []struct {
+		Row     int    `json:"row"`
+		Message string `json:"message"`
+	} `json:"errors"`
+}
+
 // Enrollment generated from OpenAPI schema.
 type Enrollment struct {
 	Id             string  `json:"id"`
@@ -121,6 +132,7 @@ type EnrollmentList struct {
 type ServerInterface interface {
 	listStudents(w http.ResponseWriter, r *http.Request)
 	createStudent(w http.ResponseWriter, r *http.Request)
+	importStudents(w http.ResponseWriter, r *http.Request)
 	getStudent(w http.ResponseWriter, r *http.Request)
 	updateStudent(w http.ResponseWriter, r *http.Request)
 	deleteStudent(w http.ResponseWriter, r *http.Request)
@@ -139,6 +151,7 @@ type ServerInterface interface {
 type ClientInterface interface {
 	listStudents(ctx context.Context) (*http.Response, error)
 	createStudent(ctx context.Context) (*http.Response, error)
+	importStudents(ctx context.Context) (*http.Response, error)
 	getStudent(ctx context.Context) (*http.Response, error)
 	updateStudent(ctx context.Context) (*http.Response, error)
 	deleteStudent(ctx context.Context) (*http.Response, error)

@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -327,6 +329,46 @@ func TestHandler_FeatureDisabled(t *testing.T) {
 
 	if rr.Code != http.StatusForbidden {
 		t.Fatalf("expected 403, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestHandler_ImportStudents(t *testing.T) {
+	h, _ := newTestHandler()
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("file", "students.csv")
+	if err != nil {
+		t.Fatalf("create form file: %v", err)
+	}
+	csv := `first_name,last_name,gender,guardian_first_name,guardian_last_name,guardian_email
+Ada,Lovelace,female,Mother,Guardian,mother@example.com
+Charles,Babbage,male,Father,Guardian,father@example.com`
+	if _, err := part.Write([]byte(csv)); err != nil {
+		t.Fatalf("write csv: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close writer: %v", err)
+	}
+
+	req := request(t, http.MethodPost, "/api/v1/students/import", nil, application.PermCreate)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Body = io.NopCloser(&body)
+
+	rr := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	h.Register(mux)
+	mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var got map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got["students_created"] != float64(2) {
+		t.Fatalf("expected 2 students, got %v", got)
 	}
 }
 

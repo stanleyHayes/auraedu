@@ -20,6 +20,23 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/students/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bulk import students and guardians from CSV */
+        post: operations["importStudents"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/students/{student_id}": {
         parameters: {
             query?: never;
@@ -222,6 +239,15 @@ export type components = {
             relationship?: string | null;
             is_primary: boolean;
         };
+        ImportResult: {
+            students_created: number;
+            guardians_created: number;
+            links_created: number;
+            errors: {
+                row: number;
+                message: string;
+            }[];
+        };
         Enrollment: {
             /** Format: uuid */
             id: string;
@@ -375,6 +401,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Student"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    importStudents: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description CSV with columns first_name,last_name,date_of_birth,gender,relationship,guardian_first_name,guardian_last_name,guardian_phone,guardian_email
+                     */
+                    file?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportResult"];
                 };
             };
             401: components["responses"]["Unauthorized"];
