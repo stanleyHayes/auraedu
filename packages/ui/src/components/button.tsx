@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Slot } from "@radix-ui/react-slot";
 import { cn } from "../lib/cn";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost";
@@ -11,6 +12,8 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   loading?: boolean;
   /** Announced to assistive tech while loading. */
   loadingLabel?: string;
+  /** Render as the child element (e.g. Next.js Link) while keeping Button styles. */
+  asChild?: boolean;
 }
 
 const base =
@@ -48,19 +51,35 @@ function Wave({ label }: { label: string }) {
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { className, variant = "primary", loading = false, loadingLabel = "Working", children, disabled, ...props },
+  {
+    className,
+    variant = "primary",
+    loading = false,
+    loadingLabel = "Working",
+    asChild = false,
+    children,
+    disabled,
+    ...props
+  },
   ref,
 ) {
+  const Comp = asChild ? Slot : "button";
   return (
-    <button
-      ref={ref}
+    <Comp
+      ref={ref as React.Ref<HTMLButtonElement>}
       className={cn(base, variants[variant], className)}
       aria-busy={loading || undefined}
-      disabled={disabled || loading}
+      disabled={asChild ? undefined : disabled || loading}
       {...props}
     >
-      {loading ? <Wave label={loadingLabel} /> : null}
-      <span className={cn("inline-flex items-center gap-2", loading && "invisible")}>{children}</span>
-    </button>
+      {asChild ? (
+        children
+      ) : (
+        <>
+          {loading ? <Wave label={loadingLabel} /> : null}
+          <span className={cn("inline-flex items-center gap-2", loading && "invisible")}>{children}</span>
+        </>
+      )}
+    </Comp>
   );
 });

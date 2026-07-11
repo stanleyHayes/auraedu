@@ -13,3 +13,6 @@ export { UserMenu, type UserMenuProps, type UserMenuItem } from "./components/us
 export { EmptyState, type EmptyStateProps } from "./components/empty-state";
 export { DataTable, type DataTableProps, type DataTableColumn } from "./components/data-table";
 export { Sheet, type SheetProps } from "./components/sheet";
+export { Input, type InputProps } from "./components/input";
+export { Label, type LabelProps } from "./components/label";
+export { Select, type SelectProps } from "./components/select";
