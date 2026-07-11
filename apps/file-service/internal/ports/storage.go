@@ -29,6 +29,11 @@ type DeliveryURLProvider interface {
 	DeliveryURL(tenantID, path, resourceType, transform string) (string, error)
 }
 
+// WebhookVerifier validates incoming backend webhooks (e.g. Cloudinary notifications).
+type WebhookVerifier interface {
+	VerifyWebhook(timestamp int64, signature string, body []byte) bool
+}
+
 // SignedUpload contains the parameters a client needs to perform a direct
 // backend-signed upload.
 type SignedUpload struct {

@@ -3,6 +3,7 @@ package application
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -34,6 +35,7 @@ type Service struct {
 	storage          ports.Storage
 	signer           ports.SignedUploadProvider
 	deliveryProvider ports.DeliveryURLProvider
+	webhookVerifier  ports.WebhookVerifier
 	pub              ports.EventPublisher
 	gates            flags.Gate
 }
@@ -55,6 +57,11 @@ func WithSignedUploadProvider(p ports.SignedUploadProvider) Option {
 // WithDeliveryURLProvider sets the provider used to generate CDN/transform URLs.
 func WithDeliveryURLProvider(p ports.DeliveryURLProvider) Option {
 	return func(s *Service) { s.deliveryProvider = p }
+}
+
+// WithWebhookVerifier sets the provider used to verify incoming backend webhooks.
+func WithWebhookVerifier(v ports.WebhookVerifier) Option {
+	return func(s *Service) { s.webhookVerifier = v }
 }
 
 type noopPublisher struct{}
@@ -305,6 +312,90 @@ func (s *Service) CompleteSignedUpload(ctx context.Context, actor auth.Actor, fi
 	}
 	_ = s.pub.Publish(ctx, "file.uploaded.v1", file, nil)
 	return file, nil
+}
+
+// ProcessCloudinaryWebhook handles a verified Cloudinary upload/moderation notification.
+func (s *Service) ProcessCloudinaryWebhook(ctx context.Context, timestamp int64, signature string, body []byte) error {
+	if s.webhookVerifier == nil {
+		return fmt.Errorf("%w: webhook verifier not configured", domain.ErrStorage)
+	}
+	if !s.webhookVerifier.VerifyWebhook(timestamp, signature, body) {
+		return domain.ErrForbidden
+	}
+
+	var payload struct {
+		NotificationType string `json:"notification_type"`
+		PublicID         string `json:"public_id"`
+		SecureURL        string `json:"secure_url"`
+		Bytes            int64  `json:"bytes"`
+		ResourceType     string `json:"resource_type"`
+		ModerationStatus string `json:"moderation_status"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return domain.ErrValidation
+	}
+	if payload.PublicID == "" {
+		return domain.ErrValidation
+	}
+
+	parts := strings.Split(payload.PublicID, "/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return domain.ErrValidation
+	}
+	tenantID := parts[0]
+	fileID := parts[1]
+
+	ctx = tenancy.WithContext(ctx, tenancy.TenantContext{
+		TenantID:  tenantID,
+		RequestID: tenancy.RequestID(ctx),
+	})
+
+	file, err := s.repo.GetByID(ctx, tenantID, fileID)
+	if err != nil {
+		return err
+	}
+
+	changed := false
+	if payload.SecureURL != "" && file.SecureURL != payload.SecureURL {
+		file.SecureURL = payload.SecureURL
+		changed = true
+	}
+	if payload.Bytes > 0 && file.SizeBytes != payload.Bytes {
+		file.SizeBytes = payload.Bytes
+		changed = true
+	}
+	if payload.ResourceType != "" && file.Metadata == nil {
+		file.Metadata = make(map[string]any)
+	}
+	if payload.ResourceType != "" {
+		if file.Metadata["resource_type"] != payload.ResourceType {
+			file.Metadata["resource_type"] = payload.ResourceType
+			changed = true
+		}
+	}
+	if payload.ModerationStatus != "" {
+		if file.Metadata["moderation_status"] != payload.ModerationStatus {
+			file.Metadata["moderation_status"] = payload.ModerationStatus
+			changed = true
+		}
+	}
+	if file.Status != string(domain.StatusActive) {
+		file.Status = string(domain.StatusActive)
+		changed = true
+	}
+
+	if !changed {
+		return nil
+	}
+	file.UpdatedAt = time.Now().UTC()
+	if err := file.Validate(); err != nil {
+		return err
+	}
+	if err := s.repo.Update(ctx, tenantID, file); err != nil {
+		return err
+	}
+	_ = s.pub.Publish(ctx, "file.uploaded.v1", file, nil)
+	return nil
 }
 
 // GetDeliveryURL returns a CDN/transform URL for a Cloudinary-backed file.

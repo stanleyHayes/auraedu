@@ -34,6 +34,7 @@ func DefaultRegistry() ServiceRegistry {
 		{Prefix: "/api/v1/fees", Target: envURL("SERVICE_FEES_URL", "http://localhost:8095"), FeatureKey: "fees"},
 		{Prefix: "/api/v1/payments", Target: envURL("SERVICE_PAYMENT_URL", "http://localhost:8096"), FeatureKey: "online_payments"},
 		{Prefix: "/api/v1/notifications", Target: envURL("SERVICE_NOTIFICATION_URL", "http://localhost:8097"), FeatureKey: "email_notifications"},
+		{Prefix: "/api/v1/files/webhook", Target: envURL("SERVICE_FILE_URL", "http://localhost:8098"), Public: true},
 		{Prefix: "/api/v1/files", Target: envURL("SERVICE_FILE_URL", "http://localhost:8098"), FeatureKey: "file_management", Permissions: map[string]string{
 			http.MethodGet:    "files.read",
 			http.MethodPost:   "files.upload",

@@ -72,8 +72,8 @@ This section tracks work currently in-flight and recently completed. It is updat
 | AURA-20.9 | EP-20 File Service | **Done** | Kimi Code CLI | Cloudinary SDK v2 adapter, direct signed upload flow (`POST /uploads/signed` + `POST /files/{id}/complete`), deployment wiring in `docker-compose.yml` and `render.yaml`. |
 | AURA-20.10 | EP-20 File Service | **In Progress** | Kimi Code CLI | Broken into sub-tasks below. |
 | AURA-20.10.1 | EP-20 File Service | **Done** | Kimi Code CLI | Transform presets + delivery URL endpoint for Cloudinary-backed files. |
-| AURA-20.10.2 | EP-20 File Service | **In Progress** | Kimi Code CLI | Cloudinary notification webhook (upload confirmation, moderation/virus-scan status, eager transforms). |
-| AURA-20.10.3 | EP-20 File Service | **Pending** | Kimi Code CLI | Per-tenant usage accounting (bytes stored/transferred). |
+| AURA-20.10.2 | EP-20 File Service | **Done** | Kimi Code CLI | Cloudinary notification webhook (signature verification, upload confirmation, moderation metadata). |
+| AURA-20.10.3 | EP-20 File Service | **In Progress** | Kimi Code CLI | Per-tenant usage accounting (bytes stored/transferred). |
 
 ---
 

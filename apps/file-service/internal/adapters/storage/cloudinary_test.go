@@ -2,11 +2,16 @@ package storage
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestNewCloudinaryStorage_RequiresURL(t *testing.T) {
@@ -186,5 +191,31 @@ func TestCloudinaryStorage_DeliveryURLEmptyPath(t *testing.T) {
 	}
 	if _, err := store.DeliveryURL("tenant-1", "", "", ""); err == nil {
 		t.Fatal("expected error for empty path")
+	}
+}
+
+func TestCloudinaryStorage_VerifyWebhook(t *testing.T) {
+	store, err := NewCloudinaryStorage("cloudinary://key:secret@testcloud")
+	if err != nil {
+		t.Fatalf("new storage: %v", err)
+	}
+
+	body := []byte(`{"public_id":"tenant-1/file-1","secure_url":"https://example.com/x"}`)
+	timestamp := time.Now().Unix()
+	payload := strconv.FormatInt(timestamp, 10) + string(body)
+	mac := hmac.New(sha256.New, []byte("secret"))
+	mac.Write([]byte(payload))
+	signature := hex.EncodeToString(mac.Sum(nil))
+
+	if !store.VerifyWebhook(timestamp, signature, body) {
+		t.Fatal("expected valid SHA-256 webhook signature to verify")
+	}
+
+	if store.VerifyWebhook(timestamp, "bad-signature", body) {
+		t.Fatal("expected invalid signature to fail")
+	}
+
+	if store.VerifyWebhook(timestamp, signature, []byte(`{}`)) {
+		t.Fatal("expected body mismatch to fail")
 	}
 }

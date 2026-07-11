@@ -71,6 +71,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/files/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Receive Cloudinary upload/moderation notifications
+         * @description Public webhook called by Cloudinary. Signature verification is performed server-side.
+         */
+        post: operations["cloudinaryWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/files/{file_id}/url": {
         parameters: {
             query?: never;
@@ -142,6 +162,14 @@ export type components = {
             public_id?: string;
             resource_type?: string;
             transformations?: string;
+        };
+        CloudinaryWebhookBody: {
+            notification_type?: string;
+            public_id: string;
+            secure_url?: string;
+            bytes?: number;
+            resource_type?: string;
+            moderation_status?: string;
         };
     };
     responses: {
@@ -365,6 +393,30 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    cloudinaryWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CloudinaryWebhookBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
             422: components["responses"]["ValidationError"];
         };
     };

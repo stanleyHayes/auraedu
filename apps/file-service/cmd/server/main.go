@@ -63,6 +63,9 @@ func main() {
 	if delivery, ok := store.(ports.DeliveryURLProvider); ok {
 		opts = append(opts, application.WithDeliveryURLProvider(delivery))
 	}
+	if verifier, ok := store.(ports.WebhookVerifier); ok {
+		opts = append(opts, application.WithWebhookVerifier(verifier))
+	}
 	svc := application.NewService(repo, store, opts...)
 	handler := svchttp.NewHandler(svc)
 

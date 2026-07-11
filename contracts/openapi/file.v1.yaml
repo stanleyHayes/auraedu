@@ -114,6 +114,23 @@ paths:
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
+    /files/webhook:
+      post:
+            operationId: cloudinaryWebhook
+            tags: ['files']
+            summary: Receive Cloudinary upload/moderation notifications
+            description: Public webhook called by Cloudinary. Signature verification is performed server-side.
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/CloudinaryWebhookBody' }
+            responses:
+              '204':
+                description: Accepted
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+            security: []
     /files/{file_id}/url:
       get:
             operationId: getFileDeliveryURL
@@ -212,6 +229,16 @@ components:
           public_id: { type: string }
           resource_type: { type: string }
           transformations: { type: string }
+    CloudinaryWebhookBody:
+        type: object
+        required: [public_id]
+        properties:
+          notification_type: { type: string }
+          public_id: { type: string }
+          secure_url: { type: string }
+          bytes: { type: integer, minimum: 0 }
+          resource_type: { type: string }
+          moderation_status: { type: string }
 
   responses:
     Unauthorized:

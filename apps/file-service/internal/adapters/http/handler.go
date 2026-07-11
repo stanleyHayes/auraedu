@@ -32,6 +32,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/files", h.list)
 	mux.HandleFunc("POST /api/v1/files", h.create)
 	mux.HandleFunc("POST /api/v1/uploads/signed", h.requestSignedUpload)
+	mux.HandleFunc("POST /api/v1/files/webhook", h.cloudinaryWebhook)
 	mux.HandleFunc("GET /api/v1/files/{file_id}", h.get)
 	mux.HandleFunc("PATCH /api/v1/files/{file_id}", h.update)
 	mux.HandleFunc("DELETE /api/v1/files/{file_id}", h.delete)
@@ -126,6 +127,23 @@ func (h *Handler) requestSignedUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.RespondJSON(w, r, http.StatusCreated, resp)
+}
+
+func (h *Handler) cloudinaryWebhook(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		httpx.RespondError(w, r, httpx.Error{Code: httpx.ErrInternal, Message: "failed to read body"})
+		return
+	}
+	timestamp, _ := strconv.ParseInt(r.Header.Get("X-Cld-Timestamp"), 10, 64)
+	signature := r.Header.Get("X-Cld-Signature")
+
+	ctx, _, _ := h.context(r)
+	if err := h.svc.ProcessCloudinaryWebhook(ctx, timestamp, signature, body); err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) get(w http.ResponseWriter, r *http.Request) {

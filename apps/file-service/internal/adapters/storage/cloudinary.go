@@ -2,11 +2,17 @@ package storage
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha1"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"hash"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/auraedu/file-service/internal/domain"
@@ -75,6 +81,7 @@ func (s *CloudinaryStorage) Backend() string { return string(domain.BackendCloud
 
 var _ ports.SignedUploadProvider = (*CloudinaryStorage)(nil)
 var _ ports.DeliveryURLProvider = (*CloudinaryStorage)(nil)
+var _ ports.WebhookVerifier = (*CloudinaryStorage)(nil)
 
 // SignUpload returns the parameters required for a direct Cloudinary signed upload.
 // The caller supplies fileID; public_id in the upload parameters is set to fileID
@@ -137,6 +144,29 @@ func (s *CloudinaryStorage) DeliveryURL(tenantID, path, resourceType, transform 
 		return fmt.Sprintf("%s/%s/upload/%s", base, transform, path), nil
 	}
 	return fmt.Sprintf("%s/upload/%s", base, path), nil
+}
+
+// VerifyWebhook validates a Cloudinary notification signature.
+// It accepts both SHA-1 (legacy) and SHA-256 signatures and rejects stale timestamps.
+func (s *CloudinaryStorage) VerifyWebhook(timestamp int64, signature string, body []byte) bool {
+	if signature == "" || timestamp == 0 {
+		return false
+	}
+	now := time.Now().Unix()
+	if timestamp < now-600 || timestamp > now+60 {
+		return false
+	}
+	payload := strconv.FormatInt(timestamp, 10) + string(body)
+	secret := s.cld.Config.Cloud.APISecret
+	for _, fn := range []func() hash.Hash{sha256.New, sha1.New} {
+		mac := hmac.New(fn, []byte(secret))
+		mac.Write([]byte(payload))
+		expected := hex.EncodeToString(mac.Sum(nil))
+		if hmac.Equal([]byte(strings.ToLower(expected)), []byte(strings.ToLower(signature))) {
+			return true
+		}
+	}
+	return false
 }
 
 // Save uploads the contents of r to Cloudinary under a tenant-scoped public_id.

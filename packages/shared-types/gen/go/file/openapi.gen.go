@@ -51,6 +51,16 @@ type DeliveryURL struct {
 	Transformations *string `json:"transformations,omitempty"`
 }
 
+// CloudinaryWebhookBody generated from OpenAPI schema.
+type CloudinaryWebhookBody struct {
+	NotificationType *string `json:"notification_type,omitempty"`
+	PublicId         string  `json:"public_id"`
+	SecureUrl        *string `json:"secure_url,omitempty"`
+	Bytes            *int    `json:"bytes,omitempty"`
+	ResourceType     *string `json:"resource_type,omitempty"`
+	ModerationStatus *string `json:"moderation_status,omitempty"`
+}
+
 // ServerInterface is implemented by the service HTTP adapter.
 type ServerInterface interface {
 	requestSignedUpload(w http.ResponseWriter, r *http.Request)
@@ -58,6 +68,7 @@ type ServerInterface interface {
 	completeSignedUpload(w http.ResponseWriter, r *http.Request)
 	getFile(w http.ResponseWriter, r *http.Request)
 	deleteFile(w http.ResponseWriter, r *http.Request)
+	cloudinaryWebhook(w http.ResponseWriter, r *http.Request)
 	getFileDeliveryURL(w http.ResponseWriter, r *http.Request)
 }
 
@@ -68,5 +79,6 @@ type ClientInterface interface {
 	completeSignedUpload(ctx context.Context) (*http.Response, error)
 	getFile(ctx context.Context) (*http.Response, error)
 	deleteFile(ctx context.Context) (*http.Response, error)
+	cloudinaryWebhook(ctx context.Context) (*http.Response, error)
 	getFileDeliveryURL(ctx context.Context) (*http.Response, error)
 }
