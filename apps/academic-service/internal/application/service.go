@@ -12,12 +12,10 @@ import (
 	"github.com/auraedu/platform/tenancy"
 )
 
-// RBAC permission keys.
+// RBAC permission keys (contracts/permissions/permissions.yaml).
 const (
 	PermRead   = "academic.read"
-	PermCreate = "academic.create"
-	PermUpdate = "academic.update"
-	PermDelete = "academic.delete"
+	PermManage = "academic.manage"
 )
 
 // Feature flag key for academic management.
@@ -76,7 +74,7 @@ type UpdateAcademicYearRequest struct {
 
 // Create validates and persists a new AcademicYear for the actor's tenant.
 func (s *Service) Create(ctx context.Context, actor auth.Actor, req CreateAcademicYearRequest) (*domain.AcademicYear, error) {
-	tenantID, err := s.requireAccess(ctx, actor, PermCreate)
+	tenantID, err := s.requireAccess(ctx, actor, PermManage)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +113,7 @@ func (s *Service) Get(ctx context.Context, actor auth.Actor, id string) (*domain
 
 // Update patches an academic year record.
 func (s *Service) Update(ctx context.Context, actor auth.Actor, id string, req UpdateAcademicYearRequest) (*domain.AcademicYear, error) {
-	tenantID, err := s.requireAccess(ctx, actor, PermUpdate)
+	tenantID, err := s.requireAccess(ctx, actor, PermManage)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +140,7 @@ func (s *Service) Update(ctx context.Context, actor auth.Actor, id string, req U
 
 // Delete removes an academic year record.
 func (s *Service) Delete(ctx context.Context, actor auth.Actor, id string) error {
-	tenantID, err := s.requireAccess(ctx, actor, PermDelete)
+	tenantID, err := s.requireAccess(ctx, actor, PermManage)
 	if err != nil {
 		return err
 	}

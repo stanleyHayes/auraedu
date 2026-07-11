@@ -41,7 +41,10 @@ func DefaultRegistry() ServiceRegistry {
 		{Prefix: "/api/v1/staff", Target: envURL("SERVICE_STAFF_URL", "http://localhost:8091"), FeatureKey: "staff_management"},
 		{Prefix: "/api/v1/attendance", Target: envURL("SERVICE_ATTENDANCE_URL", "http://localhost:8092"), FeatureKey: "attendance"},
 		{Prefix: "/api/v1/assessments", Target: envURL("SERVICE_ASSESSMENT_URL", "http://localhost:8093"), FeatureKey: "assessments"},
-		{Prefix: "/api/v1/academic", Target: envURL("SERVICE_ACADEMIC_URL", "http://localhost:8094"), FeatureKey: "timetable"},
+		{Prefix: "/api/v1/academic", Target: envURL("SERVICE_ACADEMIC_URL", "http://localhost:8094"), FeatureKey: "academic_management", Permissions: map[string]string{
+			http.MethodGet:  "academic.read",
+			http.MethodPost: "academic.manage",
+		}},
 		{Prefix: "/api/v1/fees", Target: envURL("SERVICE_FEES_URL", "http://localhost:8095"), FeatureKey: "fees"},
 		{Prefix: "/api/v1/payments", Target: envURL("SERVICE_PAYMENT_URL", "http://localhost:8096"), FeatureKey: "online_payments"},
 		{Prefix: "/api/v1/notifications", Target: envURL("SERVICE_NOTIFICATION_URL", "http://localhost:8097"), FeatureKey: "email_notifications"},

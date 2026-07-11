@@ -62,6 +62,23 @@ services:
       nats: { condition: service_healthy }
     restart: unless-stopped
 
+  academic-service:
+    build:
+      context: ..
+      dockerfile: ./apps/academic-service/Dockerfile
+      args:
+        GIT_SHA: local
+    ports: ["8094:8080"]
+    environment:
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/academic?sslmode=disable
+      NATS_HOST: nats:4222
+      FEATURES_REGISTRY: /contracts/features/features.yaml
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      postgres: { condition: service_healthy }
+      nats: { condition: service_healthy }
+    restart: unless-stopped
+
   api-gateway:
     build:
       context: ..
@@ -77,6 +94,7 @@ services:
       SERVICE_CAREER_GUIDANCE_URL: http://career-guidance-service:8112
       SERVICE_FILE_URL: http://file-service:8098
       SERVICE_STUDENT_URL: http://student-service:8090
+      SERVICE_ACADEMIC_URL: http://academic-service:8094
       REDIS_URL: redis://redis:6379
       NATS_HOST: nats:4222
       JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-local-dev-signing-key-change-me}
@@ -89,6 +107,7 @@ services:
       career-guidance-service: { condition: service_started }
       file-service: { condition: service_started }
       student-service: { condition: service_started }
+      academic-service: { condition: service_started }
       redis: { condition: service_healthy }
       nats: { condition: service_healthy }
     restart: unless-stopped

@@ -29,6 +29,11 @@ features:
     description: Teaching & non-teaching staff
     defaults: { upshs: on, aboom: on }
 
+  - key: academic_management
+    plan_required: core
+    description: Academic years, terms, classes, subjects, curriculum
+    defaults: { upshs: on, aboom: on }
+
   - key: parent_portal
     plan_required: starter
     description: Parent portal (web + mobile)
