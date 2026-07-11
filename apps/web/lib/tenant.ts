@@ -57,6 +57,29 @@ export const NAV: NavGroupDef[] = [
   },
 ];
 
+export const TEACHER_NAV: NavGroupDef[] = [
+  {
+    heading: "Overview",
+    items: [{ label: "Dashboard", href: "/teacher" }],
+  },
+  {
+    heading: "Teaching",
+    items: [
+      { label: "My Classes", href: "/teacher/classes", feature: "academic_management" },
+      { label: "Attendance", href: "/teacher/attendance", feature: "attendance" },
+      { label: "Scores", href: "/teacher/scores", feature: "assessments" },
+      { label: "Assignments", href: "/teacher/assignments", feature: "assignments" },
+    ],
+  },
+  {
+    heading: "Insight",
+    items: [
+      { label: "Reports", href: "/teacher/reports", feature: "report_cards" },
+      { label: "Analytics", href: "/teacher/analytics", feature: "analytics" },
+    ],
+  },
+];
+
 export const ADMIN_NAV: NavGroupDef[] = [
   {
     heading: "Overview",

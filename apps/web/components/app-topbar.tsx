@@ -26,13 +26,15 @@ export function AppTopbar({
   onMobileMenuToggle,
   showMobileMenu = false,
 }: AppTopbarProps) {
+  const profileHref = user?.role === "teacher" ? "/teacher" : "/admin/settings";
+
   const menuItems: UserMenuItem[] = [
     {
       id: "profile",
       label: "Profile",
       description: "View your account details",
       icon: <User className="size-4" />,
-      href: "/admin/settings",
+      href: profileHref,
     },
     {
       id: "logout",

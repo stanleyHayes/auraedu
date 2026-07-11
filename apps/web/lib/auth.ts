@@ -14,6 +14,7 @@ const TOKEN_COOKIE = "auraedu_access_token";
 const USER_COOKIE = "auraedu_user";
 
 export const ADMIN_ROLES = new Set(["school_admin", "platform_super_admin", "super_admin"]);
+export const TEACHER_ROLES = new Set(["teacher", "school_admin", "super_admin"]);
 
 export function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
@@ -76,4 +77,8 @@ export async function requireAuth(): Promise<UserSession> {
 
 export function isAdmin(session: UserSession): boolean {
   return ADMIN_ROLES.has(session.role);
+}
+
+export function isTeacher(session: UserSession): boolean {
+  return TEACHER_ROLES.has(session.role);
 }
