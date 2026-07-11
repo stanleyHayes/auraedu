@@ -9,3 +9,7 @@ export { RegisterCard, type RegisterCardProps, type Pupil } from "./components/r
 export { StatCard, type StatCardProps } from "./components/stat-card";
 export { AppSidebar, type AppSidebarProps, type NavGroup, type NavItem } from "./components/app-sidebar";
 export { PageHeader, type PageHeaderProps } from "./components/page-header";
+export { UserMenu, type UserMenuProps, type UserMenuItem } from "./components/user-menu";
+export { EmptyState, type EmptyStateProps } from "./components/empty-state";
+export { DataTable, type DataTableProps, type DataTableColumn } from "./components/data-table";
+export { Sheet, type SheetProps } from "./components/sheet";

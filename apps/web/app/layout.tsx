@@ -39,7 +39,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const snapshot: FeatureSnapshot = toFeatureSnapshot(tenant);
 
   const brand = tenant.branding.brand.primary;
-  const tenantTheme = `:root { --color-brand: ${brand}; }`;
+  const secondary = tenant.branding.brand.secondary;
+  const tenantTheme = `:root { --color-brand: ${brand};${secondary ? ` --color-brand-secondary: ${secondary};` : ""} }`;
 
   return (
     <html

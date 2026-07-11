@@ -44,6 +44,17 @@ export function useFeature(key: string): boolean {
   return isFeatureEnabled(snapshot, key);
 }
 
+/**
+ * Like `useFeature`, but treats a missing/null snapshot as "enabled".
+ * Use for minimal shells where the feature-flag backend may not yet be returning
+ * flags for every module.
+ */
+export function useFeatureStubbed(key: string): boolean {
+  const snapshot = useFeatureSnapshot();
+  if (!snapshot || snapshot.flags.length === 0) return true;
+  return isFeatureEnabled(snapshot, key);
+}
+
 export interface FeatureGateProps {
   feature: string;
   children: React.ReactNode;
@@ -52,6 +63,17 @@ export interface FeatureGateProps {
 
 export function FeatureGate({ feature, children, fallback = null }: FeatureGateProps) {
   const enabled = useFeature(feature);
+  return enabled ? <>{children}</> : <>{fallback}</>;
+}
+
+export interface FeatureGateStubProps {
+  feature: string;
+  children: React.ReactNode;
+  fallback?: React.ReactNode;
+}
+
+export function FeatureGateStub({ feature, children, fallback = null }: FeatureGateStubProps) {
+  const enabled = useFeatureStubbed(feature);
   return enabled ? <>{children}</> : <>{fallback}</>;
 }
 
@@ -75,7 +97,10 @@ export function FeatureDisabled({
   return (
     <div role="status" className="rounded-lg border border-border bg-surface p-6 text-center">
       <h3 className="font-display text-lg font-semibold">{title}</h3>
-      <p className="mt-2 text-sm text-muted-foreground">{description}{upgradeHint}</p>
+      <p className="mt-2 text-sm text-muted-foreground">
+        {description}
+        {upgradeHint}
+      </p>
       {action ? <div className="mt-4">{action}</div> : null}
     </div>
   );
