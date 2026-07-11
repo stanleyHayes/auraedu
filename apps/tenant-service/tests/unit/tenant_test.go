@@ -106,6 +106,45 @@ func TestOverrideFeatureRequiresPlatformAdmin(t *testing.T) {
 	}
 }
 
+func TestSettingsTenantScope(t *testing.T) {
+	svc := newSvc()
+	if _, err := svc.Settings(ctx, aboomUser, "upshs"); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("cross-tenant settings read should be forbidden, got %v", err)
+	}
+	s, err := svc.Settings(ctx, upshsUser, "upshs")
+	if err != nil {
+		t.Fatalf("own tenant settings read: %v", err)
+	}
+	if s.Locale != "" {
+		t.Fatalf("default locale should be empty, got %q", s.Locale)
+	}
+}
+
+func TestUpdateSettings(t *testing.T) {
+	svc := newSvc()
+	updated, err := svc.UpdateSettings(ctx, upshsUser, "upshs", domain.Settings{
+		Locale:                 "en-GH",
+		Timezone:               "Africa/Accra",
+		AcademicYearStartMonth: 9,
+	})
+	if err != nil {
+		t.Fatalf("update settings: %v", err)
+	}
+	if updated.Locale != "en-GH" {
+		t.Fatalf("locale = %q, want en-GH", updated.Locale)
+	}
+	s, err := svc.Settings(ctx, upshsUser, "upshs")
+	if err != nil {
+		t.Fatalf("read settings: %v", err)
+	}
+	if s.Timezone != "Africa/Accra" {
+		t.Fatalf("timezone = %q, want Africa/Accra", s.Timezone)
+	}
+	if _, err := svc.UpdateSettings(ctx, upshsUser, "upshs", domain.Settings{AcademicYearStartMonth: 13}); !errors.Is(err, domain.ErrValidation) {
+		t.Fatalf("invalid month should be validation error, got %v", err)
+	}
+}
+
 func TestCreateTenantSeedsDefaultsByPlan(t *testing.T) {
 	svc := newSvc()
 	created, err := svc.CreateTenant(ctx, platformAdm, domain.Tenant{

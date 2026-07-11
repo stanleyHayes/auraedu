@@ -271,6 +271,41 @@ func deref(s *string) string {
 	return *s
 }
 
+// Settings returns a tenant's operational settings.
+func (r *Repository) Settings(ctx context.Context, code string) (domain.Settings, error) {
+	var s domain.Settings
+	err := r.db.WithTx(withTenant(ctx, code), func(ctx context.Context, tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `
+			SELECT locale, timezone, date_format, academic_year_start_month, primary_contact_email
+			FROM tenants
+			WHERE code = $1
+		`, code).Scan(&s.Locale, &s.Timezone, &s.DateFormat, &s.AcademicYearStartMonth, &s.PrimaryContactEmail)
+	})
+	if err != nil {
+		return domain.Settings{}, tenantNotFound(err, code)
+	}
+	return s, nil
+}
+
+// UpdateSettings applies a tenant's operational settings.
+func (r *Repository) UpdateSettings(ctx context.Context, code string, s domain.Settings) error {
+	return r.db.WithTx(withTenant(ctx, code), func(ctx context.Context, tx pgx.Tx) error {
+		ct, err := tx.Exec(ctx, `
+			UPDATE tenants
+			SET locale = $2, timezone = $3, date_format = $4,
+			    academic_year_start_month = $5, primary_contact_email = $6, updated_at = now()
+			WHERE code = $1
+		`, code, s.Locale, s.Timezone, s.DateFormat, s.AcademicYearStartMonth, s.PrimaryContactEmail)
+		if err != nil {
+			return fmt.Errorf("update settings: %w", err)
+		}
+		if ct.RowsAffected() == 0 {
+			return fmt.Errorf("%w: %s", domain.ErrNotFound, code)
+		}
+		return nil
+	})
+}
+
 func applyFeatureRow(out []domain.FeatureFlag, key string, enabled bool, configBytes []byte, pct *int, updatedBy, rolloutReason *string) error {
 	for i := range out {
 		if out[i].Key != key {

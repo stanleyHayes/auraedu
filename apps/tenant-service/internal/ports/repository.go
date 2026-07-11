@@ -18,4 +18,6 @@ type Repository interface {
 	ResolveTenant(ctx context.Context, domain, subdomain string) (domain.Tenant, error)
 	Features(ctx context.Context, code string) ([]domain.FeatureFlag, error)
 	SetFeature(ctx context.Context, code, key string, enabled bool, reason string) (domain.FeatureFlag, error)
+	Settings(ctx context.Context, code string) (domain.Settings, error)
+	UpdateSettings(ctx context.Context, code string, s domain.Settings) error
 }

@@ -161,6 +161,38 @@ func (s *Service) Features(ctx context.Context, actor auth.Actor, code string) (
 	return s.repo.Features(withTenant(ctx, code), code)
 }
 
+// Settings returns a tenant's operational settings; the actor must belong to the
+// tenant (or be a platform admin).
+func (s *Service) Settings(ctx context.Context, actor auth.Actor, code string) (domain.Settings, error) {
+	if !actor.CanAccessTenant(code) {
+		return domain.Settings{}, domain.ErrForbidden
+	}
+	return s.repo.Settings(withTenant(ctx, code), code)
+}
+
+// UpdateSettings changes a tenant's operational settings. Any authenticated actor
+// belonging to the tenant may update their own settings; platform super admins may
+// update any tenant.
+func (s *Service) UpdateSettings(ctx context.Context, actor auth.Actor, code string, settings domain.Settings) (domain.Settings, error) {
+	if !actor.CanAccessTenant(code) {
+		return domain.Settings{}, domain.ErrForbidden
+	}
+	if err := domain.ValidateSettings(settings); err != nil {
+		return domain.Settings{}, err
+	}
+	if err := s.repo.UpdateSettings(withTenant(ctx, code), code, settings); err != nil {
+		return domain.Settings{}, err
+	}
+	if err := s.pub.Publish(ctx, "tenant.settings_updated.v1", code, map[string]any{
+		"tenant_code": code,
+		"locale":      settings.Locale,
+		"timezone":    settings.Timezone,
+	}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish tenant.settings_updated event", "err", err)
+	}
+	return settings, nil
+}
+
 // SetFeature enables/disables a feature for a tenant. Enforces all four gates:
 // RBAC (features.manage) + tenant scope + entitlement (can't enable above the plan, spec §3.3).
 func (s *Service) SetFeature(ctx context.Context, actor auth.Actor, code, key string, enabled bool) (domain.FeatureFlag, error) {

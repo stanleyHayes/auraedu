@@ -15,10 +15,11 @@ import (
 
 // Repository is the seeded in-memory tenant + feature-flag store.
 type Repository struct {
-	mu      sync.RWMutex
-	tenants map[string]domain.Tenant
-	order   []string
-	enabled map[string]map[string]bool // tenant code -> feature key -> enabled
+	mu       sync.RWMutex
+	tenants  map[string]domain.Tenant
+	order    []string
+	enabled  map[string]map[string]bool // tenant code -> feature key -> enabled
+	settings map[string]domain.Settings
 }
 
 var _ ports.Repository = (*Repository)(nil)
@@ -34,8 +35,9 @@ func setOf(keys ...string) map[string]bool {
 // New returns a seeded repository (UPSHS, Aboom, Cape Coast Prep).
 func New() *Repository {
 	r := &Repository{
-		tenants: map[string]domain.Tenant{},
-		enabled: map[string]map[string]bool{},
+		tenants:  map[string]domain.Tenant{},
+		enabled:  map[string]map[string]bool{},
+		settings: map[string]domain.Settings{},
 	}
 	add := func(t domain.Tenant, enabled map[string]bool) {
 		r.tenants[t.Code] = t
@@ -102,6 +104,7 @@ func (r *Repository) CreateTenant(_ context.Context, t domain.Tenant) error {
 	r.tenants[t.Code] = t
 	r.order = append(r.order, t.Code)
 	r.enabled[t.Code] = defaultEnabledForPlan(t.Plan)
+	r.settings[t.Code] = domain.Settings{}
 	return nil
 }
 
@@ -136,6 +139,7 @@ func (r *Repository) DeleteTenant(_ context.Context, code string) error {
 	}
 	delete(r.tenants, code)
 	delete(r.enabled, code)
+	delete(r.settings, code)
 	for i, c := range r.order {
 		if c == code {
 			r.order = append(r.order[:i], r.order[i+1:]...)
@@ -191,4 +195,23 @@ func (r *Repository) SetFeature(_ context.Context, code, key string, enabled boo
 	}
 	on[key] = enabled
 	return domain.FeatureFlag{Key: key, Enabled: enabled, PlanRequired: plan}, nil
+}
+
+func (r *Repository) Settings(_ context.Context, code string) (domain.Settings, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if _, ok := r.tenants[code]; !ok {
+		return domain.Settings{}, domain.ErrNotFound
+	}
+	return r.settings[code], nil
+}
+
+func (r *Repository) UpdateSettings(_ context.Context, code string, s domain.Settings) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.tenants[code]; !ok {
+		return domain.ErrNotFound
+	}
+	r.settings[code] = s
+	return nil
 }

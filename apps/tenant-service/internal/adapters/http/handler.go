@@ -27,6 +27,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/v1/tenants/{code}", h.updateTenant)
 	mux.HandleFunc("DELETE /api/v1/tenants/{code}", h.deleteTenant)
 	mux.HandleFunc("GET /api/v1/tenants/{code}/branding", h.branding)
+	mux.HandleFunc("GET /api/v1/tenants/{code}/settings", h.settings)
+	mux.HandleFunc("PATCH /api/v1/tenants/{code}/settings", h.updateSettings)
 	mux.HandleFunc("GET /api/v1/features", h.features)
 	mux.HandleFunc("PUT /api/v1/features/{key}", h.setFeature)
 	mux.HandleFunc("POST /api/v1/super-admin/features/{key}/override", h.overrideFeature)
@@ -136,6 +138,29 @@ func (h *Handler) branding(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, b)
+}
+
+func (h *Handler) settings(w http.ResponseWriter, r *http.Request) {
+	s, err := h.svc.Settings(r.Context(), auth.FromHeaders(r.Header), r.PathValue("code"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, s)
+}
+
+func (h *Handler) updateSettings(w http.ResponseWriter, r *http.Request) {
+	var s domain.Settings
+	if err := json.NewDecoder(r.Body).Decode(&s); err != nil {
+		writeJSON(w, http.StatusBadRequest, errEnv("validation_error", "invalid request body"))
+		return
+	}
+	updated, err := h.svc.UpdateSettings(r.Context(), auth.FromHeaders(r.Header), r.PathValue("code"), s)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
 }
 
 func (h *Handler) features(w http.ResponseWriter, r *http.Request) {

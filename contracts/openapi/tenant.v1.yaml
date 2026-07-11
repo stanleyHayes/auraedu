@@ -96,6 +96,36 @@ paths:
           content: { application/json: { schema: { $ref: '#/components/schemas/Branding' } } }
         '404': { description: Not found }
 
+  /tenants/{code}/settings:
+    parameters:
+      - $ref: '#/components/parameters/TenantCode'
+    get:
+      operationId: getSettings
+      tags: [tenants]
+      summary: Tenant operational settings
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/Settings' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: Not found }
+    patch:
+      operationId: updateSettings
+      tags: [tenants]
+      summary: Update tenant operational settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Settings' }
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/Settings' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: Not found }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
   /tenants/resolve:
     get:
       operationId: resolveTenant
@@ -245,6 +275,14 @@ components:
           properties:
             primary: { type: string, example: '#7B1113' }
             secondary: { type: [string, 'null'] }
+    Settings:
+      type: object
+      properties:
+        locale: { type: string, example: en-GH }
+        timezone: { type: string, example: Africa/Accra }
+        date_format: { type: string, example: DD/MM/YYYY }
+        academic_year_start_month: { type: integer, minimum: 1, maximum: 12 }
+        primary_contact_email: { type: [string, 'null'], format: email }
     FeatureFlag:
       type: object
       required: [feature_key, is_enabled]
