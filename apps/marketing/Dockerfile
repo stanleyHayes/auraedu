@@ -1,7 +1,7 @@
 # AuraEDU marketing (Next.js 16 standalone) for Render. Build from repo root:
 #   docker build -f apps/marketing/Dockerfile .
 # Standalone output is traced from the monorepo root (next.config.ts outputFileTracingRoot).
-FROM node:24-alpine AS base
+FROM node:26.5.0-alpine AS base
 RUN corepack enable
 WORKDIR /repo
 

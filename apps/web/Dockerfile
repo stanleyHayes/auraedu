@@ -1,6 +1,6 @@
 # AuraEDU web portal (Next.js 16 standalone) for Render. Build from repo root:
 #   docker build -f apps/web/Dockerfile .
-FROM node:24-alpine AS base
+FROM node:26.5.0-alpine AS base
 RUN corepack enable
 WORKDIR /repo
 
