@@ -1,10 +1,11 @@
 // Package memory is an in-memory, seeded implementation of ports.Repository.
 // It lets the Tenant Service run and be tested without infrastructure; the
-// Postgres+RLS adapter (platform/db) replaces it in the next story. Seed data
+// Postgres+RLS adapter (platform/db) replaces it in production. Seed data
 // mirrors contracts/features/features.yaml and the two initial tenants (spec §20).
 package memory
 
 import (
+	"context"
 	"sync"
 
 	"github.com/auraedu/tenant-service/internal/domain"
@@ -71,17 +72,17 @@ func New() *Repository {
 	return r
 }
 
-func (r *Repository) ListTenants() []domain.Tenant {
+func (r *Repository) ListTenants(_ context.Context) ([]domain.Tenant, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	out := make([]domain.Tenant, 0, len(r.order))
 	for _, code := range r.order {
 		out = append(out, r.tenants[code])
 	}
-	return out
+	return out, nil
 }
 
-func (r *Repository) GetTenant(code string) (domain.Tenant, error) {
+func (r *Repository) GetTenant(_ context.Context, code string) (domain.Tenant, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	t, ok := r.tenants[code]
@@ -91,7 +92,7 @@ func (r *Repository) GetTenant(code string) (domain.Tenant, error) {
 	return t, nil
 }
 
-func (r *Repository) CreateTenant(t domain.Tenant) error {
+func (r *Repository) CreateTenant(_ context.Context, t domain.Tenant) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, exists := r.tenants[t.Code]; exists {
@@ -99,10 +100,11 @@ func (r *Repository) CreateTenant(t domain.Tenant) error {
 	}
 	r.tenants[t.Code] = t
 	r.order = append(r.order, t.Code)
+	r.enabled[t.Code] = map[string]bool{}
 	return nil
 }
 
-func (r *Repository) Features(code string) ([]domain.FeatureFlag, error) {
+func (r *Repository) Features(_ context.Context, code string) ([]domain.FeatureFlag, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	on, ok := r.enabled[code]
@@ -117,7 +119,7 @@ func (r *Repository) Features(code string) ([]domain.FeatureFlag, error) {
 	return out, nil
 }
 
-func (r *Repository) SetFeature(code, key string, enabled bool) (domain.FeatureFlag, error) {
+func (r *Repository) SetFeature(_ context.Context, code, key string, enabled bool) (domain.FeatureFlag, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	on, ok := r.enabled[code]

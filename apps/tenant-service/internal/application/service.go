@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/auraedu/platform/auth"
+	"github.com/auraedu/platform/tenancy"
 	"github.com/auraedu/tenant-service/internal/domain"
 	"github.com/auraedu/tenant-service/internal/ports"
 )
@@ -39,16 +40,20 @@ func NewService(repo ports.Repository, opts ...Option) *Service {
 	return s
 }
 
+func withTenant(ctx context.Context, code string) context.Context {
+	return tenancy.WithContext(ctx, tenancy.TenantContext{TenantID: code})
+}
+
 // ListTenants is a platform-wide operation — platform super admins only (spec §8.1).
-func (s *Service) ListTenants(actor auth.Actor) ([]domain.Tenant, error) {
+func (s *Service) ListTenants(ctx context.Context, actor auth.Actor) ([]domain.Tenant, error) {
 	if !actor.PlatformAdmin {
 		return nil, domain.ErrForbidden
 	}
-	return s.repo.ListTenants(), nil
+	return s.repo.ListTenants(ctx)
 }
 
 // CreateTenant provisions a new school. Platform super admins only.
-func (s *Service) CreateTenant(actor auth.Actor, t domain.Tenant) (domain.Tenant, error) {
+func (s *Service) CreateTenant(ctx context.Context, actor auth.Actor, t domain.Tenant) (domain.Tenant, error) {
 	if !actor.PlatformAdmin {
 		return domain.Tenant{}, domain.ErrForbidden
 	}
@@ -57,31 +62,37 @@ func (s *Service) CreateTenant(actor auth.Actor, t domain.Tenant) (domain.Tenant
 	}
 	t.Code = strings.ToLower(strings.TrimSpace(t.Code))
 	t.Status = defaultStatus(t.Status, "active")
-	if err := s.repo.CreateTenant(t); err != nil {
+	if err := s.repo.CreateTenant(withTenant(ctx, t.Code), t); err != nil {
 		return domain.Tenant{}, err
 	}
-	if err := s.pub.Publish(context.Background(), "tenant.created.v1", t.Code, map[string]any{
+	if err := s.pub.Publish(ctx, "tenant.created.v1", t.Code, map[string]any{
 		"tenant_code": t.Code,
 		"name":        t.Name,
 		"plan":        t.Plan,
 	}); err != nil {
-		slog.Default().ErrorContext(context.Background(), "failed to publish tenant.created event", "err", err)
+		slog.Default().ErrorContext(ctx, "failed to publish tenant.created event", "err", err)
 	}
 	return t, nil
 }
 
 // GetTenant returns a tenant record; the actor must belong to it (or be a platform admin).
-func (s *Service) GetTenant(actor auth.Actor, code string) (domain.Tenant, error) {
+func (s *Service) GetTenant(ctx context.Context, actor auth.Actor, code string) (domain.Tenant, error) {
 	if !actor.CanAccessTenant(code) {
 		return domain.Tenant{}, domain.ErrForbidden
 	}
-	return s.repo.GetTenant(code)
+	return s.repo.GetTenant(withTenant(ctx, code), code)
+}
+
+// ResolveTenant is a public lookup used by the API gateway before authentication.
+// It exposes only non-sensitive identity fields.
+func (s *Service) ResolveTenant(ctx context.Context, code string) (domain.Tenant, error) {
+	return s.repo.GetTenant(withTenant(ctx, code), code)
 }
 
 // Branding is PUBLIC by design: a school's logo/colors theme the login page before
 // authentication (BRAND.md §5, DESIGN_SYSTEM §17). It exposes no sensitive data.
-func (s *Service) Branding(code string) (domain.Branding, error) {
-	t, err := s.repo.GetTenant(code)
+func (s *Service) Branding(ctx context.Context, code string) (domain.Branding, error) {
+	t, err := s.repo.GetTenant(withTenant(ctx, code), code)
 	if err != nil {
 		return domain.Branding{}, err
 	}
@@ -90,19 +101,19 @@ func (s *Service) Branding(code string) (domain.Branding, error) {
 
 // Features returns the feature snapshot for a tenant. Requires a resolved tenant and
 // that the actor belongs to it (or is a platform admin) — prevents cross-tenant reads.
-func (s *Service) Features(actor auth.Actor, code string) ([]domain.FeatureFlag, error) {
+func (s *Service) Features(ctx context.Context, actor auth.Actor, code string) ([]domain.FeatureFlag, error) {
 	if code == "" {
 		return nil, domain.ErrNoTenant
 	}
 	if !actor.CanAccessTenant(code) {
 		return nil, domain.ErrForbidden
 	}
-	return s.repo.Features(code)
+	return s.repo.Features(withTenant(ctx, code), code)
 }
 
 // SetFeature enables/disables a feature for a tenant. Enforces all four gates:
 // RBAC (features.manage) + tenant scope + entitlement (can't enable above the plan, spec §3.3).
-func (s *Service) SetFeature(actor auth.Actor, code, key string, enabled bool) (domain.FeatureFlag, error) {
+func (s *Service) SetFeature(ctx context.Context, actor auth.Actor, code, key string, enabled bool) (domain.FeatureFlag, error) {
 	if code == "" {
 		return domain.FeatureFlag{}, domain.ErrNoTenant
 	}
@@ -110,7 +121,7 @@ func (s *Service) SetFeature(actor auth.Actor, code, key string, enabled bool) (
 		return domain.FeatureFlag{}, domain.ErrForbidden
 	}
 	if enabled {
-		tenant, err := s.repo.GetTenant(code)
+		tenant, err := s.repo.GetTenant(withTenant(ctx, code), code)
 		if err != nil {
 			return domain.FeatureFlag{}, err
 		}
@@ -122,7 +133,7 @@ func (s *Service) SetFeature(actor auth.Actor, code, key string, enabled bool) (
 			return domain.FeatureFlag{}, domain.ErrEntitlement
 		}
 	}
-	flag, err := s.repo.SetFeature(code, key, enabled)
+	flag, err := s.repo.SetFeature(withTenant(ctx, code), code, key, enabled)
 	if err != nil {
 		return domain.FeatureFlag{}, err
 	}
@@ -130,12 +141,12 @@ func (s *Service) SetFeature(actor auth.Actor, code, key string, enabled bool) (
 	if enabled {
 		eventType = "tenant.feature_enabled.v1"
 	}
-	if err := s.pub.Publish(context.Background(), eventType, code, map[string]any{
+	if err := s.pub.Publish(ctx, eventType, code, map[string]any{
 		"feature_key": key,
 		"is_enabled":  enabled,
 		"plan":        flag.PlanRequired,
 	}); err != nil {
-		slog.Default().ErrorContext(context.Background(), "failed to publish tenant.feature event", "err", err)
+		slog.Default().ErrorContext(ctx, "failed to publish tenant.feature event", "err", err)
 	}
 	return flag, nil
 }

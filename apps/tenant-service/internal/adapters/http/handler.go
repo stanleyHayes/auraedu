@@ -22,10 +22,12 @@ func NewHandler(svc *application.Service) *Handler { return &Handler{svc: svc} }
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/tenants", h.listTenants)
 	mux.HandleFunc("POST /api/v1/tenants", h.createTenant)
+	mux.HandleFunc("GET /api/v1/tenants/resolve", h.resolveTenant)
 	mux.HandleFunc("GET /api/v1/tenants/{code}", h.getTenant)
 	mux.HandleFunc("GET /api/v1/tenants/{code}/branding", h.branding)
 	mux.HandleFunc("GET /api/v1/features", h.features)
 	mux.HandleFunc("PUT /api/v1/features/{key}", h.setFeature)
+	mux.HandleFunc("PUT /api/v1/admin/tenants/{code}/features/{key}", h.setFeatureAdmin)
 }
 
 func tenantCode(r *http.Request) string {
@@ -36,7 +38,7 @@ func tenantCode(r *http.Request) string {
 }
 
 func (h *Handler) listTenants(w http.ResponseWriter, r *http.Request) {
-	tenants, err := h.svc.ListTenants(auth.FromHeaders(r.Header))
+	tenants, err := h.svc.ListTenants(r.Context(), auth.FromHeaders(r.Header))
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -67,7 +69,7 @@ func (h *Handler) createTenant(w http.ResponseWriter, r *http.Request) {
 		Plan:     body.Plan,
 		Branding: body.Branding,
 	}
-	created, err := h.svc.CreateTenant(auth.FromHeaders(r.Header), t)
+	created, err := h.svc.CreateTenant(r.Context(), auth.FromHeaders(r.Header), t)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -75,8 +77,26 @@ func (h *Handler) createTenant(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, created)
 }
 
+func (h *Handler) resolveTenant(w http.ResponseWriter, r *http.Request) {
+	code := r.URL.Query().Get("code")
+	if code == "" {
+		writeJSON(w, http.StatusBadRequest, errEnv("validation_error", "?code= is required"))
+		return
+	}
+	t, err := h.svc.ResolveTenant(r.Context(), code)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"tenant_code": t.Code,
+		"name":        t.Name,
+		"status":      t.Status,
+	})
+}
+
 func (h *Handler) getTenant(w http.ResponseWriter, r *http.Request) {
-	t, err := h.svc.GetTenant(auth.FromHeaders(r.Header), r.PathValue("code"))
+	t, err := h.svc.GetTenant(r.Context(), auth.FromHeaders(r.Header), r.PathValue("code"))
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -85,7 +105,7 @@ func (h *Handler) getTenant(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) branding(w http.ResponseWriter, r *http.Request) {
-	b, err := h.svc.Branding(r.PathValue("code"))
+	b, err := h.svc.Branding(r.Context(), r.PathValue("code"))
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -95,7 +115,7 @@ func (h *Handler) branding(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) features(w http.ResponseWriter, r *http.Request) {
 	code := tenantCode(r)
-	fs, err := h.svc.Features(auth.FromHeaders(r.Header), code)
+	fs, err := h.svc.Features(r.Context(), auth.FromHeaders(r.Header), code)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -118,7 +138,21 @@ func (h *Handler) setFeature(w http.ResponseWriter, r *http.Request) {
 	if code == "" {
 		code = tenantCode(r)
 	}
-	f, err := h.svc.SetFeature(auth.FromHeaders(r.Header), code, r.PathValue("key"), body.Enabled)
+	f, err := h.svc.SetFeature(r.Context(), auth.FromHeaders(r.Header), code, r.PathValue("key"), body.Enabled)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, f)
+}
+
+func (h *Handler) setFeatureAdmin(w http.ResponseWriter, r *http.Request) {
+	var body setFeatureBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, errEnv("validation_error", "invalid request body"))
+		return
+	}
+	f, err := h.svc.SetFeature(r.Context(), auth.FromHeaders(r.Header), r.PathValue("code"), r.PathValue("key"), body.Enabled)
 	if err != nil {
 		writeErr(w, err)
 		return

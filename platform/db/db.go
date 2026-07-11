@@ -27,6 +27,13 @@ type Config struct {
 	Migrations string
 }
 
+// New opens a PostgreSQL pool from a DSN, runs migrations from the relative
+// migrations directory and returns a shared DB handle. It is a convenience
+// wrapper used by service main.go files.
+func New(ctx context.Context, dsn string) (*DB, error) {
+	return Open(ctx, Config{DSN: dsn, Migrations: "migrations"})
+}
+
 // Open opens a PostgreSQL pool, runs migrations when configured and returns a
 // shared DB handle.
 func Open(ctx context.Context, cfg Config) (*DB, error) {
@@ -70,6 +77,12 @@ func (d *DB) Pool() *pgxpool.Pool {
 
 func (d *DB) Ping(ctx context.Context) error {
 	return d.pool.Ping(ctx)
+}
+
+// Migrate applies Goose migration scripts from dir using a dedicated sql.DB.
+// It is an alias for RunMigrations with a shorter name for service main.go files.
+func (d *DB) Migrate(ctx context.Context, dir string) error {
+	return d.RunMigrations(ctx, dir)
 }
 
 // RunMigrations applies Goose migration scripts from dir using a dedicated sql.DB.

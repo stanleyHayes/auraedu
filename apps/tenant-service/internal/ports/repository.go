@@ -1,14 +1,18 @@
 // Package ports defines the tenant service repository boundary.
 package ports
 
-import "github.com/auraedu/tenant-service/internal/domain"
+import (
+	"context"
 
-// Repository stores tenants and their feature flags. The memory adapter seeds it
-// today; the Postgres adapter (with RLS) is the next story (AURA-5.x / platform/db).
+	"github.com/auraedu/tenant-service/internal/domain"
+)
+
+// Repository stores tenants and their feature flags. Adapters implement the
+// context-aware interface so that platform/db can set app.tenant_id for RLS.
 type Repository interface {
-	ListTenants() []domain.Tenant
-	GetTenant(code string) (domain.Tenant, error)
-	CreateTenant(t domain.Tenant) error
-	Features(code string) ([]domain.FeatureFlag, error)
-	SetFeature(code, key string, enabled bool) (domain.FeatureFlag, error)
+	ListTenants(ctx context.Context) ([]domain.Tenant, error)
+	GetTenant(ctx context.Context, code string) (domain.Tenant, error)
+	CreateTenant(ctx context.Context, t domain.Tenant) error
+	Features(ctx context.Context, code string) ([]domain.FeatureFlag, error)
+	SetFeature(ctx context.Context, code, key string, enabled bool) (domain.FeatureFlag, error)
 }

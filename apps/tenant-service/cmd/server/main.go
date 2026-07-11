@@ -13,12 +13,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/auraedu/platform/config"
+	"github.com/auraedu/platform/db"
 	"github.com/auraedu/tenant-service/internal/adapters/events"
 	svchttp "github.com/auraedu/tenant-service/internal/adapters/http"
 	"github.com/auraedu/tenant-service/internal/adapters/memory"
+	"github.com/auraedu/tenant-service/internal/adapters/postgres"
 	"github.com/auraedu/tenant-service/internal/application"
-
-	"github.com/auraedu/platform/config"
+	"github.com/auraedu/tenant-service/internal/ports"
 )
 
 const service = "tenant-service"
@@ -34,8 +36,11 @@ func main() {
 
 	ctx := context.Background()
 
-	// In-memory seeded store today; Postgres+RLS adapter is the next story.
-	repo := memory.New()
+	repo, closeDB := mustInitRepository(ctx, log)
+	if closeDB != nil {
+		defer closeDB()
+	}
+
 	pub := mustInitPublisher(ctx, log)
 	svc := application.NewService(repo, pub)
 	handler := svchttp.NewHandler(svc)
@@ -72,6 +77,22 @@ func main() {
 		log.Error("failed to shutdown server", "err", err)
 	}
 	log.Info(service + " stopped")
+}
+
+func mustInitRepository(ctx context.Context, log *slog.Logger) (ports.Repository, func()) {
+	if dsn := config.Getenv("DATABASE_URL", ""); dsn != "" {
+		database, err := db.New(ctx, dsn)
+		if err != nil {
+			log.Error("database init failed", "err", err)
+			os.Exit(1)
+		}
+		if err := database.Migrate(ctx, "migrations"); err != nil {
+			log.Error("migrations failed", "err", err)
+			os.Exit(1)
+		}
+		return postgres.NewRepository(database), func() { database.Close() }
+	}
+	return memory.New(), nil
 }
 
 func mustInitPublisher(_ context.Context, log *slog.Logger) application.Option {
