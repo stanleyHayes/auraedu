@@ -14,7 +14,7 @@ COPY apps/career-guidance-service/ ./apps/career-guidance-service/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --package auraedu-ai-recommendation-service
 
-FROM python:3.14-slim-bookworm AS runner
+FROM python:3.14.6-bookworm-slim AS runner
 
 WORKDIR /app
 
