@@ -86,6 +86,7 @@ This section tracks work currently in-flight and recently completed. It is updat
 | AURA-5.1 | EP-05 Tenant Service | **Done** | Kimi Code CLI | Full Tenant CRUD: added `PATCH`/`DELETE /api/v1/tenants/{code}`, `domain.TenantUpdate`, memory + postgres adapters, `tenant.updated.v1`/`tenant.deleted.v1` events, unit tests, OpenAPI contract updated. |
 | AURA-5.4 | EP-05 Tenant Service | **Done** | Kimi Code CLI | Public tenant resolver now matches OpenAPI: `GET /api/v1/tenants/resolve?domain=` or `?subdomain=`; gateway resolver calls the resolve endpoint. |
 | AURA-5.5 | EP-05 Tenant Service | **Done** | Kimi Code CLI | Super-admin feature override matches OpenAPI: `POST /api/v1/super-admin/features/{key}/override` with `tenant_code`, `is_enabled`, `reason`; gateway route added; reason persisted in `tenant_features`. |
+| AURA-5.3 | EP-05 Tenant Service | **Done** | Kimi Code CLI | Feature-flag rollout model (`config`, `rollout` percentage/updated_by/reason), DB migration, Postgres snapshot scan, and plan-based defaults on tenant creation. |
 | — | Backlog / Deferred | **Done** | Kimi Code CLI | Added cobra-based CLI to every Go service: `cmd/<service>` with `server`, `worker` (where applicable) and `migrate` (where migrations exist) subcommands. Dockerfiles default to `CMD ["server"]`. |
 
 ---

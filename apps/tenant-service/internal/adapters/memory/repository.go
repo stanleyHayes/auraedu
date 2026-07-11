@@ -101,8 +101,16 @@ func (r *Repository) CreateTenant(_ context.Context, t domain.Tenant) error {
 	}
 	r.tenants[t.Code] = t
 	r.order = append(r.order, t.Code)
-	r.enabled[t.Code] = map[string]bool{}
+	r.enabled[t.Code] = defaultEnabledForPlan(t.Plan)
 	return nil
+}
+
+func defaultEnabledForPlan(plan string) map[string]bool {
+	m := map[string]bool{}
+	for _, f := range domain.FeatureCatalog() {
+		m[f.Key] = domain.PlanAllows(plan, f.PlanRequired)
+	}
+	return m
 }
 
 func (r *Repository) UpdateTenant(_ context.Context, code string, upd domain.TenantUpdate) (domain.Tenant, error) {

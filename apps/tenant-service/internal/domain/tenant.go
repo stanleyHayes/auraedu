@@ -26,11 +26,20 @@ type Tenant struct {
 	Branding Branding `json:"branding"`
 }
 
+// RolloutConfig controls a gradual feature rollout for a tenant.
+type RolloutConfig struct {
+	Percentage int    `json:"percentage"`
+	UpdatedBy  string `json:"updated_by,omitempty"`
+	Reason     string `json:"reason,omitempty"`
+}
+
 // FeatureFlag is one independently switchable capability for a tenant (spec §3.2).
 type FeatureFlag struct {
-	Key          string `json:"feature_key"`
-	Enabled      bool   `json:"is_enabled"`
-	PlanRequired string `json:"plan_required,omitempty"`
+	Key          string         `json:"feature_key"`
+	Enabled      bool           `json:"is_enabled"`
+	PlanRequired string         `json:"plan_required,omitempty"`
+	Config       map[string]any `json:"config,omitempty"`
+	Rollout      *RolloutConfig `json:"rollout,omitempty"`
 }
 
 // TenantUpdate is a partial update to a tenant. Nil fields mean "no change".

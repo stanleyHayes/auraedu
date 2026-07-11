@@ -106,6 +106,32 @@ func TestOverrideFeatureRequiresPlatformAdmin(t *testing.T) {
 	}
 }
 
+func TestCreateTenantSeedsDefaultsByPlan(t *testing.T) {
+	svc := newSvc()
+	created, err := svc.CreateTenant(ctx, platformAdm, domain.Tenant{
+		Code:   "growth-school",
+		Name:   "Growth School",
+		Status: "active",
+		Plan:   "growth",
+	})
+	if err != nil {
+		t.Fatalf("create tenant: %v", err)
+	}
+	if created.Plan != "growth" {
+		t.Fatalf("plan = %q, want growth", created.Plan)
+	}
+	fs, err := svc.Features(ctx, platformAdm, created.Code)
+	if err != nil {
+		t.Fatalf("features: %v", err)
+	}
+	for _, f := range fs {
+		want := domain.PlanAllows("growth", f.PlanRequired)
+		if f.Enabled != want {
+			t.Fatalf("feature %q enabled = %v, want %v", f.Key, f.Enabled, want)
+		}
+	}
+}
+
 func TestOverrideFeatureEntitlement(t *testing.T) {
 	svc := newSvc()
 	if _, err := svc.OverrideFeature(ctx, platformAdm, "aboom-ame-zion-c", "ai_recommendations", true, "trial"); !errors.Is(err, domain.ErrEntitlement) {

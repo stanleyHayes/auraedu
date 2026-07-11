@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -99,10 +100,11 @@ func (r *Repository) CreateTenant(ctx context.Context, t domain.Tenant) error {
 			return fmt.Errorf("insert tenant: %w", err)
 		}
 		for _, f := range domain.FeatureCatalog() {
+			enabled := domain.PlanAllows(t.Plan, f.PlanRequired)
 			if _, err := tx.Exec(ctx, `
 				INSERT INTO tenant_features (tenant_code, feature_key, is_enabled)
-				VALUES ($1, $2, false)
-			`, t.Code, f.Key); err != nil {
+				VALUES ($1, $2, $3)
+			`, t.Code, f.Key, enabled); err != nil {
 				return fmt.Errorf("seed feature %s: %w", f.Key, err)
 			}
 		}
@@ -195,7 +197,8 @@ func (r *Repository) Features(ctx context.Context, code string) ([]domain.Featur
 
 	err := r.db.WithTx(withTenant(ctx, code), func(ctx context.Context, tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, `
-			SELECT feature_key, is_enabled
+			SELECT feature_key, is_enabled, config,
+			       rollout_percentage, rollout_updated_by, rollout_reason
 			FROM tenant_features
 			WHERE tenant_code = $1
 		`, code)
@@ -209,14 +212,14 @@ func (r *Repository) Features(ctx context.Context, code string) ([]domain.Featur
 			found = true
 			var key string
 			var enabled bool
-			if err := rows.Scan(&key, &enabled); err != nil {
+			var configBytes []byte
+			var pct *int
+			var updatedBy, rolloutReason *string
+			if err := rows.Scan(&key, &enabled, &configBytes, &pct, &updatedBy, &rolloutReason); err != nil {
 				return fmt.Errorf("scan feature: %w", err)
 			}
-			for i := range out {
-				if out[i].Key == key {
-					out[i].Enabled = enabled
-					break
-				}
+			if err := applyFeatureRow(out, key, enabled, configBytes, pct, updatedBy, rolloutReason); err != nil {
+				return err
 			}
 		}
 		if err := rows.Err(); err != nil {
@@ -259,4 +262,34 @@ func (r *Repository) SetFeature(ctx context.Context, code, key string, enabled b
 		return domain.FeatureFlag{}, err
 	}
 	return domain.FeatureFlag{Key: key, Enabled: enabled, PlanRequired: plan}, nil
+}
+
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+func applyFeatureRow(out []domain.FeatureFlag, key string, enabled bool, configBytes []byte, pct *int, updatedBy, rolloutReason *string) error {
+	for i := range out {
+		if out[i].Key != key {
+			continue
+		}
+		out[i].Enabled = enabled
+		if len(configBytes) > 0 {
+			if err := json.Unmarshal(configBytes, &out[i].Config); err != nil {
+				return fmt.Errorf("decode feature config: %w", err)
+			}
+		}
+		if pct != nil {
+			out[i].Rollout = &domain.RolloutConfig{
+				Percentage: *pct,
+				UpdatedBy:  deref(updatedBy),
+				Reason:     deref(rolloutReason),
+			}
+		}
+		return nil
+	}
+	return nil
 }
