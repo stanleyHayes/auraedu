@@ -20,8 +20,10 @@ type PostgresTestDB struct {
 	DSN       string
 }
 
-func NewPostgres(ctx context.Context, t testing.TB, migrationsDir string) *PostgresTestDB {
-	t.Helper()
+// NewPostgres starts a Postgres testcontainer, runs migrations and returns a
+// wrapped *db.DB.
+func NewPostgres(ctx context.Context, tb testing.TB, migrationsDir string) *PostgresTestDB {
+	tb.Helper()
 
 	ctr, err := postgres.Run(ctx, "postgres:17-alpine",
 		postgres.WithDatabase("test"),
@@ -34,22 +36,22 @@ func NewPostgres(ctx context.Context, t testing.TB, migrationsDir string) *Postg
 		),
 	)
 	if err != nil {
-		t.Fatalf("start postgres container: %v", err)
+		tb.Fatalf("start postgres container: %v", err)
 	}
 
-	t.Cleanup(func() {
+	tb.Cleanup(func() {
 		if err := testcontainers.TerminateContainer(ctr); err != nil {
-			t.Logf("terminate container: %v", err)
+			tb.Logf("terminate container: %v", err)
 		}
 	})
 
 	host, err := ctr.Host(ctx)
 	if err != nil {
-		t.Fatalf("container host: %v", err)
+		tb.Fatalf("container host: %v", err)
 	}
 	port, err := ctr.MappedPort(ctx, "5432")
 	if err != nil {
-		t.Fatalf("container port: %v", err)
+		tb.Fatalf("container port: %v", err)
 	}
 
 	dsn := fmt.Sprintf("postgres://test:test@%s:%s/test?sslmode=disable", host, port.Port())
@@ -58,15 +60,16 @@ func NewPostgres(ctx context.Context, t testing.TB, migrationsDir string) *Postg
 		Migrations: migrationsDir,
 	})
 	if err != nil {
-		t.Fatalf("open db: %v", err)
+		tb.Fatalf("open db: %v", err)
 	}
-	t.Cleanup(database.Close)
+	tb.Cleanup(database.Close)
 
 	return &PostgresTestDB{Container: ctr, DB: database, DSN: dsn}
 }
 
-func (p *PostgresTestDB) SeedTenants(ctx context.Context, t testing.TB) {
-	t.Helper()
+// SeedTenants creates the canonical tenant rows required by integration tests.
+func (p *PostgresTestDB) SeedTenants(ctx context.Context, tb testing.TB) {
+	tb.Helper()
 
 	const schema = `
 CREATE TABLE IF NOT EXISTS tenants (
@@ -77,7 +80,7 @@ CREATE TABLE IF NOT EXISTS tenants (
 );
 `
 	if _, err := p.DB.Pool().Exec(ctx, schema); err != nil {
-		t.Fatalf("create tenants table: %v", err)
+		tb.Fatalf("create tenants table: %v", err)
 	}
 
 	for _, tenant := range CanonicalTenants() {
@@ -87,7 +90,7 @@ CREATE TABLE IF NOT EXISTS tenants (
             ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status
         `, tenant.ID, tenant.Code, tenant.Name, tenant.Status)
 		if err != nil {
-			t.Fatalf("seed tenant %s: %v", tenant.Code, err)
+			tb.Fatalf("seed tenant %s: %v", tenant.Code, err)
 		}
 	}
 }
@@ -99,6 +102,8 @@ type Tenant struct {
 	Status string
 }
 
+// CanonicalTenants returns the two standard test tenants used across the
+// platform testkit.
 func CanonicalTenants() []Tenant {
 	return []Tenant{
 		{ID: "tenant-upshs", Code: "upshs", Name: "University Practice Senior High School", Status: "active"},

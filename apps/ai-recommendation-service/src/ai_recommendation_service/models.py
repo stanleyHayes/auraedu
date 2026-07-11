@@ -29,9 +29,7 @@ class FeatureStoreMetric(Base):
     recorded_at: Mapped[datetime] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(default=_now)
 
-    __table_args__ = (
-        Index("ix_feature_store_metrics_tenant_student", "tenant_id", "student_id"),
-    )
+    __table_args__ = (Index("ix_feature_store_metrics_tenant_student", "tenant_id", "student_id"),)
 
 
 class Recommendation(Base):

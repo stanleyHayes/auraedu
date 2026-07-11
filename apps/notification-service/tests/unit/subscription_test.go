@@ -29,7 +29,10 @@ func TestNewSubscription_Valid(t *testing.T) {
 }
 
 func TestSubscription_ApplyUpdate(t *testing.T) {
-	sub, _ := domain.NewSubscription("tenant-1", "550e8400-e29b-41d4-a716-446655440000", "email", true)
+	sub, err := domain.NewSubscription("tenant-1", "550e8400-e29b-41d4-a716-446655440000", "email", true)
+	if err != nil {
+		t.Fatalf("new subscription: %v", err)
+	}
 	enabled := false
 	changed, err := sub.ApplyUpdate(domain.SubscriptionPatch{IsEnabled: &enabled})
 	if err != nil {

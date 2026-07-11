@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"testing"
 	"time"
 )
@@ -31,19 +32,25 @@ func TestSignVerifyRoundTrip(t *testing.T) {
 
 func TestVerifyRejectsWrongKeyAndTamper(t *testing.T) {
 	key := []byte("test-signing-key")
-	token, _ := Sign(Claims{Subject: "u1", ExpiresAt: time.Now().Add(time.Hour).Unix()}, key)
-	if _, err := Verify(token, []byte("attacker-key"), time.Now()); err != ErrInvalidToken {
+	token, err := Sign(Claims{Subject: "u1", ExpiresAt: time.Now().Add(time.Hour).Unix()}, key)
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	if _, err := Verify(token, []byte("attacker-key"), time.Now()); !errors.Is(err, ErrInvalidToken) {
 		t.Fatalf("wrong key should be ErrInvalidToken, got %v", err)
 	}
-	if _, err := Verify(token+"tamper", key, time.Now()); err != ErrInvalidToken {
+	if _, err := Verify(token+"tamper", key, time.Now()); !errors.Is(err, ErrInvalidToken) {
 		t.Fatalf("tampered signature should be ErrInvalidToken, got %v", err)
 	}
 }
 
 func TestVerifyRejectsExpired(t *testing.T) {
 	key := []byte("test-signing-key")
-	token, _ := Sign(Claims{Subject: "u1", ExpiresAt: 1000}, key)
-	if _, err := Verify(token, key, time.Unix(2000, 0)); err != ErrExpiredToken {
+	token, err := Sign(Claims{Subject: "u1", ExpiresAt: 1000}, key)
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	if _, err := Verify(token, key, time.Unix(2000, 0)); !errors.Is(err, ErrExpiredToken) {
 		t.Fatalf("expired token should be ErrExpiredToken, got %v", err)
 	}
 }

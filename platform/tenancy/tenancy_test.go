@@ -2,6 +2,7 @@ package tenancy
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,7 +12,7 @@ import (
 )
 
 func TestFromRequestHeader(t *testing.T) {
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 	req.Header.Set(HeaderTenantID, "upshs")
 	req.Header.Set(HeaderRequestID, "req-1")
 
@@ -36,7 +37,7 @@ func TestFromRequestJWT(t *testing.T) {
 		t.Fatalf("sign: %v", err)
 	}
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 
 	tc, err := FromRequest(req, key)
@@ -49,8 +50,8 @@ func TestFromRequestJWT(t *testing.T) {
 }
 
 func TestFromRequestMissingTenant(t *testing.T) {
-	req := httptest.NewRequest("GET", "/", nil)
-	if _, err := FromRequest(req, nil); err != ErrMissingTenant {
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
+	if _, err := FromRequest(req, nil); !errors.Is(err, ErrMissingTenant) {
 		t.Fatalf("expected ErrMissingTenant, got %v", err)
 	}
 }
@@ -61,13 +62,13 @@ func TestMiddlewareEnforcesTenant(t *testing.T) {
 	}))
 
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
+	handler.ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), "GET", "/", nil))
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("expected 403, got %d", rec.Code)
 	}
 
 	rec = httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 	req.Header.Set(HeaderTenantID, "upshs")
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
@@ -107,7 +108,7 @@ func TestValidateAccess(t *testing.T) {
 	if err := ValidateAccess(upshsActor, "upshs"); err != nil {
 		t.Fatalf("upshs actor should access upshs: %v", err)
 	}
-	if err := ValidateAccess(otherActor, "upshs"); err != ErrTenantMismatch {
+	if err := ValidateAccess(otherActor, "upshs"); !errors.Is(err, ErrTenantMismatch) {
 		t.Fatalf("expected tenant mismatch, got %v", err)
 	}
 	if err := ValidateAccess(adminActor, "upshs"); err != nil {
@@ -122,7 +123,7 @@ func TestCloudEventValidate(t *testing.T) {
 	}
 
 	invalid := CloudEvent{SpecVersion: "1.0", Type: "student.enrolled", ID: "evt-2"}
-	if err := invalid.Validate(); err != ErrMissingEventTenant {
+	if err := invalid.Validate(); !errors.Is(err, ErrMissingEventTenant) {
 		t.Fatalf("expected missing tenant error, got %v", err)
 	}
 }

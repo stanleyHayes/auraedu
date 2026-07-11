@@ -25,14 +25,26 @@ const placeholderPlans: Plan[] = [
     key: "growth",
     name: "Growth",
     price_monthly: 249,
-    features: ["Up to 1,000 students", "All Starter modules", "Fees & payments", "Parent portal", "Priority support"],
+    features: [
+      "Up to 1,000 students",
+      "All Starter modules",
+      "Fees & payments",
+      "Parent portal",
+      "Priority support",
+    ],
   },
   {
     id: "00000000-0000-0000-0000-000000000003",
     key: "professional",
     name: "Professional",
     price_monthly: 499,
-    features: ["Unlimited students", "All Growth modules", "Analytics", "API access", "Dedicated onboarding"],
+    features: [
+      "Unlimited students",
+      "All Growth modules",
+      "Analytics",
+      "API access",
+      "Dedicated onboarding",
+    ],
   },
 ];
 
@@ -53,9 +65,11 @@ function Tick({ className = "" }: { className?: string }) {
 
 function formatPrice(amount: number | null | undefined) {
   if (amount == null) return "Custom";
-  return new Intl.NumberFormat("en-GH", { style: "currency", currency: "GHS", maximumFractionDigits: 0 }).format(
-    amount,
-  );
+  return new Intl.NumberFormat("en-GH", {
+    style: "currency",
+    currency: "GHS",
+    maximumFractionDigits: 0,
+  }).format(amount);
 }
 
 export default function PricingPage() {
@@ -117,8 +131,12 @@ export default function PricingPage() {
                 className="flex flex-col rounded-lg border border-border bg-surface p-6 transition-colors hover:border-[var(--color-brand)]/40"
               >
                 <h2 className="font-display text-xl font-extrabold">{plan.name}</h2>
-                <p className="mt-2 text-3xl font-extrabold tracking-tight">{formatPrice(plan.price_monthly)}</p>
-                <p className="text-sm text-muted-foreground">{plan.price_monthly == null ? "" : "per month"}</p>
+                <p className="mt-2 text-3xl font-extrabold tracking-tight">
+                  {formatPrice(plan.price_monthly)}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {plan.price_monthly == null ? "" : "per month"}
+                </p>
                 <ul className="mt-6 flex-1 space-y-2.5">
                   {(plan.features ?? []).map((feature) => (
                     <li key={feature} className="flex items-start gap-2 text-sm text-foreground">
@@ -136,7 +154,10 @@ export default function PricingPage() {
 
       <p className="mt-8 text-center text-sm text-muted-foreground">
         Need a custom enterprise plan?{" "}
-        <Link href="/contact" className="font-semibold text-foreground underline underline-offset-4">
+        <Link
+          href="/contact"
+          className="font-semibold text-foreground underline underline-offset-4"
+        >
           Contact us
         </Link>
         .

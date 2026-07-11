@@ -48,9 +48,16 @@ func TestCloudinaryStorage_Open(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	defer rc.Close()
+	defer func() {
+		if err := rc.Close(); err != nil {
+			t.Fatalf("close: %v", err)
+		}
+	}()
 
-	body, _ := io.ReadAll(rc)
+	body, err := io.ReadAll(rc)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
 	if string(body) != "hello cloudinary" {
 		t.Fatalf("body: got %q", string(body))
 	}

@@ -1,3 +1,4 @@
+// Package domain contains the audit log aggregate and builder.
 package domain
 
 import (
@@ -61,10 +62,9 @@ type AuditLogBuilder struct {
 	log AuditLog
 }
 
-// NewAuditLogBuilder starts a new builder with a generated UUID v7 id.
+// NewAuditLogBuilder starts a new builder. An id is generated automatically on Build if one is not set.
 func NewAuditLogBuilder() *AuditLogBuilder {
-	id, _ := uuid.NewV7()
-	return &AuditLogBuilder{log: AuditLog{ID: id}}
+	return &AuditLogBuilder{}
 }
 
 // ID sets the audit log id. If not called, a UUID v7 is generated automatically.

@@ -1,3 +1,4 @@
+// Package http provides the HTTP adapter for the CBT service.
 package http
 
 import (
@@ -53,7 +54,10 @@ func (h *Handler) listQuestions(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
+	if err != nil {
+		limit = 0
+	}
 	filter := ports.QuestionListFilter{
 		Limit:          limit,
 		Cursor:         r.URL.Query().Get("cursor"),
@@ -171,7 +175,10 @@ func (h *Handler) listExams(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
+	if err != nil {
+		limit = 0
+	}
 	filter := ports.ExamSessionListFilter{
 		Limit:          limit,
 		Cursor:         r.URL.Query().Get("cursor"),
@@ -331,7 +338,10 @@ func (h *Handler) listSubmissions(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
+	if err != nil {
+		limit = 0
+	}
 	filter := ports.SubmissionListFilter{
 		Limit:         limit,
 		Cursor:        r.URL.Query().Get("cursor"),

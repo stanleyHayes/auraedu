@@ -108,9 +108,7 @@ async def get_prediction(
     tenant_id: TenantId,
     db: DbSession,
 ) -> PredictionSchema:
-    result = await db.execute(
-        select(Prediction).where(Prediction.id == prediction_id)
-    )
+    result = await db.execute(select(Prediction).where(Prediction.id == prediction_id))
     prediction = result.scalar_one_or_none()
     if not prediction:
         raise HTTPException(
@@ -127,9 +125,7 @@ async def explain_prediction(
     tenant_id: TenantId,
     db: DbSession,
 ) -> ExplainResponse:
-    result = await db.execute(
-        select(Prediction).where(Prediction.id == prediction_id)
-    )
+    result = await db.execute(select(Prediction).where(Prediction.id == prediction_id))
     prediction = result.scalar_one_or_none()
     if not prediction:
         raise HTTPException(
@@ -146,11 +142,9 @@ async def approve_prediction(
     prediction_id: str,
     tenant_id: TenantId,
     db: DbSession,
-    body: ReviewPredictionRequest | None = None,
+    _body: ReviewPredictionRequest | None = None,
 ) -> PredictionSchema:
-    result = await db.execute(
-        select(Prediction).where(Prediction.id == prediction_id)
-    )
+    result = await db.execute(select(Prediction).where(Prediction.id == prediction_id))
     prediction = result.scalar_one_or_none()
     if not prediction:
         raise HTTPException(
@@ -171,9 +165,7 @@ async def reject_prediction(
     db: DbSession,
     body: ReviewPredictionRequest | None = None,
 ) -> PredictionSchema:
-    result = await db.execute(
-        select(Prediction).where(Prediction.id == prediction_id)
-    )
+    result = await db.execute(select(Prediction).where(Prediction.id == prediction_id))
     prediction = result.scalar_one_or_none()
     if not prediction:
         raise HTTPException(

@@ -1,3 +1,4 @@
+// Package http is the website-service HTTP adapter.
 package http
 
 import (
@@ -47,7 +48,11 @@ func (h *Handler) listPages(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit, err := parseLimit(r)
+	if err != nil {
+		httpx.ValidationError(w, r, map[string]any{"limit": "invalid integer"})
+		return
+	}
 	cursor := r.URL.Query().Get("cursor")
 	filter := ports.PageFilter{}
 	if v := r.URL.Query().Get("status"); v != "" {
@@ -173,7 +178,11 @@ func (h *Handler) listSections(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit, err := parseLimit(r)
+	if err != nil {
+		httpx.ValidationError(w, r, map[string]any{"limit": "invalid integer"})
+		return
+	}
 	cursor := r.URL.Query().Get("cursor")
 	filter := ports.SectionFilter{}
 	if v := r.URL.Query().Get("status"); v != "" {
@@ -310,6 +319,14 @@ func (h *Handler) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 	default:
 		httpx.RespondError(w, r, httpx.ErrorFrom(err))
 	}
+}
+
+func parseLimit(r *http.Request) (int, error) {
+	v := r.URL.Query().Get("limit")
+	if v == "" {
+		return 0, nil
+	}
+	return strconv.Atoi(v)
 }
 
 func nullIfEmpty(v string) any {

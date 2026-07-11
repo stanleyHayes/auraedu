@@ -17,11 +17,14 @@ export interface ActionResult {
   error?: string;
 }
 
-export async function recordAttendance(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
-  const studentId = String(formData.get("student_id") ?? "").trim();
-  const academicYearId = String(formData.get("academic_year_id") ?? "").trim();
-  const date = String(formData.get("date") ?? "").trim();
-  const status = String(formData.get("status") ?? "").trim();
+export async function recordAttendance(
+  _prev: ActionResult | undefined,
+  formData: FormData,
+): Promise<ActionResult> {
+  const studentId = String((formData.get("student_id") as string | null) ?? "").trim();
+  const academicYearId = String((formData.get("academic_year_id") as string | null) ?? "").trim();
+  const date = String((formData.get("date") as string | null) ?? "").trim();
+  const status = String((formData.get("status") as string | null) ?? "").trim();
 
   if (!studentId || !academicYearId || !date || !status) {
     return { error: "All fields are required." };
@@ -42,10 +45,13 @@ export async function recordAttendance(_prev: ActionResult | undefined, formData
   }
 }
 
-export async function recordScore(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
-  const assessmentId = String(formData.get("assessment_id") ?? "").trim();
-  const studentId = String(formData.get("student_id") ?? "").trim();
-  const scoreRaw = String(formData.get("score") ?? "").trim();
+export async function recordScore(
+  _prev: ActionResult | undefined,
+  formData: FormData,
+): Promise<ActionResult> {
+  const assessmentId = String((formData.get("assessment_id") as string | null) ?? "").trim();
+  const studentId = String((formData.get("student_id") as string | null) ?? "").trim();
+  const scoreRaw = String((formData.get("score") as string | null) ?? "").trim();
   const score = Number(scoreRaw);
 
   if (!assessmentId || !studentId || !scoreRaw || Number.isNaN(score)) {

@@ -1,3 +1,4 @@
+// Package domain contains the analytics-service aggregate roots and value objects.
 package domain
 
 import (

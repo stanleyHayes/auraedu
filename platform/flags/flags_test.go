@@ -29,10 +29,10 @@ func TestRequireEnabled(t *testing.T) {
 	s.Set("upshs", "billing", true)
 
 	ctx := context.Background()
-	if err := RequireEnabled(s, ctx, "upshs", "billing"); err != nil {
+	if err := RequireEnabled(ctx, s, "upshs", "billing"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if err := RequireEnabled(s, ctx, "upshs", "cbt_exams"); err == nil {
+	if err := RequireEnabled(ctx, s, "upshs", "cbt_exams"); err == nil {
 		t.Fatal("expected feature disabled error")
 	}
 }
@@ -49,7 +49,7 @@ features:
     plan_required: professional
     defaults: { upshs: on, aboom: off }
 `
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 		t.Fatalf("write file: %v", err)
 	}
 

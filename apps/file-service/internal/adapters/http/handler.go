@@ -1,3 +1,4 @@
+// Package http adapts HTTP requests to the file-service application.
 package http
 
 import (
@@ -5,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -47,7 +49,7 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit := parseLimit(r.URL.Query().Get("limit"))
 	cursor := r.URL.Query().Get("cursor")
 	files, nextCursor, err := h.svc.List(ctx, actor, limit, cursor)
 	if err != nil {
@@ -62,7 +64,7 @@ func (h *Handler) usage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit := parseLimit(r.URL.Query().Get("limit"))
 	records, err := h.svc.GetUsage(ctx, actor, limit)
 	if err != nil {
 		h.writeErr(w, r, err)
@@ -76,7 +78,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
+	if err := r.ParseMultipartForm(maxUploadSize); err != nil { //nolint:gosec // bounded by maxUploadSize constant (32 MiB)
 		if errors.Is(err, http.ErrNotMultipart) {
 			httpx.ValidationError(w, r, map[string]any{"body": "multipart/form-data required"})
 			return
@@ -84,14 +86,24 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		httpx.ValidationError(w, r, map[string]any{"body": "failed to parse multipart form"})
 		return
 	}
-	defer r.MultipartForm.RemoveAll()
+	defer func() {
+		if r.MultipartForm != nil {
+			if err := r.MultipartForm.RemoveAll(); err != nil {
+				slog.Default().ErrorContext(ctx, "failed to remove multipart form", "err", err)
+			}
+		}
+	}()
 
 	fileHeader, fileInfo, err := r.FormFile("file")
 	if err != nil {
 		httpx.ValidationError(w, r, map[string]any{"file": "file part is required"})
 		return
 	}
-	defer fileHeader.Close()
+	defer func() {
+		if err := fileHeader.Close(); err != nil {
+			slog.Default().ErrorContext(ctx, "failed to close uploaded file", "err", err)
+		}
+	}()
 
 	data, err := io.ReadAll(fileHeader)
 	if err != nil {
@@ -99,7 +111,11 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	metadata, _ := parseMetadata(r.FormValue("metadata"))
+	metadata, err := parseMetadata(r.FormValue("metadata"))
+	if err != nil {
+		http.Error(w, "invalid metadata JSON", http.StatusBadRequest)
+		return
+	}
 
 	uploaded, err := h.svc.Create(ctx, actor, application.CreateFileRequest{
 		OriginalFilename: fileInfo.Filename,
@@ -150,7 +166,11 @@ func (h *Handler) cloudinaryWebhook(w http.ResponseWriter, r *http.Request) {
 		httpx.RespondError(w, r, httpx.Error{Code: httpx.ErrInternal, Message: "failed to read body"})
 		return
 	}
-	timestamp, _ := strconv.ParseInt(r.Header.Get("X-Cld-Timestamp"), 10, 64)
+	timestamp, err := strconv.ParseInt(r.Header.Get("X-Cld-Timestamp"), 10, 64)
+	if err != nil {
+		http.Error(w, "missing timestamp", http.StatusBadRequest)
+		return
+	}
 	signature := r.Header.Get("X-Cld-Signature")
 
 	ctx, _, _ := h.context(r)
@@ -274,13 +294,19 @@ func (h *Handler) download(w http.ResponseWriter, r *http.Request) {
 		h.writeErr(w, r, err)
 		return
 	}
-	defer rc.Close()
+	defer func() {
+		if err := rc.Close(); err != nil {
+			slog.Default().ErrorContext(ctx, "failed to close download reader", "err", err)
+		}
+	}()
 
 	w.Header().Set("Content-Type", file.ContentType)
 	w.Header().Set("Content-Length", strconv.FormatInt(file.SizeBytes, 10))
 	w.Header().Set("Content-Disposition", "attachment; filename=\""+file.OriginalFilename+"\"")
 	w.WriteHeader(http.StatusOK)
-	_, _ = io.Copy(w, rc)
+	if _, err := io.Copy(w, rc); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to stream download", "err", err)
+	}
 }
 
 func (h *Handler) context(r *http.Request) (context.Context, auth.Actor, bool) {
@@ -333,4 +359,15 @@ func parseMetadata(raw string) (map[string]any, error) {
 		return nil, err
 	}
 	return m, nil
+}
+
+func parseLimit(s string) int {
+	n, err := strconv.Atoi(s)
+	if err != nil || n <= 0 {
+		return 25
+	}
+	if n > 100 {
+		return 100
+	}
+	return n
 }

@@ -1,3 +1,4 @@
+// Package postgres provides Postgres-backed repositories for the file service.
 package postgres
 
 import (

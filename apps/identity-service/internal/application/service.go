@@ -32,7 +32,13 @@ type Service struct {
 	serviceName string
 }
 
-func NewService(repo ports.Repository, sessions ports.SessionStore, publisher ports.EventPublisher, signingKey []byte, accessTTL, refreshTTL time.Duration) *Service {
+func NewService(
+	repo ports.Repository,
+	sessions ports.SessionStore,
+	publisher ports.EventPublisher,
+	signingKey []byte,
+	accessTTL, refreshTTL time.Duration,
+) *Service {
 	return &Service{
 		repo:        repo,
 		sessions:    sessions,
@@ -50,8 +56,10 @@ func (s *Service) WithClock(now func() time.Time) *Service { s.now = now; return
 func (s *Service) Login(ctx context.Context, email, password string) (accessToken, refreshToken string, user domain.User, expires time.Time, err error) {
 	found, cred, ok, err := s.repo.FindByEmail(ctx, email)
 	if err != nil || !ok {
-		dummy, _ := domain.NewCredential("timing-equaliser")
-		dummy.Verify(password)
+		dummy, credErr := domain.NewCredential("timing-equalizer")
+		if credErr == nil {
+			dummy.Verify(password)
+		}
 		return "", "", domain.User{}, time.Time{}, domain.ErrInvalidCredentials
 	}
 	if !cred.Verify(password) {
@@ -183,11 +191,13 @@ func (s *Service) UpdateUser(ctx context.Context, actor auth.Actor, id string, i
 		return domain.User{}, err
 	}
 	if input.Role != nil && *input.Role != existing.Role {
-		_ = s.publisher.Publish(ctx, s.newEvent(existing.TenantID, "user.role_changed.v1", map[string]any{
+		if err := s.publisher.Publish(ctx, s.newEvent(existing.TenantID, "user.role_changed.v1", map[string]any{
 			"user_id":       id,
 			"previous_role": existing.Role,
 			"new_role":      *input.Role,
-		}))
+		})); err != nil {
+			return domain.User{}, err
+		}
 	}
 	return s.repo.GetUser(ctx, id)
 }
@@ -223,12 +233,14 @@ func (s *Service) AssignRole(ctx context.Context, actor auth.Actor, id, role str
 	if err := s.repo.UpdateUser(ctx, id, u); err != nil {
 		return domain.User{}, err
 	}
-	_ = s.publisher.Publish(ctx, s.newEvent(existing.TenantID, "user.role_changed.v1", map[string]any{
+	if err := s.publisher.Publish(ctx, s.newEvent(existing.TenantID, "user.role_changed.v1", map[string]any{
 		"user_id":       id,
 		"previous_role": existing.Role,
 		"new_role":      role,
 		"permissions":   permissions,
-	}))
+	})); err != nil {
+		return domain.User{}, err
+	}
 	return s.repo.GetUser(ctx, id)
 }
 
@@ -307,7 +319,7 @@ func (s *Service) InviteUser(ctx context.Context, actor auth.Actor, input Invite
 	if err := s.repo.SaveInvite(ctx, tenantID, email, input.Role, input.Permissions, tokenHash, &invitedBy, expires); err != nil {
 		return "", err
 	}
-	_ = s.publisher.Publish(ctx, s.newEvent(tenantID, "notification.requested.v1", map[string]any{
+	if err := s.publisher.Publish(ctx, s.newEvent(tenantID, "notification.requested.v1", map[string]any{
 		"channel":   "email",
 		"recipient": email,
 		"template":  "user_invite",
@@ -317,7 +329,9 @@ func (s *Service) InviteUser(ctx context.Context, actor auth.Actor, input Invite
 			"invite_token": token,
 			"expires_days": 7,
 		},
-	}))
+	})); err != nil {
+		return "", err
+	}
 	return token, nil
 }
 
@@ -375,7 +389,9 @@ func (s *Service) issueSession(ctx context.Context, u domain.User) (string, stri
 		return "", "", domain.User{}, time.Time{}, err
 	}
 	if s.sessions != nil {
-		_ = s.sessions.Save(ctx, u.TenantID, u.ID, refreshHash, s.refreshTTL)
+		if err := s.sessions.Save(ctx, u.TenantID, u.ID, refreshHash, s.refreshTTL); err != nil {
+			return "", "", domain.User{}, time.Time{}, err
+		}
 	}
 	return accessToken, refreshToken, u, expires, nil
 }

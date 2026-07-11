@@ -68,7 +68,9 @@ func main() {
 	<-stop
 	ctxShutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_ = srv.Shutdown(ctxShutdown)
+	if err := srv.Shutdown(ctxShutdown); err != nil {
+		log.Error("server shutdown error", "err", err)
+	}
 	log.Info(service + " stopped")
 }
 

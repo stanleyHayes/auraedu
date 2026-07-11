@@ -1,6 +1,6 @@
 # identity-service — hermetic single-module build (go.mod replaces platform → ../../platform).
 # Build from repo root: docker build -f apps/identity-service/Dockerfile .
-FROM golang:1.25-alpine AS build
+FROM golang:1.26.5-alpine AS build
 WORKDIR /src
 COPY platform/ ./platform/
 COPY apps/identity-service/ ./apps/identity-service/

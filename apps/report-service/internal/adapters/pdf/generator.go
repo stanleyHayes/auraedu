@@ -1,3 +1,4 @@
+// Package pdf renders report card PDFs.
 package pdf
 
 import (

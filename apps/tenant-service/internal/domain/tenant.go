@@ -2,7 +2,7 @@
 // A tenant is a school; every tenant has branding and a set of feature flags.
 package domain
 
-// Brand is a school's colour palette. Primary replaces --color-brand in the UI
+// Brand is a school's color palette. Primary replaces --color-brand in the UI
 // (BRAND.md §5); the chalkboard neutrals stay constant across tenants.
 type Brand struct {
 	Primary   string `json:"primary"`

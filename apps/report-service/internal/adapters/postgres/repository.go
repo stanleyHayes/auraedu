@@ -1,3 +1,4 @@
+// Package postgres persists report aggregates in PostgreSQL.
 package postgres
 
 import (
@@ -61,7 +62,11 @@ func (r *Repository) GetReportTemplateByID(ctx context.Context, tenantID, id str
 	return t, err
 }
 
-func (r *Repository) ListReportTemplates(ctx context.Context, tenantID string, filter ports.ReportTemplateListFilter) ([]*domain.ReportTemplate, string, error) {
+func (r *Repository) ListReportTemplates(
+	ctx context.Context,
+	tenantID string,
+	filter ports.ReportTemplateListFilter,
+) ([]*domain.ReportTemplate, string, error) {
 	var out []*domain.ReportTemplate
 	var nextCursor string
 	err := r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {

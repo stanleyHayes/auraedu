@@ -2,11 +2,29 @@
 
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai_recommendation_service.models import FeatureStoreMetric, Recommendation
+
+_LOOKBACK_DAYS = 180
+_CONFIDENCE_BASE = 0.4
+_CONFIDENCE_STEP = 0.11
+_CONFIDENCE_CAP = 0.95
+_CONTRIBUTION_ROUND = 2
+_STRONG_NEGATIVE_THRESHOLD = -0.2
+_NEGATIVE_THRESHOLD = -0.05
+_POSITIVE_THRESHOLD = 0.05
+_STRONG_POSITIVE_THRESHOLD = 0.2
+_ATTENDANCE_THRESHOLD = 0.75
+_SCORE_THRESHOLD = 60.0
+_COMPLETION_THRESHOLD = 0.7
+
+
+def _average(values: list[float]) -> float:
+    return sum(values) / len(values) if values else 0.0
 
 
 async def fetch_student_metrics(
@@ -14,7 +32,7 @@ async def fetch_student_metrics(
     tenant_id: str,
     student_id: str,
 ) -> list[FeatureStoreMetric]:
-    since = datetime.now(UTC) - timedelta(days=180)
+    since = datetime.now(UTC) - timedelta(days=_LOOKBACK_DAYS)
     stmt = (
         select(FeatureStoreMetric)
         .where(
@@ -36,30 +54,22 @@ def _aggregate_metrics(metrics: list[FeatureStoreMetric]) -> dict[str, list[floa
 
 
 def _confidence(sample_count: int) -> float:
-    """Simple confidence curve: more samples -> higher confidence, capped at 0.95."""
-    return round(min(0.4 + sample_count * 0.11, 0.95), 2)
+    """Simple confidence curve: more samples -> higher confidence, capped."""
+    return round(min(_CONFIDENCE_BASE + sample_count * _CONFIDENCE_STEP, _CONFIDENCE_CAP), 2)
 
 
 def _contribution(value: float, threshold: float, higher_is_better: bool) -> str:
     diff = (value - threshold) / threshold if threshold else 0.0
-    if higher_is_better:
-        if diff <= -0.2:
-            return "strong_negative"
-        if diff < -0.05:
-            return "negative"
-        if diff >= 0.2:
-            return "strong_positive"
-        if diff > 0.05:
-            return "positive"
-    else:
-        if diff >= 0.2:
-            return "strong_negative"
-        if diff > 0.05:
-            return "negative"
-        if diff <= -0.2:
-            return "strong_positive"
-        if diff < -0.05:
-            return "positive"
+    sign = 1 if higher_is_better else -1
+    signed_diff = diff * sign
+    if signed_diff <= _STRONG_NEGATIVE_THRESHOLD:
+        return "strong_negative"
+    if signed_diff < _NEGATIVE_THRESHOLD:
+        return "negative"
+    if signed_diff >= _STRONG_POSITIVE_THRESHOLD:
+        return "strong_positive"
+    if signed_diff > _POSITIVE_THRESHOLD:
+        return "positive"
     return "neutral"
 
 
@@ -80,13 +90,13 @@ async def generate_recommendations(
     # Attendance intervention
     attendance_values = buckets.get("attendance_rate", [])
     if attendance_values and include("attendance_intervention"):
-        avg_attendance = sum(attendance_values) / len(attendance_values)
-        if avg_attendance < 0.75:
+        avg_attendance = _average(attendance_values)
+        if avg_attendance < _ATTENDANCE_THRESHOLD:
             factors = [
                 {
                     "metric_key": "attendance_rate",
-                    "value": round(avg_attendance, 2),
-                    "contribution": _contribution(avg_attendance, 0.75, True),
+                    "value": round(avg_attendance, _CONTRIBUTION_ROUND),
+                    "contribution": _contribution(avg_attendance, _ATTENDANCE_THRESHOLD, True),
                 }
             ]
             recommendations.append(
@@ -108,13 +118,13 @@ async def generate_recommendations(
     # Academic support
     score_values = buckets.get("average_score", []) + buckets.get("assessment_score", [])
     if score_values and include("academic_support"):
-        avg_score = sum(score_values) / len(score_values)
-        if avg_score < 60.0:
+        avg_score = _average(score_values)
+        if avg_score < _SCORE_THRESHOLD:
             factors = [
                 {
                     "metric_key": "average_score",
-                    "value": round(avg_score, 2),
-                    "contribution": _contribution(avg_score, 60.0, True),
+                    "value": round(avg_score, _CONTRIBUTION_ROUND),
+                    "contribution": _contribution(avg_score, _SCORE_THRESHOLD, True),
                 }
             ]
             recommendations.append(
@@ -136,13 +146,13 @@ async def generate_recommendations(
     # Assignment completion
     completion_values = buckets.get("assignment_completion_rate", [])
     if completion_values and include("assignment_completion"):
-        avg_completion = sum(completion_values) / len(completion_values)
-        if avg_completion < 0.7:
+        avg_completion = _average(completion_values)
+        if avg_completion < _COMPLETION_THRESHOLD:
             factors = [
                 {
                     "metric_key": "assignment_completion_rate",
-                    "value": round(avg_completion, 2),
-                    "contribution": _contribution(avg_completion, 0.7, True),
+                    "value": round(avg_completion, _CONTRIBUTION_ROUND),
+                    "contribution": _contribution(avg_completion, _COMPLETION_THRESHOLD, True),
                 }
             ]
             recommendations.append(
@@ -185,7 +195,7 @@ async def generate_recommendations(
 async def build_explanation(
     session: AsyncSession,
     recommendation: Recommendation,
-) -> dict:
+) -> dict[str, Any]:
     """Build explainability payload for a recommendation."""
     metrics = await fetch_student_metrics(
         session,
@@ -193,24 +203,24 @@ async def build_explanation(
         recommendation.student_id,
     )
     buckets = _aggregate_metrics(metrics)
-    factors: list[dict] = []
+    factors: list[dict[str, Any]] = []
 
     thresholds = {
-        "attendance_rate": (0.75, True),
-        "average_score": (60.0, True),
-        "assessment_score": (60.0, True),
-        "assignment_completion_rate": (0.7, True),
+        "attendance_rate": (_ATTENDANCE_THRESHOLD, True),
+        "average_score": (_SCORE_THRESHOLD, True),
+        "assessment_score": (_SCORE_THRESHOLD, True),
+        "assignment_completion_rate": (_COMPLETION_THRESHOLD, True),
     }
 
     for key, values in buckets.items():
         if not values:
             continue
-        avg = sum(values) / len(values)
+        avg = _average(values)
         threshold, higher_is_better = thresholds.get(key, (avg, True))
         factors.append(
             {
                 "metric_key": key,
-                "value": round(avg, 2),
+                "value": round(avg, _CONTRIBUTION_ROUND),
                 "contribution": _contribution(avg, threshold, higher_is_better),
             }
         )

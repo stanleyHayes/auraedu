@@ -38,7 +38,10 @@ func TestNewWebhookEvent_Valid(t *testing.T) {
 }
 
 func TestWebhookEvent_MarkProcessed(t *testing.T) {
-	w, _ := domain.NewWebhookEvent("mock", "charge.success", []byte(`{}`), nil)
+	w, err := domain.NewWebhookEvent("mock", "charge.success", []byte(`{}`), nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	w.MarkProcessed()
 	if !w.Processed {
 		t.Fatal("expected webhook processed")

@@ -5,6 +5,7 @@ package application
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 
 	"github.com/auraedu/platform/auth"
@@ -26,7 +27,7 @@ func WithPublisher(pub ports.EventPublisher) Option { return func(s *Service) { 
 
 type noopPublisher struct{}
 
-func (noopPublisher) Publish(ctx context.Context, eventType, tenantCode string, payload map[string]any) error {
+func (noopPublisher) Publish(_ context.Context, _, _ string, _ map[string]any) error {
 	return nil
 }
 
@@ -59,11 +60,13 @@ func (s *Service) CreateTenant(actor auth.Actor, t domain.Tenant) (domain.Tenant
 	if err := s.repo.CreateTenant(t); err != nil {
 		return domain.Tenant{}, err
 	}
-	_ = s.pub.Publish(context.Background(), "tenant.created.v1", t.Code, map[string]any{
+	if err := s.pub.Publish(context.Background(), "tenant.created.v1", t.Code, map[string]any{
 		"tenant_code": t.Code,
 		"name":        t.Name,
 		"plan":        t.Plan,
-	})
+	}); err != nil {
+		slog.Default().ErrorContext(context.Background(), "failed to publish tenant.created event", "err", err)
+	}
 	return t, nil
 }
 
@@ -75,7 +78,7 @@ func (s *Service) GetTenant(actor auth.Actor, code string) (domain.Tenant, error
 	return s.repo.GetTenant(code)
 }
 
-// Branding is PUBLIC by design: a school's logo/colours theme the login page before
+// Branding is PUBLIC by design: a school's logo/colors theme the login page before
 // authentication (BRAND.md §5, DESIGN_SYSTEM §17). It exposes no sensitive data.
 func (s *Service) Branding(code string) (domain.Branding, error) {
 	t, err := s.repo.GetTenant(code)
@@ -127,11 +130,13 @@ func (s *Service) SetFeature(actor auth.Actor, code, key string, enabled bool) (
 	if enabled {
 		eventType = "tenant.feature_enabled.v1"
 	}
-	_ = s.pub.Publish(context.Background(), eventType, code, map[string]any{
+	if err := s.pub.Publish(context.Background(), eventType, code, map[string]any{
 		"feature_key": key,
 		"is_enabled":  enabled,
 		"plan":        flag.PlanRequired,
-	})
+	}); err != nil {
+		slog.Default().ErrorContext(context.Background(), "failed to publish tenant.feature event", "err", err)
+	}
 	return flag, nil
 }
 

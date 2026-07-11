@@ -1,3 +1,4 @@
+// Package domain contains the tenant service business rules and domain errors.
 package domain
 
 import "errors"

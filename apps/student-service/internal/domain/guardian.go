@@ -10,15 +10,15 @@ import (
 
 // Guardian represents a parent or legal guardian of one or more students.
 type Guardian struct {
-	ID          string    `json:"id"`
-	TenantID    string    `json:"tenant_id"`
-	FirstName   string    `json:"first_name"`
-	LastName    string    `json:"last_name"`
-	Relationship string   `json:"relationship"`
-	Phone       *string   `json:"phone,omitempty"`
-	Email       *string   `json:"email,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID           string    `json:"id"`
+	TenantID     string    `json:"tenant_id"`
+	FirstName    string    `json:"first_name"`
+	LastName     string    `json:"last_name"`
+	Relationship string    `json:"relationship"`
+	Phone        *string   `json:"phone,omitempty"`
+	Email        *string   `json:"email,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 // FullName returns the guardian's display name.
@@ -109,13 +109,13 @@ func (g *Guardian) ApplyUpdate(firstName, lastName, relationship, phone, email *
 
 // StudentGuardian links a student to a guardian within a tenant.
 type StudentGuardian struct {
-	ID          string    `json:"id"`
-	TenantID    string    `json:"tenant_id"`
-	StudentID   string    `json:"student_id"`
-	GuardianID  string    `json:"guardian_id"`
-	Relationship *string  `json:"relationship,omitempty"`
-	IsPrimary   bool      `json:"is_primary"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID           string    `json:"id"`
+	TenantID     string    `json:"tenant_id"`
+	StudentID    string    `json:"student_id"`
+	GuardianID   string    `json:"guardian_id"`
+	Relationship *string   `json:"relationship,omitempty"`
+	IsPrimary    bool      `json:"is_primary"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 // NewStudentGuardian creates a link record after validating required IDs.

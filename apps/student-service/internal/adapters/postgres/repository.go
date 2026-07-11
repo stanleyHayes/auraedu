@@ -1,3 +1,4 @@
+// Package postgres persists student aggregates in PostgreSQL.
 package postgres
 
 import (
@@ -183,7 +184,7 @@ func (r *Repository) GetGuardianByID(ctx context.Context, tenantID, id string) (
 	return g, err
 }
 
-func (r *Repository) ListGuardiansByStudent(ctx context.Context, tenantID, studentID string, limit int, cursor string) ([]*domain.Guardian, string, error) {
+func (r *Repository) ListGuardiansByStudent(ctx context.Context, tenantID, studentID string, limit int, _ string) ([]*domain.Guardian, string, error) {
 	var out []*domain.Guardian
 	var nextCursor string
 	err := r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {

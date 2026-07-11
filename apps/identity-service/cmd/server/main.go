@@ -49,7 +49,7 @@ func main() {
 	handler := svchttp.NewHandler(svc)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"service": service, "version": version, "status": "healthy"})
 	})
 	handler.Register(mux)
@@ -77,7 +77,9 @@ func main() {
 	<-stop
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_ = srv.Shutdown(shutdownCtx)
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Error("server shutdown error", "err", err)
+	}
 	log.Info(service + " stopped")
 }
 

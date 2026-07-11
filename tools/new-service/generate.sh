@@ -51,7 +51,9 @@ mkdir -p "$DIR"/cmd/server "$DIR"/cmd/worker \
 cat > "$DIR/go.mod" <<'EOF'
 module %%MODULE%%
 
-go 1.25
+go 1.26.5
+
+toolchain go1.26.5
 
 require github.com/auraedu/platform v0.0.0
 
@@ -347,7 +349,7 @@ for d in migrations tests/integration tests/contract tests/tenant_isolation; do 
 cat > "$DIR/Dockerfile" <<'EOF'
 # %%DIR%% — hermetic single-module build (go.mod replaces platform → ../../platform).
 # Build from the repo root: docker build -f apps/%%DIR%%/Dockerfile .
-FROM golang:1.25-alpine AS build
+FROM golang:1.26.5-alpine AS build
 WORKDIR /src
 COPY platform/ ./platform/
 COPY apps/%%DIR%%/ ./apps/%%DIR%%/

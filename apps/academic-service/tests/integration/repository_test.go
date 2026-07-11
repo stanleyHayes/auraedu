@@ -15,24 +15,24 @@ import (
 const tenantA = "11111111-1111-1111-1111-111111111111"
 const tenantB = "22222222-2222-2222-2222-222222222222"
 
-func newRepo(t *testing.T) (ports.Repository, *testkit.PostgresTestDB) {
+func newRepo(t *testing.T) ports.Repository {
 	t.Helper()
 	ctx := context.Background()
 	tdb := testkit.NewPostgres(ctx, t, "../../migrations")
-	return postgres.NewRepository(tdb.DB), tdb
+	return postgres.NewRepository(tdb.DB)
 }
 
 func withTenant(ctx context.Context, tenantID string) context.Context {
 	return tenancy.WithContext(ctx, tenancy.TenantContext{TenantID: tenantID})
 }
 
-func mustCreateYear(t *testing.T, ctx context.Context, repo ports.Repository, tenantID, name, start, end string) *domain.AcademicYear {
+func mustCreateYear(ctx context.Context, t *testing.T, repo ports.Repository, name, start, end string) *domain.AcademicYear {
 	t.Helper()
-	y, err := domain.NewAcademicYear(tenantID, name, "", start, end, false)
+	y, err := domain.NewAcademicYear(tenantA, name, "", start, end, false)
 	if err != nil {
 		t.Fatalf("new academic year: %v", err)
 	}
-	if err := repo.Create(ctx, tenantID, y); err != nil {
+	if err := repo.Create(ctx, tenantA, y); err != nil {
 		t.Fatalf("create academic year: %v", err)
 	}
 	return y
@@ -40,9 +40,9 @@ func mustCreateYear(t *testing.T, ctx context.Context, repo ports.Repository, te
 
 func TestRepository_CreateAndGet(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	y := mustCreateYear(t, ctx, repo, tenantA, "2025/26", "2025-09-01", "2026-07-31")
+	y := mustCreateYear(ctx, t, repo, "2025/26", "2025-09-01", "2026-07-31")
 
 	got, err := repo.GetByID(ctx, tenantA, y.ID)
 	if err != nil {
@@ -55,10 +55,10 @@ func TestRepository_CreateAndGet(t *testing.T) {
 
 func TestRepository_ListPagination(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	mustCreateYear(t, ctx, repo, tenantA, "2024/25", "2024-09-01", "2025-07-31")
-	y2 := mustCreateYear(t, ctx, repo, tenantA, "2025/26", "2025-09-01", "2026-07-31")
+	mustCreateYear(ctx, t, repo, "2024/25", "2024-09-01", "2025-07-31")
+	y2 := mustCreateYear(ctx, t, repo, "2025/26", "2025-09-01", "2026-07-31")
 
 	page, next, err := repo.List(ctx, tenantA, 1, "")
 	if err != nil {
@@ -82,9 +82,9 @@ func TestRepository_ListPagination(t *testing.T) {
 
 func TestRepository_Update(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	y := mustCreateYear(t, ctx, repo, tenantA, "2025/26", "2025-09-01", "2026-07-31")
+	y := mustCreateYear(ctx, t, repo, "2025/26", "2025-09-01", "2026-07-31")
 	newName := "2025/2026 Academic Year"
 	if _, err := y.ApplyUpdate(&newName, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("apply update: %v", err)
@@ -104,9 +104,9 @@ func TestRepository_Update(t *testing.T) {
 
 func TestRepository_Delete(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	y := mustCreateYear(t, ctx, repo, tenantA, "2025/26", "2025-09-01", "2026-07-31")
+	y := mustCreateYear(ctx, t, repo, "2025/26", "2025-09-01", "2026-07-31")
 	if err := repo.Delete(ctx, tenantA, y.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
@@ -117,10 +117,10 @@ func TestRepository_Delete(t *testing.T) {
 
 func TestRepository_TenantIsolation(t *testing.T) {
 	ctx := context.Background()
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	aCtx := withTenant(ctx, tenantA)
-	y := mustCreateYear(t, aCtx, repo, tenantA, "Tenant A Year", "2025-09-01", "2026-07-31")
+	y := mustCreateYear(aCtx, t, repo, "Tenant A Year", "2025-09-01", "2026-07-31")
 
 	bCtx := withTenant(ctx, tenantB)
 	if _, err := repo.GetByID(bCtx, tenantB, y.ID); err == nil {

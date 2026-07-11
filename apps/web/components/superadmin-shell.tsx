@@ -7,5 +7,5 @@ import { logoutAction } from "@/lib/actions";
 export type SuperAdminShellProps = Omit<PortalShellProps, "onLogout">;
 
 export function SuperAdminShell(props: SuperAdminShellProps) {
-  return <PortalShell {...props} onLogout={() => logoutAction()} />;
+  return <PortalShell {...props} onLogout={() => void logoutAction()} />;
 }

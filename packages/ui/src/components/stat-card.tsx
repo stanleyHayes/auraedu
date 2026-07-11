@@ -32,7 +32,9 @@ export function StatCard({ label, value, unit, tone = "default", className }: St
         style={{ fontFamily: "var(--font-display)" }}
       >
         {value}
-        {unit ? <small className="text-sm font-bold text-[var(--muted-foreground)]"> {unit}</small> : null}
+        {unit ? (
+          <small className="text-sm font-bold text-[var(--muted-foreground)]"> {unit}</small>
+        ) : null}
       </div>
     </div>
   );

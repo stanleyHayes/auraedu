@@ -63,7 +63,9 @@ export default async function AuditLogsPage() {
               key: "resource",
               header: "Resource",
               cell: (l) =>
-                l.resource_type ? `${l.resource_type}${l.resource_id ? `:${l.resource_id}` : ""}` : "—",
+                l.resource_type
+                  ? `${l.resource_type}${l.resource_id ? `:${l.resource_id}` : ""}`
+                  : "—",
             },
             {
               key: "tenant",

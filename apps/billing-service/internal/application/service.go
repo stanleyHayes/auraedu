@@ -1,9 +1,11 @@
+// Package application implements the billing use cases and RBAC policy.
 package application
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -240,7 +242,7 @@ func (s *Service) CreateSubscriptionForTenant(ctx context.Context, tenantID, pla
 	}
 	now := s.now().UTC()
 	trialEndsAt := now.AddDate(0, 0, 14)
-	periodEnd := trialEndsAt
+	var periodEnd time.Time
 	if plan.BillingInterval == string(domain.BillingIntervalYearly) {
 		periodEnd = now.AddDate(1, 0, 0)
 	} else {
@@ -256,16 +258,20 @@ func (s *Service) CreateSubscriptionForTenant(ctx context.Context, tenantID, pla
 	if err := s.subRepo.Create(ctx, tenantID, sub); err != nil {
 		return nil, err
 	}
-	_ = s.pub.PublishSubscription(ctx, "billing.subscription_changed.v1", sub, map[string]any{
+	if err := s.pub.PublishSubscription(ctx, "billing.subscription_changed.v1", sub, map[string]any{
 		"tenant_id": tenantID,
 		"plan_key":  plan.Code,
 		"status":    sub.Status,
-	})
-	_ = s.pub.PublishSubscription(ctx, "billing.trial_started.v1", sub, map[string]any{
+	}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish subscription changed event", "err", err)
+	}
+	if err := s.pub.PublishSubscription(ctx, "billing.trial_started.v1", sub, map[string]any{
 		"tenant_id":     tenantID,
 		"plan_key":      plan.Code,
 		"trial_ends_at": trialEndsAt.Format(time.RFC3339),
-	})
+	}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish trial started event", "err", err)
+	}
 	return sub, nil
 }
 
@@ -339,16 +345,20 @@ func (s *Service) ChangeSubscriptionPlan(ctx context.Context, actor auth.Actor, 
 	if err := s.subRepo.Update(ctx, tenantID, sub); err != nil {
 		return nil, err
 	}
-	_ = s.pub.PublishSubscription(ctx, "billing.subscription_changed.v1", sub, map[string]any{
+	if err := s.pub.PublishSubscription(ctx, "billing.subscription_changed.v1", sub, map[string]any{
 		"tenant_id": tenantID,
 		"plan_key":  newPlan.Code,
 		"status":    sub.Status,
-	})
+	}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish subscription changed event", "err", err)
+	}
 	if newPlan.PriceCents > currentPlan.PriceCents {
-		_ = s.pub.PublishPlan(ctx, "billing.plan_upgraded.v1", newPlan, map[string]any{
+		if err := s.pub.PublishPlan(ctx, "billing.plan_upgraded.v1", newPlan, map[string]any{
 			"tenant_id":     tenantID,
 			"previous_plan": previousPlanCode,
-		})
+		}); err != nil {
+			slog.Default().ErrorContext(ctx, "failed to publish plan upgraded event", "err", err)
+		}
 	}
 	return sub, nil
 }
@@ -399,9 +409,11 @@ func (s *Service) CreateInvoice(ctx context.Context, actor auth.Actor, req Creat
 	if err := s.invRepo.Create(ctx, tenantID, inv); err != nil {
 		return nil, err
 	}
-	_ = s.pub.PublishInvoice(ctx, "billing.invoice_created.v1", inv, map[string]any{
+	if err := s.pub.PublishInvoice(ctx, "billing.invoice_created.v1", inv, map[string]any{
 		"tenant_id": tenantID,
-	})
+	}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish invoice created event", "err", err)
+	}
 	return inv, nil
 }
 

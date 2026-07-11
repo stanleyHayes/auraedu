@@ -1,3 +1,4 @@
+// Package domain contains the CBT aggregates and value objects.
 package domain
 
 import (
@@ -145,7 +146,7 @@ func (s *Submission) ApplyUpdate(answers map[string]string, status *string, scor
 // Submit transitions the submission to submitted, storing the final answers.
 func (s *Submission) Submit(answers map[string]string) error {
 	now := time.Now().UTC()
-	changed, err := s.ApplyUpdate(answers, (*string)(strPtr(string(SubmissionStatusSubmitted))), nil, nil)
+	changed, err := s.ApplyUpdate(answers, strPtr(string(SubmissionStatusSubmitted)), nil, nil)
 	if err != nil {
 		return err
 	}
@@ -157,7 +158,7 @@ func (s *Submission) Submit(answers map[string]string) error {
 // Grade transitions the submission to graded, setting score and max_score.
 func (s *Submission) Grade(score, maxScore int) error {
 	now := time.Now().UTC()
-	changed, err := s.ApplyUpdate(nil, (*string)(strPtr(string(SubmissionStatusGraded))), &score, &maxScore)
+	changed, err := s.ApplyUpdate(nil, strPtr(string(SubmissionStatusGraded)), &score, &maxScore)
 	if err != nil {
 		return err
 	}

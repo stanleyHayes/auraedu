@@ -10,11 +10,12 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit",
+    "lint": "eslint .",
     "build": "echo \"@auraedu/tokens: source-only package\"",
     "test": "echo \"no tests\""
   },
   "devDependencies": {
-    "typescript": "^5.9.2"
+    "eslint": "^10.7.0",
+    "typescript": "^6.0.3"
   }
 }

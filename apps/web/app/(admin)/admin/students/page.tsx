@@ -12,7 +12,9 @@ export default async function StudentsPage() {
 
   try {
     const client = await createServerClient();
-    const res = await client.get<OpenAPI.student_v1.components["schemas"]["StudentList"]>("/api/v1/students?limit=50");
+    const res = await client.get<OpenAPI.student_v1.components["schemas"]["StudentList"]>(
+      "/api/v1/students?limit=50",
+    );
     students = res.data ?? [];
   } catch (e) {
     error = e instanceof Error ? e.message : "Failed to load students";

@@ -7,7 +7,7 @@ SHELL := /bin/bash
 # Go workspace mode rejects a global `-mod=mod`; force readonly so `make` targets
 # work regardless of a developer's global `go env -w GOFLAGS=...` (see README).
 export GOFLAGS := -mod=readonly
-export GOTOOLCHAIN := local
+export GOTOOLCHAIN := auto
 
 # Go modules in the workspace (platform + any service with a go.mod).
 GO_MODULES := $(shell find platform apps -name go.mod -exec dirname {} \; | sort)
@@ -43,16 +43,44 @@ infra-down: ## Stop local infra
 
 # ---- Quality ---------------------------------------------------------------
 .PHONY: lint
-lint: ## Lint everything (turbo + go vet + ruff)
+lint: lint-go lint-python lint-web ## Run all linters (Go + Python + TS/Web)
+
+.PHONY: lint-go
+lint-go: ## Lint all Go modules (golangci-lint)
+	@for d in $(GO_MODULES); do \
+		echo "==> golangci-lint $$d"; \
+		(cd "$$d" && GOWORK=off golangci-lint run --concurrency 1 ./...) || exit 1; \
+	done
+
+.PHONY: lint-python
+lint-python: ## Lint Python AI services (ruff + mypy + pyright)
+	uv run ruff check .
+	uv run ruff format --check .
+	uv run mypy .
+	uv run pyright
+
+.PHONY: lint-web
+lint-web: ## Lint TS/JS workspaces (ESLint + Prettier)
 	pnpm lint
-	@for m in $(GO_MODULES); do echo "==> go vet $$m"; (cd $$m && go vet ./...) || exit 1; done
-	@if [ -f uv.lock ]; then uv run ruff check .; else echo "==> no uv.lock; skipping ruff"; fi
+	pnpm format:check
 
 .PHONY: test
-test: ## Run all tests (turbo + go test + pytest)
+test: test-go test-python test-web ## Run all tests (Go + Python + TS/Web)
+
+.PHONY: test-go
+test-go: ## Run all Go module tests
+	@for d in $(GO_MODULES); do \
+		echo "==> go test $$d"; \
+		(cd "$$d" && GOWORK=off go test ./...) || exit 1; \
+	done
+
+.PHONY: test-python
+test-python: ## Run Python AI service tests
+	uv run pytest
+
+.PHONY: test-web
+test-web: ## Run TS/JS workspace tests
 	pnpm test
-	@for m in $(GO_MODULES); do echo "==> go test $$m"; (cd $$m && go test ./...) || exit 1; done
-	@if [ -f uv.lock ]; then uv run pytest; else echo "==> no uv.lock; skipping pytest"; fi
 
 .PHONY: typecheck
 typecheck: ## Typecheck TS workspaces

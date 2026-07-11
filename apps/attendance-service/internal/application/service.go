@@ -1,9 +1,11 @@
+// Package application implements the attendance use cases and RBAC policy.
 package application
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/auraedu/attendance-service/internal/domain"
 	"github.com/auraedu/attendance-service/internal/ports"
@@ -83,7 +85,9 @@ func (s *Service) Create(ctx context.Context, actor auth.Actor, req CreateAttend
 	if err := s.repo.Create(ctx, tenantID, record); err != nil {
 		return nil, err
 	}
-	_ = s.pub.Publish(ctx, "attendance.marked.v1", record, nil)
+	if err := s.pub.Publish(ctx, "attendance.marked.v1", record, nil); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish attendance marked event", "err", err)
+	}
 	return record, nil
 }
 
@@ -129,7 +133,9 @@ func (s *Service) Update(ctx context.Context, actor auth.Actor, id string, req U
 	if err := s.repo.Update(ctx, tenantID, record); err != nil {
 		return nil, err
 	}
-	_ = s.pub.Publish(ctx, "attendance.updated.v1", record, map[string]any{"changed_fields": changed})
+	if err := s.pub.Publish(ctx, "attendance.updated.v1", record, map[string]any{"changed_fields": changed}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish attendance updated event", "err", err)
+	}
 	return record, nil
 }
 
@@ -146,7 +152,9 @@ func (s *Service) Delete(ctx context.Context, actor auth.Actor, id string) error
 	if err := s.repo.Delete(ctx, tenantID, id); err != nil {
 		return err
 	}
-	_ = s.pub.Publish(ctx, "attendance.deleted.v1", record, nil)
+	if err := s.pub.Publish(ctx, "attendance.deleted.v1", record, nil); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish attendance deleted event", "err", err)
+	}
 	return nil
 }
 

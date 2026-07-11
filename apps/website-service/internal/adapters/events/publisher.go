@@ -1,3 +1,4 @@
+// Package events adapts the platform eventbus to the website-service event port.
 package events
 
 import (
@@ -80,11 +81,11 @@ var _ ports.EventPublisher = (*RecordingPublisher)(nil)
 // NewRecordingPublisher creates a new recording publisher.
 func NewRecordingPublisher() *RecordingPublisher { return &RecordingPublisher{} }
 
-func (r *RecordingPublisher) PublishPage(ctx context.Context, eventType string, page *domain.Page, meta map[string]any) error {
+func (r *RecordingPublisher) PublishPage(_ context.Context, eventType string, page *domain.Page, meta map[string]any) error {
 	return r.record(eventType, page.TenantID, page.ID, meta)
 }
 
-func (r *RecordingPublisher) PublishSection(ctx context.Context, eventType string, section *domain.Section, meta map[string]any) error {
+func (r *RecordingPublisher) PublishSection(_ context.Context, eventType string, section *domain.Section, meta map[string]any) error {
 	return r.record(eventType, section.TenantID, section.ID, meta)
 }
 

@@ -3,16 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit",
+    "lint": "eslint .",
     "build": "echo \"@auraedu/api-client: source-only package\"",
     "test": "echo \"no tests yet\""
   },
-  "dependencies": { "@auraedu/shared-types": "workspace:*" },
+  "dependencies": {
+    "@auraedu/shared-types": "workspace:*"
+  },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "typescript": "^5.9.2"
+    "@types/node": "^26.1.1",
+    "eslint": "^10.7.0",
+    "typescript": "^6.0.3"
   }
 }

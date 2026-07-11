@@ -1,3 +1,4 @@
+// Package http provides the HTTP adapter for the audit service.
 package http
 
 import (

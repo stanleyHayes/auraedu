@@ -40,17 +40,18 @@ export default function AboutPage() {
 
       <div className="mt-8 space-y-4 text-[15px] leading-relaxed text-muted-foreground">
         <p>
-          AuraEDU is the system of record for schools. We started with a simple idea: a single platform that
-          admissions offices, teachers, bursars, parents and students can trust — while each school keeps its own
-          brand, data and enabled features.
+          AuraEDU is the system of record for schools. We started with a simple idea: a single
+          platform that admissions offices, teachers, bursars, parents and students can trust —
+          while each school keeps its own brand, data and enabled features.
         </p>
         <p>
-          Our identity is drawn from the Ghanaian classroom: the chalkboard, the attendance register and the red
-          marking pen. That ritual — ticking a student present — is the signature of the whole product.
+          Our identity is drawn from the Ghanaian classroom: the chalkboard, the attendance register
+          and the red marking pen. That ritual — ticking a student present — is the signature of the
+          whole product.
         </p>
         <p>
-          Every school is a tenant. Data is isolated. Features are configurable. A new school is onboarded, not
-          rebuilt.
+          Every school is a tenant. Data is isolated. Features are configurable. A new school is
+          onboarded, not rebuilt.
         </p>
       </div>
 

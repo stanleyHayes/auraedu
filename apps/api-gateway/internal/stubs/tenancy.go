@@ -1,3 +1,4 @@
+// Package stubs provides local stand-ins for platform dependencies until they land.
 package stubs
 
 import (

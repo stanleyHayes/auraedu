@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -36,7 +37,10 @@ func testBuilder() *Builder {
 			http.MethodPost: "files.upload",
 		}},
 	}
-	proxy, _ := NewReverseProxy(cfg.Registry, slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+	proxy, err := NewReverseProxy(cfg.Registry, slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+	if err != nil {
+		panic(err)
+	}
 
 	return &Builder{
 		Log:      slog.New(slog.NewJSONHandler(os.Stdout, nil)),
@@ -75,7 +79,7 @@ func TestRequestIDGeneratedAndPropagated(t *testing.T) {
 		}
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/identity/login", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/identity/login", nil)
 	req.Header.Set("X-Tenant-ID", "upshs")
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
@@ -94,7 +98,7 @@ func TestCORSPreflight(t *testing.T) {
 		t.Error("handler should not be called for preflight")
 	}))
 
-	req := httptest.NewRequest(http.MethodOptions, "/api/v1/students/1", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodOptions, "/api/v1/students/1", nil)
 	req.Header.Set("Origin", "http://localhost:3000")
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
@@ -113,7 +117,7 @@ func TestAuthRejectsMissingToken(t *testing.T) {
 		t.Error("should not reach handler without auth")
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/students/1", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/students/1", nil)
 	req.Header.Set("X-Tenant-ID", "upshs")
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
@@ -130,7 +134,7 @@ func TestAuthAllowsPublicRoute(t *testing.T) {
 		called = true
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/identity/login", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/identity/login", nil)
 	req.Header.Set("X-Tenant-ID", "upshs")
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
@@ -153,7 +157,7 @@ func TestAuthAcceptsValidToken(t *testing.T) {
 		actor = ActorFrom(r.Context())
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/students/1", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/students/1", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("X-Tenant-ID", "upshs")
 	rr := httptest.NewRecorder()
@@ -173,7 +177,7 @@ func TestTenantRequired(t *testing.T) {
 		t.Error("should not reach handler without tenant")
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/students/1", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/students/1", nil)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
@@ -194,7 +198,7 @@ func TestTenantResolvedFromSubdomain(t *testing.T) {
 		tenant = TenantIDFrom(r.Context())
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "http://upshs.auraedu.test/api/v1/students/1", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "http://upshs.auraedu.test/api/v1/students/1", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
@@ -211,7 +215,7 @@ func TestFeatureFlagDisabled(t *testing.T) {
 		t.Error("should not reach handler when feature disabled")
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/cbt/exams", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/cbt/exams", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("X-Tenant-ID", "aboom")
 	rr := httptest.NewRecorder()
@@ -235,7 +239,7 @@ func TestRateLimitBlocksWhenExhausted(t *testing.T) {
 		t.Error("should not reach handler when rate limited")
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/students/1", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/students/1", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("X-Tenant-ID", "upshs")
 	rr := httptest.NewRecorder()
@@ -262,7 +266,7 @@ func TestPermissionAllowsAuthorizedActor(t *testing.T) {
 		called = true
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/ai/predictions/students/s1", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/ai/predictions/students/s1", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("X-Tenant-ID", "upshs")
 	rr := httptest.NewRecorder()
@@ -288,7 +292,7 @@ func TestPermissionDeniesUnauthorizedActor(t *testing.T) {
 		t.Error("should not reach handler without permission")
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/ai/predictions/students/s1", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/ai/predictions/students/s1", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("X-Tenant-ID", "upshs")
 	rr := httptest.NewRecorder()
@@ -309,7 +313,7 @@ func TestPermissionSkippedForPublicRoute(t *testing.T) {
 		called = true
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/identity/login", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/identity/login", nil)
 	req.Header.Set("X-Tenant-ID", "upshs")
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
@@ -331,7 +335,7 @@ func TestPermissionAllowsPlatformAdmin(t *testing.T) {
 		called = true
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/ai/predictions/students/s1", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/ai/predictions/students/s1", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("X-Tenant-ID", "upshs")
 	rr := httptest.NewRecorder()
@@ -355,7 +359,7 @@ func TestPermissionRespectsMethodMap(t *testing.T) {
 		called = true
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/files/123", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/files/123", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("X-Tenant-ID", "upshs")
 	rr := httptest.NewRecorder()
@@ -382,7 +386,7 @@ func TestUploadsPermissionAllowsAuthorizedActor(t *testing.T) {
 		called = true
 	}))
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads/signed", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/uploads/signed", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("X-Tenant-ID", "upshs")
 	rr := httptest.NewRecorder()
@@ -408,7 +412,7 @@ func TestUploadsPermissionDeniesUnauthorizedActor(t *testing.T) {
 		t.Error("POST /uploads should be denied without files.upload")
 	}))
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads/signed", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/uploads/signed", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("X-Tenant-ID", "upshs")
 	rr := httptest.NewRecorder()
@@ -434,7 +438,7 @@ func TestPermissionMethodMapDeniesMissingPermission(t *testing.T) {
 		t.Error("POST /files should be denied without files.upload")
 	}))
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/files", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/files", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("X-Tenant-ID", "upshs")
 	rr := httptest.NewRecorder()

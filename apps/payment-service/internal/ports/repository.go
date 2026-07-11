@@ -1,3 +1,4 @@
+// Package ports defines the payment service repository boundaries.
 package ports
 
 import (

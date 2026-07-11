@@ -1,3 +1,4 @@
+// Package events publishes file-service domain events.
 package events
 
 import (

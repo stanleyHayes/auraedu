@@ -137,7 +137,10 @@ func TestAssessment_ApplyUpdate_PublishedEventDetected(t *testing.T) {
 }
 
 func TestAssessment_Validate_InvalidType(t *testing.T) {
-	a, _ := domain.NewAssessment(tenantA, ay1, subject1, "test", "Midterm", "", 100, nil)
+	a, err := domain.NewAssessment(tenantA, ay1, subject1, "test", "Midterm", "", 100, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	a.Type = "unknown"
 	if err := a.Validate(); err == nil {
 		t.Fatal("expected error for invalid type")
@@ -145,7 +148,10 @@ func TestAssessment_Validate_InvalidType(t *testing.T) {
 }
 
 func TestAssessment_Validate_InvalidStatus(t *testing.T) {
-	a, _ := domain.NewAssessment(tenantA, ay1, subject1, "test", "Midterm", "", 100, nil)
+	a, err := domain.NewAssessment(tenantA, ay1, subject1, "test", "Midterm", "", 100, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	a.Status = "unknown"
 	if err := a.Validate(); err == nil {
 		t.Fatal("expected error for invalid status")

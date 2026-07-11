@@ -85,7 +85,9 @@ func main() {
 	<-stop
 	ctxShutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_ = srv.Shutdown(ctxShutdown)
+	if err := srv.Shutdown(ctxShutdown); err != nil {
+		log.Error("server shutdown error", "err", err)
+	}
 	log.Info(service + " stopped")
 }
 
@@ -100,7 +102,7 @@ func openDB(ctx context.Context) (*db.DB, error) {
 	})
 }
 
-func publisher(ctx context.Context, log *slog.Logger) *svcevents.Publisher {
+func publisher(_ context.Context, log *slog.Logger) *svcevents.Publisher {
 	natsURL := config.Getenv("NATS_URL", "")
 	if natsURL == "" {
 		log.Info("NATS_URL not set; event publishing disabled")

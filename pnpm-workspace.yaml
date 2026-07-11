@@ -6,3 +6,23 @@ packages:
   - "apps/mobile"
   - "packages/*"
   - "tools/codegen"
+
+# Opt out of the default minimum-release-age gate so latest stable versions can be installed
+# immediately during active development.
+minimumReleaseAge: 0
+
+# openapi-typescript@7 still declares typescript ^5.x as a peer, but it runs fine on TS 6.
+peerDependencyRules:
+  allowedVersions:
+    "openapi-typescript>typescript": "^6.0.0"
+
+# Be more resilient against transient registry errors while pulling the updated stack.
+networkConcurrency: 4
+fetchRetries: 5
+fetchRetryMintimeout: 10000
+fetchRetryMaxtimeout: 60000
+
+# Allow native builds that Next.js/image processing depend on.
+allowBuilds:
+  esbuild: true
+  sharp: true

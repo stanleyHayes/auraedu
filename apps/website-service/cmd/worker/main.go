@@ -24,14 +24,20 @@ const service = "website-service"
 
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	log.Info("website-service worker started")
+	log.Info(service + " worker started")
 
+	if err := run(log); err != nil {
+		log.Error("worker failed", "err", err)
+		os.Exit(1)
+	}
+}
+
+func run(log *slog.Logger) error {
 	ctx := context.Background()
 
 	database, err := openDB(ctx)
 	if err != nil {
-		log.Error("failed to open database", "err", err)
-		os.Exit(1)
+		return err
 	}
 	defer database.Close()
 
@@ -42,25 +48,22 @@ func main() {
 	if natsURL == "" {
 		log.Info("NATS_URL not set; no event subscriptions")
 		waitForShutdown(log)
-		return
+		return nil
 	}
 
 	nc, err := nats.Connect(natsURL)
 	if err != nil {
-		log.Error("failed to connect to NATS", "err", err)
-		os.Exit(1)
+		return err
 	}
 	defer nc.Close()
 
 	js, err := nc.JetStream()
 	if err != nil {
-		log.Error("failed to create JetStream context", "err", err)
-		os.Exit(1)
+		return err
 	}
 
 	if _, err := eventbus.EnsureStream(js, "AURA"); err != nil {
-		log.Error("failed to ensure NATS stream", "err", err)
-		os.Exit(1)
+		return err
 	}
 
 	sub, err := eventbus.Subscribe(js, "AURA", "website-service-tenant-created", "tenant.created.v1", func(ctx context.Context, event tenancy.CloudEvent) error {
@@ -72,13 +75,17 @@ func main() {
 		return createDefaultHomePage(ctx, repo, event.TenantID, log)
 	}, nil)
 	if err != nil {
-		log.Error("failed to subscribe to tenant.created.v1", "err", err)
-		os.Exit(1)
+		return err
 	}
-	defer sub.Unsubscribe()
+	defer func() {
+		if err := sub.Unsubscribe(); err != nil {
+			log.Error("failed to unsubscribe", "err", err)
+		}
+	}()
 
 	log.Info("subscribed to tenant.created.v1")
 	waitForShutdown(log)
+	return nil
 }
 
 func openDB(ctx context.Context) (*db.DB, error) {
@@ -141,5 +148,5 @@ func waitForShutdown(log *slog.Logger) {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
-	log.Info("website-service worker stopped")
+	log.Info(service + " worker stopped")
 }

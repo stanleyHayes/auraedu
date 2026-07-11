@@ -47,21 +47,25 @@ func main() {
 	nc, js, err := connectNATS(log)
 	if err != nil {
 		log.Error("failed to connect to NATS", "err", err)
-		os.Exit(1)
+		return
 	}
 	defer nc.Close()
 
 	if _, err := eventbus.EnsureStream(js, "AURA"); err != nil {
 		log.Error("failed to ensure NATS stream", "err", err)
-		os.Exit(1)
+		return
 	}
 
 	sub := events.NewSubscriber(js, log)
 	if err := sub.Start(ctx, sink.Process); err != nil {
 		log.Error("failed to start subscriber", "err", err)
-		os.Exit(1)
+		return
 	}
-	defer func() { _ = sub.Stop() }()
+	defer func() {
+		if err := sub.Stop(); err != nil {
+			log.Error("subscriber stop error", "err", err)
+		}
+	}()
 
 	log.Info(service+" worker started", "version", version)
 

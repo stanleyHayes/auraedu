@@ -24,52 +24,73 @@ const (
 	recipientB = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
 )
 
-func newRepos(t *testing.T) (ports.MessageRepository, ports.TemplateRepository, ports.SubscriptionRepository, *testkit.PostgresTestDB) {
+func newMessageRepo(t *testing.T) ports.MessageRepository {
 	t.Helper()
 	ctx := context.Background()
 	tdb := testkit.NewPostgres(ctx, t, "../../migrations")
-	return postgres.NewMessageRepository(tdb.DB), postgres.NewTemplateRepository(tdb.DB), postgres.NewSubscriptionRepository(tdb.DB), tdb
+	return postgres.NewMessageRepository(tdb.DB)
 }
 
-func withTenant(ctx context.Context, tenantID string) context.Context {
-	return tenancy.WithContext(ctx, tenancy.TenantContext{TenantID: tenantID})
-}
-
-func actorWithPerms(tenantID string, perms ...string) auth.Actor {
-	return auth.Actor{UserID: "user-1", TenantID: tenantID, Permissions: perms}
-}
-
-func mustCreateMessage(t *testing.T, ctx context.Context, repo ports.MessageRepository, tenantID, recipientID, channel, subject, body string) *domain.Message {
+func newTemplateRepo(t *testing.T) ports.TemplateRepository {
 	t.Helper()
-	m, err := domain.NewMessage(tenantID, recipientID, channel, subject, body, nil, nil, nil)
+	ctx := context.Background()
+	tdb := testkit.NewPostgres(ctx, t, "../../migrations")
+	return postgres.NewTemplateRepository(tdb.DB)
+}
+
+func newSubscriptionRepo(t *testing.T) ports.SubscriptionRepository {
+	t.Helper()
+	ctx := context.Background()
+	tdb := testkit.NewPostgres(ctx, t, "../../migrations")
+	return postgres.NewSubscriptionRepository(tdb.DB)
+}
+
+func newAllRepos(t *testing.T) (ports.MessageRepository, ports.TemplateRepository, ports.SubscriptionRepository) {
+	t.Helper()
+	ctx := context.Background()
+	tdb := testkit.NewPostgres(ctx, t, "../../migrations")
+	return postgres.NewMessageRepository(tdb.DB), postgres.NewTemplateRepository(tdb.DB), postgres.NewSubscriptionRepository(tdb.DB)
+}
+
+func withTenant(ctx context.Context, tenantA string) context.Context {
+	return tenancy.WithContext(ctx, tenancy.TenantContext{TenantID: tenantA})
+}
+
+func actorWithPerms(tenantA string, perms ...string) auth.Actor {
+	return auth.Actor{UserID: "user-1", TenantID: tenantA, Permissions: perms}
+}
+
+func mustCreateMessage(ctx context.Context, t *testing.T, repo ports.MessageRepository, recipientID, channel, subject string) *domain.Message {
+	t.Helper()
+	m, err := domain.NewMessage(tenantA, recipientID, channel, subject, "Body", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("new message: %v", err)
 	}
-	if err := repo.Create(ctx, tenantID, m); err != nil {
+	if err := repo.Create(ctx, tenantA, m); err != nil {
 		t.Fatalf("create message: %v", err)
 	}
 	return m
 }
 
-func mustCreateTemplate(t *testing.T, ctx context.Context, repo ports.TemplateRepository, tenantID, name, channel string) *domain.Template {
+func mustCreateTemplate(ctx context.Context, t *testing.T, repo ports.TemplateRepository, name, channel string) *domain.Template {
 	t.Helper()
-	tmpl, err := domain.NewTemplate(tenantID, name, channel, "Subject", "Body")
+	tmpl, err := domain.NewTemplate(tenantA, name, channel, "Subject", "Body")
 	if err != nil {
 		t.Fatalf("new template: %v", err)
 	}
-	if err := repo.Create(ctx, tenantID, tmpl); err != nil {
+	if err := repo.Create(ctx, tenantA, tmpl); err != nil {
 		t.Fatalf("create template: %v", err)
 	}
 	return tmpl
 }
 
-func mustCreateSubscription(t *testing.T, ctx context.Context, repo ports.SubscriptionRepository, tenantID, userID, channel string, enabled bool) *domain.Subscription {
+func mustCreateSubscription(ctx context.Context, t *testing.T, repo ports.SubscriptionRepository, userID, channel string) *domain.Subscription {
 	t.Helper()
-	sub, err := domain.NewSubscription(tenantID, userID, channel, enabled)
+	sub, err := domain.NewSubscription(tenantA, userID, channel, true)
 	if err != nil {
 		t.Fatalf("new subscription: %v", err)
 	}
-	if err := repo.Create(ctx, tenantID, sub); err != nil {
+	if err := repo.Create(ctx, tenantA, sub); err != nil {
 		t.Fatalf("create subscription: %v", err)
 	}
 	return sub
@@ -77,9 +98,9 @@ func mustCreateSubscription(t *testing.T, ctx context.Context, repo ports.Subscr
 
 func TestMessageRepository_CreateAndGet(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _, _, _ := newRepos(t)
+	repo := newMessageRepo(t)
 
-	m := mustCreateMessage(t, ctx, repo, tenantA, recipientA, "email", "Hello", "Body")
+	m := mustCreateMessage(ctx, t, repo, recipientA, "email", "Hello")
 
 	got, err := repo.GetByID(ctx, tenantA, m.ID)
 	if err != nil {
@@ -92,10 +113,10 @@ func TestMessageRepository_CreateAndGet(t *testing.T) {
 
 func TestMessageRepository_ListPagination(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _, _, _ := newRepos(t)
+	repo := newMessageRepo(t)
 
-	mustCreateMessage(t, ctx, repo, tenantA, recipientA, "email", "Hello", "Body")
-	m2 := mustCreateMessage(t, ctx, repo, tenantA, recipientA, "email", "Hello 2", "Body")
+	mustCreateMessage(ctx, t, repo, recipientA, "email", "Hello")
+	m2 := mustCreateMessage(ctx, t, repo, recipientA, "email", "Hello 2")
 
 	page, next, err := repo.List(ctx, tenantA, ports.MessageFilter{Limit: 1})
 	if err != nil {
@@ -119,10 +140,10 @@ func TestMessageRepository_ListPagination(t *testing.T) {
 
 func TestMessageRepository_ListFilters(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _, _, _ := newRepos(t)
+	repo := newMessageRepo(t)
 
-	mustCreateMessage(t, ctx, repo, tenantA, recipientA, "email", "Hello", "Body")
-	mustCreateMessage(t, ctx, repo, tenantA, recipientB, "sms", "SMS", "Body")
+	mustCreateMessage(ctx, t, repo, recipientA, "email", "Hello")
+	mustCreateMessage(ctx, t, repo, recipientB, "sms", "SMS")
 
 	cases := []struct {
 		name   string
@@ -149,9 +170,9 @@ func TestMessageRepository_ListFilters(t *testing.T) {
 
 func TestMessageRepository_Update(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _, _, _ := newRepos(t)
+	repo := newMessageRepo(t)
 
-	m := mustCreateMessage(t, ctx, repo, tenantA, recipientA, "email", "Hello", "Body")
+	m := mustCreateMessage(ctx, t, repo, recipientA, "email", "Hello")
 	subject := "Updated"
 	if _, err := m.ApplyUpdate(domain.MessagePatch{Subject: &subject}); err != nil {
 		t.Fatalf("apply update: %v", err)
@@ -171,9 +192,9 @@ func TestMessageRepository_Update(t *testing.T) {
 
 func TestMessageRepository_Delete(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _, _, _ := newRepos(t)
+	repo := newMessageRepo(t)
 
-	m := mustCreateMessage(t, ctx, repo, tenantA, recipientA, "email", "Hello", "Body")
+	m := mustCreateMessage(ctx, t, repo, recipientA, "email", "Hello")
 	if err := repo.Delete(ctx, tenantA, m.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
@@ -184,9 +205,9 @@ func TestMessageRepository_Delete(t *testing.T) {
 
 func TestTemplateRepository_CreateAndGet(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	_, repo, _, _ := newRepos(t)
+	repo := newTemplateRepo(t)
 
-	tmpl := mustCreateTemplate(t, ctx, repo, tenantA, "welcome", "email")
+	tmpl := mustCreateTemplate(ctx, t, repo, "welcome", "email")
 
 	got, err := repo.GetByID(ctx, tenantA, tmpl.ID)
 	if err != nil {
@@ -199,10 +220,10 @@ func TestTemplateRepository_CreateAndGet(t *testing.T) {
 
 func TestTemplateRepository_ListFilters(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	_, repo, _, _ := newRepos(t)
+	repo := newTemplateRepo(t)
 
-	mustCreateTemplate(t, ctx, repo, tenantA, "welcome", "email")
-	mustCreateTemplate(t, ctx, repo, tenantA, "sms_alert", "sms")
+	mustCreateTemplate(ctx, t, repo, "welcome", "email")
+	mustCreateTemplate(ctx, t, repo, "sms_alert", "sms")
 
 	cases := []struct {
 		name   string
@@ -228,9 +249,9 @@ func TestTemplateRepository_ListFilters(t *testing.T) {
 
 func TestSubscriptionRepository_CreateAndGet(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	_, _, repo, _ := newRepos(t)
+	repo := newSubscriptionRepo(t)
 
-	sub := mustCreateSubscription(t, ctx, repo, tenantA, recipientA, "email", true)
+	sub := mustCreateSubscription(ctx, t, repo, recipientA, "email")
 
 	got, err := repo.GetByID(ctx, tenantA, sub.ID)
 	if err != nil {
@@ -243,10 +264,10 @@ func TestSubscriptionRepository_CreateAndGet(t *testing.T) {
 
 func TestSubscriptionRepository_ListFilters(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	_, _, repo, _ := newRepos(t)
+	repo := newSubscriptionRepo(t)
 
-	mustCreateSubscription(t, ctx, repo, tenantA, recipientA, "email", true)
-	mustCreateSubscription(t, ctx, repo, tenantA, recipientB, "sms", true)
+	mustCreateSubscription(ctx, t, repo, recipientA, "email")
+	mustCreateSubscription(ctx, t, repo, recipientB, "sms")
 
 	cases := []struct {
 		name   string
@@ -272,12 +293,12 @@ func TestSubscriptionRepository_ListFilters(t *testing.T) {
 
 func TestRepository_TenantIsolation(t *testing.T) {
 	ctx := context.Background()
-	mRepo, tRepo, sRepo, _ := newRepos(t)
+	mRepo, tRepo, sRepo := newAllRepos(t)
 
 	aCtx := withTenant(ctx, tenantA)
-	m := mustCreateMessage(t, aCtx, mRepo, tenantA, recipientA, "email", "Hello", "Body")
-	tmpl := mustCreateTemplate(t, aCtx, tRepo, tenantA, "welcome", "email")
-	sub := mustCreateSubscription(t, aCtx, sRepo, tenantA, recipientA, "email", true)
+	m := mustCreateMessage(aCtx, t, mRepo, recipientA, "email", "Hello")
+	tmpl := mustCreateTemplate(aCtx, t, tRepo, "welcome", "email")
+	sub := mustCreateSubscription(aCtx, t, sRepo, recipientA, "email")
 
 	bCtx := withTenant(ctx, tenantB)
 	if _, err := mRepo.GetByID(bCtx, tenantB, m.ID); err == nil {
@@ -301,7 +322,7 @@ func TestRepository_TenantIsolation(t *testing.T) {
 
 func TestService_FeatureFlagGatesAccess(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantB)
-	mRepo, tRepo, sRepo, _ := newRepos(t)
+	mRepo, tRepo, sRepo := newAllRepos(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantB, application.FeatureNotifications, false)
@@ -322,7 +343,7 @@ func TestService_FeatureFlagGatesAccess(t *testing.T) {
 
 func TestService_FeatureFlagAllowsAccessWhenEnabled(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	mRepo, tRepo, sRepo, _ := newRepos(t)
+	mRepo, tRepo, sRepo := newAllRepos(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantA, application.FeatureNotifications, true)
@@ -346,7 +367,7 @@ func TestService_FeatureFlagAllowsAccessWhenEnabled(t *testing.T) {
 
 func TestService_SendMessageSuccess(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	mRepo, _, sRepo, _ := newRepos(t)
+	mRepo, _, sRepo := newAllRepos(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantA, application.FeatureNotifications, true)
@@ -391,7 +412,7 @@ func TestService_SendMessageSuccess(t *testing.T) {
 
 func TestService_SendMessageFailsWithoutSubscription(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	mRepo, _, sRepo, _ := newRepos(t)
+	mRepo, _, sRepo := newAllRepos(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantA, application.FeatureNotifications, true)
@@ -429,7 +450,7 @@ func TestService_SendMessageFailsWithoutSubscription(t *testing.T) {
 
 func TestService_SendMessageFailsWhenBodyContainsFail(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	mRepo, _, sRepo, _ := newRepos(t)
+	mRepo, _, sRepo := newAllRepos(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantA, application.FeatureNotifications, true)

@@ -68,7 +68,10 @@ func TestSection_ApplyUpdate(t *testing.T) {
 }
 
 func TestSection_InvalidStatus(t *testing.T) {
-	section, _ := domain.NewSection("tenant-1", "page-1", domain.SectionTypeHero, nil, 0)
+	section, err := domain.NewSection("tenant-1", "page-1", domain.SectionTypeHero, nil, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	bad := "unknown"
 	if _, err := section.ApplyUpdate(nil, nil, nil, &bad); err == nil {
 		t.Fatal("expected error for invalid status")
@@ -76,7 +79,10 @@ func TestSection_InvalidStatus(t *testing.T) {
 }
 
 func TestSection_NegativeSortOrder(t *testing.T) {
-	section, _ := domain.NewSection("tenant-1", "page-1", domain.SectionTypeHero, nil, 0)
+	section, err := domain.NewSection("tenant-1", "page-1", domain.SectionTypeHero, nil, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	order := -1
 	if _, err := section.ApplyUpdate(nil, nil, &order, nil); err == nil {
 		t.Fatal("expected error for negative sort_order")

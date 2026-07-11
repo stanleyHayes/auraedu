@@ -1,3 +1,3 @@
 module github.com/stanleyHayes/auraedu/packages/shared-types/gen/go
 
-go 1.25
+go 1.26.5

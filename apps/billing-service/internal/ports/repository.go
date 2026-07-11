@@ -1,3 +1,4 @@
+// Package ports defines the inbound and outbound ports for the billing service.
 package ports
 
 import (

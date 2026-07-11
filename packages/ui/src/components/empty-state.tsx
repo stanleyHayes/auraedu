@@ -28,7 +28,9 @@ export function EmptyState({ icon, title, description, actions, className }: Emp
         </span>
       ) : null}
       <h3 className="font-display text-lg font-semibold text-[var(--foreground)]">{title}</h3>
-      {description ? <p className="mt-2 max-w-sm text-sm text-[var(--muted-foreground)]">{description}</p> : null}
+      {description ? (
+        <p className="mt-2 max-w-sm text-sm text-[var(--muted-foreground)]">{description}</p>
+      ) : null}
       {actions ? <div className="mt-5 flex items-center gap-3">{actions}</div> : null}
     </div>
   );

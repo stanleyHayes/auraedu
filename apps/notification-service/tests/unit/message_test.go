@@ -39,7 +39,10 @@ func TestNewMessage_Valid(t *testing.T) {
 }
 
 func TestMessage_ApplyUpdate(t *testing.T) {
-	m, _ := domain.NewMessage("tenant-1", "550e8400-e29b-41d4-a716-446655440000", "email", "Subject", "Body", nil, nil, nil)
+	m, err := domain.NewMessage("tenant-1", "550e8400-e29b-41d4-a716-446655440000", "email", "Subject", "Body", nil, nil, nil)
+	if err != nil {
+		t.Fatalf("new message: %v", err)
+	}
 	status := string(domain.MessageStatusSent)
 	changed, err := m.ApplyUpdate(domain.MessagePatch{Status: &status})
 	if err != nil {
@@ -54,7 +57,10 @@ func TestMessage_ApplyUpdate(t *testing.T) {
 }
 
 func TestMessage_MarkSent(t *testing.T) {
-	m, _ := domain.NewMessage("tenant-1", "550e8400-e29b-41d4-a716-446655440000", "email", "Subject", "Body", nil, nil, nil)
+	m, err := domain.NewMessage("tenant-1", "550e8400-e29b-41d4-a716-446655440000", "email", "Subject", "Body", nil, nil, nil)
+	if err != nil {
+		t.Fatalf("new message: %v", err)
+	}
 	m.MarkSent()
 	if m.Status != string(domain.MessageStatusSent) {
 		t.Fatalf("expected sent status, got %q", m.Status)
@@ -68,7 +74,10 @@ func TestMessage_MarkSent(t *testing.T) {
 }
 
 func TestMessage_MarkFailed(t *testing.T) {
-	m, _ := domain.NewMessage("tenant-1", "550e8400-e29b-41d4-a716-446655440000", "email", "Subject", "Body", nil, nil, nil)
+	m, err := domain.NewMessage("tenant-1", "550e8400-e29b-41d4-a716-446655440000", "email", "Subject", "Body", nil, nil, nil)
+	if err != nil {
+		t.Fatalf("new message: %v", err)
+	}
 	m.MarkFailed("boom")
 	if m.Status != string(domain.MessageStatusFailed) {
 		t.Fatalf("expected failed status, got %q", m.Status)
@@ -79,7 +88,10 @@ func TestMessage_MarkFailed(t *testing.T) {
 }
 
 func TestMessage_ApplyUpdate_RejectsInvalidStatus(t *testing.T) {
-	m, _ := domain.NewMessage("tenant-1", "550e8400-e29b-41d4-a716-446655440000", "email", "Subject", "Body", nil, nil, nil)
+	m, err := domain.NewMessage("tenant-1", "550e8400-e29b-41d4-a716-446655440000", "email", "Subject", "Body", nil, nil, nil)
+	if err != nil {
+		t.Fatalf("new message: %v", err)
+	}
 	status := "unknown"
 	if _, err := m.ApplyUpdate(domain.MessagePatch{Status: &status}); err == nil {
 		t.Fatal("expected error for invalid status")

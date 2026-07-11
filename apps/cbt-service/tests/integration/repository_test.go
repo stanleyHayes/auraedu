@@ -26,11 +26,11 @@ const (
 	studentB = "88888888-8888-8888-8888-888888888888"
 )
 
-func newRepo(t *testing.T) (ports.Repository, *testkit.PostgresTestDB) {
+func newRepo(t *testing.T) ports.Repository {
 	t.Helper()
 	ctx := context.Background()
 	tdb := testkit.NewPostgres(ctx, t, "../../migrations")
-	return postgres.NewRepository(tdb.DB), tdb
+	return postgres.NewRepository(tdb.DB)
 }
 
 func withTenant(ctx context.Context, tenantID string) context.Context {
@@ -45,37 +45,37 @@ func actorStudent(tenantID, studentID string, perms ...string) auth.Actor {
 	return auth.Actor{UserID: studentID, TenantID: tenantID, Permissions: perms}
 }
 
-func mustCreateQuestion(t *testing.T, ctx context.Context, repo ports.Repository, tenantID, academicYearID, subjectID, qType, text, correct string, marks int, options []string) *domain.QuestionBank {
+func mustCreateQuestion(ctx context.Context, t *testing.T, repo ports.Repository, academicYearID, subjectID, text, correct string, marks int, options []string) *domain.QuestionBank {
 	t.Helper()
-	q, err := domain.NewQuestionBank(tenantID, academicYearID, subjectID, text, qType, correct, marks, options)
+	q, err := domain.NewQuestionBank(tenantA, academicYearID, subjectID, text, "multiple_choice", correct, marks, options)
 	if err != nil {
 		t.Fatalf("new question: %v", err)
 	}
-	if err := repo.CreateQuestion(ctx, tenantID, q); err != nil {
+	if err := repo.CreateQuestion(ctx, tenantA, q); err != nil {
 		t.Fatalf("create question: %v", err)
 	}
 	return q
 }
 
-func mustCreateExamSession(t *testing.T, ctx context.Context, repo ports.Repository, tenantID, title, academicYearID, subjectID string, questionIDs []string, duration int) *domain.ExamSession {
+func mustCreateExamSession(ctx context.Context, t *testing.T, repo ports.Repository, title, academicYearID, subjectID string, questionIDs []string) *domain.ExamSession {
 	t.Helper()
-	e, err := domain.NewExamSession(tenantID, title, academicYearID, subjectID, questionIDs, duration, nil, nil)
+	e, err := domain.NewExamSession(tenantA, title, academicYearID, subjectID, questionIDs, 60, nil, nil)
 	if err != nil {
 		t.Fatalf("new exam session: %v", err)
 	}
-	if err := repo.CreateExamSession(ctx, tenantID, e); err != nil {
+	if err := repo.CreateExamSession(ctx, tenantA, e); err != nil {
 		t.Fatalf("create exam session: %v", err)
 	}
 	return e
 }
 
-func mustCreateSubmission(t *testing.T, ctx context.Context, repo ports.Repository, tenantID, examSessionID, studentID string) *domain.Submission {
+func mustCreateSubmission(ctx context.Context, t *testing.T, repo ports.Repository, examSessionID, studentID string) *domain.Submission {
 	t.Helper()
-	s, err := domain.NewSubmission(tenantID, examSessionID, studentID)
+	s, err := domain.NewSubmission(tenantA, examSessionID, studentID)
 	if err != nil {
 		t.Fatalf("new submission: %v", err)
 	}
-	if err := repo.CreateSubmission(ctx, tenantID, s); err != nil {
+	if err := repo.CreateSubmission(ctx, tenantA, s); err != nil {
 		t.Fatalf("create submission: %v", err)
 	}
 	return s
@@ -85,9 +85,9 @@ func mustCreateSubmission(t *testing.T, ctx context.Context, repo ports.Reposito
 
 func TestRepository_CreateAndGetQuestion(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	q := mustCreateQuestion(t, ctx, repo, tenantA, ay1, subject1, "multiple_choice", "What is 2+2?", "4", 2, []string{"3", "4", "5"})
+	q := mustCreateQuestion(ctx, t, repo, ay1, subject1, "What is 2+2?", "4", 2, []string{"3", "4", "5"})
 
 	got, err := repo.GetQuestionByID(ctx, tenantA, q.ID)
 	if err != nil {
@@ -100,11 +100,11 @@ func TestRepository_CreateAndGetQuestion(t *testing.T) {
 
 func TestRepository_ListQuestionFilters(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	mustCreateQuestion(t, ctx, repo, tenantA, ay1, subject1, "multiple_choice", "Q1", "a", 1, []string{"a", "b"})
-	mustCreateQuestion(t, ctx, repo, tenantA, ay1, subject2, "multiple_choice", "Q2", "a", 1, []string{"a", "b"})
-	mustCreateQuestion(t, ctx, repo, tenantA, ay2, subject1, "multiple_choice", "Q3", "a", 1, []string{"a", "b"})
+	mustCreateQuestion(ctx, t, repo, ay1, subject1, "Q1", "a", 1, []string{"a", "b"})
+	mustCreateQuestion(ctx, t, repo, ay1, subject2, "Q2", "a", 1, []string{"a", "b"})
+	mustCreateQuestion(ctx, t, repo, ay2, subject1, "Q3", "a", 1, []string{"a", "b"})
 
 	cases := []struct {
 		name   string
@@ -132,9 +132,9 @@ func TestRepository_ListQuestionFilters(t *testing.T) {
 
 func TestRepository_UpdateQuestion(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	q := mustCreateQuestion(t, ctx, repo, tenantA, ay1, subject1, "multiple_choice", "Q1", "a", 1, []string{"a", "b"})
+	q := mustCreateQuestion(ctx, t, repo, ay1, subject1, "Q1", "a", 1, []string{"a", "b"})
 	text := "Updated question"
 	marks := 5
 	if _, err := q.ApplyUpdate(&text, nil, nil, &marks, nil, nil); err != nil {
@@ -155,9 +155,9 @@ func TestRepository_UpdateQuestion(t *testing.T) {
 
 func TestRepository_DeleteQuestion(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	q := mustCreateQuestion(t, ctx, repo, tenantA, ay1, subject1, "multiple_choice", "Q1", "a", 1, []string{"a", "b"})
+	q := mustCreateQuestion(ctx, t, repo, ay1, subject1, "Q1", "a", 1, []string{"a", "b"})
 	if err := repo.DeleteQuestion(ctx, tenantA, q.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
@@ -170,10 +170,10 @@ func TestRepository_DeleteQuestion(t *testing.T) {
 
 func TestRepository_CreateAndGetExamSession(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	q := mustCreateQuestion(t, ctx, repo, tenantA, ay1, subject1, "multiple_choice", "Q1", "a", 1, []string{"a", "b"})
-	e := mustCreateExamSession(t, ctx, repo, tenantA, "Midterm", ay1, subject1, []string{q.ID}, 60)
+	q := mustCreateQuestion(ctx, t, repo, ay1, subject1, "Q1", "a", 1, []string{"a", "b"})
+	e := mustCreateExamSession(ctx, t, repo, "Midterm", ay1, subject1, []string{q.ID})
 
 	got, err := repo.GetExamSessionByID(ctx, tenantA, e.ID)
 	if err != nil {
@@ -186,12 +186,12 @@ func TestRepository_CreateAndGetExamSession(t *testing.T) {
 
 func TestRepository_ListExamSessionFilters(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	q := mustCreateQuestion(t, ctx, repo, tenantA, ay1, subject1, "multiple_choice", "Q1", "a", 1, []string{"a", "b"})
-	mustCreateExamSession(t, ctx, repo, tenantA, "E1", ay1, subject1, []string{q.ID}, 60)
-	mustCreateExamSession(t, ctx, repo, tenantA, "E2", ay1, subject2, []string{q.ID}, 60)
-	mustCreateExamSession(t, ctx, repo, tenantA, "E3", ay2, subject1, []string{q.ID}, 60)
+	q := mustCreateQuestion(ctx, t, repo, ay1, subject1, "Q1", "a", 1, []string{"a", "b"})
+	mustCreateExamSession(ctx, t, repo, "E1", ay1, subject1, []string{q.ID})
+	mustCreateExamSession(ctx, t, repo, "E2", ay1, subject2, []string{q.ID})
+	mustCreateExamSession(ctx, t, repo, "E3", ay2, subject1, []string{q.ID})
 
 	cases := []struct {
 		name   string
@@ -218,10 +218,10 @@ func TestRepository_ListExamSessionFilters(t *testing.T) {
 
 func TestRepository_UpdateExamSession(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	q := mustCreateQuestion(t, ctx, repo, tenantA, ay1, subject1, "multiple_choice", "Q1", "a", 1, []string{"a", "b"})
-	e := mustCreateExamSession(t, ctx, repo, tenantA, "Midterm", ay1, subject1, []string{q.ID}, 60)
+	q := mustCreateQuestion(ctx, t, repo, ay1, subject1, "Q1", "a", 1, []string{"a", "b"})
+	e := mustCreateExamSession(ctx, t, repo, "Midterm", ay1, subject1, []string{q.ID})
 	title := "Final"
 	duration := 90
 	status := string(domain.ExamStatusPublished)
@@ -243,10 +243,10 @@ func TestRepository_UpdateExamSession(t *testing.T) {
 
 func TestRepository_DeleteExamSession(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	q := mustCreateQuestion(t, ctx, repo, tenantA, ay1, subject1, "multiple_choice", "Q1", "a", 1, []string{"a", "b"})
-	e := mustCreateExamSession(t, ctx, repo, tenantA, "Midterm", ay1, subject1, []string{q.ID}, 60)
+	q := mustCreateQuestion(ctx, t, repo, ay1, subject1, "Q1", "a", 1, []string{"a", "b"})
+	e := mustCreateExamSession(ctx, t, repo, "Midterm", ay1, subject1, []string{q.ID})
 	if err := repo.DeleteExamSession(ctx, tenantA, e.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
@@ -259,11 +259,11 @@ func TestRepository_DeleteExamSession(t *testing.T) {
 
 func TestRepository_CreateAndGetSubmission(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	q := mustCreateQuestion(t, ctx, repo, tenantA, ay1, subject1, "multiple_choice", "Q1", "a", 1, []string{"a", "b"})
-	e := mustCreateExamSession(t, ctx, repo, tenantA, "Midterm", ay1, subject1, []string{q.ID}, 60)
-	s := mustCreateSubmission(t, ctx, repo, tenantA, e.ID, studentA)
+	q := mustCreateQuestion(ctx, t, repo, ay1, subject1, "Q1", "a", 1, []string{"a", "b"})
+	e := mustCreateExamSession(ctx, t, repo, "Midterm", ay1, subject1, []string{q.ID})
+	s := mustCreateSubmission(ctx, t, repo, e.ID, studentA)
 
 	got, err := repo.GetSubmissionByID(ctx, tenantA, s.ID)
 	if err != nil {
@@ -276,11 +276,11 @@ func TestRepository_CreateAndGetSubmission(t *testing.T) {
 
 func TestRepository_GetSubmissionByExamAndStudent(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	q := mustCreateQuestion(t, ctx, repo, tenantA, ay1, subject1, "multiple_choice", "Q1", "a", 1, []string{"a", "b"})
-	e := mustCreateExamSession(t, ctx, repo, tenantA, "Midterm", ay1, subject1, []string{q.ID}, 60)
-	s := mustCreateSubmission(t, ctx, repo, tenantA, e.ID, studentA)
+	q := mustCreateQuestion(ctx, t, repo, ay1, subject1, "Q1", "a", 1, []string{"a", "b"})
+	e := mustCreateExamSession(ctx, t, repo, "Midterm", ay1, subject1, []string{q.ID})
+	s := mustCreateSubmission(ctx, t, repo, e.ID, studentA)
 
 	got, err := repo.GetSubmissionByExamAndStudent(ctx, tenantA, e.ID, studentA)
 	if err != nil {
@@ -293,12 +293,12 @@ func TestRepository_GetSubmissionByExamAndStudent(t *testing.T) {
 
 func TestRepository_ListSubmissionsFilters(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	q := mustCreateQuestion(t, ctx, repo, tenantA, ay1, subject1, "multiple_choice", "Q1", "a", 1, []string{"a", "b"})
-	e := mustCreateExamSession(t, ctx, repo, tenantA, "Midterm", ay1, subject1, []string{q.ID}, 60)
-	mustCreateSubmission(t, ctx, repo, tenantA, e.ID, studentA)
-	mustCreateSubmission(t, ctx, repo, tenantA, e.ID, studentB)
+	q := mustCreateQuestion(ctx, t, repo, ay1, subject1, "Q1", "a", 1, []string{"a", "b"})
+	e := mustCreateExamSession(ctx, t, repo, "Midterm", ay1, subject1, []string{q.ID})
+	mustCreateSubmission(ctx, t, repo, e.ID, studentA)
+	mustCreateSubmission(ctx, t, repo, e.ID, studentB)
 
 	page, _, err := repo.ListSubmissions(ctx, tenantA, ports.SubmissionListFilter{Limit: 10, StudentID: studentA})
 	if err != nil {
@@ -313,10 +313,10 @@ func TestRepository_ListSubmissionsFilters(t *testing.T) {
 
 func TestRepository_TenantIsolation_Questions(t *testing.T) {
 	ctx := context.Background()
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	aCtx := withTenant(ctx, tenantA)
-	q := mustCreateQuestion(t, aCtx, repo, tenantA, ay1, subject1, "multiple_choice", "Q1", "a", 1, []string{"a", "b"})
+	q := mustCreateQuestion(aCtx, t, repo, ay1, subject1, "Q1", "a", 1, []string{"a", "b"})
 
 	bCtx := withTenant(ctx, tenantB)
 	if _, err := repo.GetQuestionByID(bCtx, tenantB, q.ID); err == nil {
@@ -333,11 +333,11 @@ func TestRepository_TenantIsolation_Questions(t *testing.T) {
 
 func TestRepository_TenantIsolation_ExamSessions(t *testing.T) {
 	ctx := context.Background()
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	aCtx := withTenant(ctx, tenantA)
-	q := mustCreateQuestion(t, aCtx, repo, tenantA, ay1, subject1, "multiple_choice", "Q1", "a", 1, []string{"a", "b"})
-	e := mustCreateExamSession(t, aCtx, repo, tenantA, "Midterm", ay1, subject1, []string{q.ID}, 60)
+	q := mustCreateQuestion(aCtx, t, repo, ay1, subject1, "Q1", "a", 1, []string{"a", "b"})
+	e := mustCreateExamSession(aCtx, t, repo, "Midterm", ay1, subject1, []string{q.ID})
 
 	bCtx := withTenant(ctx, tenantB)
 	if _, err := repo.GetExamSessionByID(bCtx, tenantB, e.ID); err == nil {
@@ -347,12 +347,12 @@ func TestRepository_TenantIsolation_ExamSessions(t *testing.T) {
 
 func TestRepository_TenantIsolation_Submissions(t *testing.T) {
 	ctx := context.Background()
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	aCtx := withTenant(ctx, tenantA)
-	q := mustCreateQuestion(t, aCtx, repo, tenantA, ay1, subject1, "multiple_choice", "Q1", "a", 1, []string{"a", "b"})
-	e := mustCreateExamSession(t, aCtx, repo, tenantA, "Midterm", ay1, subject1, []string{q.ID}, 60)
-	s := mustCreateSubmission(t, aCtx, repo, tenantA, e.ID, studentA)
+	q := mustCreateQuestion(aCtx, t, repo, ay1, subject1, "Q1", "a", 1, []string{"a", "b"})
+	e := mustCreateExamSession(aCtx, t, repo, "Midterm", ay1, subject1, []string{q.ID})
+	s := mustCreateSubmission(aCtx, t, repo, e.ID, studentA)
 
 	bCtx := withTenant(ctx, tenantB)
 	if _, err := repo.GetSubmissionByID(bCtx, tenantB, s.ID); err == nil {
@@ -364,7 +364,7 @@ func TestRepository_TenantIsolation_Submissions(t *testing.T) {
 
 func TestService_FeatureFlagGatesAccess(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantB)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantB, application.FeatureCBTExams, false)
@@ -388,7 +388,7 @@ func TestService_FeatureFlagGatesAccess(t *testing.T) {
 
 func TestService_FeatureFlagAllowsAccessWhenEnabled(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantA, application.FeatureCBTExams, true)
@@ -417,7 +417,7 @@ func TestService_FeatureFlagAllowsAccessWhenEnabled(t *testing.T) {
 
 func TestService_ExamLifecycleAndAutoGrade(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantA, application.FeatureCBTExams, true)
@@ -512,7 +512,7 @@ func TestService_ExamLifecycleAndAutoGrade(t *testing.T) {
 
 func TestService_StartSubmissionRequiresActiveExam(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantA, application.FeatureCBTExams, true)
@@ -544,7 +544,7 @@ func TestService_StartSubmissionRequiresActiveExam(t *testing.T) {
 
 func TestService_GradeSubmissionRequiresSubmittedStatus(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantA, application.FeatureCBTExams, true)

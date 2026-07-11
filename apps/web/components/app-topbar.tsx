@@ -72,7 +72,9 @@ export function AppTopbar({
       <span className="flex-1" />
       {onSelect ? (
         <div className="hidden items-center gap-2 md:flex">
-          <span className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">Preview as</span>
+          <span className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">
+            Preview as
+          </span>
           {SWITCHER.map((school) => {
             const isCurrent = school.code === currentCode;
             return (
@@ -88,7 +90,11 @@ export function AppTopbar({
                     : "border-border text-muted-foreground hover:text-foreground",
                 )}
               >
-                <span className="size-3 rounded-full" style={{ backgroundColor: school.swatch }} aria-hidden="true" />
+                <span
+                  className="size-3 rounded-full"
+                  style={{ backgroundColor: school.swatch }}
+                  aria-hidden="true"
+                />
                 {school.short}
               </button>
             );

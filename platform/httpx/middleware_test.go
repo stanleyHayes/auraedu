@@ -1,6 +1,7 @@
 package httpx
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,7 +12,7 @@ func TestRequestIDMiddlewarePreservesInbound(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 	req.Header.Set(RequestIDHeader, "existing-id")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -26,7 +27,7 @@ func TestRequestIDMiddlewareGeneratesMissing(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -40,7 +41,7 @@ func TestCORSPreflight(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest("OPTIONS", "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "OPTIONS", "/", nil)
 	req.Header.Set("Origin", "http://localhost:3000")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -69,7 +70,7 @@ func TestErrorResponses(t *testing.T) {
 
 	for _, c := range cases {
 		rec := httptest.NewRecorder()
-		c.fn(rec, httptest.NewRequest("GET", "/", nil))
+		c.fn(rec, httptest.NewRequestWithContext(context.Background(), "GET", "/", nil))
 		if rec.Code != c.expected {
 			t.Fatalf("%s: expected %d, got %d", c.code, c.expected, rec.Code)
 		}

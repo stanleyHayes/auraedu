@@ -100,7 +100,7 @@ class ExplainResponse(BaseModel):
 
 
 def _publisher() -> RecommendationPublisher:
-    from ai_recommendation_service.main import app_publisher
+    from ai_recommendation_service.main import app_publisher  # noqa: PLC0415
 
     return app_publisher
 
@@ -216,7 +216,7 @@ async def approve_recommendation(
     recommendation_id: UUID,
     db: DbSession,
     actor: CurrentActor,
-    payload: ApproveRecommendationRequest | None = None,
+    _payload: ApproveRecommendationRequest | None = None,
 ) -> Recommendation:
     rec = await db.get(Recommendation, str(recommendation_id))
     if rec is None:
@@ -241,7 +241,7 @@ async def reject_recommendation(
     tenant_id: TenantId,
     recommendation_id: UUID,
     db: DbSession,
-    payload: RejectRecommendationRequest | None = None,
+    _payload: RejectRecommendationRequest | None = None,
 ) -> Recommendation:
     rec = await db.get(Recommendation, str(recommendation_id))
     if rec is None:

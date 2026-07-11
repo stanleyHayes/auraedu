@@ -58,19 +58,19 @@ func main() {
 	nc, err := nats.Connect(natsURL)
 	if err != nil {
 		log.Error("failed to connect to NATS", "err", err)
-		os.Exit(1)
+		return
 	}
 	defer nc.Close()
 
 	js, err := nc.JetStream()
 	if err != nil {
 		log.Error("failed to create JetStream context", "err", err)
-		os.Exit(1)
+		return
 	}
 
 	if _, err := eventbus.EnsureStream(js, "AURA"); err != nil {
 		log.Error("failed to ensure NATS stream", "err", err)
-		os.Exit(1)
+		return
 	}
 
 	sub, err := eventbus.Subscribe(js, "AURA", "billing-worker-tenant-created", "tenant.created.v1", func(ctx context.Context, event tenancy.CloudEvent) error {
@@ -78,9 +78,13 @@ func main() {
 	}, nil)
 	if err != nil {
 		log.Error("failed to subscribe to tenant.created.v1", "err", err)
-		os.Exit(1)
+		return
 	}
-	defer sub.Unsubscribe()
+	defer func() {
+		if err := sub.Unsubscribe(); err != nil {
+			log.Error("subscriber unsubscribe error", "err", err)
+		}
+	}()
 
 	log.Info(service+" started", "version", version)
 	<-stop

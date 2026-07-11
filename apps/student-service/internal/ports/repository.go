@@ -1,3 +1,4 @@
+// Package ports defines the student service repository boundary.
 package ports
 
 import (

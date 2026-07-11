@@ -167,7 +167,9 @@ export const STUDENT_NAV: NavGroupDef[] = [
   },
   {
     heading: "Growth",
-    items: [{ label: "Recommendations", href: "/student/recommendations", feature: "ai_recommendations" }],
+    items: [
+      { label: "Recommendations", href: "/student/recommendations", feature: "ai_recommendations" },
+    ],
   },
 ];
 
@@ -214,8 +216,8 @@ export function resolveTenantFromHost(host: string): string {
   }
 
   if (lower.endsWith(".localhost") || lower.endsWith(".auraedu.com")) {
-    const code = lower.split(".")[0];
-    return code || DEFAULT_CODE;
+    const code = lower.split(".")[0] ?? "";
+    return code.length > 0 ? code : DEFAULT_CODE;
   }
 
   return DEFAULT_CODE;
@@ -248,10 +250,13 @@ export async function fetchTenant(code: string): Promise<TenantData> {
 
 export async function fetchTenantBranding(code: string): Promise<TenantData> {
   try {
-    const res = await fetch(`${publicApiUrl}/api/v1/tenant/branding?tenant=${encodeURIComponent(code)}`, {
-      headers: { [tenantHeaderName]: code },
-      next: { revalidate: 60 },
-    });
+    const res = await fetch(
+      `${publicApiUrl}/api/v1/tenant/branding?tenant=${encodeURIComponent(code)}`,
+      {
+        headers: { [tenantHeaderName]: code },
+        next: { revalidate: 60 },
+      },
+    );
     if (!res.ok) throw new Error(`branding fetch failed: ${res.status}`);
     const data = (await res.json()) as TenantData;
     return data;
@@ -274,6 +279,9 @@ export function makeFallbackTenant(code: string): TenantData {
   };
 }
 
-export function toFeatureSnapshot(tenant: TenantData): { tenantCode: string; flags: FeatureFlag[] } {
+export function toFeatureSnapshot(tenant: TenantData): {
+  tenantCode: string;
+  flags: FeatureFlag[];
+} {
   return { tenantCode: tenant.code, flags: tenant.features };
 }

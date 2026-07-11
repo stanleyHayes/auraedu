@@ -23,11 +23,11 @@ const (
 	invoiceB = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
 )
 
-func newRepos(t *testing.T) (ports.PaymentRepository, ports.TransactionRepository, ports.WebhookEventRepository, *testkit.PostgresTestDB) {
+func newRepos(t *testing.T) (ports.PaymentRepository, ports.TransactionRepository, ports.WebhookEventRepository) {
 	t.Helper()
 	ctx := context.Background()
 	tdb := testkit.NewPostgres(ctx, t, "../../migrations")
-	return postgres.NewPaymentRepository(tdb.DB), postgres.NewTransactionRepository(tdb.DB), postgres.NewWebhookEventRepository(tdb.DB), tdb
+	return postgres.NewPaymentRepository(tdb.DB), postgres.NewTransactionRepository(tdb.DB), postgres.NewWebhookEventRepository(tdb.DB)
 }
 
 func withTenant(ctx context.Context, tenantID string) context.Context {
@@ -38,25 +38,25 @@ func actorWithPerms(tenantID string, perms ...string) auth.Actor {
 	return auth.Actor{UserID: "user-1", TenantID: tenantID, Permissions: perms}
 }
 
-func mustCreatePayment(t *testing.T, ctx context.Context, repo ports.PaymentRepository, tenantID, invoiceID, provider string, amountCents int) *domain.Payment {
+func mustCreatePayment(ctx context.Context, t *testing.T, repo ports.PaymentRepository, invoiceID, provider string, amountCents int) *domain.Payment {
 	t.Helper()
-	p, err := domain.NewPayment(tenantID, invoiceID, provider, "GHS", amountCents, nil)
+	p, err := domain.NewPayment(tenantA, invoiceID, provider, "GHS", amountCents, nil)
 	if err != nil {
 		t.Fatalf("new payment: %v", err)
 	}
-	if err := repo.Create(ctx, tenantID, p); err != nil {
+	if err := repo.Create(ctx, tenantA, p); err != nil {
 		t.Fatalf("create payment: %v", err)
 	}
 	return p
 }
 
-func mustCreateTransaction(t *testing.T, ctx context.Context, repo ports.TransactionRepository, tenantID, paymentID, reference string, amountCents int) *domain.Transaction {
+func mustCreateTransaction(ctx context.Context, t *testing.T, repo ports.TransactionRepository, paymentID, reference string, amountCents int) *domain.Transaction {
 	t.Helper()
-	tx, err := domain.NewTransaction(tenantID, paymentID, "credit", "success", reference, amountCents)
+	tx, err := domain.NewTransaction(tenantA, paymentID, "credit", "success", reference, amountCents)
 	if err != nil {
 		t.Fatalf("new transaction: %v", err)
 	}
-	if err := repo.Create(ctx, tenantID, tx); err != nil {
+	if err := repo.Create(ctx, tenantA, tx); err != nil {
 		t.Fatalf("create transaction: %v", err)
 	}
 	return tx
@@ -64,9 +64,9 @@ func mustCreateTransaction(t *testing.T, ctx context.Context, repo ports.Transac
 
 func TestPaymentRepository_CreateAndGet(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _, _, _ := newRepos(t)
+	repo, _, _ := newRepos(t)
 
-	p := mustCreatePayment(t, ctx, repo, tenantA, invoiceA, "mock", 10000)
+	p := mustCreatePayment(ctx, t, repo, invoiceA, "mock", 10000)
 
 	got, err := repo.GetByID(ctx, tenantA, p.ID)
 	if err != nil {
@@ -79,10 +79,10 @@ func TestPaymentRepository_CreateAndGet(t *testing.T) {
 
 func TestPaymentRepository_ListPagination(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _, _, _ := newRepos(t)
+	repo, _, _ := newRepos(t)
 
-	mustCreatePayment(t, ctx, repo, tenantA, invoiceA, "mock", 10000)
-	p2 := mustCreatePayment(t, ctx, repo, tenantA, invoiceB, "mock", 5000)
+	mustCreatePayment(ctx, t, repo, invoiceA, "mock", 10000)
+	p2 := mustCreatePayment(ctx, t, repo, invoiceB, "mock", 5000)
 
 	page, next, err := repo.List(ctx, tenantA, ports.PaymentFilter{Limit: 1})
 	if err != nil {
@@ -106,10 +106,10 @@ func TestPaymentRepository_ListPagination(t *testing.T) {
 
 func TestPaymentRepository_ListFilters(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _, _, _ := newRepos(t)
+	repo, _, _ := newRepos(t)
 
-	mustCreatePayment(t, ctx, repo, tenantA, invoiceA, "mock", 10000)
-	mustCreatePayment(t, ctx, repo, tenantA, invoiceB, "paystack", 5000)
+	mustCreatePayment(ctx, t, repo, invoiceA, "mock", 10000)
+	mustCreatePayment(ctx, t, repo, invoiceB, "paystack", 5000)
 
 	cases := []struct {
 		name   string
@@ -136,9 +136,9 @@ func TestPaymentRepository_ListFilters(t *testing.T) {
 
 func TestPaymentRepository_Update(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _, _, _ := newRepos(t)
+	repo, _, _ := newRepos(t)
 
-	p := mustCreatePayment(t, ctx, repo, tenantA, invoiceA, "mock", 10000)
+	p := mustCreatePayment(ctx, t, repo, invoiceA, "mock", 10000)
 	status := string(domain.PaymentStatusProcessing)
 	ref := "mock_ref_123"
 	if _, err := p.ApplyUpdate(domain.PaymentPatch{Status: &status, ProviderReference: &ref}); err != nil {
@@ -159,9 +159,9 @@ func TestPaymentRepository_Update(t *testing.T) {
 
 func TestPaymentRepository_Delete(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _, _, _ := newRepos(t)
+	repo, _, _ := newRepos(t)
 
-	p := mustCreatePayment(t, ctx, repo, tenantA, invoiceA, "mock", 10000)
+	p := mustCreatePayment(ctx, t, repo, invoiceA, "mock", 10000)
 	if err := repo.Delete(ctx, tenantA, p.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
@@ -172,10 +172,10 @@ func TestPaymentRepository_Delete(t *testing.T) {
 
 func TestTransactionRepository_CreateAndGet(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	pRepo, txRepo, _, _ := newRepos(t)
+	pRepo, txRepo, _ := newRepos(t)
 
-	p := mustCreatePayment(t, ctx, pRepo, tenantA, invoiceA, "mock", 10000)
-	tx := mustCreateTransaction(t, ctx, txRepo, tenantA, p.ID, "ref-1", 10000)
+	p := mustCreatePayment(ctx, t, pRepo, invoiceA, "mock", 10000)
+	tx := mustCreateTransaction(ctx, t, txRepo, p.ID, "ref-1", 10000)
 
 	got, err := txRepo.GetByID(ctx, tenantA, tx.ID)
 	if err != nil {
@@ -188,11 +188,11 @@ func TestTransactionRepository_CreateAndGet(t *testing.T) {
 
 func TestTransactionRepository_ListByPayment(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	pRepo, txRepo, _, _ := newRepos(t)
+	pRepo, txRepo, _ := newRepos(t)
 
-	p := mustCreatePayment(t, ctx, pRepo, tenantA, invoiceA, "mock", 10000)
-	mustCreateTransaction(t, ctx, txRepo, tenantA, p.ID, "ref-1", 10000)
-	mustCreateTransaction(t, ctx, txRepo, tenantA, p.ID, "ref-2", 5000)
+	p := mustCreatePayment(ctx, t, pRepo, invoiceA, "mock", 10000)
+	mustCreateTransaction(ctx, t, txRepo, p.ID, "ref-1", 10000)
+	mustCreateTransaction(ctx, t, txRepo, p.ID, "ref-2", 5000)
 
 	page, _, err := txRepo.ListByPayment(ctx, tenantA, p.ID, ports.TransactionFilter{Limit: 10})
 	if err != nil {
@@ -205,12 +205,15 @@ func TestTransactionRepository_ListByPayment(t *testing.T) {
 
 func TestTransactionRepository_FKEnforcesSameTenant(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	pRepo, txRepo, _, _ := newRepos(t)
+	pRepo, txRepo, _ := newRepos(t)
 
-	p := mustCreatePayment(t, ctx, pRepo, tenantA, invoiceA, "mock", 10000)
+	p := mustCreatePayment(ctx, t, pRepo, invoiceA, "mock", 10000)
 
 	bCtx := withTenant(context.Background(), tenantB)
-	tx, _ := domain.NewTransaction(tenantB, p.ID, "credit", "success", "ref-1", 10000)
+	tx, err := domain.NewTransaction(tenantB, p.ID, "credit", "success", "ref-1", 10000)
+	if err != nil {
+		t.Fatalf("new transaction: %v", err)
+	}
 	if err := txRepo.Create(bCtx, tenantB, tx); err == nil {
 		t.Fatal("expected FK violation when payment belongs to another tenant")
 	}
@@ -218,7 +221,7 @@ func TestTransactionRepository_FKEnforcesSameTenant(t *testing.T) {
 
 func TestWebhookEventRepository_CreateAndGet(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	_, _, wRepo, _ := newRepos(t)
+	_, _, wRepo := newRepos(t)
 
 	w, err := domain.NewWebhookEvent("mock", "charge.success", []byte(`{"reference":"ref-1"}`), nil)
 	if err != nil {
@@ -240,12 +243,15 @@ func TestWebhookEventRepository_CreateAndGet(t *testing.T) {
 
 func TestRepository_TenantIsolation(t *testing.T) {
 	ctx := context.Background()
-	pRepo, txRepo, wRepo, _ := newRepos(t)
+	pRepo, txRepo, wRepo := newRepos(t)
 
 	aCtx := withTenant(ctx, tenantA)
-	p := mustCreatePayment(t, aCtx, pRepo, tenantA, invoiceA, "mock", 10000)
-	tx := mustCreateTransaction(t, aCtx, txRepo, tenantA, p.ID, "ref-1", 10000)
-	w, _ := domain.NewWebhookEvent("mock", "charge.success", []byte(`{"reference":"ref-1"}`), nil)
+	p := mustCreatePayment(aCtx, t, pRepo, invoiceA, "mock", 10000)
+	tx := mustCreateTransaction(aCtx, t, txRepo, p.ID, "ref-1", 10000)
+	w, err := domain.NewWebhookEvent("mock", "charge.success", []byte(`{"reference":"ref-1"}`), nil)
+	if err != nil {
+		t.Fatalf("new webhook event: %v", err)
+	}
 	w.SetTenant(tenantA)
 	if err := wRepo.Create(aCtx, tenantA, w); err != nil {
 		t.Fatalf("create webhook event: %v", err)
@@ -273,7 +279,7 @@ func TestRepository_TenantIsolation(t *testing.T) {
 
 func TestService_FeatureFlagGatesAccess(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantB)
-	pRepo, txRepo, wRepo, _ := newRepos(t)
+	pRepo, txRepo, wRepo := newRepos(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantB, application.FeaturePayments, false)
@@ -294,7 +300,7 @@ func TestService_FeatureFlagGatesAccess(t *testing.T) {
 
 func TestService_FeatureFlagAllowsAccessWhenEnabled(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	pRepo, txRepo, wRepo, _ := newRepos(t)
+	pRepo, txRepo, wRepo := newRepos(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantA, application.FeaturePayments, true)
@@ -318,7 +324,7 @@ func TestService_FeatureFlagAllowsAccessWhenEnabled(t *testing.T) {
 
 func TestService_InitiatePaymentFlow(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	pRepo, txRepo, wRepo, _ := newRepos(t)
+	pRepo, txRepo, wRepo := newRepos(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantA, application.FeaturePayments, true)
@@ -352,7 +358,7 @@ func TestService_InitiatePaymentFlow(t *testing.T) {
 
 func TestService_ProcessWebhookIdempotency(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	pRepo, txRepo, wRepo, _ := newRepos(t)
+	pRepo, txRepo, wRepo := newRepos(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantA, application.FeaturePayments, true)

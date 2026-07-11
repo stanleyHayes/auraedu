@@ -14,12 +14,10 @@ if TYPE_CHECKING:
 
 async def publish_predictions(
     tenant_id: str,
-    actor_user_id: str | None,
-    predictions: list["Prediction"],
+    _actor_user_id: str | None,
+    predictions: list[Prediction],
 ) -> None:
     transport = await get_transport()
-    if transport is None:
-        return
 
     now = datetime.now(UTC).isoformat()
     for prediction in predictions:

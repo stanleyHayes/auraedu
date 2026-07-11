@@ -1,3 +1,4 @@
+// Package mocks provides test doubles for the api-gateway.
 package mocks
 
 import "context"

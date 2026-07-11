@@ -2,11 +2,34 @@
 
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai_prediction_service.models import FeatureStoreMetric, Prediction
+
+_LOOKBACK_DAYS = 180
+_CONFIDENCE_BASE = 0.4
+_CONFIDENCE_STEP = 0.11
+_CONFIDENCE_CAP = 0.95
+_CONTRIBUTION_ROUND = 2
+_STRONG_NEGATIVE_THRESHOLD = -0.2
+_NEGATIVE_THRESHOLD = -0.05
+_POSITIVE_THRESHOLD = 0.05
+_STRONG_POSITIVE_THRESHOLD = 0.2
+_ATTENDANCE_THRESHOLD = 0.75
+_SCORE_THRESHOLD = 60.0
+_COMPLETION_THRESHOLD = 0.7
+_MIN_SAMPLES_TREND = 2
+_AT_RISK_SCORE_WEIGHT = 0.6
+_AT_RISK_ATTENDANCE_WEIGHT = 0.4
+_EXAM_READINESS_SCORE_WEIGHT = 0.7
+_EXAM_READINESS_COMPLETION_WEIGHT = 0.3
+
+
+def _average(values: list[float]) -> float:
+    return sum(values) / len(values) if values else 0.0
 
 
 async def fetch_student_metrics(
@@ -14,7 +37,7 @@ async def fetch_student_metrics(
     tenant_id: str,
     student_id: str,
 ) -> list[FeatureStoreMetric]:
-    since = datetime.now(UTC) - timedelta(days=180)
+    since = datetime.now(UTC) - timedelta(days=_LOOKBACK_DAYS)
     stmt = (
         select(FeatureStoreMetric)
         .where(
@@ -36,34 +59,22 @@ def _aggregate_metrics(metrics: list[FeatureStoreMetric]) -> dict[str, list[floa
 
 
 def _confidence(sample_count: int) -> float:
-    return round(min(0.4 + sample_count * 0.11, 0.95), 2)
+    return round(min(_CONFIDENCE_BASE + sample_count * _CONFIDENCE_STEP, _CONFIDENCE_CAP), 2)
 
 
 def _contribution(value: float, threshold: float, higher_is_better: bool) -> str:
     diff = (value - threshold) / threshold if threshold else 0.0
-    if higher_is_better:
-        if diff <= -0.2:
-            return "strong_negative"
-        if diff < -0.05:
-            return "negative"
-        if diff >= 0.2:
-            return "strong_positive"
-        if diff > 0.05:
-            return "positive"
-    else:
-        if diff >= 0.2:
-            return "strong_negative"
-        if diff > 0.05:
-            return "negative"
-        if diff <= -0.2:
-            return "strong_positive"
-        if diff < -0.05:
-            return "positive"
+    sign = 1 if higher_is_better else -1
+    signed_diff = diff * sign
+    if signed_diff <= _STRONG_NEGATIVE_THRESHOLD:
+        return "strong_negative"
+    if signed_diff < _NEGATIVE_THRESHOLD:
+        return "negative"
+    if signed_diff >= _STRONG_POSITIVE_THRESHOLD:
+        return "strong_positive"
+    if signed_diff > _POSITIVE_THRESHOLD:
+        return "positive"
     return "neutral"
-
-
-def _average(values: list[float]) -> float:
-    return sum(values) / len(values) if values else 0.0
 
 
 async def generate_predictions(
@@ -91,23 +102,25 @@ async def generate_predictions(
         risk_score = 0.0
         factors = []
         if score_values:
-            score_factor = max(0.0, (60.0 - avg_score) / 60.0)
-            risk_score += score_factor * 0.6
+            score_factor = max(0.0, (_SCORE_THRESHOLD - avg_score) / _SCORE_THRESHOLD)
+            risk_score += score_factor * _AT_RISK_SCORE_WEIGHT
             factors.append(
                 {
                     "metric_key": "average_score",
-                    "value": round(avg_score, 2),
-                    "contribution": _contribution(avg_score, 60.0, True),
+                    "value": round(avg_score, _CONTRIBUTION_ROUND),
+                    "contribution": _contribution(avg_score, _SCORE_THRESHOLD, True),
                 }
             )
         if attendance_values:
-            attendance_factor = max(0.0, (0.75 - avg_attendance) / 0.75)
-            risk_score += attendance_factor * 0.4
+            attendance_factor = max(
+                0.0, (_ATTENDANCE_THRESHOLD - avg_attendance) / _ATTENDANCE_THRESHOLD
+            )
+            risk_score += attendance_factor * _AT_RISK_ATTENDANCE_WEIGHT
             factors.append(
                 {
                     "metric_key": "attendance_rate",
-                    "value": round(avg_attendance, 2),
-                    "contribution": _contribution(avg_attendance, 0.75, True),
+                    "value": round(avg_attendance, _CONTRIBUTION_ROUND),
+                    "contribution": _contribution(avg_attendance, _ATTENDANCE_THRESHOLD, True),
                 }
             )
         predictions.append(
@@ -123,7 +136,7 @@ async def generate_predictions(
         )
 
     # Performance trend prediction
-    if include("performance_trend") and len(score_values) >= 2:
+    if include("performance_trend") and len(score_values) >= _MIN_SAMPLES_TREND:
         midpoint = len(score_values) // 2
         recent = _average(score_values[:midpoint])
         older = _average(score_values[midpoint:])
@@ -132,7 +145,7 @@ async def generate_predictions(
         factors = [
             {
                 "metric_key": "average_score",
-                "value": round(recent, 2),
+                "value": round(recent, _CONTRIBUTION_ROUND),
                 "contribution": _contribution(recent, older, True),
             }
         ]
@@ -152,22 +165,26 @@ async def generate_predictions(
     if include("exam_readiness") and (score_values or completion_values):
         avg_score = _average(score_values)
         avg_completion = _average(completion_values) if completion_values else avg_score / 100.0
-        readiness = min(1.0, (avg_score / 100.0) * 0.7 + avg_completion * 0.3)
+        readiness = min(
+            1.0,
+            (avg_score / 100.0) * _EXAM_READINESS_SCORE_WEIGHT
+            + avg_completion * _EXAM_READINESS_COMPLETION_WEIGHT,
+        )
         factors = []
         if score_values:
             factors.append(
                 {
                     "metric_key": "average_score",
-                    "value": round(avg_score, 2),
-                    "contribution": _contribution(avg_score, 60.0, True),
+                    "value": round(avg_score, _CONTRIBUTION_ROUND),
+                    "contribution": _contribution(avg_score, _SCORE_THRESHOLD, True),
                 }
             )
         if completion_values:
             factors.append(
                 {
                     "metric_key": "assignment_completion_rate",
-                    "value": round(avg_completion, 2),
-                    "contribution": _contribution(avg_completion, 0.7, True),
+                    "value": round(avg_completion, _CONTRIBUTION_ROUND),
+                    "contribution": _contribution(avg_completion, _COMPLETION_THRESHOLD, True),
                 }
             )
         predictions.append(
@@ -201,7 +218,7 @@ async def generate_predictions(
 async def build_explanation(
     session: AsyncSession,
     prediction: Prediction,
-) -> dict:
+) -> dict[str, Any]:
     """Build explainability payload for a prediction."""
     metrics = await fetch_student_metrics(
         session,
@@ -209,13 +226,13 @@ async def build_explanation(
         prediction.student_id,
     )
     buckets = _aggregate_metrics(metrics)
-    factors: list[dict] = []
+    factors: list[dict[str, Any]] = []
 
     thresholds = {
-        "attendance_rate": (0.75, True),
-        "average_score": (60.0, True),
-        "assessment_score": (60.0, True),
-        "assignment_completion_rate": (0.7, True),
+        "attendance_rate": (_ATTENDANCE_THRESHOLD, True),
+        "average_score": (_SCORE_THRESHOLD, True),
+        "assessment_score": (_SCORE_THRESHOLD, True),
+        "assignment_completion_rate": (_COMPLETION_THRESHOLD, True),
     }
 
     for key, values in buckets.items():
@@ -226,7 +243,7 @@ async def build_explanation(
         factors.append(
             {
                 "metric_key": key,
-                "value": round(avg, 2),
+                "value": round(avg, _CONTRIBUTION_ROUND),
                 "contribution": _contribution(avg, threshold, higher_is_better),
             }
         )

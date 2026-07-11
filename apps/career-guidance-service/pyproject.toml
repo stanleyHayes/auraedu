@@ -2,16 +2,16 @@
 name = "auraedu-career-guidance-service"
 version = "0.1.0"
 description = "AuraEDU Career Guidance Service (FastAPI). EP-32: career path and course recommendations."
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 dependencies = [
-    "fastapi",
-    "uvicorn[standard]",
-    "sqlalchemy[asyncio]",
-    "asyncpg",
-    "pydantic-settings",
-    "nats-py",
-    "greenlet",
-    "pyyaml",
+    "fastapi>=0.139.0",
+    "uvicorn[standard]>=0.51.0",
+    "sqlalchemy[asyncio]>=2.0.51",
+    "asyncpg>=0.31.0",
+    "pydantic-settings>=2.14.2",
+    "nats-py>=2.15.0",
+    "greenlet>=3.5.3",
+    "pyyaml>=6.0.3",
 ]
 
 [build-system]

@@ -34,7 +34,10 @@ export function SiteFooter() {
       <div className="mx-auto max-w-6xl px-6 py-10">
         <div className="flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-center">
           <Logo />
-          <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
+          <nav
+            aria-label="Footer"
+            className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground"
+          >
             {footerLinks.map((l) => (
               <Link key={l.href} href={l.href} className="hover:text-foreground">
                 {l.label}
@@ -43,7 +46,9 @@ export function SiteFooter() {
           </nav>
         </div>
         <div className="mt-8 border-t border-border pt-6 text-sm text-muted-foreground">
-          <p className="font-mono">© {new Date().getFullYear()} AuraEDU · One platform, every school</p>
+          <p className="font-mono">
+            © {new Date().getFullYear()} AuraEDU · One platform, every school
+          </p>
         </div>
       </div>
     </footer>

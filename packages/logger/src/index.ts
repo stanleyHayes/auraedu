@@ -9,14 +9,31 @@ interface LogEntry {
 }
 
 const SENSITIVE_KEYS = new Set([
-  "password", "token", "accessToken", "refreshToken", "secret", "apiKey", "api_key",
-  "authorization", "ssn", "phone", "email", "creditCard", "credit_card",
+  "password",
+  "token",
+  "accessToken",
+  "refreshToken",
+  "secret",
+  "apiKey",
+  "api_key",
+  "authorization",
+  "ssn",
+  "phone",
+  "email",
+  "creditCard",
+  "credit_card",
 ]);
 
 const PII_PATTERNS = [
-  { regex: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, replacement: "[REDACTED_EMAIL]" },
+  {
+    regex: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
+    replacement: "[REDACTED_EMAIL]",
+  },
   { regex: /\b\d{3}-\d{2}-\d{4}\b/g, replacement: "[REDACTED_SSN]" },
-  { regex: /\b(?:\+\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g, replacement: "[REDACTED_PHONE]" },
+  {
+    regex: /\b(?:\+\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g,
+    replacement: "[REDACTED_PHONE]",
+  },
 ];
 
 function isSensitiveKey(key: string): boolean {

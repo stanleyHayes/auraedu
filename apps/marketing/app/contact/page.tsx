@@ -78,7 +78,13 @@ export default function ContactPage() {
               <Label htmlFor="email" required>
                 Email
               </Label>
-              <Input id="email" name="email" type="email" required placeholder="you@school.edu.gh" />
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                required
+                placeholder="you@school.edu.gh"
+              />
             </div>
             <div>
               <Label htmlFor="phone">Phone</Label>

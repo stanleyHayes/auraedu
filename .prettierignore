@@ -1,0 +1,34 @@
+# Dependencies and build artifacts
+**/node_modules/**
+**/.next/**
+**/dist/**
+packages/shared-types/gen/**
+packages/shared-types/src/generated/**
+apps/*/dist/**
+.turbo/**
+.pytest_cache/**
+.venv/**
+
+# Lockfiles
+**/pnpm-lock.yaml
+**/package-lock.json
+**/yarn.lock
+
+# Generated / non-frontend code and config owned by other lanes
+.github/**
+apps/*-service/**
+apps/ai-*/**
+contracts/**
+deploy/**
+docs/**
+infrastructure/**
+platform/**
+scripts/**
+tools/new-service/**
+.*golangci*
+go.work
+go.work.sum
+pyrightconfig.json
+
+# Project documentation (formatted by other tools / not part of this stack)
+*.md

@@ -1,3 +1,4 @@
+// Package ports defines the file-service boundary interfaces.
 package ports
 
 import (

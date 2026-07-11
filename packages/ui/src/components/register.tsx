@@ -43,7 +43,14 @@ const label = "font-mono text-[11px] uppercase tracking-[0.14em]";
  * The ruled rows and the red tick are the brand made operable. Tap a mark to
  * toggle present/absent; the accent is the tenant's brand colour (via --primary).
  */
-export function RegisterCard({ title, meta, pupils, total, onToggle, className }: RegisterCardProps) {
+export function RegisterCard({
+  title,
+  meta,
+  pupils,
+  total,
+  onToggle,
+  className,
+}: RegisterCardProps) {
   const present = pupils.filter((p) => p.present).length;
   const shownTotal = total ?? pupils.length;
 
@@ -69,7 +76,9 @@ export function RegisterCard({ title, meta, pupils, total, onToggle, className }
             <span className="text-center font-mono text-xs tabular-nums text-[var(--muted-foreground)]">
               {String(i + 1).padStart(2, "0")}
             </span>
-            <span className={cn("text-sm font-medium", !p.present && "text-[var(--muted-foreground)]")}>
+            <span
+              className={cn("text-sm font-medium", !p.present && "text-[var(--muted-foreground)]")}
+            >
               {p.name}
             </span>
             <button
@@ -79,10 +88,16 @@ export function RegisterCard({ title, meta, pupils, total, onToggle, className }
               aria-label={`Mark ${p.name} ${p.present ? "absent" : "present"}`}
               className={cn(
                 "grid size-6 place-items-center rounded-[4px] border bg-[var(--background)] text-[var(--primary)] transition-colors",
-                p.present ? "border-[var(--primary)]" : "border-[var(--border)] hover:border-[var(--primary)]",
+                p.present
+                  ? "border-[var(--primary)]"
+                  : "border-[var(--border)] hover:border-[var(--primary)]",
               )}
             >
-              {p.present ? <Tick /> : <span className="h-0.5 w-2.5 rounded bg-[var(--muted-foreground)]" />}
+              {p.present ? (
+                <Tick />
+              ) : (
+                <span className="h-0.5 w-2.5 rounded bg-[var(--muted-foreground)]" />
+              )}
             </button>
           </li>
         ))}

@@ -1,3 +1,4 @@
+// Package ports defines the outbound interfaces for the assessment-service application layer.
 package ports
 
 import (

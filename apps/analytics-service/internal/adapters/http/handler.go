@@ -1,3 +1,4 @@
+// Package http adapts HTTP requests to the analytics-service application layer.
 package http
 
 import (
@@ -33,7 +34,12 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit := 25
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if parsed, err := strconv.Atoi(limitStr); err == nil {
+			limit = parsed
+		}
+	}
 	filter := ports.ListFilter{
 		Limit:          limit,
 		Cursor:         r.URL.Query().Get("cursor"),

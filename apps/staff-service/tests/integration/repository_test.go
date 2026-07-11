@@ -15,24 +15,24 @@ import (
 const tenantA = "11111111-1111-1111-1111-111111111111"
 const tenantB = "22222222-2222-2222-2222-222222222222"
 
-func newRepo(t *testing.T) (ports.Repository, *testkit.PostgresTestDB) {
+func newRepo(t *testing.T) ports.Repository {
 	t.Helper()
 	ctx := context.Background()
 	tdb := testkit.NewPostgres(ctx, t, "../../migrations")
-	return postgres.NewRepository(tdb.DB), tdb
+	return postgres.NewRepository(tdb.DB)
 }
 
 func withTenant(ctx context.Context, tenantID string) context.Context {
 	return tenancy.WithContext(ctx, tenancy.TenantContext{TenantID: tenantID})
 }
 
-func mustCreate(t *testing.T, ctx context.Context, repo ports.Repository, tenantID, first, last, staffType string) *domain.Staff {
+func mustCreate(ctx context.Context, t *testing.T, repo ports.Repository, first, last, staffType string) *domain.Staff {
 	t.Helper()
-	s, err := domain.NewStaff(tenantID, first, last, staffType)
+	s, err := domain.NewStaff(tenantA, first, last, staffType)
 	if err != nil {
 		t.Fatalf("new staff: %v", err)
 	}
-	if err := repo.Create(ctx, tenantID, s); err != nil {
+	if err := repo.Create(ctx, tenantA, s); err != nil {
 		t.Fatalf("create staff: %v", err)
 	}
 	return s
@@ -40,9 +40,9 @@ func mustCreate(t *testing.T, ctx context.Context, repo ports.Repository, tenant
 
 func TestRepository_CreateAndGet(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	s := mustCreate(t, ctx, repo, tenantA, "Kwame", "Nkrumah", "teacher")
+	s := mustCreate(ctx, t, repo, "Kwame", "Nkrumah", "teacher")
 
 	got, err := repo.GetByID(ctx, tenantA, s.ID)
 	if err != nil {
@@ -55,10 +55,10 @@ func TestRepository_CreateAndGet(t *testing.T) {
 
 func TestRepository_ListPagination(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	mustCreate(t, ctx, repo, tenantA, "A", "One", "teacher")
-	s2 := mustCreate(t, ctx, repo, tenantA, "B", "Two", "non_teaching")
+	mustCreate(ctx, t, repo, "A", "One", "teacher")
+	s2 := mustCreate(ctx, t, repo, "B", "Two", "non_teaching")
 
 	page, next, err := repo.List(ctx, tenantA, 1, "")
 	if err != nil {
@@ -82,9 +82,9 @@ func TestRepository_ListPagination(t *testing.T) {
 
 func TestRepository_Update(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	s := mustCreate(t, ctx, repo, tenantA, "Yaa", "Asantewaa", "teacher")
+	s := mustCreate(ctx, t, repo, "Yaa", "Asantewaa", "teacher")
 	newName := "Nana"
 	if _, err := s.ApplyUpdate(&newName, nil, nil, nil, nil); err != nil {
 		t.Fatalf("apply update: %v", err)
@@ -104,9 +104,9 @@ func TestRepository_Update(t *testing.T) {
 
 func TestRepository_Delete(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	s := mustCreate(t, ctx, repo, tenantA, "Kofi", "Annan", "teacher")
+	s := mustCreate(ctx, t, repo, "Kofi", "Annan", "teacher")
 	if err := repo.Delete(ctx, tenantA, s.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
@@ -117,10 +117,10 @@ func TestRepository_Delete(t *testing.T) {
 
 func TestRepository_TenantIsolation(t *testing.T) {
 	ctx := context.Background()
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	aCtx := withTenant(ctx, tenantA)
-	s := mustCreate(t, aCtx, repo, tenantA, "Tenant", "A", "teacher")
+	s := mustCreate(aCtx, t, repo, "Tenant", "A", "teacher")
 
 	bCtx := withTenant(ctx, tenantB)
 	if _, err := repo.GetByID(bCtx, tenantB, s.ID); err == nil {

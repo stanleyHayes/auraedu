@@ -19,7 +19,13 @@ const client = createGatewayClient({ baseUrl: `${apiBase}/api/v1` });
 const defaultPlans: Plan[] = [
   { id: "starter-id", key: "starter", name: "Starter", price_monthly: 99, features: [] },
   { id: "growth-id", key: "growth", name: "Growth", price_monthly: 249, features: [] },
-  { id: "professional-id", key: "professional", name: "Professional", price_monthly: 499, features: [] },
+  {
+    id: "professional-id",
+    key: "professional",
+    name: "Professional",
+    price_monthly: 499,
+    features: [],
+  },
 ];
 
 const countries = [
@@ -149,7 +155,8 @@ export function SignupForm() {
         message: `Your school “${tenant.name ?? schoolName}” is set up. We will email ${email} with next steps.`,
       });
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : "Something went wrong. Please try again.";
+      const message =
+        err instanceof ApiError ? err.message : "Something went wrong. Please try again.";
       setResult({ ok: false, message });
     } finally {
       setSubmitting(false);
@@ -163,7 +170,9 @@ export function SignupForm() {
         <h1 className="mt-4 text-balance font-display text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl">
           Create your AuraEDU school.
         </h1>
-        <p className="mx-auto mt-3 max-w-[56ch] text-muted-foreground">Start a free trial. No credit card required.</p>
+        <p className="mx-auto mt-3 max-w-[56ch] text-muted-foreground">
+          Start a free trial. No credit card required.
+        </p>
       </div>
 
       <div className="mt-10 rounded-lg border border-border bg-surface p-6 sm:p-8">
@@ -173,13 +182,15 @@ export function SignupForm() {
               <Tick className="w-6" />
             </div>
             <h2 className="mt-4 font-display text-xl font-extrabold">School created</h2>
-            <p className="mx-auto mt-2 max-w-[46ch] text-sm text-muted-foreground">{result.message}</p>
+            <p className="mx-auto mt-2 max-w-[46ch] text-sm text-muted-foreground">
+              {result.message}
+            </p>
             <Button asChild className="mt-6 h-11 px-6">
               <Link href="/">Back to home</Link>
             </Button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={(e) => void handleSubmit(e)} className="space-y-5">
             <div>
               <Label htmlFor="schoolName" required>
                 School name
@@ -237,7 +248,12 @@ export function SignupForm() {
               {plansLoading ? (
                 <Skeleton className="h-11 w-full" />
               ) : (
-                <Select id="plan" value={planKey} onChange={(e) => setPlanKey(e.target.value)} required>
+                <Select
+                  id="plan"
+                  value={planKey}
+                  onChange={(e) => setPlanKey(e.target.value)}
+                  required
+                >
                   {plans.map((p) => (
                     <option key={p.key} value={p.key}>
                       {p.name}
@@ -253,7 +269,12 @@ export function SignupForm() {
               </div>
             ) : null}
 
-            <Button type="submit" loading={submitting} loadingLabel="Creating school" className="h-11 w-full">
+            <Button
+              type="submit"
+              loading={submitting}
+              loadingLabel="Creating school"
+              className="h-11 w-full"
+            >
               Create school & start trial
             </Button>
 

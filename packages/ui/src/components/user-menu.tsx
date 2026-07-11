@@ -28,12 +28,23 @@ export interface UserMenuProps {
 function MenuRow({ item }: { item: UserMenuItem }) {
   const content = (
     <>
-      {item.icon ? <span className="mt-0.5 size-4 shrink-0 text-muted-foreground">{item.icon}</span> : null}
+      {item.icon ? (
+        <span className="mt-0.5 size-4 shrink-0 text-muted-foreground">{item.icon}</span>
+      ) : null}
       <span className="flex min-w-0 flex-col">
-        <span className={cn("text-sm font-medium", item.destructive ? "text-[var(--color-crit)]" : "text-[var(--foreground)]")}>
+        <span
+          className={cn(
+            "text-sm font-medium",
+            item.destructive ? "text-[var(--color-crit)]" : "text-[var(--foreground)]",
+          )}
+        >
           {item.label}
         </span>
-        {item.description ? <span className="text-xs leading-4 text-[var(--muted-foreground)]">{item.description}</span> : null}
+        {item.description ? (
+          <span className="text-xs leading-4 text-[var(--muted-foreground)]">
+            {item.description}
+          </span>
+        ) : null}
       </span>
     </>
   );
@@ -80,7 +91,16 @@ export function UserMenu({ user, items = [], align = "end", className }: UserMen
     };
   }, [open]);
 
-  const initials = user?.initials ?? (user?.name ? user.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase() : "U");
+  const initials =
+    user?.initials ??
+    (user?.name
+      ? user.name
+          .split(" ")
+          .map((n) => n[0])
+          .join("")
+          .slice(0, 2)
+          .toUpperCase()
+      : "U");
 
   return (
     <div ref={ref} className={cn("relative", className)} data-tour="user-menu">
@@ -105,9 +125,17 @@ export function UserMenu({ user, items = [], align = "end", className }: UserMen
         >
           {user ? (
             <div className="px-3 py-2">
-              <p className="truncate text-sm font-semibold text-[var(--foreground)]">{user.name ?? "Account"}</p>
-              {user.email ? <p className="truncate text-xs text-[var(--muted-foreground)]">{user.email}</p> : null}
-              {user.role ? <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">{user.role}</p> : null}
+              <p className="truncate text-sm font-semibold text-[var(--foreground)]">
+                {user.name ?? "Account"}
+              </p>
+              {user.email ? (
+                <p className="truncate text-xs text-[var(--muted-foreground)]">{user.email}</p>
+              ) : null}
+              {user.role ? (
+                <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+                  {user.role}
+                </p>
+              ) : null}
             </div>
           ) : null}
           {user && items.length > 0 ? <div className="my-1 h-px bg-[var(--border)]" /> : null}

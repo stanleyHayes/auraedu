@@ -37,26 +37,34 @@ func main() {
 		log.Error("failed to open database", "err", err)
 		os.Exit(1)
 	}
-	defer database.Close()
 
 	nc, js, err := connectNATS(log)
 	if err != nil {
 		log.Error("failed to connect to NATS", "err", err)
+		database.Close()
 		os.Exit(1)
 	}
-	defer nc.Close()
 
 	if _, err := eventbus.EnsureStream(js, "AURA"); err != nil {
 		log.Error("failed to ensure NATS stream", "err", err)
+		nc.Close()
+		database.Close()
 		os.Exit(1)
 	}
 
 	consumer := newConsumer(js, log)
 	if err := consumer.Start(ctx); err != nil {
 		log.Error("failed to start consumer", "err", err)
+		nc.Close()
+		database.Close()
 		os.Exit(1)
 	}
-	defer func() { _ = consumer.Stop() }()
+	defer func() {
+		if err := consumer.Stop(); err != nil {
+			log.Error("consumer stop error", "err", err)
+		}
+	}()
+	defer database.Close()
 
 	log.Info(service+" started", "version", version)
 
@@ -64,15 +72,10 @@ func main() {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
 
-	ctxShutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	_, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := consumer.Stop(); err != nil {
-		log.Error("consumer stop error", "err", err)
-	}
 	nc.Close()
-	database.Close()
 	log.Info(service + " stopped")
-	_ = ctxShutdown
 }
 
 func openDB(ctx context.Context) (*db.DB, error) {
@@ -145,12 +148,16 @@ func (c *consumer) handleMsg(msg *nats.Msg) {
 	var event tenancy.CloudEvent
 	if err := json.Unmarshal(msg.Data, &event); err != nil {
 		c.log.Error("unmarshal message", "err", err)
-		_ = msg.Nak()
+		if nerr := msg.Nak(); nerr != nil {
+			c.log.Error("failed to nak message", "err", nerr)
+		}
 		return
 	}
 	if err := event.Validate(); err != nil {
 		c.log.Error("invalid cloudevent", "err", err)
-		_ = msg.Nak()
+		if nerr := msg.Nak(); nerr != nil {
+			c.log.Error("failed to nak message", "err", nerr)
+		}
 		return
 	}
 	c.log.Info("received event",
@@ -159,5 +166,7 @@ func (c *consumer) handleMsg(msg *nats.Msg) {
 		"subject", event.Subject,
 	)
 	// Placeholder consumption: no side effects for this story.
-	_ = msg.Ack()
+	if err := msg.Ack(); err != nil {
+		c.log.Error("failed to ack message", "err", err)
+	}
 }

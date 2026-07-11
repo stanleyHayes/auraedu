@@ -1,3 +1,4 @@
+// Package domain contains the billing aggregates and value objects.
 package domain
 
 import (

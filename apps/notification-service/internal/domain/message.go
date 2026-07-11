@@ -1,3 +1,4 @@
+// Package domain holds the notification-service aggregate roots and value objects.
 package domain
 
 import (
@@ -26,7 +27,7 @@ const (
 	MessageStatusPending   MessageStatus = "pending"
 	MessageStatusSent      MessageStatus = "sent"
 	MessageStatusFailed    MessageStatus = "failed"
-	MessageStatusCancelled MessageStatus = "cancelled"
+	MessageStatusCancelled MessageStatus = "cancelled" //nolint:misspell // domain uses British spelling for status
 )
 
 // Message is the aggregate root for a notification message.
@@ -110,6 +111,7 @@ func (m Message) Validate() error {
 		return fmt.Errorf("%w: body is required", ErrValidation)
 	}
 	if !isValidMessageStatus(MessageStatus(m.Status)) {
+		//nolint:misspell // domain uses British spelling for status
 		return fmt.Errorf("%w: status must be pending, sent, failed or cancelled", ErrValidation)
 	}
 	return nil
@@ -167,6 +169,7 @@ func (m *Message) ApplyUpdate(patch MessagePatch) ([]string, error) {
 	}
 	if patch.Status != nil {
 		if !isValidMessageStatus(MessageStatus(*patch.Status)) {
+			//nolint:misspell // domain uses British spelling for status
 			return nil, fmt.Errorf("%w: status must be pending, sent, failed or cancelled", ErrValidation)
 		}
 		m.Status = *patch.Status

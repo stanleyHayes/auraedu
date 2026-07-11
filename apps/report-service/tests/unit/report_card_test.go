@@ -97,7 +97,10 @@ func TestReportCard_SetPublished(t *testing.T) {
 }
 
 func TestReportCard_Validate_InvalidStatus(t *testing.T) {
-	card, _ := domain.NewReportCard(tenantA, studentA, ay1, template1)
+	card, err := domain.NewReportCard(tenantA, studentA, ay1, template1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	card.Status = "unknown"
 	if err := card.Validate(); err == nil {
 		t.Fatal("expected error for invalid status")

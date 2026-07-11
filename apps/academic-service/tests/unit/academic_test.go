@@ -88,7 +88,10 @@ func TestAcademicYear_ApplyUpdate(t *testing.T) {
 }
 
 func TestAcademicYear_InvalidStatus(t *testing.T) {
-	y, _ := domain.NewAcademicYear("tenant-1", "2025/26", "", "2025-09-01", "2026-07-31", false)
+	y, err := domain.NewAcademicYear("tenant-1", "2025/26", "", "2025-09-01", "2026-07-31", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	y.Status = "unknown"
 	if err := y.Validate(); err == nil {
 		t.Fatal("expected error for invalid status")

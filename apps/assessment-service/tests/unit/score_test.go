@@ -111,7 +111,10 @@ func TestScore_ApplyUpdate_NegativeScore(t *testing.T) {
 }
 
 func TestScore_Validate_NegativeScore(t *testing.T) {
-	s, _ := domain.NewScore(tenantA, "assessment-1", student1, 75, staff1, "", 100)
+	s, err := domain.NewScore(tenantA, "assessment-1", student1, 75, staff1, "", 100)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	s.Score = -5
 	if err := s.Validate(); err == nil {
 		t.Fatal("expected error for negative score")

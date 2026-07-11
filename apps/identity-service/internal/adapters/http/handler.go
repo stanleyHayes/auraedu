@@ -305,7 +305,7 @@ func (h *Handler) acceptInvite(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, userDTO(u))
 }
 
-func (h *Handler) listPermissions(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) listPermissions(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"data": []string{
 			"features.manage", "users.read", "users.create", "users.update", "roles.assign",
@@ -328,7 +328,7 @@ func (h *Handler) listPermissions(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *Handler) listRoles(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) listRoles(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"data": []map[string]string{
 			{"role": "platform_super_admin", "scope": "all_tenants"},

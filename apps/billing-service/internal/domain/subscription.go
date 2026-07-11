@@ -1,3 +1,6 @@
+// Package domain contains the billing aggregates and value objects.
+//
+//nolint:misspell // British spelling "cancelled" is intentional for the billing domain.
 package domain
 
 import (

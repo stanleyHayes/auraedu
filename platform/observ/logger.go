@@ -1,3 +1,5 @@
+// Package observ provides shared observability primitives: structured logging
+// with PII redaction, health handlers, metrics and tracing utilities.
 package observ
 
 import (
@@ -9,6 +11,7 @@ import (
 	"strings"
 )
 
+//nolint:gochecknoglobals // Compiled regex table for PII redaction; package scope avoids recomputation on every log attribute.
 var piiPatterns = []struct {
 	key string
 	re  *regexp.Regexp
@@ -21,7 +24,7 @@ var piiPatterns = []struct {
 	{"ssn", regexp.MustCompile(`(?i)ssn|social_security|national_id`)},
 }
 
-func redactReplacer(groups []string, a slog.Attr) slog.Attr {
+func redactReplacer(_ []string, a slog.Attr) slog.Attr {
 	key := a.Key
 	for _, p := range piiPatterns {
 		if strings.EqualFold(key, p.key) || p.re.MatchString(key) {
@@ -36,6 +39,7 @@ func redactReplacer(groups []string, a slog.Attr) slog.Attr {
 	return a
 }
 
+// NewLogger returns a JSON slog.Logger with PII redaction configured.
 func NewLogger(level slog.Leveler, w io.Writer) *slog.Logger {
 	if w == nil {
 		w = os.Stdout
@@ -47,10 +51,12 @@ func NewLogger(level slog.Leveler, w io.Writer) *slog.Logger {
 	return slog.New(slog.NewJSONHandler(w, opts))
 }
 
+// DefaultLogger returns a logger writing INFO-level JSON to stdout.
 func DefaultLogger() *slog.Logger {
 	return NewLogger(slog.LevelInfo, os.Stdout)
 }
 
+// LoggerFromContext returns the logger stored in ctx, or DefaultLogger.
 func LoggerFromContext(ctx context.Context) *slog.Logger {
 	if l, ok := ctx.Value(loggerKey{}).(*slog.Logger); ok && l != nil {
 		return l
@@ -58,6 +64,7 @@ func LoggerFromContext(ctx context.Context) *slog.Logger {
 	return DefaultLogger()
 }
 
+// WithLogger stores logger in parent and returns the derived context.
 func WithLogger(parent context.Context, l *slog.Logger) context.Context {
 	return context.WithValue(parent, loggerKey{}, l)
 }

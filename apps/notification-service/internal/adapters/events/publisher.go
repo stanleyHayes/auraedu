@@ -1,3 +1,4 @@
+// Package events publishes notification-service domain events.
 package events
 
 import (

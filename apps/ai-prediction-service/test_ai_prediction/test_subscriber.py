@@ -1,8 +1,8 @@
 """Tests for the AI Prediction feature-store event subscriber."""
 
-
 from ai_prediction_service.events.subscriber import process_event
 from ai_prediction_service.models import FeatureStoreMetric
+from sqlalchemy import select
 
 
 async def test_process_assessment_score_event(db_session):
@@ -17,10 +17,6 @@ async def test_process_assessment_score_event(db_session):
     }
     await process_event(event)
     await db_session.commit()
-
-    metric = await db_session.get(FeatureStoreMetric, 1)
-    # SQLite in-memory rowid is not guaranteed; query instead.
-    from sqlalchemy import select
 
     result = await db_session.execute(
         select(FeatureStoreMetric).where(
@@ -46,8 +42,6 @@ async def test_process_attendance_event(db_session):
     await process_event(event)
     await db_session.commit()
 
-    from sqlalchemy import select
-
     result = await db_session.execute(
         select(FeatureStoreMetric).where(
             FeatureStoreMetric.tenant_id == "tenant-a",
@@ -67,8 +61,6 @@ async def test_unsupported_event_is_ignored(db_session):
     }
     await process_event(event)
     await db_session.commit()
-
-    from sqlalchemy import select
 
     result = await db_session.execute(
         select(FeatureStoreMetric).where(

@@ -25,11 +25,11 @@ const (
 	ay2      = "dddddddd-dddd-dddd-dddd-dddddddddddd"
 )
 
-func newRepos(t *testing.T) (ports.FeeStructureRepository, ports.InvoiceRepository, *testkit.PostgresTestDB) {
+func newRepos(t *testing.T) (ports.FeeStructureRepository, ports.InvoiceRepository) {
 	t.Helper()
 	ctx := context.Background()
 	tdb := testkit.NewPostgres(ctx, t, "../../migrations")
-	return postgres.NewFeeStructureRepository(tdb.DB), postgres.NewInvoiceRepository(tdb.DB), tdb
+	return postgres.NewFeeStructureRepository(tdb.DB), postgres.NewInvoiceRepository(tdb.DB)
 }
 
 func withTenant(ctx context.Context, tenantID string) context.Context {
@@ -40,25 +40,25 @@ func actorWithPerms(tenantID string, perms ...string) auth.Actor {
 	return auth.Actor{UserID: "user-1", TenantID: tenantID, Permissions: perms}
 }
 
-func mustCreateFeeStructure(t *testing.T, ctx context.Context, repo ports.FeeStructureRepository, tenantID, name, academicYearID string, amountCents int) *domain.FeeStructure {
+func mustCreateFeeStructure(ctx context.Context, t *testing.T, repo ports.FeeStructureRepository, name, academicYearID string, amountCents int) *domain.FeeStructure {
 	t.Helper()
-	fs, err := domain.NewFeeStructure(tenantID, name, academicYearID, "GHS", "termly", "all_students", amountCents, nil, nil)
+	fs, err := domain.NewFeeStructure(tenantA, name, academicYearID, "GHS", "termly", "all_students", amountCents, nil, nil)
 	if err != nil {
 		t.Fatalf("new fee structure: %v", err)
 	}
-	if err := repo.Create(ctx, tenantID, fs); err != nil {
+	if err := repo.Create(ctx, tenantA, fs); err != nil {
 		t.Fatalf("create fee structure: %v", err)
 	}
 	return fs
 }
 
-func mustCreateInvoice(t *testing.T, ctx context.Context, repo ports.InvoiceRepository, tenantID, studentID, feeStructureID string, amountCents int) *domain.Invoice {
+func mustCreateInvoice(ctx context.Context, t *testing.T, repo ports.InvoiceRepository, studentID, feeStructureID string, amountCents int) *domain.Invoice {
 	t.Helper()
-	inv, err := domain.NewInvoice(tenantID, studentID, feeStructureID, amountCents, amountCents, domain.Date{}, nil)
+	inv, err := domain.NewInvoice(tenantA, studentID, feeStructureID, amountCents, amountCents, domain.Date{}, nil)
 	if err != nil {
 		t.Fatalf("new invoice: %v", err)
 	}
-	if err := repo.Create(ctx, tenantID, inv); err != nil {
+	if err := repo.Create(ctx, tenantA, inv); err != nil {
 		t.Fatalf("create invoice: %v", err)
 	}
 	return inv
@@ -66,9 +66,9 @@ func mustCreateInvoice(t *testing.T, ctx context.Context, repo ports.InvoiceRepo
 
 func TestFeeStructureRepository_CreateAndGet(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _, _ := newRepos(t)
+	repo, _ := newRepos(t)
 
-	fs := mustCreateFeeStructure(t, ctx, repo, tenantA, "Tuition", ay1, 10000)
+	fs := mustCreateFeeStructure(ctx, t, repo, "Tuition", ay1, 10000)
 
 	got, err := repo.GetByID(ctx, tenantA, fs.ID)
 	if err != nil {
@@ -81,10 +81,10 @@ func TestFeeStructureRepository_CreateAndGet(t *testing.T) {
 
 func TestFeeStructureRepository_ListPagination(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _, _ := newRepos(t)
+	repo, _ := newRepos(t)
 
-	mustCreateFeeStructure(t, ctx, repo, tenantA, "Tuition", ay1, 10000)
-	fs2 := mustCreateFeeStructure(t, ctx, repo, tenantA, "PTA", ay1, 5000)
+	mustCreateFeeStructure(ctx, t, repo, "Tuition", ay1, 10000)
+	fs2 := mustCreateFeeStructure(ctx, t, repo, "PTA", ay1, 5000)
 
 	page, next, err := repo.List(ctx, tenantA, ports.FeeStructureFilter{Limit: 1})
 	if err != nil {
@@ -108,11 +108,14 @@ func TestFeeStructureRepository_ListPagination(t *testing.T) {
 
 func TestFeeStructureRepository_ListFilters(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _, _ := newRepos(t)
+	repo, _ := newRepos(t)
 
-	mustCreateFeeStructure(t, ctx, repo, tenantA, "Tuition", ay1, 10000)
-	mustCreateFeeStructure(t, ctx, repo, tenantA, "PTA", ay2, 5000)
-	archived, _ := domain.NewFeeStructure(tenantA, "Old", ay1, "GHS", "one_time", "all_students", 1000, nil, nil)
+	mustCreateFeeStructure(ctx, t, repo, "Tuition", ay1, 10000)
+	mustCreateFeeStructure(ctx, t, repo, "PTA", ay2, 5000)
+	archived, err := domain.NewFeeStructure(tenantA, "Old", ay1, "GHS", "one_time", "all_students", 1000, nil, nil)
+	if err != nil {
+		t.Fatalf("new fee structure: %v", err)
+	}
 	archived.Status = string(domain.StatusArchived)
 	if err := repo.Create(ctx, tenantA, archived); err != nil {
 		t.Fatalf("create archived fee structure: %v", err)
@@ -143,9 +146,9 @@ func TestFeeStructureRepository_ListFilters(t *testing.T) {
 
 func TestFeeStructureRepository_Update(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _, _ := newRepos(t)
+	repo, _ := newRepos(t)
 
-	fs := mustCreateFeeStructure(t, ctx, repo, tenantA, "Tuition", ay1, 10000)
+	fs := mustCreateFeeStructure(ctx, t, repo, "Tuition", ay1, 10000)
 	name := "Updated Tuition"
 	if _, err := fs.ApplyUpdate(domain.FeeStructurePatch{Name: &name}); err != nil {
 		t.Fatalf("apply update: %v", err)
@@ -165,9 +168,9 @@ func TestFeeStructureRepository_Update(t *testing.T) {
 
 func TestFeeStructureRepository_Delete(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _, _ := newRepos(t)
+	repo, _ := newRepos(t)
 
-	fs := mustCreateFeeStructure(t, ctx, repo, tenantA, "Tuition", ay1, 10000)
+	fs := mustCreateFeeStructure(ctx, t, repo, "Tuition", ay1, 10000)
 	if err := repo.Delete(ctx, tenantA, fs.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
@@ -178,10 +181,10 @@ func TestFeeStructureRepository_Delete(t *testing.T) {
 
 func TestInvoiceRepository_CreateAndGet(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	fsRepo, invRepo, _ := newRepos(t)
+	fsRepo, invRepo := newRepos(t)
 
-	fs := mustCreateFeeStructure(t, ctx, fsRepo, tenantA, "Tuition", ay1, 10000)
-	inv := mustCreateInvoice(t, ctx, invRepo, tenantA, studentA, fs.ID, 10000)
+	fs := mustCreateFeeStructure(ctx, t, fsRepo, "Tuition", ay1, 10000)
+	inv := mustCreateInvoice(ctx, t, invRepo, studentA, fs.ID, 10000)
 
 	got, err := invRepo.GetByID(ctx, tenantA, inv.ID)
 	if err != nil {
@@ -194,12 +197,12 @@ func TestInvoiceRepository_CreateAndGet(t *testing.T) {
 
 func TestInvoiceRepository_ListFilters(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	fsRepo, invRepo, _ := newRepos(t)
+	fsRepo, invRepo := newRepos(t)
 
-	fs1 := mustCreateFeeStructure(t, ctx, fsRepo, tenantA, "Tuition", ay1, 10000)
-	fs2 := mustCreateFeeStructure(t, ctx, fsRepo, tenantA, "PTA", ay1, 5000)
-	mustCreateInvoice(t, ctx, invRepo, tenantA, studentA, fs1.ID, 10000)
-	mustCreateInvoice(t, ctx, invRepo, tenantA, studentB, fs2.ID, 5000)
+	fs1 := mustCreateFeeStructure(ctx, t, fsRepo, "Tuition", ay1, 10000)
+	fs2 := mustCreateFeeStructure(ctx, t, fsRepo, "PTA", ay1, 5000)
+	mustCreateInvoice(ctx, t, invRepo, studentA, fs1.ID, 10000)
+	mustCreateInvoice(ctx, t, invRepo, studentB, fs2.ID, 5000)
 
 	cases := []struct {
 		name   string
@@ -226,10 +229,10 @@ func TestInvoiceRepository_ListFilters(t *testing.T) {
 
 func TestInvoiceRepository_Update(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	fsRepo, invRepo, _ := newRepos(t)
+	fsRepo, invRepo := newRepos(t)
 
-	fs := mustCreateFeeStructure(t, ctx, fsRepo, tenantA, "Tuition", ay1, 10000)
-	inv := mustCreateInvoice(t, ctx, invRepo, tenantA, studentA, fs.ID, 10000)
+	fs := mustCreateFeeStructure(ctx, t, fsRepo, "Tuition", ay1, 10000)
+	inv := mustCreateInvoice(ctx, t, invRepo, studentA, fs.ID, 10000)
 	status := string(domain.InvoiceStatusPaid)
 	if _, err := inv.ApplyUpdate(domain.InvoicePatch{Status: &status}); err != nil {
 		t.Fatalf("apply update: %v", err)
@@ -249,10 +252,10 @@ func TestInvoiceRepository_Update(t *testing.T) {
 
 func TestInvoiceRepository_Delete(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	fsRepo, invRepo, _ := newRepos(t)
+	fsRepo, invRepo := newRepos(t)
 
-	fs := mustCreateFeeStructure(t, ctx, fsRepo, tenantA, "Tuition", ay1, 10000)
-	inv := mustCreateInvoice(t, ctx, invRepo, tenantA, studentA, fs.ID, 10000)
+	fs := mustCreateFeeStructure(ctx, t, fsRepo, "Tuition", ay1, 10000)
+	inv := mustCreateInvoice(ctx, t, invRepo, studentA, fs.ID, 10000)
 	if err := invRepo.Delete(ctx, tenantA, inv.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
@@ -263,11 +266,11 @@ func TestInvoiceRepository_Delete(t *testing.T) {
 
 func TestRepository_TenantIsolation(t *testing.T) {
 	ctx := context.Background()
-	fsRepo, invRepo, _ := newRepos(t)
+	fsRepo, invRepo := newRepos(t)
 
 	aCtx := withTenant(ctx, tenantA)
-	fs := mustCreateFeeStructure(t, aCtx, fsRepo, tenantA, "Tuition", ay1, 10000)
-	inv := mustCreateInvoice(t, aCtx, invRepo, tenantA, studentA, fs.ID, 10000)
+	fs := mustCreateFeeStructure(aCtx, t, fsRepo, "Tuition", ay1, 10000)
+	inv := mustCreateInvoice(aCtx, t, invRepo, studentA, fs.ID, 10000)
 
 	bCtx := withTenant(ctx, tenantB)
 	if _, err := fsRepo.GetByID(bCtx, tenantB, fs.ID); err == nil {
@@ -288,7 +291,7 @@ func TestRepository_TenantIsolation(t *testing.T) {
 
 func TestService_FeatureFlagGatesAccess(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantB)
-	fsRepo, invRepo, _ := newRepos(t)
+	fsRepo, invRepo := newRepos(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantB, application.FeatureFees, false)
@@ -311,7 +314,7 @@ func TestService_FeatureFlagGatesAccess(t *testing.T) {
 
 func TestService_FeatureFlagAllowsAccessWhenEnabled(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	fsRepo, invRepo, _ := newRepos(t)
+	fsRepo, invRepo := newRepos(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantA, application.FeatureFees, true)
@@ -337,7 +340,7 @@ func TestService_FeatureFlagAllowsAccessWhenEnabled(t *testing.T) {
 
 func TestService_CreateInvoiceFromFeeStructure(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	fsRepo, invRepo, _ := newRepos(t)
+	fsRepo, invRepo := newRepos(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantA, application.FeatureFees, true)

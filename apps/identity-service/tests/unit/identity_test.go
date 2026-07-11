@@ -2,6 +2,7 @@ package unit
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -58,21 +59,23 @@ func TestLoginIssuesUsableToken(t *testing.T) {
 
 func TestLoginWrongPassword(t *testing.T) {
 	svc, _ := newSvc(t)
-	if _, _, _, _, err := svc.Login(context.Background(), "e.mensah@upshs.edu.gh", "nope"); err != domain.ErrInvalidCredentials {
+	_, _, _, _, err := svc.Login(context.Background(), "e.mensah@upshs.edu.gh", "nope") //nolint:dogsled // Login returns a 5-tuple; only the error is checked here
+	if !errors.Is(err, domain.ErrInvalidCredentials) {
 		t.Fatalf("expected ErrInvalidCredentials, got %v", err)
 	}
 }
 
 func TestLoginUnknownEmailDoesNotEnumerate(t *testing.T) {
 	svc, _ := newSvc(t)
-	if _, _, _, _, err := svc.Login(context.Background(), "ghost@nowhere.gh", "password123"); err != domain.ErrInvalidCredentials {
+	_, _, _, _, err := svc.Login(context.Background(), "ghost@nowhere.gh", "password123") //nolint:dogsled // Login returns a 5-tuple; only the error is checked here
+	if !errors.Is(err, domain.ErrInvalidCredentials) {
 		t.Fatalf("expected ErrInvalidCredentials, got %v", err)
 	}
 }
 
 func TestSuperAdminHasNoTenantAndIsPlatformAdmin(t *testing.T) {
 	svc, _ := newSvc(t)
-	access, _, _, _, err := svc.Login(context.Background(), "super@auraedu.dev", "password123")
+	access, _, _, _, err := svc.Login(context.Background(), "super@auraedu.dev", "password123") //nolint:dogsled // Login returns a 5-tuple; only access token is needed
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
@@ -87,7 +90,7 @@ func TestSuperAdminHasNoTenantAndIsPlatformAdmin(t *testing.T) {
 
 func TestRefreshRotatesToken(t *testing.T) {
 	svc, _ := newSvc(t)
-	_, refresh, _, _, err := svc.Login(context.Background(), "e.mensah@upshs.edu.gh", "password123")
+	_, refresh, _, _, err := svc.Login(context.Background(), "e.mensah@upshs.edu.gh", "password123") //nolint:dogsled // Login returns a 5-tuple; only refresh token is needed
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
@@ -144,7 +147,7 @@ func TestUserCRUD(t *testing.T) {
 	if err := svc.DeleteUser(ctx, actor, u.ID); err != nil {
 		t.Fatalf("delete user: %v", err)
 	}
-	if _, err := svc.GetUser(ctx, actor, u.ID); err != domain.ErrNotFound {
+	if _, err := svc.GetUser(ctx, actor, u.ID); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("expected not found after delete, got %v", err)
 	}
 }

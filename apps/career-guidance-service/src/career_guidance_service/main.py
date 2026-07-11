@@ -1,5 +1,6 @@
 """FastAPI entrypoint for the Career Guidance Service."""
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
@@ -15,7 +16,7 @@ app_subscriber = FeatureStoreSubscriber()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):  # noqa: ARG001
+async def lifespan(app: FastAPI) -> AsyncGenerator[None]:  # noqa: ARG001
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await app_subscriber.connect()
@@ -34,13 +35,13 @@ app = FastAPI(
 
 
 @app.exception_handler(HTTPException)
-async def http_exception_handler(request, exc):  # noqa: ARG001
+async def http_exception_handler(request: object, exc: HTTPException) -> JSONResponse:  # noqa: ARG001
     content = exc.detail if isinstance(exc.detail, dict) else {"message": exc.detail}
     return JSONResponse(status_code=exc.status_code, content=content)
 
 
 @app.exception_handler(ValueError)
-async def value_error_handler(request, exc):  # noqa: ARG001
+async def value_error_handler(request: object, exc: ValueError) -> JSONResponse:  # noqa: ARG001
     return JSONResponse(
         status_code=422,
         content={"code": "validation_error", "message": str(exc)},

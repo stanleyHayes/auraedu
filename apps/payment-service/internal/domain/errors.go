@@ -1,3 +1,4 @@
+// Package domain contains the payment service aggregates and domain errors.
 package domain
 
 import "errors"

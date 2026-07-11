@@ -1,3 +1,4 @@
+// Package domain contains the CBT aggregates and value objects.
 package domain
 
 import "errors"

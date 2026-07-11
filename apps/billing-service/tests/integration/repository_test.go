@@ -21,11 +21,11 @@ const (
 	tenantB = "22222222-2222-2222-2222-222222222222"
 )
 
-func newRepos(t *testing.T) (ports.PlanRepository, ports.SubscriptionRepository, ports.SaaSInvoiceRepository, *testkit.PostgresTestDB) {
+func newRepos(t *testing.T) (ports.PlanRepository, ports.SubscriptionRepository, ports.SaaSInvoiceRepository) {
 	t.Helper()
 	ctx := context.Background()
 	tdb := testkit.NewPostgres(ctx, t, "../../migrations")
-	return postgres.NewPlanRepository(tdb.DB), postgres.NewSubscriptionRepository(tdb.DB), postgres.NewSaaSInvoiceRepository(tdb.DB), tdb
+	return postgres.NewPlanRepository(tdb.DB), postgres.NewSubscriptionRepository(tdb.DB), postgres.NewSaaSInvoiceRepository(tdb.DB)
 }
 
 func withTenant(ctx context.Context, tenantID string) context.Context {
@@ -36,7 +36,7 @@ func actorWithPerms(tenantID string, perms ...string) auth.Actor {
 	return auth.Actor{UserID: "user-1", TenantID: tenantID, Permissions: perms}
 }
 
-func mustCreatePlan(t *testing.T, ctx context.Context, repo ports.PlanRepository, name, code string, priceCents int) *domain.Plan {
+func mustCreatePlan(ctx context.Context, t *testing.T, repo ports.PlanRepository, name, code string, priceCents int) *domain.Plan {
 	t.Helper()
 	p, err := domain.NewPlan(name, code, "GHS", "monthly", priceCents, nil, []string{"billing"})
 	if err != nil {
@@ -48,26 +48,26 @@ func mustCreatePlan(t *testing.T, ctx context.Context, repo ports.PlanRepository
 	return p
 }
 
-func mustCreateSubscription(t *testing.T, ctx context.Context, repo ports.SubscriptionRepository, tenantID, planID string) *domain.Subscription {
+func mustCreateSubscription(ctx context.Context, t *testing.T, repo ports.SubscriptionRepository, planID string) *domain.Subscription {
 	t.Helper()
 	now := time.Now().UTC()
-	sub, err := domain.NewSubscription(tenantID, planID, now, now.AddDate(0, 1, 0), string(domain.SubscriptionStatusActive), nil)
+	sub, err := domain.NewSubscription(tenantA, planID, now, now.AddDate(0, 1, 0), string(domain.SubscriptionStatusActive), nil)
 	if err != nil {
 		t.Fatalf("new subscription: %v", err)
 	}
-	if err := repo.Create(ctx, tenantID, sub); err != nil {
+	if err := repo.Create(ctx, tenantA, sub); err != nil {
 		t.Fatalf("create subscription: %v", err)
 	}
 	return sub
 }
 
-func mustCreateInvoice(t *testing.T, ctx context.Context, repo ports.SaaSInvoiceRepository, tenantID, subscriptionID string, amountCents int) *domain.SaaSInvoice {
+func mustCreateInvoice(ctx context.Context, t *testing.T, repo ports.SaaSInvoiceRepository, subscriptionID string, amountCents int) *domain.SaaSInvoice {
 	t.Helper()
-	inv, err := domain.NewSaaSInvoice(tenantID, subscriptionID, amountCents, nil)
+	inv, err := domain.NewSaaSInvoice(tenantA, subscriptionID, amountCents, nil)
 	if err != nil {
 		t.Fatalf("new invoice: %v", err)
 	}
-	if err := repo.Create(ctx, tenantID, inv); err != nil {
+	if err := repo.Create(ctx, tenantA, inv); err != nil {
 		t.Fatalf("create invoice: %v", err)
 	}
 	return inv
@@ -75,9 +75,9 @@ func mustCreateInvoice(t *testing.T, ctx context.Context, repo ports.SaaSInvoice
 
 func TestPlanRepository_CreateAndGet(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _, _, _ := newRepos(t)
+	repo, _, _ := newRepos(t)
 
-	p := mustCreatePlan(t, ctx, repo, "Starter", "starter", 1000)
+	p := mustCreatePlan(ctx, t, repo, "Starter", "starter", 1000)
 
 	got, err := repo.GetByID(ctx, p.ID)
 	if err != nil {
@@ -90,9 +90,9 @@ func TestPlanRepository_CreateAndGet(t *testing.T) {
 
 func TestPlanRepository_GetByCode(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _, _, _ := newRepos(t)
+	repo, _, _ := newRepos(t)
 
-	p := mustCreatePlan(t, ctx, repo, "Starter", "STARTER", 1000)
+	p := mustCreatePlan(ctx, t, repo, "Starter", "STARTER", 1000)
 
 	got, err := repo.GetByCode(ctx, "Starter")
 	if err != nil {
@@ -105,14 +105,17 @@ func TestPlanRepository_GetByCode(t *testing.T) {
 
 func TestPlanRepository_UniqueCode(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _, _, _ := newRepos(t)
+	repo, _, _ := newRepos(t)
 
-	mustCreatePlan(t, ctx, repo, "Starter", "starter", 1000)
+	mustCreatePlan(ctx, t, repo, "Starter", "starter", 1000)
 	_, err := domain.NewPlan("Starter 2", "starter", "GHS", "monthly", 2000, nil, nil)
 	if err != nil {
 		t.Fatalf("new plan with duplicate code: %v", err)
 	}
-	p2, _ := domain.NewPlan("Starter 2", "starter", "GHS", "monthly", 2000, nil, nil)
+	p2, err := domain.NewPlan("Starter 2", "starter", "GHS", "monthly", 2000, nil, nil)
+	if err != nil {
+		t.Fatalf("new plan with duplicate code: %v", err)
+	}
 	if err := repo.Create(ctx, p2); err == nil {
 		t.Fatal("expected error for duplicate plan code")
 	}
@@ -120,10 +123,10 @@ func TestPlanRepository_UniqueCode(t *testing.T) {
 
 func TestPlanRepository_ListPagination(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _, _, _ := newRepos(t)
+	repo, _, _ := newRepos(t)
 
-	mustCreatePlan(t, ctx, repo, "Starter", "starter", 1000)
-	p2 := mustCreatePlan(t, ctx, repo, "Pro", "pro", 5000)
+	mustCreatePlan(ctx, t, repo, "Starter", "starter", 1000)
+	p2 := mustCreatePlan(ctx, t, repo, "Pro", "pro", 5000)
 
 	page, next, err := repo.List(ctx, ports.PlanFilter{Limit: 1})
 	if err != nil {
@@ -147,9 +150,9 @@ func TestPlanRepository_ListPagination(t *testing.T) {
 
 func TestPlanRepository_Update(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _, _, _ := newRepos(t)
+	repo, _, _ := newRepos(t)
 
-	p := mustCreatePlan(t, ctx, repo, "Starter", "starter", 1000)
+	p := mustCreatePlan(ctx, t, repo, "Starter", "starter", 1000)
 	name := "Updated Starter"
 	if _, err := p.ApplyUpdate(domain.PlanPatch{Name: &name}); err != nil {
 		t.Fatalf("apply update: %v", err)
@@ -169,9 +172,9 @@ func TestPlanRepository_Update(t *testing.T) {
 
 func TestPlanRepository_Delete(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _, _, _ := newRepos(t)
+	repo, _, _ := newRepos(t)
 
-	p := mustCreatePlan(t, ctx, repo, "Starter", "starter", 1000)
+	p := mustCreatePlan(ctx, t, repo, "Starter", "starter", 1000)
 	if err := repo.Delete(ctx, p.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
@@ -182,10 +185,10 @@ func TestPlanRepository_Delete(t *testing.T) {
 
 func TestSubscriptionRepository_CreateAndGet(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	planRepo, subRepo, _, _ := newRepos(t)
+	planRepo, subRepo, _ := newRepos(t)
 
-	p := mustCreatePlan(t, ctx, planRepo, "Starter", "starter", 1000)
-	sub := mustCreateSubscription(t, ctx, subRepo, tenantA, p.ID)
+	p := mustCreatePlan(ctx, t, planRepo, "Starter", "starter", 1000)
+	sub := mustCreateSubscription(ctx, t, subRepo, p.ID)
 
 	got, err := subRepo.GetByID(ctx, tenantA, sub.ID)
 	if err != nil {
@@ -198,12 +201,12 @@ func TestSubscriptionRepository_CreateAndGet(t *testing.T) {
 
 func TestSubscriptionRepository_ListFilters(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	planRepo, subRepo, _, _ := newRepos(t)
+	planRepo, subRepo, _ := newRepos(t)
 
-	p1 := mustCreatePlan(t, ctx, planRepo, "Starter", "starter", 1000)
-	p2 := mustCreatePlan(t, ctx, planRepo, "Pro", "pro", 5000)
-	mustCreateSubscription(t, ctx, subRepo, tenantA, p1.ID)
-	s2 := mustCreateSubscription(t, ctx, subRepo, tenantA, p2.ID)
+	p1 := mustCreatePlan(ctx, t, planRepo, "Starter", "starter", 1000)
+	p2 := mustCreatePlan(ctx, t, planRepo, "Pro", "pro", 5000)
+	mustCreateSubscription(ctx, t, subRepo, p1.ID)
+	s2 := mustCreateSubscription(ctx, t, subRepo, p2.ID)
 	s2.Status = string(domain.SubscriptionStatusPastDue)
 	if err := subRepo.Update(ctx, tenantA, s2); err != nil {
 		t.Fatalf("update subscription status: %v", err)
@@ -234,11 +237,11 @@ func TestSubscriptionRepository_ListFilters(t *testing.T) {
 
 func TestInvoiceRepository_CreateAndGet(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	planRepo, subRepo, invRepo, _ := newRepos(t)
+	planRepo, subRepo, invRepo := newRepos(t)
 
-	p := mustCreatePlan(t, ctx, planRepo, "Starter", "starter", 1000)
-	sub := mustCreateSubscription(t, ctx, subRepo, tenantA, p.ID)
-	inv := mustCreateInvoice(t, ctx, invRepo, tenantA, sub.ID, 1000)
+	p := mustCreatePlan(ctx, t, planRepo, "Starter", "starter", 1000)
+	sub := mustCreateSubscription(ctx, t, subRepo, p.ID)
+	inv := mustCreateInvoice(ctx, t, invRepo, sub.ID, 1000)
 
 	got, err := invRepo.GetByID(ctx, tenantA, inv.ID)
 	if err != nil {
@@ -251,11 +254,11 @@ func TestInvoiceRepository_CreateAndGet(t *testing.T) {
 
 func TestInvoiceRepository_StatusTransitions(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	planRepo, subRepo, invRepo, _ := newRepos(t)
+	planRepo, subRepo, invRepo := newRepos(t)
 
-	p := mustCreatePlan(t, ctx, planRepo, "Starter", "starter", 1000)
-	sub := mustCreateSubscription(t, ctx, subRepo, tenantA, p.ID)
-	inv := mustCreateInvoice(t, ctx, invRepo, tenantA, sub.ID, 1000)
+	p := mustCreatePlan(ctx, t, planRepo, "Starter", "starter", 1000)
+	sub := mustCreateSubscription(ctx, t, subRepo, p.ID)
+	inv := mustCreateInvoice(ctx, t, invRepo, sub.ID, 1000)
 
 	if err := inv.MarkPaid(); err != nil {
 		t.Fatalf("mark paid: %v", err)
@@ -275,12 +278,12 @@ func TestInvoiceRepository_StatusTransitions(t *testing.T) {
 
 func TestRepository_TenantIsolation(t *testing.T) {
 	ctx := context.Background()
-	planRepo, subRepo, invRepo, _ := newRepos(t)
+	planRepo, subRepo, invRepo := newRepos(t)
 
 	aCtx := withTenant(ctx, tenantA)
-	p := mustCreatePlan(t, aCtx, planRepo, "Starter", "starter", 1000)
-	sub := mustCreateSubscription(t, aCtx, subRepo, tenantA, p.ID)
-	inv := mustCreateInvoice(t, aCtx, invRepo, tenantA, sub.ID, 1000)
+	p := mustCreatePlan(aCtx, t, planRepo, "Starter", "starter", 1000)
+	sub := mustCreateSubscription(aCtx, t, subRepo, p.ID)
+	inv := mustCreateInvoice(aCtx, t, invRepo, sub.ID, 1000)
 
 	bCtx := withTenant(ctx, tenantB)
 	if _, err := subRepo.GetByID(bCtx, tenantB, sub.ID); err == nil {
@@ -301,7 +304,7 @@ func TestRepository_TenantIsolation(t *testing.T) {
 
 func TestService_FeatureFlagGatesAccess(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantB)
-	planRepo, subRepo, invRepo, _ := newRepos(t)
+	planRepo, subRepo, invRepo := newRepos(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantB, application.FeatureBilling, false)
@@ -317,7 +320,7 @@ func TestService_FeatureFlagGatesAccess(t *testing.T) {
 
 func TestService_FeatureFlagAllowsAccessWhenEnabled(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	planRepo, subRepo, invRepo, _ := newRepos(t)
+	planRepo, subRepo, invRepo := newRepos(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantA, application.FeatureBilling, true)
@@ -325,7 +328,7 @@ func TestService_FeatureFlagAllowsAccessWhenEnabled(t *testing.T) {
 	svc := application.NewService(planRepo, subRepo, invRepo, application.WithFeatureGate(gates))
 	actor := actorWithPerms(tenantA, application.PermManage)
 
-	p := mustCreatePlan(t, ctx, planRepo, "Starter", "starter", 1000)
+	p := mustCreatePlan(ctx, t, planRepo, "Starter", "starter", 1000)
 	sub, err := svc.CreateSubscription(ctx, actor, application.CreateSubscriptionRequest{PlanID: p.ID})
 	if err != nil {
 		t.Fatalf("create subscription: %v", err)
@@ -337,10 +340,10 @@ func TestService_FeatureFlagAllowsAccessWhenEnabled(t *testing.T) {
 
 func TestService_CreateSubscriptionForTenant(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	planRepo, subRepo, invRepo, _ := newRepos(t)
+	planRepo, subRepo, invRepo := newRepos(t)
 
 	svc := application.NewService(planRepo, subRepo, invRepo)
-	mustCreatePlan(t, ctx, planRepo, "Free", "free", 0)
+	mustCreatePlan(ctx, t, planRepo, "Free", "free", 0)
 
 	sub, err := svc.CreateSubscriptionForTenant(ctx, tenantA, "free")
 	if err != nil {
@@ -356,14 +359,14 @@ func TestService_CreateSubscriptionForTenant(t *testing.T) {
 
 func TestService_ChangeSubscriptionPlan_Upgrades(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	planRepo, subRepo, invRepo, _ := newRepos(t)
+	planRepo, subRepo, invRepo := newRepos(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantA, application.FeatureBilling, true)
 	svc := application.NewService(planRepo, subRepo, invRepo, application.WithFeatureGate(gates))
-	starter := mustCreatePlan(t, ctx, planRepo, "Starter", "starter", 1000)
-	pro := mustCreatePlan(t, ctx, planRepo, "Pro", "pro", 5000)
-	sub := mustCreateSubscription(t, ctx, subRepo, tenantA, starter.ID)
+	starter := mustCreatePlan(ctx, t, planRepo, "Starter", "starter", 1000)
+	pro := mustCreatePlan(ctx, t, planRepo, "Pro", "pro", 5000)
+	sub := mustCreateSubscription(ctx, t, subRepo, starter.ID)
 
 	actor := actorWithPerms(tenantA, application.PermManage)
 	updated, err := svc.ChangeSubscriptionPlan(ctx, actor, sub.ID, pro.ID)
@@ -377,14 +380,14 @@ func TestService_ChangeSubscriptionPlan_Upgrades(t *testing.T) {
 
 func TestService_CreateInvoice(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	planRepo, subRepo, invRepo, _ := newRepos(t)
+	planRepo, subRepo, invRepo := newRepos(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantA, application.FeatureBilling, true)
 	svc := application.NewService(planRepo, subRepo, invRepo, application.WithFeatureGate(gates))
 	actor := actorWithPerms(tenantA, application.PermManage)
 
-	p := mustCreatePlan(t, ctx, planRepo, "Starter", "starter", 1000)
+	p := mustCreatePlan(ctx, t, planRepo, "Starter", "starter", 1000)
 	sub, err := svc.CreateSubscription(ctx, actor, application.CreateSubscriptionRequest{PlanID: p.ID})
 	if err != nil {
 		t.Fatalf("create subscription: %v", err)

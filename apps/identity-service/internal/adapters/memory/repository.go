@@ -64,7 +64,10 @@ func New() (*Repository, error) {
 		{ID: "u-teacher", Email: "e.mensah@upshs.edu.gh", Name: "Efua Mensah", TenantID: "upshs", Role: "teacher",
 			Permissions: []string{"attendance.mark", "assessments.record_scores", "reports.read"}},
 		{ID: "u-admin", Email: "admin@upshs.edu.gh", Name: "School Admin", TenantID: "upshs", Role: "school_admin",
-			Permissions: []string{"features.manage", "students.create", "students.update", "staff.create", PermUsersCreate, PermUsersRead, PermUsersUpdate, PermRolesAssign}},
+			Permissions: []string{
+				"features.manage", "students.create", "students.update", "staff.create",
+				PermUsersCreate, PermUsersRead, PermUsersUpdate, PermRolesAssign,
+			}},
 		{ID: "u-super", Email: "super@auraedu.dev", Name: "Platform Admin", TenantID: "", Role: "platform_super_admin"},
 	}
 	for _, u := range seed {
@@ -88,7 +91,7 @@ func (r *Repository) actor(ctx context.Context) (string, bool) {
 	return a.TenantID, false
 }
 
-func (r *Repository) FindByEmail(ctx context.Context, email string) (domain.User, domain.Credential, bool, error) {
+func (r *Repository) FindByEmail(_ context.Context, email string) (domain.User, domain.Credential, bool, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	e, ok := r.byEmail[strings.ToLower(strings.TrimSpace(email))]
@@ -98,7 +101,7 @@ func (r *Repository) FindByEmail(ctx context.Context, email string) (domain.User
 	return e.user, e.cred, true, nil
 }
 
-func (r *Repository) CreateUser(ctx context.Context, u domain.User, cred domain.Credential) (string, error) {
+func (r *Repository) CreateUser(_ context.Context, u domain.User, cred domain.Credential) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	email := strings.ToLower(strings.TrimSpace(u.Email))
@@ -185,7 +188,7 @@ func (r *Repository) DeleteUser(ctx context.Context, id string) error {
 	return nil
 }
 
-func (r *Repository) UpdateCredential(ctx context.Context, userID string, cred domain.Credential) error {
+func (r *Repository) UpdateCredential(_ context.Context, userID string, cred domain.Credential) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	e, ok := r.byID[userID]
@@ -198,14 +201,14 @@ func (r *Repository) UpdateCredential(ctx context.Context, userID string, cred d
 	return nil
 }
 
-func (r *Repository) SaveRefreshToken(ctx context.Context, userID, tokenHash string, expiresAt time.Time) error {
+func (r *Repository) SaveRefreshToken(_ context.Context, userID, tokenHash string, expiresAt time.Time) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.refresh[tokenHash] = refreshToken{userID: userID, expiresAt: expiresAt}
 	return nil
 }
 
-func (r *Repository) FindRefreshToken(ctx context.Context, tokenHash string) (string, error) {
+func (r *Repository) FindRefreshToken(_ context.Context, tokenHash string) (string, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	t, ok := r.refresh[tokenHash]
@@ -215,7 +218,7 @@ func (r *Repository) FindRefreshToken(ctx context.Context, tokenHash string) (st
 	return t.userID, nil
 }
 
-func (r *Repository) RevokeRefreshToken(ctx context.Context, tokenHash string) error {
+func (r *Repository) RevokeRefreshToken(_ context.Context, tokenHash string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	t, ok := r.refresh[tokenHash]
@@ -228,14 +231,14 @@ func (r *Repository) RevokeRefreshToken(ctx context.Context, tokenHash string) e
 	return nil
 }
 
-func (r *Repository) SavePasswordResetToken(ctx context.Context, tenantID, userID, tokenHash string, expiresAt time.Time) error {
+func (r *Repository) SavePasswordResetToken(_ context.Context, tenantID, userID, tokenHash string, expiresAt time.Time) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.resets[tokenHash] = resetToken{userID: userID, tenantID: tenantID, expiresAt: expiresAt}
 	return nil
 }
 
-func (r *Repository) UsePasswordResetToken(ctx context.Context, tokenHash string) (string, error) {
+func (r *Repository) UsePasswordResetToken(_ context.Context, tokenHash string) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	t, ok := r.resets[tokenHash]
@@ -248,7 +251,7 @@ func (r *Repository) UsePasswordResetToken(ctx context.Context, tokenHash string
 	return t.userID, nil
 }
 
-func (r *Repository) SaveInvite(ctx context.Context, tenantID, email, role string, permissions []string, tokenHash string, invitedBy *string, expiresAt time.Time) error {
+func (r *Repository) SaveInvite(_ context.Context, tenantID, email, role string, permissions []string, tokenHash string, _ *string, expiresAt time.Time) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.invites[tokenHash] = invite{
@@ -258,7 +261,7 @@ func (r *Repository) SaveInvite(ctx context.Context, tenantID, email, role strin
 	return nil
 }
 
-func (r *Repository) UseInvite(ctx context.Context, tokenHash string) (ports.InviteDetails, error) {
+func (r *Repository) UseInvite(_ context.Context, tokenHash string) (ports.InviteDetails, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	t, ok := r.invites[tokenHash]

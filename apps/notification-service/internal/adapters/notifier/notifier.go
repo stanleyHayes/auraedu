@@ -1,3 +1,4 @@
+// Package notifier provides notification channel adapters for the notification service.
 package notifier
 
 import (

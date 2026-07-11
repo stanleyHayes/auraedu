@@ -85,28 +85,7 @@ func main() {
 		},
 	}
 
-	var limiter gateway.RateLimiter
-	if cfg.RedisURL != "" {
-		redisClient, err := gateway.NewRedisClient(cfg.RedisURL)
-		if err != nil {
-			log.Error("failed to create redis client; rate limiting disabled", "err", err)
-		} else {
-			if err := redisClient.Ping(context.Background()); err != nil {
-				log.Error("redis ping failed; rate limiting disabled", "err", err)
-				_ = redisClient.Close()
-			} else {
-				limiter = &gateway.TokenBucket{
-					Store:  redisClient,
-					RPS:    cfg.RateLimitRPS,
-					Burst:  cfg.RateLimitBurst,
-					Window: cfg.RateLimitWindow,
-				}
-				health.AddReadinessCheck("redis", func() error {
-					return redisClient.Ping(context.Background())
-				})
-			}
-		}
-	}
+	limiter := newRateLimiter(cfg, health, log)
 
 	builder := &gateway.Builder{
 		Log:         log,
@@ -144,8 +123,41 @@ func main() {
 	<-stop
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_ = srv.Shutdown(ctx)
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Error("failed to shutdown server", "err", err)
+	}
 	log.Info("gateway stopped")
+}
+
+func newRateLimiter(cfg *gateway.Config, health *gateway.HealthState, log *slog.Logger) gateway.RateLimiter {
+	if cfg.RedisURL == "" {
+		return nil
+	}
+
+	redisClient, err := gateway.NewRedisClient(cfg.RedisURL)
+	if err != nil {
+		log.Error("failed to create redis client; rate limiting disabled", "err", err)
+		return nil
+	}
+
+	if err := redisClient.Ping(context.Background()); err != nil {
+		log.Error("redis ping failed; rate limiting disabled", "err", err)
+		if closeErr := redisClient.Close(); closeErr != nil {
+			log.Error("failed to close redis client", "err", closeErr)
+		}
+		return nil
+	}
+
+	health.AddReadinessCheck("redis", func() error {
+		return redisClient.Ping(context.Background())
+	})
+
+	return &gateway.TokenBucket{
+		Store:  redisClient,
+		RPS:    cfg.RateLimitRPS,
+		Burst:  cfg.RateLimitBurst,
+		Window: cfg.RateLimitWindow,
+	}
 }
 
 func itoa(n int) string {

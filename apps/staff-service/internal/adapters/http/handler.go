@@ -1,3 +1,4 @@
+// Package http exposes the staff service REST API.
 package http
 
 import (
@@ -37,7 +38,7 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit := parseLimit(r.URL.Query().Get("limit"))
 	cursor := r.URL.Query().Get("cursor")
 	staff, nextCursor, err := h.svc.List(ctx, actor, limit, cursor)
 	if err != nil {
@@ -171,4 +172,12 @@ func nullIfEmpty(v string) any {
 		return nil
 	}
 	return v
+}
+
+func parseLimit(s string) int {
+	n, err := strconv.Atoi(s)
+	if err != nil || n <= 0 {
+		return 0
+	}
+	return n
 }

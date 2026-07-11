@@ -1,3 +1,4 @@
+// Package domain contains the attendance aggregate root and value objects.
 package domain
 
 import (

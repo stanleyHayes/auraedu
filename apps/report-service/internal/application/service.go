@@ -1,11 +1,14 @@
+// Package application implements the report service use cases.
 package application
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/auraedu/platform/auth"
 	"github.com/auraedu/platform/flags"
@@ -117,7 +120,9 @@ func (s *Service) CreateReportTemplate(ctx context.Context, actor auth.Actor, re
 	if err := s.repo.CreateReportTemplate(ctx, tenantID, t); err != nil {
 		return nil, err
 	}
-	_ = s.pub.PublishReportTemplate(ctx, "report.created.v1", t, nil)
+	if err := s.pub.PublishReportTemplate(ctx, "report.created.v1", t, nil); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish report.created event", "err", err)
+	}
 	return t, nil
 }
 
@@ -163,7 +168,9 @@ func (s *Service) UpdateReportTemplate(ctx context.Context, actor auth.Actor, id
 	if err := s.repo.UpdateReportTemplate(ctx, tenantID, t); err != nil {
 		return nil, err
 	}
-	_ = s.pub.PublishReportTemplate(ctx, "report.updated.v1", t, map[string]any{"changed_fields": changed})
+	if err := s.pub.PublishReportTemplate(ctx, "report.updated.v1", t, map[string]any{"changed_fields": changed}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish report.updated event", "err", err)
+	}
 	return t, nil
 }
 
@@ -180,7 +187,9 @@ func (s *Service) DeleteReportTemplate(ctx context.Context, actor auth.Actor, id
 	if err := s.repo.DeleteReportTemplate(ctx, tenantID, id); err != nil {
 		return err
 	}
-	_ = s.pub.PublishReportTemplate(ctx, "report.deleted.v1", t, nil)
+	if err := s.pub.PublishReportTemplate(ctx, "report.deleted.v1", t, nil); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish report.deleted event", "err", err)
+	}
 	return nil
 }
 
@@ -214,7 +223,9 @@ func (s *Service) CreateReportCard(ctx context.Context, actor auth.Actor, req Cr
 	if err := s.repo.CreateReportCard(ctx, tenantID, c); err != nil {
 		return nil, err
 	}
-	_ = s.pub.PublishReportCard(ctx, "report.created.v1", c, nil)
+	if err := s.pub.PublishReportCard(ctx, "report.created.v1", c, nil); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish report.created event", "err", err)
+	}
 	return c, nil
 }
 
@@ -260,7 +271,9 @@ func (s *Service) UpdateReportCard(ctx context.Context, actor auth.Actor, id str
 	if err := s.repo.UpdateReportCard(ctx, tenantID, c); err != nil {
 		return nil, err
 	}
-	_ = s.pub.PublishReportCard(ctx, "report.updated.v1", c, map[string]any{"changed_fields": changed})
+	if err := s.pub.PublishReportCard(ctx, "report.updated.v1", c, map[string]any{"changed_fields": changed}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish report.updated event", "err", err)
+	}
 	return c, nil
 }
 
@@ -277,7 +290,9 @@ func (s *Service) DeleteReportCard(ctx context.Context, actor auth.Actor, id str
 	if err := s.repo.DeleteReportCard(ctx, tenantID, id); err != nil {
 		return err
 	}
-	_ = s.pub.PublishReportCard(ctx, "report.deleted.v1", c, nil)
+	if err := s.pub.PublishReportCard(ctx, "report.deleted.v1", c, nil); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish report.deleted event", "err", err)
+	}
 	return nil
 }
 
@@ -307,11 +322,11 @@ func (s *Service) GenerateReportCard(ctx context.Context, actor auth.Actor, id s
 	}
 
 	pdfPath := s.reportCardPath(c)
-	if err := os.MkdirAll(filepath.Dir(pdfPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(pdfPath), 0o750); err != nil {
 		s.rollbackToDraft(ctx, tenantID, c)
 		return nil, fmt.Errorf("report: create output dir: %w", err)
 	}
-	if err := os.WriteFile(pdfPath, pdfBytes, 0o644); err != nil {
+	if err := os.WriteFile(pdfPath, pdfBytes, 0o600); err != nil {
 		s.rollbackToDraft(ctx, tenantID, c)
 		return nil, fmt.Errorf("report: write pdf: %w", err)
 	}
@@ -321,14 +336,21 @@ func (s *Service) GenerateReportCard(ctx context.Context, actor auth.Actor, id s
 		return nil, err
 	}
 
-	_ = s.pub.PublishReportCard(ctx, "report.published.v1", c, nil)
+	if err := s.pub.PublishReportCard(ctx, "report.published.v1", c, nil); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish report.published event", "err", err)
+	}
 	return c, nil
 }
 
 func (s *Service) rollbackToDraft(ctx context.Context, tenantID string, c *domain.ReportCard) {
 	status := string(domain.ReportCardStatusDraft)
-	_, _ = c.ApplyUpdate(nil, nil, nil, &status)
-	_ = s.repo.UpdateReportCard(ctx, tenantID, c)
+	if _, err := c.ApplyUpdate(nil, nil, nil, &status); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to rollback report card status", "err", err)
+		return
+	}
+	if err := s.repo.UpdateReportCard(ctx, tenantID, c); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to rollback report card", "err", err)
+	}
 }
 
 func (s *Service) reportCardPath(c *domain.ReportCard) string {
@@ -348,7 +370,16 @@ func (s *Service) DownloadReportCardPath(ctx context.Context, actor auth.Actor, 
 	if domain.ReportCardStatus(c.Status) != domain.ReportCardStatusPublished || c.PDFPath == nil {
 		return "", c, domain.ErrNotFound
 	}
+	if !s.isPathInsideOutputDir(*c.PDFPath) {
+		return "", c, domain.ErrNotFound
+	}
 	return *c.PDFPath, c, nil
+}
+
+func (s *Service) isPathInsideOutputDir(path string) bool {
+	base := filepath.Clean(s.reportOutputDir) + string(filepath.Separator)
+	clean := filepath.Clean(path)
+	return strings.HasPrefix(clean, base)
 }
 
 func (s *Service) requireAccess(ctx context.Context, actor auth.Actor, perm string) (string, error) {

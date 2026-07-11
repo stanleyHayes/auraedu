@@ -120,7 +120,10 @@ func TestMetric_AddSample(t *testing.T) {
 }
 
 func TestMetric_ValueString(t *testing.T) {
-	m, _ := domain.NewMetric("tenant-1", "payments.total", "2025-09-01", 12.5, domain.UnitSum, nil)
+	m, err := domain.NewMetric("tenant-1", "payments.total", "2025-09-01", 12.5, domain.UnitSum, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if m.ValueString() != "12.5" {
 		t.Fatalf("expected value string 12.5, got %q", m.ValueString())
 	}

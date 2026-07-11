@@ -15,10 +15,10 @@ os.environ.setdefault(
     str(Path(__file__).resolve().parents[3] / "contracts" / "features" / "features.yaml"),
 )
 
-from career_guidance_service.db import engine  # noqa: E402
-from career_guidance_service.events import publisher  # noqa: E402
-from career_guidance_service.main import app  # noqa: E402
-from career_guidance_service.models import Base  # noqa: E402
+from career_guidance_service.db import engine
+from career_guidance_service.events import publisher
+from career_guidance_service.main import app
+from career_guidance_service.models import Base
 
 
 async def _noop_publish(tenant_id, actor_user_id, guidance_items) -> None:

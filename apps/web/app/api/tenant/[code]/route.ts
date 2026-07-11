@@ -15,10 +15,7 @@ export const dynamic = "force-dynamic";
 
 const TENANT_SERVICE = process.env.TENANT_SERVICE_URL ?? "http://localhost:8082";
 
-export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ code: string }> },
-) {
+export async function GET(_request: Request, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
 
   // Guardrail: demo shim serves only the known preview tenants.
@@ -36,15 +33,20 @@ export async function GET(
   try {
     const [tenantRes, featuresRes] = await Promise.all([
       fetch(`${TENANT_SERVICE}/api/v1/tenants/${seg}`, { headers: actor, cache: "no-store" }),
-      fetch(`${TENANT_SERVICE}/api/v1/features?tenant=${seg}`, { headers: actor, cache: "no-store" }),
+      fetch(`${TENANT_SERVICE}/api/v1/features?tenant=${seg}`, {
+        headers: actor,
+        cache: "no-store",
+      }),
     ]);
 
     if (!tenantRes.ok) {
       return Response.json({ error: "tenant not found" }, { status: tenantRes.status });
     }
 
-    const tenant = await tenantRes.json();
-    const features = featuresRes.ok ? ((await featuresRes.json()) as { features: unknown[] }).features : [];
+    const tenant = (await tenantRes.json()) as unknown;
+    const features = featuresRes.ok
+      ? ((await featuresRes.json()) as { features: unknown[] }).features
+      : [];
     return Response.json({ tenant, features });
   } catch {
     return Response.json({ error: "tenant service unavailable" }, { status: 502 });

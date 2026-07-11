@@ -35,24 +35,28 @@ func main() {
 		version = config.Getenv("GIT_SHA", "dev")
 	}
 
+	if err := run(log); err != nil {
+		log.Error("worker failed", "err", err)
+		os.Exit(1)
+	}
+}
+
+func run(log *slog.Logger) error {
 	ctx := context.Background()
 	database, err := openDB(ctx)
 	if err != nil {
-		log.Error("failed to open database", "err", err)
-		os.Exit(1)
+		return err
 	}
 	defer database.Close()
 
 	nc, js, err := connectNATS(log)
 	if err != nil {
-		log.Error("failed to connect to NATS", "err", err)
-		os.Exit(1)
+		return err
 	}
 	defer nc.Close()
 
 	if _, err := eventbus.EnsureStream(js, "AURA"); err != nil {
-		log.Error("failed to ensure NATS stream", "err", err)
-		os.Exit(1)
+		return err
 	}
 
 	gates := featureGates(log)
@@ -66,10 +70,13 @@ func main() {
 
 	consumer := newConsumer(js, log, svc)
 	if err := consumer.Start(ctx); err != nil {
-		log.Error("failed to start consumer", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("start consumer: %w", err)
 	}
-	defer func() { _ = consumer.Stop() }()
+	defer func() {
+		if err := consumer.Stop(); err != nil {
+			log.Error("consumer stop error", "err", err)
+		}
+	}()
 
 	log.Info(service+" started", "version", version)
 
@@ -77,15 +84,7 @@ func main() {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
 
-	ctxShutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := consumer.Stop(); err != nil {
-		log.Error("consumer stop error", "err", err)
-	}
-	nc.Close()
-	database.Close()
-	log.Info(service + " stopped")
-	_ = ctxShutdown
+	return nil
 }
 
 func openDB(ctx context.Context) (*db.DB, error) {

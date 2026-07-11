@@ -1,3 +1,4 @@
+// Package ports defines the tenant service publisher boundary.
 package ports
 
 import "context"

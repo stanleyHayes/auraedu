@@ -102,7 +102,10 @@ func TestAttendanceRecord_ApplyUpdate_InvalidStatus(t *testing.T) {
 }
 
 func TestAttendanceRecord_InvalidStatus(t *testing.T) {
-	rec, _ := domain.NewAttendanceRecord("tenant-1", "student-1", "ay-1", "2025-09-01", "present", "staff-1", nil)
+	rec, err := domain.NewAttendanceRecord("tenant-1", "student-1", "ay-1", "2025-09-01", "present", "staff-1", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	rec.Status = "unknown"
 	if err := rec.Validate(); err == nil {
 		t.Fatal("expected error for invalid status")

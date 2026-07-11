@@ -13,7 +13,7 @@ export interface Assessment {
 
 export default async function TeacherScoresPage() {
   const client = await createServerClient();
-  let assessments: Assessment[] = [];
+  let assessments: Assessment[];
   try {
     assessments = await client.get<Assessment[]>("/api/v1/assessments");
   } catch {

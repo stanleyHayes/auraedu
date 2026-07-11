@@ -1,3 +1,4 @@
+// Package http adapts HTTP requests to the academic-service application layer.
 package http
 
 import (
@@ -37,7 +38,12 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit := 25
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if parsed, err := strconv.Atoi(limitStr); err == nil {
+			limit = parsed
+		}
+	}
 	cursor := r.URL.Query().Get("cursor")
 	years, nextCursor, err := h.svc.List(ctx, actor, limit, cursor)
 	if err != nil {

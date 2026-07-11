@@ -1,3 +1,4 @@
+// Package ports defines the website-service driven ports.
 package ports
 
 import (

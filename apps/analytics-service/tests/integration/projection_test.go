@@ -37,7 +37,11 @@ func (r *memoryRepository) UpsertMetric(_ context.Context, tenantID string, m *d
 			case domain.UnitCount, domain.UnitSum:
 				existing.Value += m.Value
 			case domain.UnitAverage:
-				existing.AddSample(m.Value)
+				if err := existing.AddSample(m.Value); err != nil {
+					return err
+				}
+			case domain.UnitPercentage:
+				existing.Value += m.Value
 			}
 			existing.UpdatedAt = m.UpdatedAt
 			return nil
@@ -77,9 +81,9 @@ func (r *memoryRepository) ListMetrics(_ context.Context, tenantID string, filte
 
 func newMemoryRepo() *memoryRepository { return &memoryRepository{} }
 
-func mustEvent(t *testing.T, eventType, tenantID string, data any) tenancy.CloudEvent {
+func mustEvent(t *testing.T, eventType string, data any) tenancy.CloudEvent {
 	t.Helper()
-	event, err := tenancy.NewCloudEvent(eventType, "test", "evt-1", tenantID, data)
+	event, err := tenancy.NewCloudEvent(eventType, "test", "evt-1", tenantA, data)
 	if err != nil {
 		t.Fatalf("new event: %v", err)
 	}
@@ -92,7 +96,7 @@ func TestProjection_StudentEnrolled(t *testing.T) {
 	proj := application.NewProjection(repo, slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 	ctx := context.Background()
 
-	event := mustEvent(t, "student.enrolled.v1", tenantA, map[string]any{"student_id": "s1"})
+	event := mustEvent(t, "student.enrolled.v1", map[string]any{"student_id": "s1"})
 	if err := proj.ProcessEvent(ctx, event); err != nil {
 		t.Fatalf("process event: %v", err)
 	}
@@ -116,7 +120,7 @@ func TestProjection_AttendanceMarked(t *testing.T) {
 
 	for _, status := range []string{"present", "absent", "late", "excused"} {
 		data := map[string]any{"student_id": "s1", "status": status}
-		event := mustEvent(t, "attendance.marked.v1", tenantA, data)
+		event := mustEvent(t, "attendance.marked.v1", data)
 		if err := proj.ProcessEvent(ctx, event); err != nil {
 			t.Fatalf("process %s event: %v", status, err)
 		}
@@ -146,13 +150,13 @@ func TestProjection_AssessmentScore(t *testing.T) {
 		"subject_id":       "sub-1",
 		"academic_year_id": "ay-1",
 	}
-	event := mustEvent(t, "assessment.score_recorded.v1", tenantA, data)
+	event := mustEvent(t, "assessment.score_recorded.v1", data)
 	if err := proj.ProcessEvent(ctx, event); err != nil {
 		t.Fatalf("process event: %v", err)
 	}
 
 	data["score"] = 100
-	event = mustEvent(t, "assessment.score_recorded.v1", tenantA, data)
+	event = mustEvent(t, "assessment.score_recorded.v1", data)
 	if err := proj.ProcessEvent(ctx, event); err != nil {
 		t.Fatalf("process event: %v", err)
 	}
@@ -186,7 +190,7 @@ func TestProjection_PaymentReceived(t *testing.T) {
 	ctx := context.Background()
 
 	data := map[string]any{"amount": 50, "currency": "GHS"}
-	event := mustEvent(t, "payment.received.v1", tenantA, data)
+	event := mustEvent(t, "payment.received.v1", data)
 	if err := proj.ProcessEvent(ctx, event); err != nil {
 		t.Fatalf("process event: %v", err)
 	}
@@ -205,7 +209,7 @@ func TestProjection_UnknownEventIgnored(t *testing.T) {
 	proj := application.NewProjection(repo, slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 	ctx := context.Background()
 
-	event := mustEvent(t, "some.unknown.v1", tenantA, map[string]any{})
+	event := mustEvent(t, "some.unknown.v1", map[string]any{})
 	if err := proj.ProcessEvent(ctx, event); err != nil {
 		t.Fatalf("process unknown event: %v", err)
 	}
@@ -224,7 +228,10 @@ func TestProjection_RawJSONPayload(t *testing.T) {
 	proj := application.NewProjection(repo, slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 	ctx := context.Background()
 
-	raw, _ := json.Marshal(map[string]any{"amount": 125})
+	raw, err := json.Marshal(map[string]any{"amount": 125})
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
 	event := tenancy.CloudEvent{
 		SpecVersion: "1.0",
 		Type:        "invoice.created.v1",

@@ -44,7 +44,10 @@ func TestNewTransaction_Valid(t *testing.T) {
 }
 
 func TestTransaction_Validate_InvalidType(t *testing.T) {
-	tx, _ := domain.NewTransaction("tenant-1", "pay-1", "credit", "success", "ref-1", 10000)
+	tx, err := domain.NewTransaction("tenant-1", "pay-1", "credit", "success", "ref-1", 10000)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	tx.Type = "unknown"
 	if err := tx.Validate(); err == nil {
 		t.Fatal("expected error for invalid type")
@@ -52,7 +55,10 @@ func TestTransaction_Validate_InvalidType(t *testing.T) {
 }
 
 func TestTransaction_Validate_InvalidStatus(t *testing.T) {
-	tx, _ := domain.NewTransaction("tenant-1", "pay-1", "credit", "success", "ref-1", 10000)
+	tx, err := domain.NewTransaction("tenant-1", "pay-1", "credit", "success", "ref-1", 10000)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	tx.Status = "unknown"
 	if err := tx.Validate(); err == nil {
 		t.Fatal("expected error for invalid status")

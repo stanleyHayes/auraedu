@@ -1,3 +1,4 @@
+// Package ports defines the report service PDF generator boundary.
 package ports
 
 import (

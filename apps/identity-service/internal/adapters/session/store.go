@@ -3,6 +3,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -61,7 +62,7 @@ func (s *Store) Save(ctx context.Context, tenantID, userID, tokenHash string, tt
 func (s *Store) Find(ctx context.Context, tenantID, tokenHash string) (string, bool, error) {
 	if s.redis != nil {
 		v, err := s.redis.Get(ctx, s.key(tenantID, tokenHash)).Result()
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return "", false, nil
 		}
 		if err != nil {

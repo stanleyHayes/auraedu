@@ -1,3 +1,4 @@
+// Package domain contains the academic-service aggregate roots and value objects.
 package domain
 
 import (

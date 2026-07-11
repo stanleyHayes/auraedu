@@ -1,3 +1,4 @@
+// Package postgres provides the Postgres implementation of the assessment-service repository.
 package postgres
 
 import (

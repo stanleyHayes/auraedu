@@ -1,3 +1,4 @@
+// Package postgres is the website-service Postgres repository adapter.
 package postgres
 
 import (
@@ -202,7 +203,13 @@ func (r *Repository) GetSectionByID(ctx context.Context, tenantID, id string) (*
 	return s, err
 }
 
-func (r *Repository) ListSections(ctx context.Context, tenantID, pageID string, limit int, cursor string, filter ports.SectionFilter) ([]*domain.Section, string, error) {
+func (r *Repository) ListSections(
+	ctx context.Context,
+	tenantID, pageID string,
+	limit int,
+	cursor string,
+	filter ports.SectionFilter,
+) ([]*domain.Section, string, error) {
 	var out []*domain.Section
 	var nextCursor string
 	err := r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {

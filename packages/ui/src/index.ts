@@ -7,7 +7,12 @@ export { ThemeToggle } from "./components/theme-toggle";
 export { Skeleton } from "./components/skeleton";
 export { RegisterCard, type RegisterCardProps, type Pupil } from "./components/register";
 export { StatCard, type StatCardProps } from "./components/stat-card";
-export { AppSidebar, type AppSidebarProps, type NavGroup, type NavItem } from "./components/app-sidebar";
+export {
+  AppSidebar,
+  type AppSidebarProps,
+  type NavGroup,
+  type NavItem,
+} from "./components/app-sidebar";
 export { PageHeader, type PageHeaderProps } from "./components/page-header";
 export { UserMenu, type UserMenuProps, type UserMenuItem } from "./components/user-menu";
 export { EmptyState, type EmptyStateProps } from "./components/empty-state";

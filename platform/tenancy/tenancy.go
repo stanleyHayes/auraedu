@@ -33,16 +33,16 @@ type TenantContext struct {
 	ActorRole string
 }
 
-type ctxKey struct{}
+type tenantCtxKey struct{}
 
-var tenantCtxKey ctxKey
-
+// WithContext stores tc in parent and returns the derived context.
 func WithContext(parent context.Context, tc TenantContext) context.Context {
-	return context.WithValue(parent, tenantCtxKey, tc)
+	return context.WithValue(parent, tenantCtxKey{}, tc)
 }
 
+// FromContext retrieves the tenant context stored in ctx.
 func FromContext(ctx context.Context) (TenantContext, bool) {
-	v, ok := ctx.Value(tenantCtxKey).(TenantContext)
+	v, ok := ctx.Value(tenantCtxKey{}).(TenantContext)
 	return v, ok
 }
 

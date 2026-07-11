@@ -106,11 +106,11 @@ The spec is prescriptive; these are the locked choices. Agents do **not** re-lit
 
 | Concern | Decision | Notes |
 |---|---|---|
-| Domain microservices | **Go 1.25+ (latest stable)**, Hexagonal | spec §12 mandates Go hexagonal; always target latest Go at implement time |
-| AI microservices | **Python 3.13+**, FastAPI + `uv` | spec §15 mandates Python AI services |
-| Web frontend | **Next.js 16 (App Router), React 19, TypeScript 5.9+** | tenant-aware; **deploys to Vercel** |
-| Company marketing site | **Next.js 16** (`apps/marketing`) — auraedu.com, Framer Motion allowed | product marketing + school sign-up funnel |
-| Mobile apps | **Expo SDK 54+ / React Native 0.81+**, Expo Router, **NativeWind v4** | one tenant-aware app (parent/student/teacher), ships via **EAS** |
+| Domain microservices | **Go 1.26.5**, Hexagonal | spec §12 mandates Go hexagonal; latest stable Go pinned |
+| AI microservices | **Python 3.14.6**, FastAPI + `uv` 0.11.28 | spec §15 mandates Python AI services |
+| Web frontend | **Next.js 16.2.10 (App Router), React 19.2.7, TypeScript 6.0.3**, Tailwind CSS 4.3.2 | tenant-aware; **deploys to Vercel**. TS 7.0.2 is available but held back until `typescript-eslint` has a stable release that supports it. |
+| Company marketing site | **Next.js 16.2.10** (`apps/marketing`) — auraedu.com, Framer Motion allowed | product marketing + school sign-up funnel |
+| Mobile apps | **Expo SDK 57.0.4 / React Native 0.86.0**, Expo Router, **NativeWind v4** | one tenant-aware app (parent/student/teacher), ships via **EAS** |
 | API Gateway | **Custom Go gateway** (`apps/api-gateway`) | owns auth verify, tenant resolution, rate limit, request-id |
 | Inter-service sync | **REST/HTTP + JSON** through gateway; **internal gRPC where latency/throughput matters** | OpenAPI 3.1 contracts; gRPC is allowed now, not deferred |
 | Inter-service async | **Kafka** (managed or self-hosted) | CloudEvents 1.0 envelope; Kafka is the production bus now, not a future migration |
@@ -118,9 +118,9 @@ The spec is prescriptive; these are the locked choices. Agents do **not** re-lit
 | Cache / sessions | **Render Key Value** (Valkey/Redis-compatible 7.x), tenant-prefixed keys | spec §5.3 |
 | Media & files | **Cloudinary** (images, documents, video, PDFs) — SDK v2 / `next-cloudinary`; folders prefixed by tenant code; signed uploads + on-the-fly transforms | File Service (EP-20) |
 | Contract types (TS) | generated from OpenAPI into `packages/shared-types` | |
-| Monorepo (TS/JS) | **pnpm 11 workspaces + Turborepo 2.5+** | `apps/{web,marketing,mobile}`, `packages/*` |
-| Monorepo (Go) | **Go workspaces** (`go.work`) across `apps/*-service` | |
-| Monorepo (Py) | **uv workspaces** across `apps/ai-*` | |
+| Monorepo (TS/JS) | **pnpm 11.11.0 workspaces + Turborepo 2.10.4** | `apps/{web,marketing,mobile}`, `packages/*` |
+| Monorepo (Go) | **Go 1.26.5 workspaces** (`go.work`) across `apps/*-service` | |
+| Monorepo (Py) | **uv 0.11.28 workspaces** across `apps/ai-*` | |
 | Task orchestration | root **`Makefile`** + Turborepo pipelines | `make dev`, `make test`, `make contracts` |
 | Containers | **Docker**; local **docker-compose**; **backend prod = Render**, **frontend prod = Vercel** | replaces spec §18 Kubernetes |
 | Deployment | **Render Blueprints (`render.yaml`)** — gateway + domain/AI services = `web`/`pserv`/`worker`/`cron`; Render Postgres + Key Value; PR preview environments. **Web (`apps/web`) and marketing (`apps/marketing`) deploy to Vercel** | user directive |
@@ -133,10 +133,21 @@ The spec is prescriptive; these are the locked choices. Agents do **not** re-lit
 
 **Every package is pinned to its latest stable major and kept current automatically.** Rules for all lanes:
 
-1. **Scaffold with latest.** When generating a service/app, use the toolchain's latest stable at implement time (`go 1.25.x+`, `node 24 LTS`, `pnpm@latest`, `python 3.13.x`, latest Next/React/Tailwind/Expo) and **commit lockfiles** (`go.sum`, `pnpm-lock.yaml`, `uv.lock`).
+1. **Scaffold with latest.** When generating a service/app, use the toolchain's latest stable at implement time (`go 1.26.5`, `node 26.5.0`, `pnpm 11.11.0`, `python 3.14.6`, latest Next/React/Tailwind/Expo) and **commit lockfiles** (`go.sum`, `pnpm-lock.yaml`, `uv.lock`).
 2. **Renovate bot** runs on the repo: grouped weekly PRs for minor/patch, separate PRs for majors, auto-merge for green patch updates. Also updates **GitHub Actions** action versions and **Dockerfile base images**.
-3. **Pinned baseline matrix** (verify latest at implement time — training data may lag): Go 1.25+ · Node 24 LTS · pnpm 11 · Turborepo 2.5 · TypeScript 5.9 · Next.js 16 · React 19 · Tailwind v4 · Expo SDK 54 · RN 0.81 · Python 3.13 · FastAPI (latest) · Pydantic v2 · PostgreSQL 18 · Kafka · Cloudinary SDK v2.
+3. **Pinned baseline matrix** (verify latest at implement time): Go 1.26.5 · Node 26.5.0 · pnpm 11.11.0 · Turborepo 2.10.4 · TypeScript 6.0.3 (TS 7.0.2 pending typescript-eslint support) · Next.js 16.2.10 · React 19.2.7 · Tailwind CSS 4.3.2 · Expo SDK 57.0.4 · React Native 0.86.0 · Python 3.14.6 · FastAPI 0.139.0 · Pydantic v2 · SQLAlchemy 2.0.51 · PostgreSQL 18 · Kafka · Cloudinary SDK v2.
 4. **CI enforces** `pnpm audit` / `govulncheck` / `pip-audit`; a failing security scan blocks merge (spec §13).
+
+### 3.1.1 Linting & formatting
+
+All linters are enabled and must pass in CI:
+
+- **Go**: `golangci-lint` v2 with a comprehensive ruleset (standard linters plus `revive`, `gocritic`, `gosec`, `staticcheck`, `errcheck`, `lll` at 160 cols, `misspell`, `unparam`, `prealloc`, etc.), plus `go vet`, `gofmt`, and `govulncheck`.
+- **Python**: `ruff` (all stable rule categories), `ruff format`, `mypy` strict, and `pyright` strict.
+- **TypeScript/Web**: `ESLint` 10 (flat config, type-checked rules) and `Prettier` 3.9.5.
+- **Contracts**: Spectral OpenAPI lint.
+
+`make lint` runs the full suite locally.
 
 > **Assumption note:** The Workflow Manual lists "Node.js/NestJS/Golang" generically. The AuraEDU spec §12 explicitly mandates **Go hexagonal** services and **Python** AI services, so those win. Go for the gateway + all domain services; TypeScript for `apps/{web,marketing,mobile}`; Python for `apps/ai-*`.
 

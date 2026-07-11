@@ -1,7 +1,8 @@
+import React from "react";
 import { StatusBar } from "expo-status-bar";
 import { StyleSheet, Text, View } from "react-native";
 
-export default function App(): JSX.Element {
+export default function App(): React.JSX.Element {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>AuraEDU</Text>

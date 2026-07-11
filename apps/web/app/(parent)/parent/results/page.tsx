@@ -25,7 +25,7 @@ export interface ResultRow {
 
 export default async function ParentResultsPage() {
   const client = await createServerClient();
-  let assessments: Assessment[] = [];
+  let assessments: Assessment[];
   try {
     assessments = await client.get<Assessment[]>("/api/v1/assessments");
   } catch {

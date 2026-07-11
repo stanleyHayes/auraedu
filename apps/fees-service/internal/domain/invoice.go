@@ -16,7 +16,7 @@ const (
 	InvoiceStatusPending   InvoiceStatus = "pending"
 	InvoiceStatusPaid      InvoiceStatus = "paid"
 	InvoiceStatusOverdue   InvoiceStatus = "overdue"
-	InvoiceStatusCancelled InvoiceStatus = "cancelled"
+	InvoiceStatusCancelled InvoiceStatus = "cancelled" //nolint:misspell // domain uses British spelling for status
 )
 
 // Invoice is the aggregate root for a student fee invoice.
@@ -94,7 +94,10 @@ func (i Invoice) Validate() error {
 		return fmt.Errorf("%w: balance_cents must be between 0 and amount_cents", ErrValidation)
 	}
 	if !isValidInvoiceStatus(InvoiceStatus(i.Status)) {
-		return fmt.Errorf("%w: status must be draft, pending, paid, overdue or cancelled", ErrValidation)
+		//nolint:misspell // domain uses British spelling for status
+		return fmt.Errorf(
+			"%w: status must be draft, pending, paid, overdue or cancelled", ErrValidation,
+		)
 	}
 	return nil
 }
@@ -133,7 +136,10 @@ func (i *Invoice) ApplyUpdate(p InvoicePatch) ([]string, error) {
 	}
 	if p.Status != nil {
 		if !isValidInvoiceStatus(InvoiceStatus(*p.Status)) {
-			return nil, fmt.Errorf("%w: status must be draft, pending, paid, overdue or cancelled", ErrValidation)
+			//nolint:misspell // domain uses British spelling for status
+			return nil, fmt.Errorf(
+				"%w: status must be draft, pending, paid, overdue or cancelled", ErrValidation,
+			)
 		}
 		oldStatus := i.Status
 		i.Status = *p.Status

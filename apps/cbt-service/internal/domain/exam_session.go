@@ -1,3 +1,4 @@
+// Package domain contains the CBT aggregates and value objects.
 package domain
 
 import (
@@ -38,7 +39,11 @@ type ExamSession struct {
 }
 
 // NewExamSession constructs an ExamSession, enforcing invariants.
-func NewExamSession(tenantID, title, academicYearID, subjectID string, questionIDs []string, durationMinutes int, startAt, endAt *time.Time) (*ExamSession, error) {
+func NewExamSession(
+	tenantID, title, academicYearID, subjectID string,
+	questionIDs []string, durationMinutes int,
+	startAt, endAt *time.Time,
+) (*ExamSession, error) {
 	if tenantID == "" {
 		return nil, ErrMissingTenant
 	}

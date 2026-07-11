@@ -41,7 +41,9 @@ func TestRouteStripPrefix(t *testing.T) {
 }
 
 func TestLoadConfigRequiresSigningKey(t *testing.T) {
-	os.Unsetenv("JWT_SIGNING_KEY")
+	if err := os.Unsetenv("JWT_SIGNING_KEY"); err != nil {
+		t.Fatalf("unset env: %v", err)
+	}
 	_, err := LoadConfig()
 	if err == nil {
 		t.Fatal("expected error when JWT_SIGNING_KEY missing")

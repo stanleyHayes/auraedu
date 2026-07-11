@@ -1,3 +1,4 @@
+// Package domain contains the report service aggregates and domain errors.
 package domain
 
 import "errors"

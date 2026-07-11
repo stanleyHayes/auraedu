@@ -41,7 +41,7 @@ func main() {
 	handler := svchttp.NewHandler(svc)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"service": service, "version": version, "status": "healthy"})
 	})
 	handler.Register(mux)
@@ -68,12 +68,14 @@ func main() {
 	<-stop
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_ = srv.Shutdown(shutdownCtx)
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Error("failed to shutdown server", "err", err)
+	}
 	log.Info(service + " stopped")
 }
 
-func mustInitPublisher(ctx context.Context, log *slog.Logger) application.Option {
-	pub, err := events.NewPublisher(ctx, log)
+func mustInitPublisher(_ context.Context, log *slog.Logger) application.Option {
+	pub, err := events.NewPublisher(context.Background(), log)
 	if err != nil {
 		log.Error("event publisher init failed", "err", err)
 		os.Exit(1)
@@ -84,5 +86,7 @@ func mustInitPublisher(ctx context.Context, log *slog.Logger) application.Option
 func writeJSON(w http.ResponseWriter, code int, body any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	_ = json.NewEncoder(w).Encode(body)
+	if err := json.NewEncoder(w).Encode(body); err != nil {
+		slog.Default().Error("failed to encode health response", "err", err)
+	}
 }

@@ -1,3 +1,4 @@
+// Package ports defines the student service publisher boundary.
 package ports
 
 import (

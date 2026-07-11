@@ -2,7 +2,14 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, CheckSquare, ClipboardList, GraduationCap, Megaphone, PenLine } from "lucide-react";
+import {
+  CalendarDays,
+  CheckSquare,
+  ClipboardList,
+  GraduationCap,
+  Megaphone,
+  PenLine,
+} from "lucide-react";
 import { Button, StatCard } from "@auraedu/ui";
 
 interface TeacherDashboardProps {

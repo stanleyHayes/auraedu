@@ -217,7 +217,7 @@ func request(t *testing.T, method, path string, body any, perms ...string) *http
 	} else {
 		bodyReader = bytes.NewReader(nil)
 	}
-	req := httptest.NewRequest(method, path, bodyReader)
+	req := httptest.NewRequestWithContext(context.Background(), method, path, bodyReader)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(tenancy.HeaderTenantID, tenantA)
 	req.Header.Set(auth.HeaderUserID, "user-1")
@@ -275,10 +275,20 @@ func TestHandler_CreateStudent_Forbidden(t *testing.T) {
 func TestHandler_ListStudents(t *testing.T) {
 	h, repo := newTestHandler()
 	ctx := context.Background()
-	s1, _ := domain.NewStudent(tenantA, "A", "One")
-	s2, _ := domain.NewStudent(tenantA, "B", "Two")
-	_ = repo.Create(ctx, tenantA, s1)
-	_ = repo.Create(ctx, tenantA, s2)
+	s1, err := domain.NewStudent(tenantA, "A", "One")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	s2, err := domain.NewStudent(tenantA, "B", "Two")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := repo.Create(ctx, tenantA, s1); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if err := repo.Create(ctx, tenantA, s2); err != nil {
+		t.Fatalf("create: %v", err)
+	}
 
 	req := request(t, http.MethodGet, "/api/v1/students", nil, application.PermRead)
 	rr := httptest.NewRecorder()
@@ -376,7 +386,10 @@ Charles,Babbage,male,Father,Guardian,father@example.com`
 func TestFakeRepo_Isolation(t *testing.T) {
 	repo := newFakeRepo()
 	ctx := context.Background()
-	s, _ := domain.NewStudent(tenantA, "Tenant", "A")
+	s, err := domain.NewStudent(tenantA, "Tenant", "A")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if err := repo.Create(ctx, tenantA, s); err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -388,11 +401,11 @@ func TestFakeRepo_Isolation(t *testing.T) {
 func TestHandler_CreateAndLinkGuardian(t *testing.T) {
 	h, _ := newTestHandler()
 	req := request(t, http.MethodPost, "/api/v1/guardians", map[string]any{
-		"first_name":    "Mother",
-		"last_name":     "Guardian",
-		"relationship":  "mother",
-		"phone":         "+233",
-		"email":         "mother@example.com",
+		"first_name":   "Mother",
+		"last_name":    "Guardian",
+		"relationship": "mother",
+		"phone":        "+233",
+		"email":        "mother@example.com",
 	}, application.PermCreate)
 	rr := httptest.NewRecorder()
 	mux := http.NewServeMux()

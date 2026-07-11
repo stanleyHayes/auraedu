@@ -1,3 +1,4 @@
+// Package http exposes the payment service REST API.
 package http
 
 import (
@@ -49,7 +50,7 @@ func (h *Handler) listPayments(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit := parseLimit(r.URL.Query().Get("limit"))
 	filter := ports.PaymentFilter{
 		Limit:     limit,
 		Cursor:    r.URL.Query().Get("cursor"),
@@ -178,7 +179,7 @@ func (h *Handler) listTransactionsByPayment(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit := parseLimit(r.URL.Query().Get("limit"))
 	filter := ports.TransactionFilter{
 		Limit:  limit,
 		Cursor: r.URL.Query().Get("cursor"),
@@ -211,7 +212,7 @@ func (h *Handler) listWebhookEvents(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit := parseLimit(r.URL.Query().Get("limit"))
 	filter := ports.WebhookEventFilter{
 		Limit:     limit,
 		Cursor:    r.URL.Query().Get("cursor"),
@@ -332,4 +333,12 @@ func nullIfEmpty(v string) any {
 		return nil
 	}
 	return v
+}
+
+func parseLimit(s string) int {
+	n, err := strconv.Atoi(s)
+	if err != nil || n <= 0 {
+		return 0
+	}
+	return n
 }

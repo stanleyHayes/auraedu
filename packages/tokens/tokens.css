@@ -5,8 +5,10 @@
 
 @theme {
   /* ---- typography ---- */
-  --font-sans: var(--font-public-sans), ui-sans-serif, system-ui, "Helvetica Neue", Arial, sans-serif;
-  --font-display: var(--font-bricolage), var(--font-public-sans), "Helvetica Neue", Arial, sans-serif;
+  --font-sans:
+    var(--font-public-sans), ui-sans-serif, system-ui, "Helvetica Neue", Arial, sans-serif;
+  --font-display:
+    var(--font-bricolage), var(--font-public-sans), "Helvetica Neue", Arial, sans-serif;
   --font-mono: var(--font-spline-mono), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
   --text-xs: 0.75rem;
@@ -26,31 +28,31 @@
   --radius-xl: 16px;
 
   /* ---- brand slots — DEFAULT = red marking pen; tenants override --color-brand ---- */
-  --color-brand: #C6402F;
-  --color-brand-deep: #9A2E20;
-  --color-brand-tint: #F3DED9;
-  --color-brand-contrast: #FFFFFF;
+  --color-brand: #c6402f;
+  --color-brand-deep: #9a2e20;
+  --color-brand-tint: #f3ded9;
+  --color-brand-contrast: #ffffff;
 
   /* ---- chalkboard-green ink neutrals (text + dark surfaces) ---- */
-  --color-ink-950: #16241D;
-  --color-ink-900: #1D2F27;
-  --color-ink-800: #24382F;
-  --color-ink-600: #48594F;
-  --color-ink-400: #7C8B82;
-  --color-ink-200: #A6B2AA;
+  --color-ink-950: #16241d;
+  --color-ink-900: #1d2f27;
+  --color-ink-800: #24382f;
+  --color-ink-600: #48594f;
+  --color-ink-400: #7c8b82;
+  --color-ink-200: #a6b2aa;
 
   /* ---- cool chalk paper neutrals (light surfaces) ---- */
-  --color-paper-50: #F4F5F1;
-  --color-paper-100: #FBFCF9;
-  --color-paper-200: #EFF1EB;
-  --color-paper-300: #DCE0D8;
-  --color-paper-400: #CBD1C6;
+  --color-paper-50: #f4f5f1;
+  --color-paper-100: #fbfcf9;
+  --color-paper-200: #eff1eb;
+  --color-paper-300: #dce0d8;
+  --color-paper-400: #cbd1c6;
 
   /* ---- status (kept distinct from the brand accent) ---- */
-  --color-ok: #2F7D53;
-  --color-warn: #A9781F;
-  --color-crit: #C6402F;
-  --color-gold: #A9781F;
+  --color-ok: #2f7d53;
+  --color-warn: #a9781f;
+  --color-crit: #c6402f;
+  --color-gold: #a9781f;
 
   /* ---- motion ---- */
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);

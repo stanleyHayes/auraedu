@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"net/http"
@@ -16,7 +17,9 @@ func TestProxyStripsPrefixAndForwardsHeaders(t *testing.T) {
 		}
 		w.Header().Set("X-Upstream", "ok")
 		w.WriteHeader(http.StatusOK)
-		_, _ = io.WriteString(w, "pong")
+		if _, err := io.WriteString(w, "pong"); err != nil {
+			t.Errorf("write response: %v", err)
+		}
 	}))
 	defer upstream.Close()
 
@@ -26,7 +29,7 @@ func TestProxyStripsPrefixAndForwardsHeaders(t *testing.T) {
 		t.Fatalf("new proxy: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/students/123", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/students/123", nil)
 	req = req.WithContext(WithRequestID(req.Context(), "rid-1"))
 	req = req.WithContext(WithTenantID(req.Context(), "upshs"))
 	req = req.WithContext(WithActor(req.Context(), ActorContext{UserID: "u1", Role: "teacher"}))
@@ -51,7 +54,7 @@ func TestProxyReturns404ForUnknownRoute(t *testing.T) {
 		t.Fatalf("new proxy: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/unknown", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/unknown", nil)
 	rr := httptest.NewRecorder()
 	proxy.Handler(ServiceRegistry{}).ServeHTTP(rr, req)
 

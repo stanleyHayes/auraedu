@@ -7,5 +7,5 @@ import { logoutAction } from "@/lib/actions";
 export type TeacherShellProps = Omit<PortalShellProps, "onLogout">;
 
 export function TeacherShell(props: TeacherShellProps) {
-  return <PortalShell {...props} onLogout={() => logoutAction()} />;
+  return <PortalShell {...props} onLogout={() => void logoutAction()} />;
 }

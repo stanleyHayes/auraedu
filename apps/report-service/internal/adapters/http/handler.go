@@ -1,3 +1,4 @@
+// Package http exposes the report service REST API.
 package http
 
 import (
@@ -48,7 +49,7 @@ func (h *Handler) listReportTemplates(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit := parseLimit(r.URL.Query().Get("limit"))
 	filter := ports.ReportTemplateListFilter{
 		Limit:          limit,
 		Cursor:         r.URL.Query().Get("cursor"),
@@ -153,7 +154,7 @@ func (h *Handler) listReportCards(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit := parseLimit(r.URL.Query().Get("limit"))
 	filter := ports.ReportCardListFilter{
 		Limit:          limit,
 		Cursor:         r.URL.Query().Get("cursor"),
@@ -276,6 +277,7 @@ func (h *Handler) downloadReportCard(w http.ResponseWriter, r *http.Request) {
 		h.writeErr(w, r, err)
 		return
 	}
+	//nolint:gosec // path is generated and confined to the report output directory by the service.
 	http.ServeFile(w, r, path)
 }
 
@@ -320,4 +322,12 @@ func nullIfEmpty(v string) any {
 		return nil
 	}
 	return v
+}
+
+func parseLimit(s string) int {
+	n, err := strconv.Atoi(s)
+	if err != nil || n <= 0 {
+		return 0
+	}
+	return n
 }

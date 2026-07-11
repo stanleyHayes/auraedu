@@ -28,7 +28,7 @@ var (
 	ErrExpiredToken = errors.New("jwt: token expired")
 )
 
-var header = base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"HS256","typ":"JWT"}`))
+const header = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
 
 func Sign(c Claims, key []byte) (string, error) {
 	c.TokenType = "access"

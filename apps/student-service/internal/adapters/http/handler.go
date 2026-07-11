@@ -1,3 +1,4 @@
+// Package http exposes the student service REST API.
 package http
 
 import (
@@ -6,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -53,7 +55,7 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit := parseLimit(r.URL.Query().Get("limit"))
 	cursor := r.URL.Query().Get("cursor")
 	students, nextCursor, err := h.svc.List(ctx, actor, limit, cursor)
 	if err != nil {
@@ -105,7 +107,11 @@ func (h *Handler) importStudents(w http.ResponseWriter, r *http.Request) {
 		httpx.ValidationError(w, r, map[string]any{"file": "missing or invalid multipart file"})
 		return
 	}
-	defer file.Close()
+	defer func() {
+		if cerr := file.Close(); cerr != nil {
+			slog.Default().ErrorContext(ctx, "failed to close uploaded file", "err", cerr)
+		}
+	}()
 
 	rows, parseErr := parseStudentCSV(file)
 	if parseErr != nil {
@@ -339,7 +345,7 @@ func (h *Handler) listStudentGuardians(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit := parseLimit(r.URL.Query().Get("limit"))
 	cursor := r.URL.Query().Get("cursor")
 	guardians, nextCursor, err := h.svc.ListStudentGuardians(ctx, actor, r.PathValue("student_id"), limit, cursor)
 	if err != nil {
@@ -426,4 +432,12 @@ func nullIfEmpty(v string) any {
 		return nil
 	}
 	return v
+}
+
+func parseLimit(s string) int {
+	n, err := strconv.Atoi(s)
+	if err != nil || n <= 0 {
+		return 0
+	}
+	return n
 }

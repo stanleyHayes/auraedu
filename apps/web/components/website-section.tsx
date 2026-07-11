@@ -52,11 +52,12 @@ export function WebsiteSection({ section }: { section: WebsiteSection }) {
 }
 
 function HeroSection({ section }: { section: WebsiteSection }) {
-  const content = typeof section.content === "object" && section.content !== null ? section.content : {};
-  const title = getText(content as Record<string, unknown>, "headline", "title") ?? "";
-  const body = getText(content as Record<string, unknown>, "body", "subtitle");
-  const ctaLabel = getText(content as Record<string, unknown>, "cta_label", "button_label");
-  const ctaUrl = getText(content as Record<string, unknown>, "cta_url", "button_url");
+  const content =
+    typeof section.content === "object" && section.content !== null ? section.content : {};
+  const title = getText(content, "headline", "title") ?? "";
+  const body = getText(content, "body", "subtitle");
+  const ctaLabel = getText(content, "cta_label", "button_label");
+  const ctaUrl = getText(content, "cta_url", "button_url");
 
   return (
     <section className="bg-[var(--surface)] py-20 lg:py-28">
@@ -64,7 +65,9 @@ function HeroSection({ section }: { section: WebsiteSection }) {
         <h1 className="font-display text-4xl font-extrabold tracking-tight text-[var(--foreground)] lg:text-5xl">
           {title}
         </h1>
-        {body ? <p className="mx-auto mt-6 max-w-2xl text-lg text-[var(--muted-foreground)]">{body}</p> : null}
+        {body ? (
+          <p className="mx-auto mt-6 max-w-2xl text-lg text-[var(--muted-foreground)]">{body}</p>
+        ) : null}
         {ctaLabel && ctaUrl ? (
           <div className="mt-8">
             <Button asChild>
@@ -78,14 +81,17 @@ function HeroSection({ section }: { section: WebsiteSection }) {
 }
 
 function TextSection({ section }: { section: WebsiteSection }) {
-  const content = typeof section.content === "object" && section.content !== null ? section.content : {};
-  const title = getText(content as Record<string, unknown>, "title", "heading");
-  const body = getText(content as Record<string, unknown>, "body", "text", "content");
+  const content =
+    typeof section.content === "object" && section.content !== null ? section.content : {};
+  const title = getText(content, "title", "heading");
+  const body = getText(content, "body", "text", "content");
 
   return (
     <section className="py-16 lg:py-20">
       <div className="mx-auto max-w-3xl px-6">
-        {title ? <h2 className="font-display text-2xl font-bold text-[var(--foreground)]">{title}</h2> : null}
+        {title ? (
+          <h2 className="font-display text-2xl font-bold text-[var(--foreground)]">{title}</h2>
+        ) : null}
         {body ? (
           <div
             className={`text-[var(--muted-foreground)] ${title ? "mt-4" : ""}`}
@@ -100,19 +106,24 @@ function TextSection({ section }: { section: WebsiteSection }) {
 }
 
 function FeaturesSection({ section }: { section: WebsiteSection }) {
-  const content = typeof section.content === "object" && section.content !== null ? section.content : {};
-  const title = getText(content as Record<string, unknown>, "title", "heading");
-  const body = getText(content as Record<string, unknown>, "body", "subtitle");
-  const items = getItems(content as Record<string, unknown>);
+  const content =
+    typeof section.content === "object" && section.content !== null ? section.content : {};
+  const title = getText(content, "title", "heading");
+  const body = getText(content, "body", "subtitle");
+  const items = getItems(content);
 
   return (
     <section className="py-16 lg:py-20">
       <div className="mx-auto max-w-5xl px-6">
         {title ? (
-          <h2 className="text-center font-display text-2xl font-bold text-[var(--foreground)]">{title}</h2>
+          <h2 className="text-center font-display text-2xl font-bold text-[var(--foreground)]">
+            {title}
+          </h2>
         ) : null}
         {body ? (
-          <p className="mx-auto mt-3 max-w-2xl text-center text-[var(--muted-foreground)]">{body}</p>
+          <p className="mx-auto mt-3 max-w-2xl text-center text-[var(--muted-foreground)]">
+            {body}
+          </p>
         ) : null}
         {items.length > 0 ? (
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -138,17 +149,20 @@ function FeatureCard({ item }: { item: FeatureItem }) {
       <h3 className="font-display text-lg font-semibold text-[var(--foreground)]">
         {item.title ?? "Feature"}
       </h3>
-      {item.description ? <p className="mt-2 text-sm text-[var(--muted-foreground)]">{item.description}</p> : null}
+      {item.description ? (
+        <p className="mt-2 text-sm text-[var(--muted-foreground)]">{item.description}</p>
+      ) : null}
     </div>
   );
 }
 
 function CTASection({ section }: { section: WebsiteSection }) {
-  const content = typeof section.content === "object" && section.content !== null ? section.content : {};
-  const title = getText(content as Record<string, unknown>, "title", "headline", "heading") ?? "";
-  const body = getText(content as Record<string, unknown>, "body", "text", "subtitle");
-  const ctaLabel = getText(content as Record<string, unknown>, "cta_label", "button_label");
-  const ctaUrl = getText(content as Record<string, unknown>, "cta_url", "button_url");
+  const content =
+    typeof section.content === "object" && section.content !== null ? section.content : {};
+  const title = getText(content, "title", "headline", "heading") ?? "";
+  const body = getText(content, "body", "text", "subtitle");
+  const ctaLabel = getText(content, "cta_label", "button_label");
+  const ctaUrl = getText(content, "cta_url", "button_url");
 
   return (
     <section className="py-16 lg:py-20">
@@ -170,42 +184,29 @@ function CTASection({ section }: { section: WebsiteSection }) {
 }
 
 function ContactSection({ section }: { section: WebsiteSection }) {
-  const content = typeof section.content === "object" && section.content !== null ? section.content : {};
-  const title = getText(content as Record<string, unknown>, "title", "heading");
-  const email = getText(content as Record<string, unknown>, "email", "contact_email");
-  const phone = getText(content as Record<string, unknown>, "phone", "contact_phone", "telephone");
-  const address = getText(content as Record<string, unknown>, "address", "location");
+  const content =
+    typeof section.content === "object" && section.content !== null ? section.content : {};
+  const title = getText(content, "title", "heading");
+  const email = getText(content, "email", "contact_email");
+  const phone = getText(content, "phone", "contact_phone", "telephone");
+  const address = getText(content, "address", "location");
 
   return (
     <section className="py-16 lg:py-20">
       <div className="mx-auto max-w-4xl px-6">
         {title ? (
-          <h2 className="text-center font-display text-2xl font-bold text-[var(--foreground)]">{title}</h2>
+          <h2 className="text-center font-display text-2xl font-bold text-[var(--foreground)]">
+            {title}
+          </h2>
         ) : null}
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {email ? (
-            <ContactCard
-              icon={Mail}
-              label="Email"
-              value={email}
-              href={`mailto:${email}`}
-            />
+            <ContactCard icon={Mail} label="Email" value={email} href={`mailto:${email}`} />
           ) : null}
           {phone ? (
-            <ContactCard
-              icon={Phone}
-              label="Phone"
-              value={phone}
-              href={`tel:${phone}`}
-            />
+            <ContactCard icon={Phone} label="Phone" value={phone} href={`tel:${phone}`} />
           ) : null}
-          {address ? (
-            <ContactCard
-              icon={MapPin}
-              label="Address"
-              value={address}
-            />
-          ) : null}
+          {address ? <ContactCard icon={MapPin} label="Address" value={address} /> : null}
         </div>
       </div>
     </section>
@@ -229,7 +230,9 @@ function ContactCard({
         <Icon className="size-5" aria-hidden="true" />
       </div>
       <div>
-        <p className="text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)]">{label}</p>
+        <p className="text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)]">
+          {label}
+        </p>
         <p className="mt-1 font-medium text-[var(--foreground)]">{value}</p>
       </div>
     </div>

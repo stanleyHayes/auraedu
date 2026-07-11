@@ -1,3 +1,4 @@
+// Package application holds the analytics-service use cases.
 package application
 
 import (
@@ -11,7 +12,7 @@ import (
 	"github.com/auraedu/platform/tenancy"
 )
 
-// RBAC permission keys.
+// PermRead is the analytics view permission key.
 const PermRead = "analytics.view"
 
 // FeatureAnalytics is the feature flag key for analytics dashboards.

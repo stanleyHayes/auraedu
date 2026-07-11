@@ -112,7 +112,10 @@ func TestFeeStructure_ApplyUpdate_InvalidStatus(t *testing.T) {
 }
 
 func TestFeeStructure_Validate_InvalidStatus(t *testing.T) {
-	fs, _ := domain.NewFeeStructure("tenant-1", "Tuition", "ay-1", "GHS", "termly", "all_students", 10000, nil, nil)
+	fs, err := domain.NewFeeStructure("tenant-1", "Tuition", "ay-1", "GHS", "termly", "all_students", 10000, nil, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	fs.Status = "unknown"
 	if err := fs.Validate(); err == nil {
 		t.Fatal("expected error for invalid status")

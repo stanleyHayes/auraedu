@@ -36,7 +36,7 @@ func RespondError(w http.ResponseWriter, r *http.Request, err Error) {
 	RespondJSON(w, r, status, err)
 }
 
-func RespondJSON(w http.ResponseWriter, r *http.Request, code int, body any) {
+func RespondJSON(w http.ResponseWriter, _ *http.Request, code int, body any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(body)

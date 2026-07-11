@@ -1,3 +1,4 @@
+// Package ports defines the notification-service boundary interfaces.
 package ports
 
 import (

@@ -1,9 +1,12 @@
+// Package application implements the student service use cases.
 package application
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"strings"
 
 	"github.com/auraedu/platform/auth"
 	"github.com/auraedu/platform/flags"
@@ -20,7 +23,7 @@ const (
 	PermDelete = "students.delete"
 )
 
-// Feature flag key from contracts/features/features.yaml.
+// FeatureStudentManagement is the feature flag key from contracts/features/features.yaml.
 const FeatureStudentManagement = "student_management"
 
 // Service holds the student use cases. Tenant scope + RBAC + feature-flag checks belong
@@ -72,20 +75,20 @@ type UpdateStudentRequest struct {
 
 // CreateGuardianRequest is the input for creating a guardian.
 type CreateGuardianRequest struct {
-	FirstName   string
-	LastName    string
+	FirstName    string
+	LastName     string
 	Relationship string
-	Phone       *string
-	Email       *string
+	Phone        *string
+	Email        *string
 }
 
 // UpdateGuardianRequest is the input for patching a guardian.
 type UpdateGuardianRequest struct {
-	FirstName   *string
-	LastName    *string
+	FirstName    *string
+	LastName     *string
 	Relationship *string
-	Phone       *string
-	Email       *string
+	Phone        *string
+	Email        *string
 }
 
 // LinkGuardianRequest links a guardian to a student.
@@ -97,15 +100,15 @@ type LinkGuardianRequest struct {
 
 // ImportStudentRow is one row from a bulk-import CSV/JSON payload.
 type ImportStudentRow struct {
-	FirstName           string
-	LastName            string
-	DateOfBirth         *string
-	Gender              *string
-	Relationship        *string
-	GuardianFirstName   *string
-	GuardianLastName    *string
-	GuardianPhone       *string
-	GuardianEmail       *string
+	FirstName         string
+	LastName          string
+	DateOfBirth       *string
+	Gender            *string
+	Relationship      *string
+	GuardianFirstName *string
+	GuardianLastName  *string
+	GuardianPhone     *string
+	GuardianEmail     *string
 }
 
 // ImportError describes a single row that failed.
@@ -144,7 +147,9 @@ func (s *Service) Create(ctx context.Context, actor auth.Actor, req CreateStuden
 	if err := s.repo.Create(ctx, tenantID, student); err != nil {
 		return nil, err
 	}
-	_ = s.pub.Publish(ctx, "student.created.v1", student, nil)
+	if err := s.pub.Publish(ctx, "student.created.v1", student, nil); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish student.created event", "err", err)
+	}
 	return student, nil
 }
 
@@ -189,7 +194,9 @@ func (s *Service) Update(ctx context.Context, actor auth.Actor, id string, req U
 	if err := s.repo.Update(ctx, tenantID, student); err != nil {
 		return nil, err
 	}
-	_ = s.pub.Publish(ctx, "student.updated.v1", student, map[string]any{"changed_fields": changed})
+	if err := s.pub.Publish(ctx, "student.updated.v1", student, map[string]any{"changed_fields": changed}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish student.updated event", "err", err)
+	}
 	return student, nil
 }
 
@@ -206,7 +213,9 @@ func (s *Service) Delete(ctx context.Context, actor auth.Actor, id string) error
 	if err := s.repo.Delete(ctx, tenantID, id); err != nil {
 		return err
 	}
-	_ = s.pub.Publish(ctx, "student.deleted.v1", student, nil)
+	if err := s.pub.Publish(ctx, "student.deleted.v1", student, nil); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish student.deleted event", "err", err)
+	}
 	return nil
 }
 
@@ -260,7 +269,9 @@ func (s *Service) CreateGuardian(ctx context.Context, actor auth.Actor, req Crea
 	if err := s.repo.CreateGuardian(ctx, tenantID, g); err != nil {
 		return nil, err
 	}
-	_ = s.pub.Publish(ctx, "guardian.created.v1", nil, map[string]any{"guardian_id": g.ID, "tenant_id": g.TenantID})
+	if err := s.pub.Publish(ctx, "guardian.created.v1", nil, map[string]any{"guardian_id": g.ID, "tenant_id": g.TenantID}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish guardian.created event", "err", err)
+	}
 	return g, nil
 }
 
@@ -309,7 +320,9 @@ func (s *Service) UpdateGuardian(ctx context.Context, actor auth.Actor, id strin
 	if err := s.repo.UpdateGuardian(ctx, tenantID, g); err != nil {
 		return nil, err
 	}
-	_ = s.pub.Publish(ctx, "guardian.updated.v1", nil, map[string]any{"guardian_id": g.ID, "changed_fields": changed})
+	if err := s.pub.Publish(ctx, "guardian.updated.v1", nil, map[string]any{"guardian_id": g.ID, "changed_fields": changed}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish guardian.updated event", "err", err)
+	}
 	return g, nil
 }
 
@@ -325,7 +338,9 @@ func (s *Service) DeleteGuardian(ctx context.Context, actor auth.Actor, id strin
 	if err := s.repo.DeleteGuardian(ctx, tenantID, id); err != nil {
 		return err
 	}
-	_ = s.pub.Publish(ctx, "guardian.deleted.v1", nil, map[string]any{"guardian_id": id})
+	if err := s.pub.Publish(ctx, "guardian.deleted.v1", nil, map[string]any{"guardian_id": id}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish guardian.deleted event", "err", err)
+	}
 	return nil
 }
 
@@ -349,10 +364,12 @@ func (s *Service) LinkGuardian(ctx context.Context, actor auth.Actor, studentID 
 	if err := s.repo.LinkGuardianToStudent(ctx, tenantID, link); err != nil {
 		return nil, err
 	}
-	_ = s.pub.Publish(ctx, "guardian.linked.v1", nil, map[string]any{
+	if err := s.pub.Publish(ctx, "guardian.linked.v1", nil, map[string]any{
 		"student_id":  link.StudentID,
 		"guardian_id": link.GuardianID,
-	})
+	}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish guardian.linked event", "err", err)
+	}
 	return link, nil
 }
 
@@ -365,10 +382,12 @@ func (s *Service) UnlinkGuardian(ctx context.Context, actor auth.Actor, studentI
 	if err := s.repo.UnlinkGuardianFromStudent(ctx, tenantID, studentID, guardianID); err != nil {
 		return err
 	}
-	_ = s.pub.Publish(ctx, "guardian.unlinked.v1", nil, map[string]any{
+	if err := s.pub.Publish(ctx, "guardian.unlinked.v1", nil, map[string]any{
 		"student_id":  studentID,
 		"guardian_id": guardianID,
-	})
+	}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish guardian.unlinked event", "err", err)
+	}
 	return nil
 }
 
@@ -393,7 +412,13 @@ func (s *Service) ImportStudents(ctx context.Context, actor auth.Actor, rows []I
 	return result, nil
 }
 
-func (s *Service) importRow(ctx context.Context, tenantID string, row ImportStudentRow, result *ImportResult, guardianByEmail map[string]*domain.Guardian) error {
+func (s *Service) importRow(
+	ctx context.Context,
+	tenantID string,
+	row ImportStudentRow,
+	result *ImportResult,
+	guardianByEmail map[string]*domain.Guardian,
+) error {
 	student, err := domain.NewStudent(tenantID, row.FirstName, row.LastName)
 	if err != nil {
 		return err
@@ -407,70 +432,103 @@ func (s *Service) importRow(ctx context.Context, tenantID string, row ImportStud
 		return err
 	}
 	result.StudentsCreated++
-	_ = s.pub.Publish(ctx, "student.created.v1", student, nil)
+	if err := s.pub.Publish(ctx, "student.created.v1", student, nil); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish student.created event", "err", err)
+	}
 
-	// Create/link guardian if any guardian field is present.
-	if row.GuardianFirstName != nil || row.GuardianLastName != nil || row.GuardianEmail != nil || row.GuardianPhone != nil {
-		gf := stringPtr("")
-		if row.GuardianFirstName != nil {
-			gf = row.GuardianFirstName
-		}
-		gl := stringPtr("")
-		if row.GuardianLastName != nil {
-			gl = row.GuardianLastName
-		}
-		rel := "parent"
-		if row.Relationship != nil && *row.Relationship != "" {
-			rel = *row.Relationship
-		}
+	if !hasGuardianData(row) {
+		return nil
+	}
 
-		var guardian *domain.Guardian
-		if row.GuardianEmail != nil && *row.GuardianEmail != "" {
-			if existing, ok := guardianByEmail[*row.GuardianEmail]; ok {
-				guardian = existing
-			}
-		}
+	guardian, err := s.findOrCreateGuardian(ctx, tenantID, row, result, guardianByEmail)
+	if err != nil {
+		return err
+	}
 
-		if guardian == nil {
-			if gf == nil || gl == nil || *gf == "" || *gl == "" {
-				return domain.ErrValidation
-			}
-			guardian, err = domain.NewGuardian(tenantID, *gf, *gl, rel)
-			if err != nil {
-				return err
-			}
-			guardian.Phone = row.GuardianPhone
-			guardian.Email = row.GuardianEmail
-			if err := guardian.Validate(); err != nil {
-				return err
-			}
-			if err := s.repo.CreateGuardian(ctx, tenantID, guardian); err != nil {
-				return err
-			}
-			result.GuardiansCreated++
-			_ = s.pub.Publish(ctx, "guardian.created.v1", nil, map[string]any{"guardian_id": guardian.ID, "tenant_id": guardian.TenantID})
-			if guardian.Email != nil && *guardian.Email != "" {
-				guardianByEmail[*guardian.Email] = guardian
-			}
-		}
-
-		link, err := domain.NewStudentGuardian(tenantID, student.ID, guardian.ID, row.Relationship, false)
-		if err != nil {
-			return err
-		}
-		if err := s.repo.LinkGuardianToStudent(ctx, tenantID, link); err != nil {
-			return err
-		}
-		result.LinksCreated++
-		_ = s.pub.Publish(ctx, "guardian.linked.v1", nil, map[string]any{
-			"student_id":  student.ID,
-			"guardian_id": guardian.ID,
-		})
+	link, err := domain.NewStudentGuardian(tenantID, student.ID, guardian.ID, row.Relationship, false)
+	if err != nil {
+		return err
+	}
+	if err := s.repo.LinkGuardianToStudent(ctx, tenantID, link); err != nil {
+		return err
+	}
+	result.LinksCreated++
+	if err := s.pub.Publish(ctx, "guardian.linked.v1", nil, map[string]any{
+		"student_id":  student.ID,
+		"guardian_id": guardian.ID,
+	}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish guardian.linked event", "err", err)
 	}
 	return nil
 }
 
-func stringPtr(s string) *string { return &s }
+func hasGuardianData(row ImportStudentRow) bool {
+	return row.GuardianFirstName != nil || row.GuardianLastName != nil ||
+		row.GuardianEmail != nil || row.GuardianPhone != nil
+}
+
+func (s *Service) findOrCreateGuardian(
+	ctx context.Context,
+	tenantID string,
+	row ImportStudentRow,
+	result *ImportResult,
+	guardianByEmail map[string]*domain.Guardian,
+) (*domain.Guardian, error) {
+	if row.GuardianEmail != nil && *row.GuardianEmail != "" {
+		if existing, ok := guardianByEmail[*row.GuardianEmail]; ok {
+			return existing, nil
+		}
+	}
+	guardian, err := s.newGuardianFromRow(ctx, tenantID, row)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.repo.CreateGuardian(ctx, tenantID, guardian); err != nil {
+		return nil, err
+	}
+	result.GuardiansCreated++
+	if err := s.pub.Publish(ctx, "guardian.created.v1", nil, map[string]any{"guardian_id": guardian.ID, "tenant_id": guardian.TenantID}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish guardian.created event", "err", err)
+	}
+	if guardian.Email != nil && *guardian.Email != "" {
+		guardianByEmail[*guardian.Email] = guardian
+	}
+	return guardian, nil
+}
+
+func (s *Service) newGuardianFromRow(_ context.Context, tenantID string, row ImportStudentRow) (*domain.Guardian, error) {
+	gf, gl, ok := guardianNames(row)
+	if !ok {
+		return nil, domain.ErrValidation
+	}
+	rel := defaultRelationship(row.Relationship)
+	guardian, err := domain.NewGuardian(tenantID, gf, gl, rel)
+	if err != nil {
+		return nil, err
+	}
+	guardian.Phone = row.GuardianPhone
+	guardian.Email = row.GuardianEmail
+	if err := guardian.Validate(); err != nil {
+		return nil, err
+	}
+	return guardian, nil
+}
+
+func guardianNames(row ImportStudentRow) (first, last string, ok bool) {
+	if row.GuardianFirstName == nil || row.GuardianLastName == nil {
+		return "", "", false
+	}
+	first = strings.TrimSpace(*row.GuardianFirstName)
+	last = strings.TrimSpace(*row.GuardianLastName)
+	return first, last, first != "" && last != ""
+}
+
+func defaultRelationship(rel *string) string {
+	if rel != nil && strings.TrimSpace(*rel) != "" {
+		return strings.TrimSpace(*rel)
+	}
+	return "parent"
+}
 
 // IsNotFound reports whether an error is a not-found domain error.
 func IsNotFound(err error) bool { return errors.Is(err, domain.ErrNotFound) }

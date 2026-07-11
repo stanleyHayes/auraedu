@@ -1,3 +1,5 @@
+// Package application holds the assessment-service use cases. Tenant scope, RBAC,
+// feature-flag checks and event publishing belong here (agent_plan §5).
 package application
 
 import (
@@ -94,6 +96,7 @@ func (s *Service) CreateAssessment(ctx context.Context, actor auth.Actor, req Cr
 	if err := s.repo.CreateAssessment(ctx, tenantID, assessment); err != nil {
 		return nil, err
 	}
+	//nolint:errcheck // Event publishing is best-effort after the assessment is persisted.
 	_ = s.pub.PublishAssessment(ctx, "assessment.created.v1", assessment, nil)
 	return assessment, nil
 }
@@ -141,8 +144,10 @@ func (s *Service) UpdateAssessment(ctx context.Context, actor auth.Actor, id str
 	if err := s.repo.UpdateAssessment(ctx, tenantID, assessment); err != nil {
 		return nil, err
 	}
+	//nolint:errcheck // Event publishing is best-effort after the assessment is updated.
 	_ = s.pub.PublishAssessment(ctx, "assessment.updated.v1", assessment, map[string]any{"changed_fields": changed})
 	if prevStatus != string(domain.StatusPublished) && assessment.Status == string(domain.StatusPublished) {
+		//nolint:errcheck // Event publishing is best-effort after the assessment is updated.
 		_ = s.pub.PublishAssessment(ctx, "assessment.published.v1", assessment, nil)
 	}
 	return assessment, nil
@@ -161,6 +166,7 @@ func (s *Service) DeleteAssessment(ctx context.Context, actor auth.Actor, id str
 	if err := s.repo.DeleteAssessment(ctx, tenantID, id); err != nil {
 		return err
 	}
+	//nolint:errcheck // Event publishing is best-effort after the assessment is deleted.
 	_ = s.pub.PublishAssessment(ctx, "assessment.deleted.v1", assessment, nil)
 	return nil
 }
@@ -199,6 +205,7 @@ func (s *Service) CreateScore(ctx context.Context, actor auth.Actor, req CreateS
 	if err := s.repo.CreateScore(ctx, tenantID, score); err != nil {
 		return nil, err
 	}
+	//nolint:errcheck // Event publishing is best-effort after the score is recorded.
 	_ = s.pub.PublishScore(ctx, "assessment.score_recorded.v1", score, map[string]any{"assessment_id": assessment.ID})
 	return score, nil
 }
@@ -249,6 +256,7 @@ func (s *Service) UpdateScore(ctx context.Context, actor auth.Actor, assessmentI
 	if err := s.repo.UpdateScore(ctx, tenantID, score); err != nil {
 		return nil, err
 	}
+	//nolint:errcheck // Event publishing is best-effort after the score is updated.
 	_ = s.pub.PublishScore(ctx, "assessment.score_updated.v1", score, map[string]any{"assessment_id": assessment.ID, "changed_fields": changed})
 	return score, nil
 }
@@ -266,6 +274,7 @@ func (s *Service) DeleteScore(ctx context.Context, actor auth.Actor, assessmentI
 	if err := s.repo.DeleteScore(ctx, tenantID, assessmentID, scoreID); err != nil {
 		return err
 	}
+	//nolint:errcheck // Event publishing is best-effort after the score is deleted.
 	_ = s.pub.PublishScore(ctx, "assessment.score_deleted.v1", score, map[string]any{"assessment_id": assessmentID})
 	return nil
 }

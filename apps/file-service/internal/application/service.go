@@ -1,3 +1,4 @@
+// Package application implements the file-service use cases.
 package application
 
 import (
@@ -7,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -25,7 +27,7 @@ const (
 	PermDelete = "files.delete"
 )
 
-// Feature flag key for file management.
+// FeatureFileManagement is the feature flag key for file management.
 const FeatureFileManagement = "file_management"
 
 // Service holds the file use cases. Tenant scope + RBAC + feature-flag checks belong
@@ -145,7 +147,7 @@ func (s *Service) Create(ctx context.Context, actor auth.Actor, req CreateFileRe
 	}
 	path, err := s.storage.Save(ctx, tenantID, file.ID, bytes.NewReader(req.Data))
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", domain.ErrStorage, err)
+		return nil, fmt.Errorf("%w: %w", domain.ErrStorage, err)
 	}
 	file.StoragePath = path
 	file.StorageBackend = s.storage.Backend()
@@ -156,8 +158,12 @@ func (s *Service) Create(ctx context.Context, actor auth.Actor, req CreateFileRe
 	if err := s.repo.Create(ctx, tenantID, file); err != nil {
 		return nil, err
 	}
-	_ = s.repo.RecordStorage(ctx, tenantID, int64(len(req.Data)))
-	_ = s.pub.Publish(ctx, "file.uploaded.v1", file, nil)
+	if err := s.repo.RecordStorage(ctx, tenantID, int64(len(req.Data))); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to record storage", "tenant_id", tenantID, "bytes", len(req.Data), "err", err)
+	}
+	if err := s.pub.Publish(ctx, "file.uploaded.v1", file, nil); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish event", "event_type", "file.uploaded.v1", "err", err)
+	}
 	return file, nil
 }
 
@@ -202,7 +208,9 @@ func (s *Service) Update(ctx context.Context, actor auth.Actor, id string, req U
 	if err := s.repo.Update(ctx, tenantID, file); err != nil {
 		return nil, err
 	}
-	_ = s.pub.Publish(ctx, "file.updated.v1", file, map[string]any{"changed_fields": changed})
+	if err := s.pub.Publish(ctx, "file.updated.v1", file, map[string]any{"changed_fields": changed}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish event", "event_type", "file.updated.v1", "err", err)
+	}
 	return file, nil
 }
 
@@ -217,12 +225,14 @@ func (s *Service) Delete(ctx context.Context, actor auth.Actor, id string) error
 		return err
 	}
 	if err := s.storage.Delete(ctx, tenantID, file.StoragePath); err != nil {
-		return fmt.Errorf("%w: %v", domain.ErrStorage, err)
+		return fmt.Errorf("%w: %w", domain.ErrStorage, err)
 	}
 	if err := s.repo.Delete(ctx, tenantID, id); err != nil {
 		return err
 	}
-	_ = s.pub.Publish(ctx, "file.deleted.v1", file, nil)
+	if err := s.pub.Publish(ctx, "file.deleted.v1", file, nil); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish event", "event_type", "file.deleted.v1", "err", err)
+	}
 	return nil
 }
 
@@ -252,7 +262,7 @@ func (s *Service) RequestSignedUpload(ctx context.Context, actor auth.Actor, req
 	}
 	signed, err := s.signer.SignUpload(ctx, tenantID, file.ID, req.Folder, req.ResourceType)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", domain.ErrStorage, err)
+		return nil, fmt.Errorf("%w: %w", domain.ErrStorage, err)
 	}
 
 	if err := s.repo.Create(ctx, tenantID, file); err != nil {
@@ -311,8 +321,12 @@ func (s *Service) CompleteSignedUpload(ctx context.Context, actor auth.Actor, fi
 	if err := s.repo.Update(ctx, tenantID, file); err != nil {
 		return nil, err
 	}
-	_ = s.repo.RecordStorage(ctx, tenantID, req.SizeBytes)
-	_ = s.pub.Publish(ctx, "file.uploaded.v1", file, nil)
+	if err := s.repo.RecordStorage(ctx, tenantID, req.SizeBytes); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to record storage", "tenant_id", tenantID, "bytes", req.SizeBytes, "err", err)
+	}
+	if err := s.pub.Publish(ctx, "file.uploaded.v1", file, nil); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish event", "event_type", "file.uploaded.v1", "err", err)
+	}
 	return file, nil
 }
 
@@ -325,38 +339,70 @@ func (s *Service) ProcessCloudinaryWebhook(ctx context.Context, timestamp int64,
 		return domain.ErrForbidden
 	}
 
-	var payload struct {
-		NotificationType string `json:"notification_type"`
-		PublicID         string `json:"public_id"`
-		SecureURL        string `json:"secure_url"`
-		Bytes            int64  `json:"bytes"`
-		ResourceType     string `json:"resource_type"`
-		ModerationStatus string `json:"moderation_status"`
-	}
-	if err := json.Unmarshal(body, &payload); err != nil {
-		return domain.ErrValidation
-	}
-	if payload.PublicID == "" {
-		return domain.ErrValidation
-	}
-
-	parts := strings.Split(payload.PublicID, "/")
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return domain.ErrValidation
-	}
-	tenantID := parts[0]
-	fileID := parts[1]
-
-	ctx = tenancy.WithContext(ctx, tenancy.TenantContext{
-		TenantID:  tenantID,
-		RequestID: tenancy.RequestID(ctx),
-	})
-
-	file, err := s.repo.GetByID(ctx, tenantID, fileID)
+	payload, err := parseWebhookPayload(body)
 	if err != nil {
 		return err
 	}
 
+	ctx = tenancy.WithContext(ctx, tenancy.TenantContext{
+		TenantID:  payload.TenantID,
+		RequestID: tenancy.RequestID(ctx),
+	})
+
+	file, err := s.repo.GetByID(ctx, payload.TenantID, payload.FileID)
+	if err != nil {
+		return err
+	}
+
+	changed := applyWebhookUpdate(file, payload)
+	if !changed {
+		return nil
+	}
+	file.UpdatedAt = time.Now().UTC()
+	if err := file.Validate(); err != nil {
+		return err
+	}
+	if err := s.repo.Update(ctx, payload.TenantID, file); err != nil {
+		return err
+	}
+	if err := s.repo.RecordStorage(ctx, payload.TenantID, payload.Bytes); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to record storage", "tenant_id", payload.TenantID, "bytes", payload.Bytes, "err", err)
+	}
+	if err := s.pub.Publish(ctx, "file.uploaded.v1", file, nil); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish event", "event_type", "file.uploaded.v1", "err", err)
+	}
+	return nil
+}
+
+type webhookPayload struct {
+	NotificationType string `json:"notification_type"`
+	PublicID         string `json:"public_id"`
+	SecureURL        string `json:"secure_url"`
+	Bytes            int64  `json:"bytes"`
+	ResourceType     string `json:"resource_type"`
+	ModerationStatus string `json:"moderation_status"`
+	TenantID         string
+	FileID           string
+}
+
+func parseWebhookPayload(body []byte) (webhookPayload, error) {
+	var payload webhookPayload
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return webhookPayload{}, domain.ErrValidation
+	}
+	if payload.PublicID == "" {
+		return webhookPayload{}, domain.ErrValidation
+	}
+	parts := strings.Split(payload.PublicID, "/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return webhookPayload{}, domain.ErrValidation
+	}
+	payload.TenantID = parts[0]
+	payload.FileID = parts[1]
+	return payload, nil
+}
+
+func applyWebhookUpdate(file *domain.FileUpload, payload webhookPayload) bool {
 	changed := false
 	if payload.SecureURL != "" && file.SecureURL != payload.SecureURL {
 		file.SecureURL = payload.SecureURL
@@ -366,16 +412,19 @@ func (s *Service) ProcessCloudinaryWebhook(ctx context.Context, timestamp int64,
 		file.SizeBytes = payload.Bytes
 		changed = true
 	}
-	if payload.ResourceType != "" && file.Metadata == nil {
-		file.Metadata = make(map[string]any)
-	}
 	if payload.ResourceType != "" {
+		if file.Metadata == nil {
+			file.Metadata = make(map[string]any)
+		}
 		if file.Metadata["resource_type"] != payload.ResourceType {
 			file.Metadata["resource_type"] = payload.ResourceType
 			changed = true
 		}
 	}
 	if payload.ModerationStatus != "" {
+		if file.Metadata == nil {
+			file.Metadata = make(map[string]any)
+		}
 		if file.Metadata["moderation_status"] != payload.ModerationStatus {
 			file.Metadata["moderation_status"] = payload.ModerationStatus
 			changed = true
@@ -385,20 +434,7 @@ func (s *Service) ProcessCloudinaryWebhook(ctx context.Context, timestamp int64,
 		file.Status = string(domain.StatusActive)
 		changed = true
 	}
-
-	if !changed {
-		return nil
-	}
-	file.UpdatedAt = time.Now().UTC()
-	if err := file.Validate(); err != nil {
-		return err
-	}
-	if err := s.repo.Update(ctx, tenantID, file); err != nil {
-		return err
-	}
-	_ = s.repo.RecordStorage(ctx, tenantID, payload.Bytes)
-	_ = s.pub.Publish(ctx, "file.uploaded.v1", file, nil)
-	return nil
+	return changed
 }
 
 // GetDeliveryURL returns a CDN/transform URL for a Cloudinary-backed file.
@@ -425,9 +461,11 @@ func (s *Service) GetDeliveryURL(ctx context.Context, actor auth.Actor, fileID, 
 	}
 	url, err := s.deliveryProvider.DeliveryURL(tenantID, file.StoragePath, "", transform)
 	if err != nil {
-		return "", "", fmt.Errorf("%w: %v", domain.ErrStorage, err)
+		return "", "", fmt.Errorf("%w: %w", domain.ErrStorage, err)
 	}
-	_ = s.repo.RecordDelivery(ctx, tenantID, file.SizeBytes)
+	if err := s.repo.RecordDelivery(ctx, tenantID, file.SizeBytes); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to record delivery", "tenant_id", tenantID, "bytes", file.SizeBytes, "err", err)
+	}
 	return url, transform, nil
 }
 
@@ -458,9 +496,11 @@ func (s *Service) Download(ctx context.Context, actor auth.Actor, id string) (*d
 	}
 	rc, err := s.storage.Open(ctx, tenantID, file.StoragePath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("%w: %v", domain.ErrStorage, err)
+		return nil, nil, fmt.Errorf("%w: %w", domain.ErrStorage, err)
 	}
-	_ = s.repo.RecordDelivery(ctx, tenantID, file.SizeBytes)
+	if err := s.repo.RecordDelivery(ctx, tenantID, file.SizeBytes); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to record delivery", "tenant_id", tenantID, "bytes", file.SizeBytes, "err", err)
+	}
 	return file, rc, nil
 }
 

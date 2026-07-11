@@ -1,3 +1,4 @@
+// Package ports defines the outbound interfaces for the analytics-service application layer.
 package ports
 
 import (

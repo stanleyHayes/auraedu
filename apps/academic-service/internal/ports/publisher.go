@@ -1,3 +1,4 @@
+// Package ports defines the outbound ports for the academic-service application layer.
 package ports
 
 import (

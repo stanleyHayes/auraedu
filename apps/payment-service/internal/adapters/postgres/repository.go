@@ -1,10 +1,10 @@
+// Package postgres persists payment aggregates in PostgreSQL.
 package postgres
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/auraedu/payment-service/internal/domain"
 	"github.com/auraedu/payment-service/internal/ports"
@@ -53,9 +53,18 @@ func NewWebhookEventRepository(database *db.DB) *WebhookEventRepository {
 func (r *PaymentRepository) Create(ctx context.Context, tenantID string, p *domain.Payment) error {
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `
-			INSERT INTO payments (id, tenant_id, invoice_id, amount_cents, currency, provider, provider_reference, status, metadata, initiated_at, completed_at, created_at, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, '{}'::jsonb), $10, $11, $12, $13)
-		`, p.ID, tenantID, p.InvoiceID, p.AmountCents, p.Currency, p.Provider, p.ProviderReference, p.Status, p.Metadata, p.InitiatedAt, p.CompletedAt, p.CreatedAt, p.UpdatedAt)
+			INSERT INTO payments (
+				id, tenant_id, invoice_id, amount_cents, currency, provider,
+				provider_reference, status, metadata, initiated_at, completed_at,
+				created_at, updated_at
+			) VALUES (
+				$1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, '{}'::jsonb),
+				$10, $11, $12, $13
+			)
+		`,
+			p.ID, tenantID, p.InvoiceID, p.AmountCents, p.Currency, p.Provider,
+			p.ProviderReference, p.Status, p.Metadata, p.InitiatedAt, p.CompletedAt,
+			p.CreatedAt, p.UpdatedAt)
 		if err != nil {
 			return fmt.Errorf("payments: create payment: %w", err)
 		}
@@ -169,7 +178,17 @@ func (r *PaymentRepository) Update(ctx context.Context, tenantID string, p *doma
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `
 			UPDATE payments
-			SET invoice_id = $3, amount_cents = $4, currency = $5, provider = $6, provider_reference = $7, status = $8, metadata = COALESCE($9, '{}'::jsonb), initiated_at = $10, completed_at = $11, updated_at = $12
+			SET
+				invoice_id = $3,
+				amount_cents = $4,
+				currency = $5,
+				provider = $6,
+				provider_reference = $7,
+				status = $8,
+				metadata = COALESCE($9, '{}'::jsonb),
+				initiated_at = $10,
+				completed_at = $11,
+				updated_at = $12
 			WHERE id = $1 AND tenant_id = $2
 		`, p.ID, tenantID, p.InvoiceID, p.AmountCents, p.Currency, p.Provider, p.ProviderReference, p.Status, p.Metadata, p.InitiatedAt, p.CompletedAt, p.UpdatedAt)
 		if err != nil {
@@ -228,7 +247,11 @@ func (r *TransactionRepository) GetByID(ctx context.Context, tenantID, id string
 	return t, err
 }
 
-func (r *TransactionRepository) ListByPayment(ctx context.Context, tenantID, paymentID string, filter ports.TransactionFilter) ([]*domain.Transaction, string, error) {
+func (r *TransactionRepository) ListByPayment(
+	ctx context.Context,
+	tenantID, paymentID string,
+	filter ports.TransactionFilter,
+) ([]*domain.Transaction, string, error) {
 	var out []*domain.Transaction
 	var nextCursor string
 	err := r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
@@ -405,11 +428,4 @@ func scanWebhookEvent(row scanner) (*domain.WebhookEvent, error) {
 		return nil, err
 	}
 	return &w, nil
-}
-
-func timePtr(t time.Time) *time.Time {
-	if t.IsZero() {
-		return nil
-	}
-	return &t
 }

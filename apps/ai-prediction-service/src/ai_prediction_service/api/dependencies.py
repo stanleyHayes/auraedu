@@ -1,7 +1,7 @@
 """FastAPI dependencies for tenant isolation, auth, and DB sessions."""
 
 from collections.abc import AsyncGenerator
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -60,7 +60,7 @@ def require_actor(
 CurrentActor = Annotated[Actor, Depends(require_actor)]
 
 
-def require_permission(permission: str):
+def require_permission(permission: str) -> Any:
     def checker(actor: CurrentActor) -> Actor:
         if not actor.has_permission(permission):
             raise HTTPException(
@@ -96,7 +96,7 @@ async def ensure_tenant_match(tenant_id: str, resource_tenant_id: str) -> None:
         )
 
 
-def require_feature_enabled(feature_key: str):
+def require_feature_enabled(feature_key: str) -> Any:
     def checker(tenant_id: TenantId) -> None:
         if not is_enabled(tenant_id, feature_key):
             raise HTTPException(

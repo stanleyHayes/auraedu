@@ -1,3 +1,4 @@
+// Package application implements the payment service use cases.
 package application
 
 import (
@@ -5,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -69,7 +71,12 @@ func (noopProvider) Verify(context.Context, string) (string, error) {
 }
 
 // NewService constructs the application service.
-func NewService(paymentRepo ports.PaymentRepository, transactionRepo ports.TransactionRepository, webhookRepo ports.WebhookEventRepository, opts ...Option) *Service {
+func NewService(
+	paymentRepo ports.PaymentRepository,
+	transactionRepo ports.TransactionRepository,
+	webhookRepo ports.WebhookEventRepository,
+	opts ...Option,
+) *Service {
 	s := &Service{
 		paymentRepo:     paymentRepo,
 		transactionRepo: transactionRepo,
@@ -119,7 +126,9 @@ func (s *Service) CreatePayment(ctx context.Context, actor auth.Actor, req Creat
 	if err := s.paymentRepo.Create(ctx, tenantID, p); err != nil {
 		return nil, err
 	}
-	_ = s.pub.PublishPayment(ctx, "payment.created.v1", p, nil)
+	if err := s.pub.PublishPayment(ctx, "payment.created.v1", p, nil); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish payment.created event", "err", err)
+	}
 	return p, nil
 }
 
@@ -187,7 +196,9 @@ func (s *Service) UpdatePayment(ctx context.Context, actor auth.Actor, id string
 	if err := s.paymentRepo.Update(ctx, tenantID, p); err != nil {
 		return nil, err
 	}
-	_ = s.pub.PublishPayment(ctx, "payment.updated.v1", p, map[string]any{"changed_fields": changed})
+	if err := s.pub.PublishPayment(ctx, "payment.updated.v1", p, map[string]any{"changed_fields": changed}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish payment.updated event", "err", err)
+	}
 	return p, nil
 }
 
@@ -204,7 +215,9 @@ func (s *Service) DeletePayment(ctx context.Context, actor auth.Actor, id string
 	if err := s.paymentRepo.Delete(ctx, tenantID, id); err != nil {
 		return err
 	}
-	_ = s.pub.PublishPayment(ctx, "payment.deleted.v1", p, nil)
+	if err := s.pub.PublishPayment(ctx, "payment.deleted.v1", p, nil); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish payment.deleted event", "err", err)
+	}
 	return nil
 }
 
@@ -232,7 +245,7 @@ func (s *Service) InitiatePayment(ctx context.Context, actor auth.Actor, id stri
 
 	ref, _, err := s.provider.Initiate(ctx, *p)
 	if err != nil {
-		return nil, fmt.Errorf("%w: provider initiate failed: %v", domain.ErrValidation, err)
+		return nil, fmt.Errorf("%w: provider initiate failed: %w", domain.ErrValidation, err)
 	}
 	if _, err := p.ApplyUpdate(domain.PaymentPatch{ProviderReference: &ref}); err != nil {
 		return nil, err
@@ -241,14 +254,21 @@ func (s *Service) InitiatePayment(ctx context.Context, actor auth.Actor, id stri
 		return nil, err
 	}
 
-	_ = s.pub.PublishPayment(ctx, "payment.initiated.v1", p, map[string]any{"provider_reference": ref})
+	if err := s.pub.PublishPayment(ctx, "payment.initiated.v1", p, map[string]any{"provider_reference": ref}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish payment.initiated event", "err", err)
+	}
 	return p, nil
 }
 
 // --- Transaction use cases ---
 
 // ListTransactionsByPayment returns transactions for a payment.
-func (s *Service) ListTransactionsByPayment(ctx context.Context, actor auth.Actor, paymentID string, filter ports.TransactionFilter) ([]*domain.Transaction, string, error) {
+func (s *Service) ListTransactionsByPayment(
+	ctx context.Context,
+	actor auth.Actor,
+	paymentID string,
+	filter ports.TransactionFilter,
+) ([]*domain.Transaction, string, error) {
 	tenantID, err := s.requireAccess(ctx, actor, PermRead)
 	if err != nil {
 		return nil, "", err
@@ -323,53 +343,23 @@ type ProcessWebhookRequest struct {
 
 // ProcessWebhook validates a webhook signature, persists the event, updates the payment/transaction and emits an event.
 func (s *Service) ProcessWebhook(ctx context.Context, req ProcessWebhookRequest) (*domain.Payment, error) {
-	if strings.TrimSpace(req.Provider) == "" {
-		return nil, fmt.Errorf("%w: provider is required", domain.ErrValidation)
-	}
-	if len(req.Payload) == 0 {
-		return nil, fmt.Errorf("%w: payload is required", domain.ErrValidation)
+	if err := s.validateWebhook(req); err != nil {
+		return nil, err
 	}
 
-	// Signature placeholder: if a secret is configured, the signature must be non-empty.
-	if s.signatureSecret != "" && strings.TrimSpace(req.Signature) == "" {
-		return nil, fmt.Errorf("%w: webhook signature required", domain.ErrForbidden)
-	}
-
-	payload := req.Payload
-	if !json.Valid(payload) {
-		return nil, fmt.Errorf("%w: payload must be valid JSON", domain.ErrValidation)
-	}
-
-	eventType, providerReference, tenantID, err := parseWebhookPayload(payload)
+	eventType, providerReference, tenantID, err := parseWebhookPayload(req.Payload)
 	if err != nil {
 		return nil, err
 	}
 
-	webhook, err := domain.NewWebhookEvent(req.Provider, eventType, payload, nil)
+	webhook, err := s.buildWebhookEvent(req.Provider, eventType, req.Payload, req.Signature, tenantID)
 	if err != nil {
 		return nil, err
 	}
-	webhook.Signature = nil
-	if req.Signature != "" {
-		sig := req.Signature
-		webhook.Signature = &sig
-	}
-	webhook.SetTenant(tenantID)
 
-	// Idempotency: skip processing if we have already handled this provider reference.
-	existing, err := s.paymentRepo.GetByProviderReference(ctx, tenantID, req.Provider, providerReference)
-	if err != nil && !errors.Is(err, domain.ErrNotFound) {
+	payment, err := s.resolvePaymentByReference(ctx, tenantID, req.Provider, providerReference)
+	if err != nil {
 		return nil, err
-	}
-
-	var payment *domain.Payment
-	if existing != nil {
-		payment = existing
-	} else {
-		payment, err = s.paymentRepo.GetByID(ctx, tenantID, providerReference)
-		if err != nil && !errors.Is(err, domain.ErrNotFound) {
-			return nil, err
-		}
 	}
 
 	if err := s.webhookRepo.Create(ctx, tenantID, webhook); err != nil {
@@ -378,7 +368,9 @@ func (s *Service) ProcessWebhook(ctx context.Context, req ProcessWebhookRequest)
 
 	if payment == nil {
 		webhook.MarkProcessed()
-		_ = s.webhookRepo.Update(ctx, tenantID, webhook)
+		if err := s.webhookRepo.Update(ctx, tenantID, webhook); err != nil {
+			slog.Default().ErrorContext(ctx, "failed to mark orphan webhook processed", "err", err)
+		}
 		return nil, fmt.Errorf("%w: no matching payment for reference %q", domain.ErrNotFound, providerReference)
 	}
 
@@ -387,46 +379,111 @@ func (s *Service) ProcessWebhook(ctx context.Context, req ProcessWebhookRequest)
 		return nil, err
 	}
 
-	if status == string(domain.PaymentStatusSuccess) {
-		status := string(domain.PaymentStatusSuccess)
-		now := nowUTC()
-		if _, err := payment.ApplyUpdate(domain.PaymentPatch{Status: &status, CompletedAt: &now}); err != nil {
-			return nil, err
-		}
-		if err := s.paymentRepo.Update(ctx, tenantID, payment); err != nil {
-			return nil, err
-		}
-		// Record a credit transaction for the successful payment.
-		tx, err := domain.NewTransaction(tenantID, payment.ID, string(domain.TransactionTypeCredit), string(domain.TransactionStatusSuccess), providerReference, payment.AmountCents)
-		if err != nil {
-			return nil, err
-		}
-		if err := s.transactionRepo.Create(ctx, tenantID, tx); err != nil {
-			return nil, err
-		}
-		_ = s.pub.PublishPayment(ctx, "payment.received.v1", payment, map[string]any{"provider_reference": providerReference})
-	} else {
-		failed := string(domain.PaymentStatusFailed)
-		if _, err := payment.ApplyUpdate(domain.PaymentPatch{Status: &failed}); err != nil {
-			return nil, err
-		}
-		if err := s.paymentRepo.Update(ctx, tenantID, payment); err != nil {
-			return nil, err
-		}
-		// Record a failed transaction.
-		tx, err := domain.NewTransaction(tenantID, payment.ID, string(domain.TransactionTypeDebit), string(domain.TransactionStatusFailed), providerReference, payment.AmountCents)
-		if err != nil {
-			return nil, err
-		}
-		if err := s.transactionRepo.Create(ctx, tenantID, tx); err != nil {
-			return nil, err
-		}
-		_ = s.pub.PublishPayment(ctx, "payment.failed.v1", payment, map[string]any{"provider_reference": providerReference})
+	if err := s.applyWebhookOutcome(ctx, tenantID, payment, providerReference, status); err != nil {
+		return nil, err
 	}
 
 	webhook.MarkProcessed()
-	_ = s.webhookRepo.Update(ctx, tenantID, webhook)
+	if err := s.webhookRepo.Update(ctx, tenantID, webhook); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to mark webhook processed", "err", err)
+	}
 	return payment, nil
+}
+
+func (s *Service) validateWebhook(req ProcessWebhookRequest) error {
+	if strings.TrimSpace(req.Provider) == "" {
+		return fmt.Errorf("%w: provider is required", domain.ErrValidation)
+	}
+	if len(req.Payload) == 0 {
+		return fmt.Errorf("%w: payload is required", domain.ErrValidation)
+	}
+	// Signature placeholder: if a secret is configured, the signature must be non-empty.
+	if s.signatureSecret != "" && strings.TrimSpace(req.Signature) == "" {
+		return fmt.Errorf("%w: webhook signature required", domain.ErrForbidden)
+	}
+	if !json.Valid(req.Payload) {
+		return fmt.Errorf("%w: payload must be valid JSON", domain.ErrValidation)
+	}
+	return nil
+}
+
+func (s *Service) buildWebhookEvent(provider, eventType string, payload json.RawMessage, signature, tenantID string) (*domain.WebhookEvent, error) {
+	webhook, err := domain.NewWebhookEvent(provider, eventType, payload, nil)
+	if err != nil {
+		return nil, err
+	}
+	if signature != "" {
+		sig := signature
+		webhook.Signature = &sig
+	}
+	webhook.SetTenant(tenantID)
+	return webhook, nil
+}
+
+func (s *Service) resolvePaymentByReference(ctx context.Context, tenantID, provider, reference string) (*domain.Payment, error) {
+	// Idempotency: skip processing if we have already handled this provider reference.
+	existing, err := s.paymentRepo.GetByProviderReference(ctx, tenantID, provider, reference)
+	if err != nil && !errors.Is(err, domain.ErrNotFound) {
+		return nil, err
+	}
+	if existing != nil {
+		return existing, nil
+	}
+	payment, err := s.paymentRepo.GetByID(ctx, tenantID, reference)
+	if err != nil && !errors.Is(err, domain.ErrNotFound) {
+		return nil, err
+	}
+	return payment, nil
+}
+
+func (s *Service) applyWebhookOutcome(ctx context.Context, tenantID string, payment *domain.Payment, providerReference, status string) error {
+	if status == string(domain.PaymentStatusSuccess) {
+		now := nowUTC()
+		if _, err := payment.ApplyUpdate(domain.PaymentPatch{Status: &status, CompletedAt: &now}); err != nil {
+			return err
+		}
+		if err := s.paymentRepo.Update(ctx, tenantID, payment); err != nil {
+			return err
+		}
+		if err := s.recordTransaction(
+			ctx, tenantID, payment.ID,
+			string(domain.TransactionTypeCredit), string(domain.TransactionStatusSuccess),
+			providerReference, payment.AmountCents,
+		); err != nil {
+			return err
+		}
+		if err := s.pub.PublishPayment(ctx, "payment.received.v1", payment, map[string]any{"provider_reference": providerReference}); err != nil {
+			slog.Default().ErrorContext(ctx, "failed to publish payment.received event", "err", err)
+		}
+		return nil
+	}
+
+	failed := string(domain.PaymentStatusFailed)
+	if _, err := payment.ApplyUpdate(domain.PaymentPatch{Status: &failed}); err != nil {
+		return err
+	}
+	if err := s.paymentRepo.Update(ctx, tenantID, payment); err != nil {
+		return err
+	}
+	if err := s.recordTransaction(
+		ctx, tenantID, payment.ID,
+		string(domain.TransactionTypeDebit), string(domain.TransactionStatusFailed),
+		providerReference, payment.AmountCents,
+	); err != nil {
+		return err
+	}
+	if err := s.pub.PublishPayment(ctx, "payment.failed.v1", payment, map[string]any{"provider_reference": providerReference}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish payment.failed event", "err", err)
+	}
+	return nil
+}
+
+func (s *Service) recordTransaction(ctx context.Context, tenantID, paymentID, txType, status, reference string, amountCents int) error {
+	tx, err := domain.NewTransaction(tenantID, paymentID, txType, status, reference, amountCents)
+	if err != nil {
+		return err
+	}
+	return s.transactionRepo.Create(ctx, tenantID, tx)
 }
 
 func (s *Service) requireAccess(ctx context.Context, actor auth.Actor, perm string) (string, error) {
@@ -468,9 +525,9 @@ func parseWebhookPayload(payload json.RawMessage) (eventType, providerReference,
 	if err := json.Unmarshal(payload, &data); err != nil {
 		return "", "", "", fmt.Errorf("%w: payload must be valid JSON", domain.ErrValidation)
 	}
-	eventType, _ = data["event"].(string)
+	eventType = stringField(data, "event")
 	if eventType == "" {
-		eventType, _ = data["event_type"].(string)
+		eventType = stringField(data, "event_type")
 	}
 	if ref, ok := data["reference"].(string); ok && ref != "" {
 		providerReference = ref
@@ -499,6 +556,13 @@ func parseWebhookPayload(payload json.RawMessage) (eventType, providerReference,
 }
 
 func nowUTC() time.Time { return time.Now().UTC() }
+
+func stringField(m map[string]any, key string) string {
+	if v, ok := m[key].(string); ok {
+		return v
+	}
+	return ""
+}
 
 // IsNotFound reports whether an error is a not-found domain error.
 func IsNotFound(err error) bool { return errors.Is(err, domain.ErrNotFound) }

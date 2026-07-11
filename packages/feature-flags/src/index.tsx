@@ -92,7 +92,9 @@ export function FeatureDisabled({
 }: FeatureDisabledProps) {
   const snapshot = useFeatureSnapshot();
   const flag = snapshot ? buildFlagMap(snapshot).get(feature) : undefined;
-  const upgradeHint = flag?.plan_required ? ` Upgrade to the ${flag.plan_required} plan to unlock it.` : "";
+  const upgradeHint = flag?.plan_required
+    ? ` Upgrade to the ${flag.plan_required} plan to unlock it.`
+    : "";
 
   return (
     <div role="status" className="rounded-lg border border-border bg-surface p-6 text-center">

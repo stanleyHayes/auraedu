@@ -43,7 +43,9 @@ export function toUserSession(token: string): UserSession | null {
     role,
     email: typeof payload.email === "string" ? payload.email : undefined,
     name: typeof payload.name === "string" ? payload.name : undefined,
-    perms: Array.isArray(payload.perms) ? payload.perms.filter((p): p is string => typeof p === "string") : undefined,
+    perms: Array.isArray(payload.perms)
+      ? payload.perms.filter((p): p is string => typeof p === "string")
+      : undefined,
     exp: typeof payload.exp === "number" ? payload.exp : undefined,
   };
 }

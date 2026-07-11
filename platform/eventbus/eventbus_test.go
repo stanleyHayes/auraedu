@@ -91,13 +91,16 @@ func TestHandleMessage(t *testing.T) {
 		t.Fatalf("unexpected subscription subject: %s", fake.subject)
 	}
 
-	data, _ := json.Marshal(tenancy.CloudEvent{
+	data, err := json.Marshal(tenancy.CloudEvent{
 		SpecVersion: "1.0",
 		Type:        "student.enrolled",
 		ID:          "evt-1",
 		TenantID:    "upshs",
 		Data:        json.RawMessage(`{"id":"s1"}`),
 	})
+	if err != nil {
+		t.Fatalf("marshal event: %v", err)
+	}
 	msg := &nats.Msg{Data: data}
 	fake.cb(msg)
 

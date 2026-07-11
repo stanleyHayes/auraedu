@@ -2,19 +2,16 @@
 name = "auraedu-ai-recommendation-service"
 version = "0.1.0"
 description = "AuraEDU AI Recommendation Service (FastAPI). EP-30: learning recommendations, teacher approval, explainability."
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 dependencies = [
-    "fastapi",
-    "uvicorn[standard]",
-    "sqlalchemy[asyncio]",
-    "asyncpg",
-    "pydantic-settings",
-    "nats-py",
-    "greenlet",
+    "fastapi>=0.139.0",
+    "uvicorn[standard]>=0.51.0",
+    "sqlalchemy[asyncio]>=2.0.51",
+    "asyncpg>=0.31.0",
+    "pydantic-settings>=2.14.2",
+    "nats-py>=2.15.0",
+    "greenlet>=3.5.3",
 ]
-
-[project.optional-dependencies]
-dev = ["pytest", "pytest-asyncio", "httpx", "aiosqlite"]
 
 [build-system]
 requires = ["hatchling"]

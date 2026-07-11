@@ -20,7 +20,10 @@ interface TeacherAttendanceClientProps {
 }
 
 export function TeacherAttendanceClient({ initialRecords }: TeacherAttendanceClientProps) {
-  const [state, formAction, pending] = useActionState<ActionResult | undefined, FormData>(recordAttendance, undefined);
+  const [state, formAction, pending] = useActionState<ActionResult | undefined, FormData>(
+    recordAttendance,
+    undefined,
+  );
   const formRef = React.useRef<HTMLFormElement>(null);
 
   React.useEffect(() => {
@@ -58,7 +61,11 @@ export function TeacherAttendanceClient({ initialRecords }: TeacherAttendanceCli
           Record attendance for a single student.
         </p>
 
-        <form ref={formRef} action={formAction} className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <form
+          ref={formRef}
+          action={formAction}
+          className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+        >
           <div>
             <label htmlFor="student_id" className="mb-1.5 block text-sm font-medium">
               Student ID
@@ -114,7 +121,12 @@ export function TeacherAttendanceClient({ initialRecords }: TeacherAttendanceCli
             </select>
           </div>
           <div className="flex items-end sm:col-span-2 lg:col-span-4">
-            <Button type="submit" loading={pending} loadingLabel="Saving" className="w-full sm:w-auto">
+            <Button
+              type="submit"
+              loading={pending}
+              loadingLabel="Saving"
+              className="w-full sm:w-auto"
+            >
               <CalendarCheck className="size-4" />
               Save attendance
             </Button>

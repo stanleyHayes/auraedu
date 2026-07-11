@@ -6,16 +6,17 @@ from collections.abc import AsyncGenerator
 
 import pytest
 import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
 
 # Force an async SQLite database for tests before importing the app.
 os.environ.setdefault("AI_REC_DATABASE_URL", "sqlite+aiosqlite:///./ai_rec_test.db")
 os.environ.setdefault("AI_REC_NATS_HOST", "")
 
-import ai_recommendation_service.main as main_module  # noqa: E402
-from ai_recommendation_service.db import engine  # noqa: E402
-from ai_recommendation_service.events.publisher import RecordingPublisher  # noqa: E402
-from ai_recommendation_service.main import app  # noqa: E402
-from ai_recommendation_service.models import Base  # noqa: E402
+import ai_recommendation_service.main as main_module
+from ai_recommendation_service.db import engine
+from ai_recommendation_service.events.publisher import RecordingPublisher
+from ai_recommendation_service.main import app
+from ai_recommendation_service.models import Base
 
 main_module.app_publisher = RecordingPublisher()
 
@@ -30,9 +31,7 @@ async def setup_db() -> AsyncGenerator[None]:
 
 
 @pytest_asyncio.fixture
-async def client() -> AsyncGenerator:
-    from httpx import ASGITransport, AsyncClient
-
+async def client() -> AsyncGenerator[AsyncClient]:
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
 

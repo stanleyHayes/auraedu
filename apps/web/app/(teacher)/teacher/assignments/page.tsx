@@ -18,11 +18,9 @@ const columns: DataTableColumn<Assignment>[] = [
 
 export default async function TeacherAssignmentsPage() {
   const client = await createServerClient();
-  let assignments: Assignment[] = [];
+  let assignments: Assignment[];
   try {
-    const assessments = await client.get<Array<{ id: string; name: string; type: string; subject_name?: string; date?: string }>>(
-      "/api/v1/assessments",
-    );
+    const assessments = await client.get<Assignment[]>("/api/v1/assessments");
     assignments = assessments.filter((a) => a.type === "assignment");
   } catch {
     assignments = [];

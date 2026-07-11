@@ -3,6 +3,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -61,7 +62,7 @@ func (r *Repository) FindByEmail(ctx context.Context, email string) (domain.User
 		var paramsJSON []byte
 		err := row.Scan(&u.ID, &u.Email, &u.Name, &tenantID, &u.Role, &u.Permissions, &u.Status,
 			&cred.Algo, &cred.Salt, &cred.Hash, &paramsJSON)
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
 		}
 		if err != nil {
@@ -143,31 +144,31 @@ func (r *Repository) GetUser(ctx context.Context, id string) (domain.User, error
 
 func (r *Repository) UpdateUser(ctx context.Context, id string, u domain.User) error {
 	return r.withTx(ctx, func(tx pgx.Tx) error {
-		parts := []string{}
-		args := []any{id}
-		idx := 2
+		type set struct {
+			col string
+			val any
+		}
+		var sets []set
 		if u.Name != "" {
-			parts = append(parts, fmt.Sprintf("name = $%d", idx))
-			args = append(args, u.Name)
-			idx++
+			sets = append(sets, set{col: "name", val: u.Name})
 		}
 		if u.Role != "" {
-			parts = append(parts, fmt.Sprintf("role = $%d", idx))
-			args = append(args, u.Role)
-			idx++
+			sets = append(sets, set{col: "role", val: u.Role})
 		}
 		if u.Permissions != nil {
-			parts = append(parts, fmt.Sprintf("permissions = $%d", idx))
-			args = append(args, u.Permissions)
-			idx++
+			sets = append(sets, set{col: "permissions", val: u.Permissions})
 		}
 		if u.Status != "" {
-			parts = append(parts, fmt.Sprintf("status = $%d", idx))
-			args = append(args, u.Status)
-			idx++
+			sets = append(sets, set{col: "status", val: u.Status})
 		}
-		if len(parts) == 0 {
+		if len(sets) == 0 {
 			return nil
+		}
+		args := []any{id}
+		parts := make([]string, 0, len(sets)+1)
+		for i, s := range sets {
+			parts = append(parts, fmt.Sprintf("%s = $%d", s.col, i+2))
+			args = append(args, s.val)
 		}
 		parts = append(parts, "updated_at = NOW()")
 		sql := "UPDATE users SET " + join(parts, ", ") + " WHERE id = $1"
@@ -256,7 +257,14 @@ func (r *Repository) UsePasswordResetToken(ctx context.Context, tokenHash string
 	return userID, err
 }
 
-func (r *Repository) SaveInvite(ctx context.Context, tenantID, email, role string, permissions []string, tokenHash string, invitedBy *string, expiresAt time.Time) error {
+func (r *Repository) SaveInvite(
+	ctx context.Context,
+	tenantID, email, role string,
+	permissions []string,
+	tokenHash string,
+	invitedBy *string,
+	expiresAt time.Time,
+) error {
 	return r.withPrivilegedTx(ctx, func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `
 			INSERT INTO invites (tenant_id, email, role, permissions, token_hash, invited_by, expires_at)

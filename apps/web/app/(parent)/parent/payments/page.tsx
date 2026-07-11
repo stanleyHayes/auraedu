@@ -12,7 +12,7 @@ export interface Payment {
 
 export default async function ParentPaymentsPage() {
   const client = await createServerClient();
-  let payments: Payment[] = [];
+  let payments: Payment[];
   try {
     payments = await client.get<Payment[]>("/api/v1/payments");
   } catch {

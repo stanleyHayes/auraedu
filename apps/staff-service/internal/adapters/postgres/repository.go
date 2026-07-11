@@ -1,3 +1,4 @@
+// Package postgres persists staff aggregates in PostgreSQL.
 package postgres
 
 import (

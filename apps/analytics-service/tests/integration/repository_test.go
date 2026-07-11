@@ -15,20 +15,20 @@ import (
 const tenantA = "11111111-1111-1111-1111-111111111111"
 const tenantB = "22222222-2222-2222-2222-222222222222"
 
-func newRepo(t *testing.T) (ports.Repository, *testkit.PostgresTestDB) {
+func newRepo(t *testing.T) ports.Repository {
 	t.Helper()
 	ctx := context.Background()
 	tdb := testkit.NewPostgres(ctx, t, "../../migrations")
-	return postgres.NewRepository(tdb.DB), tdb
+	return postgres.NewRepository(tdb.DB)
 }
 
 func withTenant(ctx context.Context, tenantID string) context.Context {
 	return tenancy.WithContext(ctx, tenancy.TenantContext{TenantID: tenantID})
 }
 
-func mustMetric(t *testing.T, tenantID, name, bucketDate string, value float64, unit domain.Unit, dims domain.Dimensions) *domain.Metric {
+func mustMetric(t *testing.T, name, bucketDate string, value float64, unit domain.Unit, dims domain.Dimensions) *domain.Metric {
 	t.Helper()
-	m, err := domain.NewMetric(tenantID, name, bucketDate, value, unit, dims)
+	m, err := domain.NewMetric(tenantA, name, bucketDate, value, unit, dims)
 	if err != nil {
 		t.Fatalf("new metric: %v", err)
 	}
@@ -37,9 +37,9 @@ func mustMetric(t *testing.T, tenantID, name, bucketDate string, value float64, 
 
 func TestRepository_UpsertAndList(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	m := mustMetric(t, tenantA, "students.count", "2025-09-01", 1, domain.UnitCount, nil)
+	m := mustMetric(t, "students.count", "2025-09-01", 1, domain.UnitCount, nil)
 	if err := repo.UpsertMetric(ctx, tenantA, m); err != nil {
 		t.Fatalf("upsert metric: %v", err)
 	}
@@ -58,10 +58,10 @@ func TestRepository_UpsertAndList(t *testing.T) {
 
 func TestRepository_UpsertIncrementsCount(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	for i := 0; i < 3; i++ {
-		m := mustMetric(t, tenantA, "students.count", "2025-09-01", 1, domain.UnitCount, nil)
+		m := mustMetric(t, "students.count", "2025-09-01", 1, domain.UnitCount, nil)
 		if err := repo.UpsertMetric(ctx, tenantA, m); err != nil {
 			t.Fatalf("upsert metric %d: %v", i, err)
 		}
@@ -81,10 +81,10 @@ func TestRepository_UpsertIncrementsCount(t *testing.T) {
 
 func TestRepository_UpsertAccumulatesSum(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	for _, amount := range []float64{10, 20, 30} {
-		m := mustMetric(t, tenantA, "payments.total", "2025-09-01", amount, domain.UnitSum, nil)
+		m := mustMetric(t, "payments.total", "2025-09-01", amount, domain.UnitSum, nil)
 		if err := repo.UpsertMetric(ctx, tenantA, m); err != nil {
 			t.Fatalf("upsert sum: %v", err)
 		}
@@ -104,11 +104,11 @@ func TestRepository_UpsertAccumulatesSum(t *testing.T) {
 
 func TestRepository_UpsertAverage(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	dims := domain.Dimensions{"subject_id": "sub-1", "academic_year_id": "ay-1"}
 	for _, score := range []float64{80, 100} {
-		m := mustMetric(t, tenantA, "assessments.avg_score", "2025-09-01", score, domain.UnitAverage, dims)
+		m := mustMetric(t, "assessments.avg_score", "2025-09-01", score, domain.UnitAverage, dims)
 		if err := repo.UpsertMetric(ctx, tenantA, m); err != nil {
 			t.Fatalf("upsert average: %v", err)
 		}
@@ -131,16 +131,16 @@ func TestRepository_UpsertAverage(t *testing.T) {
 
 func TestRepository_ListFilters(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	dims := domain.Dimensions{"subject_id": "sub-1", "academic_year_id": "ay-1"}
-	if err := repo.UpsertMetric(ctx, tenantA, mustMetric(t, tenantA, "students.count", "2025-09-01", 1, domain.UnitCount, nil)); err != nil {
+	if err := repo.UpsertMetric(ctx, tenantA, mustMetric(t, "students.count", "2025-09-01", 1, domain.UnitCount, nil)); err != nil {
 		t.Fatalf("upsert metric: %v", err)
 	}
-	if err := repo.UpsertMetric(ctx, tenantA, mustMetric(t, tenantA, "students.count", "2025-09-02", 1, domain.UnitCount, nil)); err != nil {
+	if err := repo.UpsertMetric(ctx, tenantA, mustMetric(t, "students.count", "2025-09-02", 1, domain.UnitCount, nil)); err != nil {
 		t.Fatalf("upsert metric: %v", err)
 	}
-	if err := repo.UpsertMetric(ctx, tenantA, mustMetric(t, tenantA, "assessments.avg_score", "2025-09-01", 80, domain.UnitAverage, dims)); err != nil {
+	if err := repo.UpsertMetric(ctx, tenantA, mustMetric(t, "assessments.avg_score", "2025-09-01", 80, domain.UnitAverage, dims)); err != nil {
 		t.Fatalf("upsert metric: %v", err)
 	}
 
@@ -171,10 +171,10 @@ func TestRepository_ListFilters(t *testing.T) {
 
 func TestRepository_ListPagination(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	for _, date := range []string{"2025-09-01", "2025-09-02"} {
-		m := mustMetric(t, tenantA, "students.count", date, 1, domain.UnitCount, nil)
+		m := mustMetric(t, "students.count", date, 1, domain.UnitCount, nil)
 		if err := repo.UpsertMetric(ctx, tenantA, m); err != nil {
 			t.Fatalf("upsert metric: %v", err)
 		}
@@ -202,10 +202,10 @@ func TestRepository_ListPagination(t *testing.T) {
 
 func TestRepository_TenantIsolation(t *testing.T) {
 	ctx := context.Background()
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	aCtx := withTenant(ctx, tenantA)
-	if err := repo.UpsertMetric(aCtx, tenantA, mustMetric(t, tenantA, "students.count", "2025-09-01", 1, domain.UnitCount, nil)); err != nil {
+	if err := repo.UpsertMetric(aCtx, tenantA, mustMetric(t, "students.count", "2025-09-01", 1, domain.UnitCount, nil)); err != nil {
 		t.Fatalf("upsert tenant A metric: %v", err)
 	}
 

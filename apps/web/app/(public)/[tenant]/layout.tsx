@@ -82,7 +82,9 @@ function PublicHeader({
               {tenant.short.charAt(0)}
             </span>
           )}
-          <span className="font-display text-xl font-bold text-[var(--foreground)]">{tenant.name}</span>
+          <span className="font-display text-xl font-bold text-[var(--foreground)]">
+            {tenant.name}
+          </span>
         </Link>
 
         {pages.length > 0 ? (
@@ -99,7 +101,10 @@ function PublicHeader({
       </div>
 
       {pages.length > 0 ? (
-        <nav aria-label="School website mobile" className="border-t border-[var(--border)] md:hidden">
+        <nav
+          aria-label="School website mobile"
+          className="border-t border-[var(--border)] md:hidden"
+        >
           <ul className="flex items-center gap-4 overflow-x-auto px-6 py-3">
             {pages.map((page) => (
               <li key={page.id} className="shrink-0">
@@ -131,7 +136,9 @@ function PublicFooter({ tenant }: { tenant: TenantData }) {
       <div className="mx-auto max-w-6xl px-6 py-8">
         <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
           <div className="flex items-center gap-2">
-            <span className="font-display text-lg font-bold text-[var(--foreground)]">{tenant.name}</span>
+            <span className="font-display text-lg font-bold text-[var(--foreground)]">
+              {tenant.name}
+            </span>
           </div>
           <p className="text-sm text-[var(--muted-foreground)]">
             © {new Date().getFullYear()} {tenant.name}. Powered by AuraEDU.

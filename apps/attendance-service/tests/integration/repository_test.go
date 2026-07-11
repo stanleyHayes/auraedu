@@ -23,13 +23,12 @@ const studentB = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
 const ay1 = "cccccccc-cccc-cccc-cccc-cccccccccccc"
 const ay2 = "dddddddd-dddd-dddd-dddd-dddddddddddd"
 const staff1 = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
-const staff2 = "ffffffff-ffff-ffff-ffff-ffffffffffff"
 
-func newRepo(t *testing.T) (ports.Repository, *testkit.PostgresTestDB) {
+func newRepo(t *testing.T) ports.Repository {
 	t.Helper()
 	ctx := context.Background()
 	tdb := testkit.NewPostgres(ctx, t, "../../migrations")
-	return postgres.NewRepository(tdb.DB), tdb
+	return postgres.NewRepository(tdb.DB)
 }
 
 func withTenant(ctx context.Context, tenantID string) context.Context {
@@ -40,13 +39,13 @@ func actorWithPerms(tenantID string, perms ...string) auth.Actor {
 	return auth.Actor{UserID: "user-1", TenantID: tenantID, Permissions: perms}
 }
 
-func mustCreateRecord(t *testing.T, ctx context.Context, repo ports.Repository, tenantID, studentID, academicYearID, date, status, markedBy string) *domain.AttendanceRecord {
+func mustCreateRecord(ctx context.Context, t *testing.T, repo ports.Repository, studentID, academicYearID, date, status string) *domain.AttendanceRecord {
 	t.Helper()
-	rec, err := domain.NewAttendanceRecord(tenantID, studentID, academicYearID, date, status, markedBy, nil)
+	rec, err := domain.NewAttendanceRecord(tenantA, studentID, academicYearID, date, status, staff1, nil)
 	if err != nil {
 		t.Fatalf("new attendance record: %v", err)
 	}
-	if err := repo.Create(ctx, tenantID, rec); err != nil {
+	if err := repo.Create(ctx, tenantA, rec); err != nil {
 		t.Fatalf("create attendance record: %v", err)
 	}
 	return rec
@@ -54,9 +53,9 @@ func mustCreateRecord(t *testing.T, ctx context.Context, repo ports.Repository, 
 
 func TestRepository_CreateAndGet(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	rec := mustCreateRecord(t, ctx, repo, tenantA, studentA, ay1, "2025-09-01", "present", staff1)
+	rec := mustCreateRecord(ctx, t, repo, studentA, ay1, "2025-09-01", "present")
 
 	got, err := repo.GetByID(ctx, tenantA, rec.ID)
 	if err != nil {
@@ -69,10 +68,10 @@ func TestRepository_CreateAndGet(t *testing.T) {
 
 func TestRepository_ListPagination(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	mustCreateRecord(t, ctx, repo, tenantA, studentA, ay1, "2025-09-01", "present", staff1)
-	rec2 := mustCreateRecord(t, ctx, repo, tenantA, studentB, ay1, "2025-09-02", "absent", staff1)
+	mustCreateRecord(ctx, t, repo, studentA, ay1, "2025-09-01", "present")
+	rec2 := mustCreateRecord(ctx, t, repo, studentB, ay1, "2025-09-02", "absent")
 
 	page, next, err := repo.List(ctx, tenantA, ports.ListFilter{Limit: 1})
 	if err != nil {
@@ -96,11 +95,11 @@ func TestRepository_ListPagination(t *testing.T) {
 
 func TestRepository_ListFilters(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	mustCreateRecord(t, ctx, repo, tenantA, studentA, ay1, "2025-09-01", "present", staff1)
-	mustCreateRecord(t, ctx, repo, tenantA, studentB, ay1, "2025-09-01", "absent", staff1)
-	mustCreateRecord(t, ctx, repo, tenantA, studentA, ay2, "2025-09-02", "late", staff1)
+	mustCreateRecord(ctx, t, repo, studentA, ay1, "2025-09-01", "present")
+	mustCreateRecord(ctx, t, repo, studentB, ay1, "2025-09-01", "absent")
+	mustCreateRecord(ctx, t, repo, studentA, ay2, "2025-09-02", "late")
 
 	cases := []struct {
 		name   string
@@ -129,9 +128,9 @@ func TestRepository_ListFilters(t *testing.T) {
 
 func TestRepository_Update(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	rec := mustCreateRecord(t, ctx, repo, tenantA, studentA, ay1, "2025-09-01", "absent", staff1)
+	rec := mustCreateRecord(ctx, t, repo, studentA, ay1, "2025-09-01", "absent")
 	status := "excused"
 	reason := "medical"
 	if _, err := rec.ApplyUpdate(&status, &reason, nil); err != nil {
@@ -152,9 +151,9 @@ func TestRepository_Update(t *testing.T) {
 
 func TestRepository_Delete(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	rec := mustCreateRecord(t, ctx, repo, tenantA, studentA, ay1, "2025-09-01", "present", staff1)
+	rec := mustCreateRecord(ctx, t, repo, studentA, ay1, "2025-09-01", "present")
 	if err := repo.Delete(ctx, tenantA, rec.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
@@ -165,10 +164,10 @@ func TestRepository_Delete(t *testing.T) {
 
 func TestRepository_TenantIsolation(t *testing.T) {
 	ctx := context.Background()
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	aCtx := withTenant(ctx, tenantA)
-	rec := mustCreateRecord(t, aCtx, repo, tenantA, studentA, ay1, "2025-09-01", "present", staff1)
+	rec := mustCreateRecord(aCtx, t, repo, studentA, ay1, "2025-09-01", "present")
 
 	bCtx := withTenant(ctx, tenantB)
 	if _, err := repo.GetByID(bCtx, tenantB, rec.ID); err == nil {
@@ -186,7 +185,7 @@ func TestRepository_TenantIsolation(t *testing.T) {
 
 func TestService_FeatureFlagGatesAccess(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantB)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantB, application.FeatureAttendance, false)
@@ -208,7 +207,7 @@ func TestService_FeatureFlagGatesAccess(t *testing.T) {
 
 func TestService_FeatureFlagAllowsAccessWhenEnabled(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantA, application.FeatureAttendance, true)

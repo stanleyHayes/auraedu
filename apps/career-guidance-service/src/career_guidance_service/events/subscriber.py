@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import nats
 from nats.js import JetStreamContext
+
+if TYPE_CHECKING:
+    from nats.aio.client import Client as NATSClient
 
 from career_guidance_service.config import settings
 from career_guidance_service.db import AsyncSessionLocal
@@ -63,10 +67,10 @@ async def process_event(event: dict[str, Any]) -> None:
     event_type = event.get("type")
     if event_type not in SUBSCRIBED_EVENTS:
         return
-    tenant_id = event.get("tenant_id")
+    tenant_id: str | None = event.get("tenant_id")
     data = event.get("data", {})
     metric = _metric_from_event(event_type, data)
-    if metric is None:
+    if metric is None or tenant_id is None:
         return
     metric.tenant_id = tenant_id
     async with AsyncSessionLocal() as session:
@@ -78,7 +82,7 @@ class FeatureStoreSubscriber:
     """Subscribes to upstream events and populates the feature store."""
 
     def __init__(self) -> None:
-        self._nc: nats.NATS | None = None
+        self._nc: NATSClient | None = None
         self._js: JetStreamContext | None = None
         self._subs: list[Any] = []
 
@@ -92,13 +96,11 @@ class FeatureStoreSubscriber:
         )
         self._nc = await nats.connect(nats_url)
         self._js = self._nc.jetstream()
-        try:
+        with contextlib.suppress(nats.js.errors.BadRequestError):
             await self._js.add_stream(
                 name="AURA_AI",
                 subjects=[f"AURA.{event_type}" for event_type in SUBSCRIBED_EVENTS],
             )
-        except nats.js.errors.BadRequestError:
-            pass  # Stream may already exist with different config.
 
     async def start(self) -> None:
         if self._js is None:

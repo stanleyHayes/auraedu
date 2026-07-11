@@ -1,0 +1,178 @@
+# AuraEDU Go linting configuration.
+# Enables all default linters plus a curated set of extras. Avoids experimental
+# and deprecated linters. Run via `make lint` or `golangci-lint run`.
+
+version: "2"
+
+run:
+  timeout: 10m
+  go: '1.26.5'
+  modules-download-mode: readonly
+  issues-exit-code: 1
+  tests: true
+  allow-parallel-runners: true
+
+output:
+  formats:
+    text:
+      path: stdout
+      print-linter-name: true
+      print-issued-lines: true
+  sort-order:
+    - linter
+    - severity
+    - file
+  show-stats: true
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - copyloopvar
+    - dogsled
+    - durationcheck
+    - errname
+    - errorlint
+    - exhaustive
+    - gochecknoglobals
+    - gochecknoinits
+    - gocognit
+    - gocritic
+    - gocyclo
+    - godot
+    - gosec
+    - lll
+    - loggercheck
+    - makezero
+    - misspell
+    - nakedret
+    - nestif
+    - nilerr
+    - noctx
+    - nolintlint
+    - prealloc
+    - predeclared
+    - promlinter
+    - reassign
+    - revive
+    - rowserrcheck
+    - sqlclosecheck
+    - staticcheck
+    - testableexamples
+    - thelper
+    - tparallel
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - wastedassign
+    - whitespace
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    exhaustive:
+      default-signifies-exhaustive: true
+    gocognit:
+      min-complexity: 30
+    gocyclo:
+      min-complexity: 20
+    godot:
+      scope: declarations
+    gosec:
+      excludes:
+        - G104
+    lll:
+      line-length: 160
+      tab-width: 1
+    misspell:
+      locale: US
+      ignore-words:
+        - cancelled
+        - cancelling
+    nakedret:
+      max-func-lines: 30
+    nestif:
+      min-complexity: 5
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+      allow-unused: false
+    revive:
+      severity: warning
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: if-return
+        - name: increment-decrement
+        - name: var-naming
+        - name: var-declaration
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: superfluous-else
+        - name: unused-parameter
+        - name: unreachable-code
+        - name: redefines-builtin-id
+    staticcheck:
+      checks:
+        - all
+  exclusions:
+    generated: lax
+    rules:
+      # Generated code may have long lines / missing docs.
+      - linters:
+          - lll
+          - revive
+          - staticcheck
+        path: .*\.gen\.go$
+      # Test files allow more flexible patterns.
+      - linters:
+          - funlen
+          - gochecknoglobals
+          - gocognit
+          - gocyclo
+          - lll
+        path: .*_test\.go$
+      - linters:
+          - revive
+        path: .*_test\.go$
+        text: unused-parameter
+      # Common idiomatic patterns where error handling is best-effort.
+      - linters:
+          - errcheck
+        source: defer\s+(tx\.Rollback|sqlDB\.Close)\(.*\)
+      - linters:
+          - errcheck
+        source: (_|(,\s*)_)\s*=\s+(msg\.(Nak|Ack|Term)|dlq\.DeadLetter|json\.(Marshal|NewEncoder\(.*\)\.Encode)|w\.Write|testcontainers\.TerminateContainer)\(
+    paths:
+      - .*\.gen\.go$
+      - .*_gen\.go$
+      - vendor
+      - third_party
+      - node_modules
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  uniq-by-line: true
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - .*\.gen\.go$
+      - .*_gen\.go$
+      - vendor
+      - third_party
+      - node_modules

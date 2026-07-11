@@ -1,3 +1,4 @@
+// Package events adapts the platform eventbus to the assessment-service EventPublisher port.
 package events
 
 import (

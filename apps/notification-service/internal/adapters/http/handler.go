@@ -1,3 +1,4 @@
+// Package http provides the HTTP adapter for the notification service.
 package http
 
 import (
@@ -53,9 +54,8 @@ func (h *Handler) listMessages(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	filter := ports.MessageFilter{
-		Limit:       limit,
+		Limit:       parseLimit(r.URL.Query().Get("limit")),
 		Cursor:      r.URL.Query().Get("cursor"),
 		Channel:     r.URL.Query().Get("channel"),
 		Status:      r.URL.Query().Get("status"),
@@ -192,9 +192,8 @@ func (h *Handler) listTemplates(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	filter := ports.TemplateFilter{
-		Limit:   limit,
+		Limit:   parseLimit(r.URL.Query().Get("limit")),
 		Cursor:  r.URL.Query().Get("cursor"),
 		Channel: r.URL.Query().Get("channel"),
 		Status:  r.URL.Query().Get("status"),
@@ -301,9 +300,8 @@ func (h *Handler) listSubscriptions(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	filter := ports.SubscriptionFilter{
-		Limit:   limit,
+		Limit:   parseLimit(r.URL.Query().Get("limit")),
 		Cursor:  r.URL.Query().Get("cursor"),
 		Channel: r.URL.Query().Get("channel"),
 		UserID:  r.URL.Query().Get("user_id"),
@@ -438,4 +436,15 @@ func nullIfEmpty(v string) any {
 		return nil
 	}
 	return v
+}
+
+func parseLimit(s string) int {
+	n, err := strconv.Atoi(s)
+	if err != nil || n <= 0 {
+		return 25
+	}
+	if n > 100 {
+		return 100
+	}
+	return n
 }

@@ -1,3 +1,4 @@
+// Package gateway implements the api-gateway reverse proxy, middleware, and route registry.
 package gateway
 
 import (

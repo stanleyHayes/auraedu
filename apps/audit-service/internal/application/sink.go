@@ -1,3 +1,4 @@
+// Package application implements the audit sink use case.
 package application
 
 import (

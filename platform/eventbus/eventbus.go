@@ -1,3 +1,5 @@
+// Package eventbus wraps NATS JetStream with AuraEDU conventions: subject
+// prefixes, tenant propagation via headers and a minimal mockable interface.
 package eventbus
 
 import (
@@ -74,11 +76,13 @@ func (f DLQFunc) DeadLetter(ctx context.Context, event tenancy.CloudEvent, err e
 	return f(ctx, event, err)
 }
 
-var noopDLQ DLQ = DLQFunc(func(context.Context, tenancy.CloudEvent, error) error { return nil })
+func noopDLQ() DLQ {
+	return DLQFunc(func(context.Context, tenancy.CloudEvent, error) error { return nil })
+}
 
 func Subscribe(js JetStreamContext, stream, consumer, eventType string, h Handler, dlq DLQ) (*Subscription, error) {
 	if dlq == nil {
-		dlq = noopDLQ
+		dlq = noopDLQ()
 	}
 	subject := Subject("AURA", eventType)
 	sub, err := js.Subscribe(subject, func(msg *nats.Msg) {

@@ -135,9 +135,7 @@ function generateClientInterface(paths: any): string {
     for (const [method, op] of Object.entries(ops as any)) {
       if (method === "parameters") continue;
       const id = (op as any).operationId ?? operationId(method, pathStr);
-      methods.push(
-        `\t${id}(ctx context.Context) (*http.Response, error)`,
-      );
+      methods.push(`\t${id}(ctx context.Context) (*http.Response, error)`);
     }
   }
   return `// ClientInterface is the generated consumer stub for this service.\ntype ClientInterface interface {\n${methods.join("\n")}\n}\n`;

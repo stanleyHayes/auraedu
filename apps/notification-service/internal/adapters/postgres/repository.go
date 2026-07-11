@@ -1,3 +1,4 @@
+// Package postgres provides Postgres-backed repositories for the notification service.
 package postgres
 
 import (
@@ -5,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/auraedu/notification-service/internal/domain"
 	"github.com/auraedu/notification-service/internal/ports"
@@ -58,8 +58,10 @@ func (r *MessageRepository) Create(ctx context.Context, tenantID string, m *doma
 			return fmt.Errorf("notifications: marshal metadata: %w", err)
 		}
 		_, err = tx.Exec(ctx, `
-			INSERT INTO messages (id, tenant_id, recipient_id, channel, template_id, subject, body, status, metadata, scheduled_at, sent_at, error, created_at, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, '{}'::jsonb), $10, $11, $12, $13, $14)
+			INSERT INTO messages (
+				id, tenant_id, recipient_id, channel, template_id, subject, body, status,
+				metadata, scheduled_at, sent_at, error, created_at, updated_at
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, '{}'::jsonb), $10, $11, $12, $13, $14)
 		`, m.ID, tenantID, m.RecipientID, m.Channel, m.TemplateID, m.Subject, m.Body, m.Status, metadata, m.ScheduledAt, m.SentAt, m.Error, m.CreatedAt, m.UpdatedAt)
 		if err != nil {
 			return fmt.Errorf("notifications: create message: %w", err)
@@ -444,11 +446,4 @@ func scanSubscription(row scanner) (*domain.Subscription, error) {
 		return nil, err
 	}
 	return &s, nil
-}
-
-func timePtr(t time.Time) *time.Time {
-	if t.IsZero() {
-		return nil
-	}
-	return &t
 }

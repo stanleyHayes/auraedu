@@ -1,3 +1,4 @@
+// Package postgres provides the Postgres implementation of the academic-service repository.
 package postgres
 
 import (

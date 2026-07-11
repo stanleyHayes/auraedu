@@ -1,3 +1,4 @@
+// Package postgres provides Postgres-backed repositories for the fees service.
 package postgres
 
 import (
@@ -45,9 +46,12 @@ func NewInvoiceRepository(database *db.DB) *InvoiceRepository {
 func (r *FeeStructureRepository) Create(ctx context.Context, tenantID string, fs *domain.FeeStructure) error {
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `
-			INSERT INTO fee_structures (id, tenant_id, name, academic_year_id, amount_cents, currency, recurrence, target, due_day, description, status, created_at, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-		`, fs.ID, tenantID, fs.Name, fs.AcademicYearID, fs.AmountCents, fs.Currency, fs.Recurrence, fs.Target, fs.DueDay, fs.Description, fs.Status, fs.CreatedAt, fs.UpdatedAt)
+			INSERT INTO fee_structures (
+				id, tenant_id, name, academic_year_id, amount_cents, currency,
+				recurrence, target, due_day, description, status, created_at, updated_at
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		`, fs.ID, tenantID, fs.Name, fs.AcademicYearID, fs.AmountCents, fs.Currency,
+			fs.Recurrence, fs.Target, fs.DueDay, fs.Description, fs.Status, fs.CreatedAt, fs.UpdatedAt)
 		if err != nil {
 			return fmt.Errorf("fees: create fee structure: %w", err)
 		}
@@ -136,9 +140,11 @@ func (r *FeeStructureRepository) Update(ctx context.Context, tenantID string, fs
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `
 			UPDATE fee_structures
-			SET name = $3, academic_year_id = $4, amount_cents = $5, currency = $6, recurrence = $7, target = $8, due_day = $9, description = $10, status = $11, updated_at = $12
+			SET name = $3, academic_year_id = $4, amount_cents = $5, currency = $6,
+			    recurrence = $7, target = $8, due_day = $9, description = $10, status = $11, updated_at = $12
 			WHERE id = $1 AND tenant_id = $2
-		`, fs.ID, tenantID, fs.Name, fs.AcademicYearID, fs.AmountCents, fs.Currency, fs.Recurrence, fs.Target, fs.DueDay, fs.Description, fs.Status, fs.UpdatedAt)
+		`, fs.ID, tenantID, fs.Name, fs.AcademicYearID, fs.AmountCents, fs.Currency,
+			fs.Recurrence, fs.Target, fs.DueDay, fs.Description, fs.Status, fs.UpdatedAt)
 		if err != nil {
 			return fmt.Errorf("fees: update fee structure: %w", err)
 		}
@@ -164,9 +170,12 @@ func (r *FeeStructureRepository) Delete(ctx context.Context, tenantID, id string
 func (r *InvoiceRepository) Create(ctx context.Context, tenantID string, inv *domain.Invoice) error {
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `
-			INSERT INTO invoices (id, tenant_id, student_id, fee_structure_id, amount_cents, balance_cents, status, due_date, issued_at, notes, created_at, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-		`, inv.ID, tenantID, inv.StudentID, inv.FeeStructureID, inv.AmountCents, inv.BalanceCents, inv.Status, datePtr(inv.DueDate), inv.IssuedAt, inv.Notes, inv.CreatedAt, inv.UpdatedAt)
+			INSERT INTO invoices (
+				id, tenant_id, student_id, fee_structure_id, amount_cents, balance_cents,
+				status, due_date, issued_at, notes, created_at, updated_at
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		`, inv.ID, tenantID, inv.StudentID, inv.FeeStructureID, inv.AmountCents, inv.BalanceCents,
+			inv.Status, datePtr(inv.DueDate), inv.IssuedAt, inv.Notes, inv.CreatedAt, inv.UpdatedAt)
 		if err != nil {
 			return fmt.Errorf("fees: create invoice: %w", err)
 		}
@@ -259,9 +268,11 @@ func (r *InvoiceRepository) Update(ctx context.Context, tenantID string, inv *do
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `
 			UPDATE invoices
-			SET student_id = $3, fee_structure_id = $4, amount_cents = $5, balance_cents = $6, status = $7, due_date = $8, issued_at = $9, notes = $10, updated_at = $11
+			SET student_id = $3, fee_structure_id = $4, amount_cents = $5, balance_cents = $6,
+			    status = $7, due_date = $8, issued_at = $9, notes = $10, updated_at = $11
 			WHERE id = $1 AND tenant_id = $2
-		`, inv.ID, tenantID, inv.StudentID, inv.FeeStructureID, inv.AmountCents, inv.BalanceCents, inv.Status, datePtr(inv.DueDate), inv.IssuedAt, inv.Notes, inv.UpdatedAt)
+		`, inv.ID, tenantID, inv.StudentID, inv.FeeStructureID, inv.AmountCents, inv.BalanceCents,
+			inv.Status, datePtr(inv.DueDate), inv.IssuedAt, inv.Notes, inv.UpdatedAt)
 		if err != nil {
 			return fmt.Errorf("fees: update invoice: %w", err)
 		}

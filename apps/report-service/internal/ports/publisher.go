@@ -1,3 +1,4 @@
+// Package ports defines the report service publisher boundary.
 package ports
 
 import (

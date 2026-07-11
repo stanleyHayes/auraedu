@@ -11,7 +11,7 @@ export interface AttendanceRecord {
 
 export default async function ParentAttendancePage() {
   const client = await createServerClient();
-  let records: AttendanceRecord[] = [];
+  let records: AttendanceRecord[];
   try {
     records = await client.get<AttendanceRecord[]>("/api/v1/attendance");
   } catch {

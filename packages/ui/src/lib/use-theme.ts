@@ -15,12 +15,14 @@ export function useTheme(): { theme: Theme; setTheme: (t: Theme) => void } {
   const [theme, setThemeState] = useState<Theme>("light");
 
   useEffect(() => {
-    let saved: Theme | null = null;
-    try {
-      saved = localStorage.getItem(STORAGE_KEY) as Theme | null;
-    } catch {
-      saved = null;
-    }
+    const saved: Theme | null = (() => {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw === "light" || raw === "dark" ? raw : null;
+      } catch {
+        return null;
+      }
+    })();
     const prefersDark =
       typeof matchMedia !== "undefined" && matchMedia("(prefers-color-scheme: dark)").matches;
     setThemeState(saved ?? (prefersDark ? "dark" : "light"));

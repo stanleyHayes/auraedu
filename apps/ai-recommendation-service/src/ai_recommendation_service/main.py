@@ -1,5 +1,6 @@
 """FastAPI entrypoint for the AI Recommendation Service."""
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -16,7 +17,7 @@ app_subscriber = FeatureStoreSubscriber()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):  # noqa: ARG001
+async def lifespan(app: FastAPI) -> AsyncGenerator[None]:  # noqa: ARG001
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await app_publisher.connect()
@@ -36,7 +37,7 @@ app = FastAPI(
 
 
 @app.exception_handler(ValueError)
-async def value_error_handler(request, exc):  # noqa: ARG001
+async def value_error_handler(request: object, exc: ValueError) -> JSONResponse:  # noqa: ARG001
     return JSONResponse(
         status_code=422,
         content={"code": "validation_error", "message": str(exc)},

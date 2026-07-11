@@ -1,3 +1,4 @@
+// Package events adapts the platform eventbus to the audit service subscriber port.
 package events
 
 import (
@@ -37,7 +38,7 @@ func NewSubscriber(js eventbus.JetStreamContext, log *slog.Logger) *Subscriber {
 }
 
 // Start registers a durable consumer named "audit-sink" on all AURA events.
-func (s *Subscriber) Start(ctx context.Context, handler ports.Handler) error {
+func (s *Subscriber) Start(_ context.Context, handler ports.Handler) error {
 	s.handler = handler
 	sub, err := s.js.Subscribe(subjectAll, s.handleMsg,
 		nats.Durable("audit-sink"),
@@ -71,14 +72,14 @@ func (s *Subscriber) handleMsg(msg *nats.Msg) {
 		_ = msg.Nak()
 		return
 	}
-	if err := env.CloudEvent.Validate(); err != nil {
+	if err := env.Validate(); err != nil {
 		s.log.Error("events: invalid cloudevent", "err", err)
 		_ = msg.Nak()
 		return
 	}
 
 	ctx = tenancy.WithContext(ctx, tenancy.TenantContext{
-		TenantID: env.CloudEvent.TenantID,
+		TenantID: env.TenantID,
 		ActorID:  env.ActorID,
 	})
 

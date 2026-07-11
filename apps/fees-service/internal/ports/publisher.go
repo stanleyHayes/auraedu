@@ -1,3 +1,4 @@
+// Package ports defines the fees-service boundary interfaces.
 package ports
 
 import (

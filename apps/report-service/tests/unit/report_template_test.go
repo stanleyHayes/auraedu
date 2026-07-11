@@ -80,7 +80,10 @@ func TestReportTemplate_ApplyUpdate_InvalidStatus(t *testing.T) {
 }
 
 func TestReportTemplate_Validate_InvalidStatus(t *testing.T) {
-	tmpl, _ := domain.NewReportTemplate(tenantA, "Midterm", ay1, "# Report")
+	tmpl, err := domain.NewReportTemplate(tenantA, "Midterm", ay1, "# Report")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	tmpl.Status = "unknown"
 	if err := tmpl.Validate(); err == nil {
 		t.Fatal("expected error for invalid status")

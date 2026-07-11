@@ -1,3 +1,4 @@
+// Package ports defines the staff service publisher boundary.
 package ports
 
 import (

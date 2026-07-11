@@ -8,25 +8,45 @@ members = [
 ]
 
 [tool.ruff]
-target-version = "py313"
+target-version = "py314"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP", "S"]
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM", "ARG", "PTH", "PL", "TRY", "PERF", "FURB", "RUF", "S"]
 
 [tool.ruff.lint.per-file-ignores]
-"**/tests/**/*.py" = ["S101"]
-"**/test_*/**/*.py" = ["S101"]
-"tools/codegen/scripts/seed_contracts.py" = ["E501"]
+"**/tests/**/*.py" = ["S101", "PLR2004"]
+"**/test_*/**/*.py" = ["S101", "PLR2004"]
+"tools/codegen/scripts/*.py" = ["E501", "S311", "PLR0913", "ARG001", "PERF401", "PERF402"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+  "test_ai_prediction.*",
+  "test_career_guidance.*",
+  "ai_recommendation_service.tests.*",
+  "tools.codegen.scripts.seed_contracts",
+]
+ignore_errors = true
 
 [dependency-groups]
 dev = [
-  "pytest",
-  "pytest-asyncio",
-  "httpx",
-  "aiosqlite",
-  "ruff",
-  "pip-audit",
+  "pytest>=9.1.1",
+  "pytest-asyncio>=1.4.0",
+  "httpx>=0.28.1",
+  "aiosqlite>=0.22.1",
+  "ruff>=0.15.21",
+  "pip-audit>=2.10.1",
+  "mypy>=1.16.0",
+  "pyright>=1.1.411",
 ]
 
 [tool.pytest.ini_options]

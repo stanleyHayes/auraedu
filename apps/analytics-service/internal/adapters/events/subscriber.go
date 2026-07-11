@@ -1,3 +1,4 @@
+// Package events implements the NATS JetStream subscriber for analytics projections.
 package events
 
 import (
@@ -21,13 +22,15 @@ type Subscriber struct {
 var _ ports.Subscriber = (*Subscriber)(nil)
 
 // eventTypes lists the CloudEvent types this projection cares about.
-var eventTypes = []string{
-	"student.enrolled.v1",
-	"attendance.marked.v1",
-	"assessment.score_recorded.v1",
-	"payment.received.v1",
-	"invoice.created.v1",
-	"report.published.v1",
+func eventTypes() []string {
+	return []string{
+		"student.enrolled.v1",
+		"attendance.marked.v1",
+		"assessment.score_recorded.v1",
+		"payment.received.v1",
+		"invoice.created.v1",
+		"report.published.v1",
+	}
 }
 
 // NewSubscriber creates a NATS-backed subscriber.
@@ -39,14 +42,14 @@ func NewSubscriber(js eventbus.JetStreamContext, projection *application.Project
 }
 
 // Start subscribes durable consumers for all supported event types.
-func (s *Subscriber) Start(ctx context.Context) error {
+func (s *Subscriber) Start(_ context.Context) error {
 	if s.js == nil {
 		return fmt.Errorf("events: JetStream context is nil")
 	}
 	if _, err := eventbus.EnsureStream(s.js, "AURA"); err != nil {
 		return fmt.Errorf("events: ensure stream: %w", err)
 	}
-	for _, et := range eventTypes {
+	for _, et := range eventTypes() {
 		sub, err := eventbus.Subscribe(s.js, "AURA", "analytics-projection", et, s.projection.ProcessEvent, nil)
 		if err != nil {
 			return fmt.Errorf("events: subscribe %s: %w", et, err)

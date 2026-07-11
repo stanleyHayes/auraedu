@@ -2,8 +2,8 @@
 
 from datetime import UTC, datetime
 
-import ai_prediction_service.events.publisher as publisher
 import pytest
+from ai_prediction_service.events import publisher
 from httpx import AsyncClient
 
 HEADERS = {
@@ -19,11 +19,13 @@ def recording_publisher(monkeypatch):
     calls = []
 
     async def _publish(tenant_id, actor_user_id, predictions):
-        calls.append({
-            "tenant_id": tenant_id,
-            "actor_user_id": actor_user_id,
-            "predictions": predictions,
-        })
+        calls.append(
+            {
+                "tenant_id": tenant_id,
+                "actor_user_id": actor_user_id,
+                "predictions": predictions,
+            }
+        )
 
     monkeypatch.setattr(publisher, "publish_predictions", _publish)
     yield calls

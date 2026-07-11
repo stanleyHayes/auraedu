@@ -73,7 +73,10 @@ func TestPage_ApplyUpdate(t *testing.T) {
 }
 
 func TestPage_InvalidStatus(t *testing.T) {
-	page, _ := domain.NewPage("tenant-1", "home", "Home")
+	page, err := domain.NewPage("tenant-1", "home", "Home")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	bad := "unknown"
 	if _, err := page.ApplyUpdate(nil, nil, &bad, nil, nil); err == nil {
 		t.Fatal("expected error for invalid status")
@@ -81,7 +84,10 @@ func TestPage_InvalidStatus(t *testing.T) {
 }
 
 func TestPage_InvalidLayout(t *testing.T) {
-	page, _ := domain.NewPage("tenant-1", "home", "Home")
+	page, err := domain.NewPage("tenant-1", "home", "Home")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	bad := "unknown"
 	if _, err := page.ApplyUpdate(nil, nil, nil, nil, &bad); err == nil {
 		t.Fatal("expected error for invalid layout")

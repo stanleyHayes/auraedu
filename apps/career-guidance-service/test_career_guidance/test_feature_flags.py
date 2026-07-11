@@ -1,6 +1,6 @@
 """Tests for Career Guidance Service feature-flag gating."""
 
-import career_guidance_service.feature_flags as feature_flags
+from career_guidance_service import feature_flags
 from httpx import AsyncClient
 
 HEADERS = {

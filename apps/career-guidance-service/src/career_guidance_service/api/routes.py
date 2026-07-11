@@ -108,9 +108,7 @@ async def get_guidance(
     tenant_id: TenantId,
     db: DbSession,
 ) -> GuidanceSchema:
-    result = await db.execute(
-        select(Guidance).where(Guidance.id == guidance_id)
-    )
+    result = await db.execute(select(Guidance).where(Guidance.id == guidance_id))
     guidance = result.scalar_one_or_none()
     if not guidance:
         raise HTTPException(
@@ -127,9 +125,7 @@ async def explain_guidance(
     tenant_id: TenantId,
     db: DbSession,
 ) -> ExplainResponse:
-    result = await db.execute(
-        select(Guidance).where(Guidance.id == guidance_id)
-    )
+    result = await db.execute(select(Guidance).where(Guidance.id == guidance_id))
     guidance = result.scalar_one_or_none()
     if not guidance:
         raise HTTPException(
@@ -146,11 +142,9 @@ async def approve_guidance(
     guidance_id: str,
     tenant_id: TenantId,
     db: DbSession,
-    body: ReviewGuidanceRequest | None = None,
+    _body: ReviewGuidanceRequest | None = None,
 ) -> GuidanceSchema:
-    result = await db.execute(
-        select(Guidance).where(Guidance.id == guidance_id)
-    )
+    result = await db.execute(select(Guidance).where(Guidance.id == guidance_id))
     guidance = result.scalar_one_or_none()
     if not guidance:
         raise HTTPException(
@@ -171,9 +165,7 @@ async def reject_guidance(
     db: DbSession,
     body: ReviewGuidanceRequest | None = None,
 ) -> GuidanceSchema:
-    result = await db.execute(
-        select(Guidance).where(Guidance.id == guidance_id)
-    )
+    result = await db.execute(select(Guidance).where(Guidance.id == guidance_id))
     guidance = result.scalar_one_or_none()
     if not guidance:
         raise HTTPException(

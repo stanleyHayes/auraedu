@@ -1,3 +1,4 @@
+// Package gateway implements the api-gateway reverse proxy, middleware, and route registry.
 package gateway
 
 import (
@@ -32,19 +33,29 @@ func DefaultRegistry() ServiceRegistry {
 			http.MethodPatch:  "students.update",
 			http.MethodDelete: "students.delete",
 		}},
-		{Prefix: "/api/v1/guardians", Target: envURL("SERVICE_STUDENT_URL", "http://localhost:8090"), FeatureKey: "student_management", Permissions: map[string]string{
-			http.MethodGet:    "students.read",
-			http.MethodPost:   "students.create",
-			http.MethodPatch:  "students.update",
-			http.MethodDelete: "students.delete",
-		}},
+		{
+			Prefix:     "/api/v1/guardians",
+			Target:     envURL("SERVICE_STUDENT_URL", "http://localhost:8090"),
+			FeatureKey: "student_management",
+			Permissions: map[string]string{
+				http.MethodGet:    "students.read",
+				http.MethodPost:   "students.create",
+				http.MethodPatch:  "students.update",
+				http.MethodDelete: "students.delete",
+			},
+		},
 		{Prefix: "/api/v1/staff", Target: envURL("SERVICE_STAFF_URL", "http://localhost:8091"), FeatureKey: "staff_management"},
 		{Prefix: "/api/v1/attendance", Target: envURL("SERVICE_ATTENDANCE_URL", "http://localhost:8092"), FeatureKey: "attendance"},
 		{Prefix: "/api/v1/assessments", Target: envURL("SERVICE_ASSESSMENT_URL", "http://localhost:8093"), FeatureKey: "assessments"},
-		{Prefix: "/api/v1/academic", Target: envURL("SERVICE_ACADEMIC_URL", "http://localhost:8092"), FeatureKey: "academic_management", Permissions: map[string]string{
-			http.MethodGet:  "academic.read",
-			http.MethodPost: "academic.manage",
-		}},
+		{
+			Prefix:     "/api/v1/academic",
+			Target:     envURL("SERVICE_ACADEMIC_URL", "http://localhost:8092"),
+			FeatureKey: "academic_management",
+			Permissions: map[string]string{
+				http.MethodGet:  "academic.read",
+				http.MethodPost: "academic.manage",
+			},
+		},
 		{Prefix: "/api/v1/fees", Target: envURL("SERVICE_FEES_URL", "http://localhost:8095"), FeatureKey: "fees"},
 		{Prefix: "/api/v1/payments", Target: envURL("SERVICE_PAYMENT_URL", "http://localhost:8096"), FeatureKey: "online_payments"},
 		{Prefix: "/api/v1/notifications", Target: envURL("SERVICE_NOTIFICATION_URL", "http://localhost:8097"), FeatureKey: "email_notifications"},
@@ -63,9 +74,24 @@ func DefaultRegistry() ServiceRegistry {
 		{Prefix: "/api/v1/billing", Target: envURL("SERVICE_BILLING_URL", "http://localhost:8101"), FeatureKey: "billing"},
 		{Prefix: "/api/v1/cbt", Target: envURL("SERVICE_CBT_URL", "http://localhost:8102"), FeatureKey: "cbt_exams"},
 		{Prefix: "/api/v1/audit", Target: envURL("SERVICE_AUDIT_URL", "http://localhost:8103"), FeatureKey: ""},
-		{Prefix: "/api/v1/ai/recommendations", Target: envURL("SERVICE_AI_RECOMMENDATION_URL", "http://localhost:8200"), FeatureKey: "ai_recommendations", Permission: "ai.view_recommendations"},
-		{Prefix: "/api/v1/ai/predictions", Target: envURL("SERVICE_AI_PREDICTION_URL", "http://localhost:8201"), FeatureKey: "ai_predictions", Permission: "ai.view_predictions"},
-		{Prefix: "/api/v1/ai/career-guidance", Target: envURL("SERVICE_CAREER_GUIDANCE_URL", "http://localhost:8112"), FeatureKey: "career_guidance", Permission: "ai.view_guidance"},
+		{
+			Prefix:     "/api/v1/ai/recommendations",
+			Target:     envURL("SERVICE_AI_RECOMMENDATION_URL", "http://localhost:8200"),
+			FeatureKey: "ai_recommendations",
+			Permission: "ai.view_recommendations",
+		},
+		{
+			Prefix:     "/api/v1/ai/predictions",
+			Target:     envURL("SERVICE_AI_PREDICTION_URL", "http://localhost:8201"),
+			FeatureKey: "ai_predictions",
+			Permission: "ai.view_predictions",
+		},
+		{
+			Prefix:     "/api/v1/ai/career-guidance",
+			Target:     envURL("SERVICE_CAREER_GUIDANCE_URL", "http://localhost:8112"),
+			FeatureKey: "career_guidance",
+			Permission: "ai.view_guidance",
+		},
 	}
 }
 
@@ -94,21 +120,24 @@ func LoadConfig() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	rps, _ := strconv.ParseFloat(config.Getenv("RATE_LIMIT_RPS", "20"), 64)
-	burst, _ := strconv.Atoi(config.Getenv("RATE_LIMIT_BURST", "40"))
-	if rps <= 0 {
+	rps, err := strconv.ParseFloat(config.Getenv("RATE_LIMIT_RPS", "20"), 64)
+	if err != nil {
 		rps = 20
 	}
-	if burst <= 0 {
+	burst, err := strconv.Atoi(config.Getenv("RATE_LIMIT_BURST", "40"))
+	if err != nil {
 		burst = int(rps * 2)
 	}
 	return &Config{
-		Port:            config.Port(8080),
-		SigningKey:      []byte(key),
-		RedisURL:        config.Getenv("REDIS_URL", "redis://localhost:6379"),
-		CORSOrigins:     splitList(config.Getenv("GATEWAY_CORS_ORIGINS", "*")),
-		CORSMethods:     splitList(config.Getenv("GATEWAY_CORS_METHODS", "GET,POST,PUT,PATCH,DELETE,OPTIONS")),
-		CORSHeaders:     splitList(config.Getenv("GATEWAY_CORS_HEADERS", "Authorization,Content-Type,X-Request-Id,X-Tenant-ID,X-Actor-User,X-Actor-Tenant,X-Actor-Role,X-Actor-Permissions")),
+		Port:        config.Port(8080),
+		SigningKey:  []byte(key),
+		RedisURL:    config.Getenv("REDIS_URL", "redis://localhost:6379"),
+		CORSOrigins: splitList(config.Getenv("GATEWAY_CORS_ORIGINS", "*")),
+		CORSMethods: splitList(config.Getenv("GATEWAY_CORS_METHODS", "GET,POST,PUT,PATCH,DELETE,OPTIONS")),
+		CORSHeaders: splitList(config.Getenv(
+			"GATEWAY_CORS_HEADERS",
+			"Authorization,Content-Type,X-Request-Id,X-Tenant-ID,X-Actor-User,X-Actor-Tenant,X-Actor-Role,X-Actor-Permissions",
+		)),
 		RateLimitRPS:    rps,
 		RateLimitBurst:  burst,
 		RateLimitWindow: time.Second,

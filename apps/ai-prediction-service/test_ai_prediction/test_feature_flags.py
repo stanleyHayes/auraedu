@@ -1,6 +1,6 @@
 """Tests for AI Prediction Service feature-flag gating."""
 
-import ai_prediction_service.feature_flags as feature_flags
+from ai_prediction_service import feature_flags
 from httpx import AsyncClient
 
 HEADERS = {

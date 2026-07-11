@@ -12,7 +12,9 @@ export default async function AcademicYearsPage() {
 
   try {
     const client = await createServerClient();
-    const res = await client.get<OpenAPI.academic_v1.components["schemas"]["AcademicYearList"]>("/api/v1/academic-years?limit=50");
+    const res = await client.get<OpenAPI.academic_v1.components["schemas"]["AcademicYearList"]>(
+      "/api/v1/academic-years?limit=50",
+    );
     years = res.data ?? [];
   } catch (e) {
     error = e instanceof Error ? e.message : "Failed to load academic years";

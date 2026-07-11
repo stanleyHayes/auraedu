@@ -1,9 +1,11 @@
+// Package application implements the fees-service use cases.
 package application
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/auraedu/fees-service/internal/domain"
 	"github.com/auraedu/fees-service/internal/ports"
@@ -96,7 +98,10 @@ func (s *Service) CreateFeeStructure(ctx context.Context, actor auth.Actor, req 
 	if err != nil {
 		return nil, err
 	}
-	fs, err := domain.NewFeeStructure(tenantID, req.Name, req.AcademicYearID, req.Currency, req.Recurrence, req.Target, req.AmountCents, req.DueDay, req.Description)
+	fs, err := domain.NewFeeStructure(
+		tenantID, req.Name, req.AcademicYearID, req.Currency, req.Recurrence,
+		req.Target, req.AmountCents, req.DueDay, req.Description,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -230,12 +235,16 @@ func (s *Service) CreateInvoice(ctx context.Context, actor auth.Actor, req Creat
 		return nil, err
 	}
 
-	_ = s.pub.PublishFeeStructure(ctx, "fee.assigned.v1", fs, map[string]any{
+	if err := s.pub.PublishFeeStructure(ctx, "fee.assigned.v1", fs, map[string]any{
 		"invoice_id":   inv.ID,
 		"student_id":   inv.StudentID,
 		"amount_cents": inv.AmountCents,
-	})
-	_ = s.pub.PublishInvoice(ctx, "invoice.created.v1", inv, nil)
+	}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish fee structure event", "event_type", "fee.assigned.v1", "err", err)
+	}
+	if err := s.pub.PublishInvoice(ctx, "invoice.created.v1", inv, nil); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish invoice event", "event_type", "invoice.created.v1", "err", err)
+	}
 	return inv, nil
 }
 
@@ -301,9 +310,13 @@ func (s *Service) UpdateInvoice(ctx context.Context, actor auth.Actor, id string
 
 	nowPaid := inv.Status == string(domain.InvoiceStatusPaid)
 	if !wasPaid && nowPaid {
-		_ = s.pub.PublishInvoice(ctx, "invoice.paid.v1", inv, map[string]any{"changed_fields": changed})
+		if err := s.pub.PublishInvoice(ctx, "invoice.paid.v1", inv, map[string]any{"changed_fields": changed}); err != nil {
+			slog.Default().ErrorContext(ctx, "failed to publish invoice event", "event_type", "invoice.paid.v1", "err", err)
+		}
 	}
-	_ = s.pub.PublishInvoice(ctx, "invoice.updated.v1", inv, map[string]any{"changed_fields": changed})
+	if err := s.pub.PublishInvoice(ctx, "invoice.updated.v1", inv, map[string]any{"changed_fields": changed}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish invoice event", "event_type", "invoice.updated.v1", "err", err)
+	}
 	return inv, nil
 }
 
@@ -320,7 +333,9 @@ func (s *Service) DeleteInvoice(ctx context.Context, actor auth.Actor, id string
 	if err := s.invRepo.Delete(ctx, tenantID, id); err != nil {
 		return err
 	}
-	_ = s.pub.PublishInvoice(ctx, "invoice.deleted.v1", inv, nil)
+	if err := s.pub.PublishInvoice(ctx, "invoice.deleted.v1", inv, nil); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish invoice event", "event_type", "invoice.deleted.v1", "err", err)
+	}
 	return nil
 }
 

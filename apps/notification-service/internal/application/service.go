@@ -1,3 +1,4 @@
+// Package application implements notification use cases and RBAC gates.
 package application
 
 import (
@@ -5,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/auraedu/notification-service/internal/domain"
@@ -53,7 +55,12 @@ func (noopPublisher) PublishMessageSent(context.Context, *domain.Message) error 
 func (noopPublisher) PublishMessageFailed(context.Context, *domain.Message, string) error { return nil }
 
 // NewService constructs the application service.
-func NewService(messageRepo ports.MessageRepository, templateRepo ports.TemplateRepository, subscriptionRepo ports.SubscriptionRepository, opts ...Option) *Service {
+func NewService(
+	messageRepo ports.MessageRepository,
+	templateRepo ports.TemplateRepository,
+	subscriptionRepo ports.SubscriptionRepository,
+	opts ...Option,
+) *Service {
 	s := &Service{
 		messageRepo:      messageRepo,
 		templateRepo:     templateRepo,
@@ -198,7 +205,7 @@ func (s *Service) SendMessage(ctx context.Context, actor auth.Actor, id string) 
 		return m, nil
 	}
 	if m.Status == string(domain.MessageStatusCancelled) {
-		return nil, fmt.Errorf("%w: cannot send a cancelled message", domain.ErrValidation)
+		return nil, fmt.Errorf("%w: cannot send a canceled message", domain.ErrValidation)
 	}
 
 	// Verify the recipient is subscribed to this channel.
@@ -216,7 +223,9 @@ func (s *Service) SendMessage(ctx context.Context, actor auth.Actor, id string) 
 		if err := s.messageRepo.Update(ctx, tenantID, m); err != nil {
 			return nil, err
 		}
-		_ = s.pub.PublishMessageFailed(ctx, m, reason)
+		if err := s.pub.PublishMessageFailed(ctx, m, reason); err != nil {
+			slog.Default().ErrorContext(ctx, "failed to publish message failed event", "message_id", m.ID, "err", err)
+		}
 		return m, fmt.Errorf("%w: %s", domain.ErrValidation, reason)
 	}
 
@@ -227,7 +236,9 @@ func (s *Service) SendMessage(ctx context.Context, actor auth.Actor, id string) 
 		if err := s.messageRepo.Update(ctx, tenantID, m); err != nil {
 			return nil, err
 		}
-		_ = s.pub.PublishMessageFailed(ctx, m, reason)
+		if err := s.pub.PublishMessageFailed(ctx, m, reason); err != nil {
+			slog.Default().ErrorContext(ctx, "failed to publish message failed event", "message_id", m.ID, "err", err)
+		}
 		return m, fmt.Errorf("%w: %s", domain.ErrValidation, reason)
 	}
 
@@ -237,15 +248,19 @@ func (s *Service) SendMessage(ctx context.Context, actor auth.Actor, id string) 
 		if uErr := s.messageRepo.Update(ctx, tenantID, m); uErr != nil {
 			return nil, uErr
 		}
-		_ = s.pub.PublishMessageFailed(ctx, m, reason)
-		return m, fmt.Errorf("%w: send failed: %v", domain.ErrValidation, err)
+		if err := s.pub.PublishMessageFailed(ctx, m, reason); err != nil {
+			slog.Default().ErrorContext(ctx, "failed to publish message failed event", "message_id", m.ID, "err", err)
+		}
+		return m, fmt.Errorf("%w: send failed: %w", domain.ErrValidation, err)
 	}
 
 	m.MarkSent()
 	if err := s.messageRepo.Update(ctx, tenantID, m); err != nil {
 		return nil, err
 	}
-	_ = s.pub.PublishMessageSent(ctx, m)
+	if err := s.pub.PublishMessageSent(ctx, m); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish message sent event", "message_id", m.ID, "err", err)
+	}
 	return m, nil
 }
 

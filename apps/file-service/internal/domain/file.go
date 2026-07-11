@@ -1,3 +1,4 @@
+// Package domain holds the file-service aggregate roots and value objects.
 package domain
 
 import (

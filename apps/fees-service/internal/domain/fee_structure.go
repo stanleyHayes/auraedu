@@ -1,3 +1,4 @@
+// Package domain holds the fees-service aggregate roots and value objects.
 package domain
 
 import (
@@ -55,7 +56,10 @@ type FeeStructure struct {
 }
 
 // NewFeeStructure constructs a FeeStructure, enforcing invariants.
-func NewFeeStructure(tenantID, name, academicYearID, currency, recurrence, target string, amountCents int, dueDay *int, description *string) (*FeeStructure, error) {
+func NewFeeStructure(
+	tenantID, name, academicYearID, currency, recurrence, target string,
+	amountCents int, dueDay *int, description *string,
+) (*FeeStructure, error) {
 	if tenantID == "" {
 		return nil, ErrMissingTenant
 	}

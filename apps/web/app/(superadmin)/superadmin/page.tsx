@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  Building2,
-  CreditCard,
-  Receipt,
-  ScrollText,
-  HeartPulse,
-} from "lucide-react";
+import { Building2, CreditCard, Receipt, ScrollText, HeartPulse } from "lucide-react";
 import { StatCard, Button } from "@auraedu/ui";
 
 export default function SuperAdminDashboard() {

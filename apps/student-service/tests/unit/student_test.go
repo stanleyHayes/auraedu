@@ -66,7 +66,10 @@ func TestStudent_ApplyUpdate(t *testing.T) {
 }
 
 func TestStudent_InvalidStatus(t *testing.T) {
-	e, _ := domain.NewStudent("tenant-1", "Ada", "Lovelace")
+	e, err := domain.NewStudent("tenant-1", "Ada", "Lovelace")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	e.Status = "unknown"
 	if err := e.Validate(); err == nil {
 		t.Fatal("expected error for invalid status")
@@ -74,7 +77,10 @@ func TestStudent_InvalidStatus(t *testing.T) {
 }
 
 func TestStudent_InvalidGender(t *testing.T) {
-	e, _ := domain.NewStudent("tenant-1", "Ada", "Lovelace")
+	e, err := domain.NewStudent("tenant-1", "Ada", "Lovelace")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	bad := "robot"
 	e.Gender = &bad
 	if err := e.Validate(); err == nil {

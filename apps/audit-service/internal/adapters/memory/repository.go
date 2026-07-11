@@ -1,3 +1,4 @@
+// Package memory provides an in-memory implementation of the audit repository port.
 package memory
 
 import (

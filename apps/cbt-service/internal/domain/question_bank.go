@@ -1,3 +1,4 @@
+// Package domain contains the CBT aggregates and value objects.
 package domain
 
 import (
@@ -46,7 +47,10 @@ type QuestionBank struct {
 }
 
 // NewQuestionBank constructs a QuestionBank, enforcing invariants.
-func NewQuestionBank(tenantID, academicYearID, subjectID, questionText, questionType, correctAnswer string, marks int, options []string) (*QuestionBank, error) {
+func NewQuestionBank(
+	tenantID, academicYearID, subjectID, questionText, questionType, correctAnswer string,
+	marks int, options []string,
+) (*QuestionBank, error) {
 	if tenantID == "" {
 		return nil, ErrMissingTenant
 	}
@@ -121,10 +125,7 @@ func (q QuestionBank) Validate() error {
 	if !isValidQuestionStatus(QuestionStatus(q.Status)) {
 		return fmt.Errorf("%w: status must be draft, published or archived", ErrValidation)
 	}
-	if err := validateOptionsForType(qType, q.Options); err != nil {
-		return err
-	}
-	return nil
+	return validateOptionsForType(qType, q.Options)
 }
 
 // ApplyUpdate mutates the question with non-empty patch fields. It returns the

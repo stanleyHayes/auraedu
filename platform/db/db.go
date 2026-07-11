@@ -1,3 +1,5 @@
+// Package db provides shared PostgreSQL connection, transaction and tenant
+// isolation helpers used by all AuraEDU Go services.
 package db
 
 import (
@@ -25,6 +27,8 @@ type Config struct {
 	Migrations string
 }
 
+// Open opens a PostgreSQL pool, runs migrations when configured and returns a
+// shared DB handle.
 func Open(ctx context.Context, cfg Config) (*DB, error) {
 	poolCfg, err := pgxpool.ParseConfig(cfg.DSN)
 	if err != nil {
@@ -47,7 +51,7 @@ func Open(ctx context.Context, cfg Config) (*DB, error) {
 
 	d := &DB{pool: pool, dsn: cfg.DSN}
 	if cfg.Migrations != "" {
-		if err := d.RunMigrations(cfg.Migrations); err != nil {
+		if err := d.RunMigrations(ctx, cfg.Migrations); err != nil {
 			return nil, fmt.Errorf("db: run migrations: %w", err)
 		}
 	}
@@ -68,13 +72,14 @@ func (d *DB) Ping(ctx context.Context) error {
 	return d.pool.Ping(ctx)
 }
 
-func (d *DB) RunMigrations(dir string) error {
+// RunMigrations applies Goose migration scripts from dir using a dedicated sql.DB.
+func (d *DB) RunMigrations(ctx context.Context, dir string) error {
 	sqlDB, err := sql.Open("pgx", d.dsn)
 	if err != nil {
 		return fmt.Errorf("open sql db for migrations: %w", err)
 	}
 	defer sqlDB.Close()
-	if err := sqlDB.Ping(); err != nil {
+	if err := sqlDB.PingContext(ctx); err != nil {
 		return fmt.Errorf("ping sql db for migrations: %w", err)
 	}
 	if err := goose.SetDialect("postgres"); err != nil {
@@ -85,6 +90,7 @@ func (d *DB) RunMigrations(dir string) error {
 
 type TxFn func(ctx context.Context, tx pgx.Tx) error
 
+// WithTx runs fn inside a transaction and sets the tenant session variable.
 func (d *DB) WithTx(ctx context.Context, fn TxFn) error {
 	tx, err := d.pool.Begin(ctx)
 	if err != nil {
@@ -117,8 +123,18 @@ func (d *DB) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, erro
 }
 
 func (d *DB) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
-	_ = d.setTenantID(ctx)
+	if err := d.setTenantID(ctx); err != nil {
+		return &errRow{err: err}
+	}
 	return d.pool.QueryRow(ctx, sql, args...)
+}
+
+type errRow struct {
+	err error
+}
+
+func (r *errRow) Scan(_ ...any) error {
+	return r.err
 }
 
 func (d *DB) setTenantID(ctx context.Context) error {
@@ -137,6 +153,8 @@ type Querier interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
+// SetTenantID configures the PostgreSQL session variable app.tenant_id for the
+// provided querier.
 func SetTenantID(ctx context.Context, q Querier) error {
 	id := tenancy.TenantID(ctx)
 	if id == "" {
@@ -149,6 +167,7 @@ func SetTenantID(ctx context.Context, q Querier) error {
 	return nil
 }
 
+// ResetTenantID clears the PostgreSQL session variable app.tenant_id.
 func ResetTenantID(ctx context.Context, q Querier) error {
 	_, err := q.Exec(ctx, "SELECT set_config('app.tenant_id', '', false)")
 	return err

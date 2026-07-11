@@ -12,7 +12,7 @@ import (
 	"github.com/auraedu/student-service/internal/application"
 )
 
-func newGuardianService(t *testing.T) (*application.Service, *testkit.PostgresTestDB) {
+func newGuardianService(t *testing.T) *application.Service {
 	t.Helper()
 	ctx := withTenant(context.Background(), tenantA)
 	tdb := testkit.NewPostgres(ctx, t, "../../migrations")
@@ -22,13 +22,12 @@ func newGuardianService(t *testing.T) (*application.Service, *testkit.PostgresTe
 	gates.Set(tenantA, application.FeatureStudentManagement, true)
 	gates.Set(tenantB, application.FeatureStudentManagement, true)
 
-	svc := application.NewService(repo, application.WithFeatureGate(gates))
-	return svc, tdb
+	return application.NewService(repo, application.WithFeatureGate(gates))
 }
 
 func TestGuardian_CreateAndGet(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	svc, _ := newGuardianService(t)
+	svc := newGuardianService(t)
 
 	actor := actorWith(application.PermCreate, application.PermRead)
 	created, err := svc.CreateGuardian(ctx, actor, application.CreateGuardianRequest{
@@ -51,7 +50,7 @@ func TestGuardian_CreateAndGet(t *testing.T) {
 
 func TestGuardian_LinkToStudent(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	svc, _ := newGuardianService(t)
+	svc := newGuardianService(t)
 	actor := actorWith(application.PermCreate, application.PermRead, application.PermUpdate)
 
 	student, err := svc.Create(ctx, actor, application.CreateStudentRequest{FirstName: "Child", LastName: "Student"})
@@ -98,7 +97,7 @@ func TestGuardian_LinkToStudent(t *testing.T) {
 
 func TestGuardian_TenantIsolation(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	svc, _ := newGuardianService(t)
+	svc := newGuardianService(t)
 
 	actorA := actorWith(application.PermCreate, application.PermRead)
 	actorB := auth.Actor{UserID: "user-2", TenantID: tenantB, Permissions: []string{application.PermRead}}

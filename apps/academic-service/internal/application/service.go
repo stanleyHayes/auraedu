@@ -1,3 +1,5 @@
+// Package application holds the academic-service use cases. Tenant scope, RBAC,
+// feature-flag checks and event publishing belong here (agent_plan §5).
 package application
 
 import (
@@ -18,7 +20,7 @@ const (
 	PermManage = "academic.manage"
 )
 
-// Feature flag key for academic management.
+// FeatureAcademicManagement is the feature flag key for academic management.
 const FeatureAcademicManagement = "academic_management"
 
 // Service holds the academic use cases. Tenant scope + RBAC + feature-flag checks belong
@@ -89,6 +91,7 @@ func (s *Service) Create(ctx context.Context, actor auth.Actor, req CreateAcadem
 	if err := s.repo.Create(ctx, tenantID, year); err != nil {
 		return nil, err
 	}
+	//nolint:errcheck // Event publishing is best-effort after the academic year is persisted.
 	_ = s.pub.Publish(ctx, "academic.year_created.v1", year, nil)
 	return year, nil
 }
@@ -134,6 +137,7 @@ func (s *Service) Update(ctx context.Context, actor auth.Actor, id string, req U
 	if err := s.repo.Update(ctx, tenantID, year); err != nil {
 		return nil, err
 	}
+	//nolint:errcheck // Event publishing is best-effort after the academic year is updated.
 	_ = s.pub.Publish(ctx, "academic.year_updated.v1", year, map[string]any{"changed_fields": changed})
 	return year, nil
 }
@@ -151,6 +155,7 @@ func (s *Service) Delete(ctx context.Context, actor auth.Actor, id string) error
 	if err := s.repo.Delete(ctx, tenantID, id); err != nil {
 		return err
 	}
+	//nolint:errcheck // Event publishing is best-effort after the academic year is deleted.
 	_ = s.pub.Publish(ctx, "academic.year_deleted.v1", year, nil)
 	return nil
 }

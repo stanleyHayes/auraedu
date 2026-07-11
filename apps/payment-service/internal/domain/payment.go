@@ -26,7 +26,7 @@ const (
 	PaymentStatusProcessing PaymentStatus = "processing"
 	PaymentStatusSuccess    PaymentStatus = "success"
 	PaymentStatusFailed     PaymentStatus = "failed"
-	PaymentStatusCancelled  PaymentStatus = "cancelled"
+	PaymentStatusCancelled  PaymentStatus = "cancelled" //nolint:misspell // British spelling used by payment provider specs
 )
 
 // DefaultCurrency is the currency used when none is supplied.
@@ -108,7 +108,8 @@ func (p Payment) Validate() error {
 		return fmt.Errorf("%w: provider must be paystack, flutterwave or mock", ErrValidation)
 	}
 	if !isValidPaymentStatus(PaymentStatus(p.Status)) {
-		return fmt.Errorf("%w: status must be pending, processing, success, failed or cancelled", ErrValidation)
+		return fmt.Errorf("%w: status must be pending, processing, success, failed or "+
+			"cancelled", ErrValidation) //nolint:misspell // British spelling used by payment provider specs
 	}
 	return nil
 }
@@ -155,7 +156,8 @@ func (p *Payment) ApplyUpdate(patch PaymentPatch) ([]string, error) {
 	}
 	if patch.Status != nil {
 		if !isValidPaymentStatus(PaymentStatus(*patch.Status)) {
-			return nil, fmt.Errorf("%w: status must be pending, processing, success, failed or cancelled", ErrValidation)
+			return nil, fmt.Errorf("%w: status must be pending, processing, success, failed or "+
+				"cancelled", ErrValidation) //nolint:misspell // British spelling used by payment provider specs
 		}
 		p.Status = *patch.Status
 		changed = append(changed, "status")

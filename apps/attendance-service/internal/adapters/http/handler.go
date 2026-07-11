@@ -1,3 +1,4 @@
+// Package http provides the HTTP adapter for the attendance service.
 package http
 
 import (
@@ -38,7 +39,10 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
+	if err != nil {
+		limit = 0
+	}
 	filter := ports.ListFilter{
 		Limit:          limit,
 		Cursor:         r.URL.Query().Get("cursor"),

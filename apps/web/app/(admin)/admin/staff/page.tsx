@@ -12,7 +12,10 @@ export default async function StaffPage() {
 
   try {
     const client = await createServerClient();
-    const res = await client.get<OpenAPI.staff_v1.components["schemas"]["StaffList"]>("/api/v1/staff?limit=50");
+    const res =
+      await client.get<OpenAPI.staff_v1.components["schemas"]["StaffList"]>(
+        "/api/v1/staff?limit=50",
+      );
     staff = res.data ?? [];
   } catch (e) {
     error = e instanceof Error ? e.message : "Failed to load staff";
@@ -27,7 +30,11 @@ export default async function StaffPage() {
       />
 
       {error ? (
-        <EmptyState title="Could not load staff" description={error} icon={<GraduationCap className="size-8" />} />
+        <EmptyState
+          title="Could not load staff"
+          description={error}
+          icon={<GraduationCap className="size-8" />}
+        />
       ) : (
         <DataTable
           caption="Staff"
@@ -37,7 +44,9 @@ export default async function StaffPage() {
             {
               key: "id",
               header: "ID",
-              cell: (s) => <span className="font-mono text-xs">{s.staff_code ?? s.id.slice(0, 8)}</span>,
+              cell: (s) => (
+                <span className="font-mono text-xs">{s.staff_code ?? s.id.slice(0, 8)}</span>
+              ),
             },
             {
               key: "name",

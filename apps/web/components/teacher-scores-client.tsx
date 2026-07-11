@@ -19,7 +19,10 @@ interface TeacherScoresClientProps {
 }
 
 export function TeacherScoresClient({ assessments }: TeacherScoresClientProps) {
-  const [state, formAction, pending] = useActionState<ActionResult | undefined, FormData>(recordScore, undefined);
+  const [state, formAction, pending] = useActionState<ActionResult | undefined, FormData>(
+    recordScore,
+    undefined,
+  );
   const formRef = React.useRef<HTMLFormElement>(null);
 
   React.useEffect(() => {
@@ -55,7 +58,11 @@ export function TeacherScoresClient({ assessments }: TeacherScoresClientProps) {
           Enter a score for a student on an existing assessment.
         </p>
 
-        <form ref={formRef} action={formAction} className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <form
+          ref={formRef}
+          action={formAction}
+          className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+        >
           <div className="sm:col-span-2 lg:col-span-1">
             <label htmlFor="assessment_id" className="mb-1.5 block text-sm font-medium">
               Assessment
@@ -101,7 +108,12 @@ export function TeacherScoresClient({ assessments }: TeacherScoresClientProps) {
             />
           </div>
           <div className="flex items-end sm:col-span-2 lg:col-span-3">
-            <Button type="submit" loading={pending} loadingLabel="Saving" className="w-full sm:w-auto">
+            <Button
+              type="submit"
+              loading={pending}
+              loadingLabel="Saving"
+              className="w-full sm:w-auto"
+            >
               <Trophy className="size-4" />
               Save score
             </Button>

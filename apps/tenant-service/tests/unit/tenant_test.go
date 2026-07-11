@@ -1,6 +1,7 @@
 package unit
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/auraedu/platform/auth"
@@ -21,10 +22,10 @@ var (
 
 func TestListTenantsRequiresPlatformAdmin(t *testing.T) {
 	svc := newSvc()
-	if _, err := svc.ListTenants(anon); err != domain.ErrForbidden {
+	if _, err := svc.ListTenants(anon); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("anon should be forbidden, got %v", err)
 	}
-	if _, err := svc.ListTenants(upshsAdmin); err != domain.ErrForbidden {
+	if _, err := svc.ListTenants(upshsAdmin); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("school admin should not list all tenants, got %v", err)
 	}
 	got, err := svc.ListTenants(platformAdm)
@@ -48,7 +49,7 @@ func TestGetTenantTenantScope(t *testing.T) {
 	if _, err := svc.GetTenant(upshsUser, "upshs"); err != nil {
 		t.Fatalf("own tenant should be readable: %v", err)
 	}
-	if _, err := svc.GetTenant(upshsUser, "aboom-ame-zion-c"); err != domain.ErrForbidden {
+	if _, err := svc.GetTenant(upshsUser, "aboom-ame-zion-c"); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("cross-tenant read should be forbidden, got %v", err)
 	}
 	if _, err := svc.GetTenant(platformAdm, "aboom-ame-zion-c"); err != nil {
@@ -58,10 +59,10 @@ func TestGetTenantTenantScope(t *testing.T) {
 
 func TestFeaturesTenantScope(t *testing.T) {
 	svc := newSvc()
-	if _, err := svc.Features(upshsUser, ""); err != domain.ErrNoTenant {
+	if _, err := svc.Features(upshsUser, ""); !errors.Is(err, domain.ErrNoTenant) {
 		t.Fatalf("empty tenant should be ErrNoTenant, got %v", err)
 	}
-	if _, err := svc.Features(aboomUser, "upshs"); err != domain.ErrForbidden {
+	if _, err := svc.Features(aboomUser, "upshs"); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("cross-tenant feature read should be forbidden, got %v", err)
 	}
 	if !enabled(t, svc, upshsUser, "upshs", "ai_recommendations") {
@@ -75,7 +76,7 @@ func TestFeaturesTenantScope(t *testing.T) {
 func TestSetFeatureRBACAndScope(t *testing.T) {
 	svc := newSvc()
 	// teacher lacks features.manage
-	if _, err := svc.SetFeature(upshsUser, "upshs", "analytics", false); err != domain.ErrForbidden {
+	if _, err := svc.SetFeature(upshsUser, "upshs", "analytics", false); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("teacher should not manage features, got %v", err)
 	}
 	// school admin may manage own tenant (analytics is professional; upshs is ai_plus → allowed)
@@ -83,7 +84,7 @@ func TestSetFeatureRBACAndScope(t *testing.T) {
 		t.Fatalf("school admin should manage own tenant's in-plan feature: %v", err)
 	}
 	// school admin may NOT manage another tenant
-	if _, err := svc.SetFeature(upshsAdmin, "aboom-ame-zion-c", "analytics", true); err != domain.ErrForbidden {
+	if _, err := svc.SetFeature(upshsAdmin, "aboom-ame-zion-c", "analytics", true); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("cross-tenant management should be forbidden, got %v", err)
 	}
 }
@@ -92,7 +93,7 @@ func TestSetFeatureEntitlement(t *testing.T) {
 	svc := newSvc()
 	// Aboom is on the 'starter' plan; ai_recommendations needs 'ai_plus'. Even a platform
 	// admin cannot ENABLE it above the plan (spec §3.3: billing controls entitlement).
-	if _, err := svc.SetFeature(platformAdm, "aboom-ame-zion-c", "ai_recommendations", true); err != domain.ErrEntitlement {
+	if _, err := svc.SetFeature(platformAdm, "aboom-ame-zion-c", "ai_recommendations", true); !errors.Is(err, domain.ErrEntitlement) {
 		t.Fatalf("enabling above plan should be ErrEntitlement, got %v", err)
 	}
 	// Disabling is always allowed.
@@ -100,7 +101,7 @@ func TestSetFeatureEntitlement(t *testing.T) {
 		t.Fatalf("disabling should be allowed: %v", err)
 	}
 	// Unknown key.
-	if _, err := svc.SetFeature(platformAdm, "upshs", "not_a_feature", true); err != domain.ErrValidation {
+	if _, err := svc.SetFeature(platformAdm, "upshs", "not_a_feature", true); !errors.Is(err, domain.ErrValidation) {
 		t.Fatalf("unknown key should be ErrValidation, got %v", err)
 	}
 }

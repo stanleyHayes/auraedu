@@ -11,7 +11,9 @@ export default async function StudentCbtExamsPage() {
 
   try {
     const client = await createServerClient();
-    const list = await client.get<{ data?: Exam[]; next_cursor?: string | null }>("/api/v1/cbt/exams");
+    const list = await client.get<{ data?: Exam[]; next_cursor?: string | null }>(
+      "/api/v1/cbt/exams",
+    );
     exams = list.data ?? [];
   } catch {
     error = "Could not load CBT exams right now.";

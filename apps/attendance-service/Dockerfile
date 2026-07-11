@@ -1,6 +1,6 @@
 # attendance-service — hermetic single-module build (go.mod replaces platform → ../../platform).
 # Build from the repo root: docker build -f apps/attendance-service/Dockerfile .
-FROM golang:1.25-alpine AS build
+FROM golang:1.26.5-alpine AS build
 WORKDIR /src
 COPY platform/ ./platform/
 COPY apps/attendance-service/ ./apps/attendance-service/

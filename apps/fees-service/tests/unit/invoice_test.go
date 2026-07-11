@@ -110,7 +110,10 @@ func TestInvoice_ApplyUpdate_AmountResetsBalance(t *testing.T) {
 }
 
 func TestInvoice_Validate_InvalidStatus(t *testing.T) {
-	inv, _ := domain.NewInvoice("tenant-1", "student-1", "fs-1", 10000, 10000, domain.Date{}, nil)
+	inv, err := domain.NewInvoice("tenant-1", "student-1", "fs-1", 10000, 10000, domain.Date{}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	inv.Status = "unknown"
 	if err := inv.Validate(); err == nil {
 		t.Fatal("expected error for invalid status")

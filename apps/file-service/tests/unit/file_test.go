@@ -22,7 +22,10 @@ func TestNewFileUpload_RequiresFilename(t *testing.T) {
 }
 
 func TestNewFileUpload_RequiresNonNegativeSize(t *testing.T) {
-	e, _ := domain.NewFileUpload("tenant-1", "notes.pdf", "application/pdf", "user-1", "document", -1, "abc")
+	e, err := domain.NewFileUpload("tenant-1", "notes.pdf", "application/pdf", "user-1", "document", -1, "abc")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if err := e.Validate(); err == nil {
 		t.Fatal("expected validation error for negative size_bytes")
 	}
@@ -51,7 +54,10 @@ func TestNewFileUpload_Valid(t *testing.T) {
 }
 
 func TestFileUpload_ApplyUpdate(t *testing.T) {
-	e, _ := domain.NewFileUpload("tenant-1", "notes.pdf", "application/pdf", "user-1", "document", 1024, "abc")
+	e, err := domain.NewFileUpload("tenant-1", "notes.pdf", "application/pdf", "user-1", "document", 1024, "abc")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	name := "renamed.pdf"
 	status := string(domain.StatusArchived)
 	changed, err := e.ApplyUpdate(&name, nil, nil, &status, map[string]any{"key": "value"})
@@ -73,7 +79,10 @@ func TestFileUpload_ApplyUpdate(t *testing.T) {
 }
 
 func TestFileUpload_InvalidStatus(t *testing.T) {
-	e, _ := domain.NewFileUpload("tenant-1", "notes.pdf", "application/pdf", "user-1", "document", 1024, "abc")
+	e, err := domain.NewFileUpload("tenant-1", "notes.pdf", "application/pdf", "user-1", "document", 1024, "abc")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	bad := "unknown"
 	if _, err := e.ApplyUpdate(nil, nil, nil, &bad, nil); err == nil {
 		t.Fatal("expected error for invalid status")
@@ -89,7 +98,10 @@ func TestComputeChecksum(t *testing.T) {
 }
 
 func TestLocalStoragePath(t *testing.T) {
-	e, _ := domain.NewFileUpload("tenant-1", "notes.pdf", "application/pdf", "user-1", "document", 1024, "abc")
+	e, err := domain.NewFileUpload("tenant-1", "notes.pdf", "application/pdf", "user-1", "document", 1024, "abc")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	path := e.LocalStoragePath("/tmp/files")
 	if path != "/tmp/files/tenant-1/"+e.ID {
 		t.Fatalf("unexpected storage path: %q", path)

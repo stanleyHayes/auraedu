@@ -1,3 +1,4 @@
+// Package postgres provides the Postgres implementation of the analytics-service repository.
 package postgres
 
 import (
@@ -57,7 +58,12 @@ func (r *Repository) UpsertMetric(ctx context.Context, tenantID string, m *domai
 					WHEN EXCLUDED.unit = 'average' THEN
 						CASE
 							WHEN COALESCE(metrics.sample_count, 0) <= 0 THEN EXCLUDED.value
-							ELSE (metrics.value * metrics.sample_count + EXCLUDED.value * COALESCE(EXCLUDED.sample_count, 1)) / (metrics.sample_count + COALESCE(EXCLUDED.sample_count, 1))
+							ELSE (
+								metrics.value * metrics.sample_count +
+								EXCLUDED.value * COALESCE(EXCLUDED.sample_count, 1)
+							) / (
+								metrics.sample_count + COALESCE(EXCLUDED.sample_count, 1)
+							)
 						END
 					ELSE EXCLUDED.value
 				END,

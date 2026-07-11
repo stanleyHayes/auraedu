@@ -73,7 +73,10 @@ export async function fetchWebsitePages(
   }
 }
 
-export async function fetchPageBySlug(tenantCode: string, slug: string): Promise<WebsitePage | null> {
+export async function fetchPageBySlug(
+  tenantCode: string,
+  slug: string,
+): Promise<WebsitePage | null> {
   const url = new URL(`/api/v1/website/pages/by-slug/${encodeURIComponent(slug)}`, publicApiUrl);
 
   try {

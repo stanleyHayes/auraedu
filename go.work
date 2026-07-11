@@ -1,6 +1,8 @@
 // Go workspace across the Go modules (platform + apps/*-service).
 // `use` lines are added by tools/new-service when a service is scaffolded.
-go 1.25.7
+go 1.26.5
+
+toolchain go1.26.5
 
 use (
 	./apps/academic-service

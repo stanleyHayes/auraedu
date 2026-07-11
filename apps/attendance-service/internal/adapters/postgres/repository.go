@@ -1,3 +1,4 @@
+// Package postgres provides the Postgres implementation of the attendance repository port.
 package postgres
 
 import (

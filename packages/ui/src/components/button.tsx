@@ -66,10 +66,10 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
   const Comp = asChild ? Slot : "button";
   return (
     <Comp
-      ref={ref as React.Ref<HTMLButtonElement>}
+      ref={ref}
       className={cn(base, variants[variant], className)}
       aria-busy={loading || undefined}
-      disabled={asChild ? undefined : disabled || loading}
+      disabled={asChild ? undefined : disabled ? true : loading}
       {...props}
     >
       {asChild ? (
@@ -77,7 +77,9 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
       ) : (
         <>
           {loading ? <Wave label={loadingLabel} /> : null}
-          <span className={cn("inline-flex items-center gap-2", loading && "invisible")}>{children}</span>
+          <span className={cn("inline-flex items-center gap-2", loading && "invisible")}>
+            {children}
+          </span>
         </>
       )}
     </Comp>

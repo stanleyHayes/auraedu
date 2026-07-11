@@ -1,3 +1,4 @@
+// Package gateway implements the api-gateway reverse proxy, middleware, and route registry.
 package gateway
 
 import (
@@ -22,7 +23,15 @@ func NewReverseProxy(registry ServiceRegistry, log *slog.Logger) (*ReverseProxy,
 		if err != nil {
 			return nil, err
 		}
-		transports[rt.Prefix] = httputil.NewSingleHostReverseProxy(target)
+		proxy := &httputil.ReverseProxy{
+			Rewrite: rewriteForRoute(rt.Prefix, target),
+			Transport: &http.Transport{
+				MaxIdleConns:        100,
+				MaxIdleConnsPerHost: 10,
+				IdleConnTimeout:     90 * time.Second,
+			},
+		}
+		transports[rt.Prefix] = proxy
 	}
 	return &ReverseProxy{log: log, transports: transports}, nil
 }
@@ -51,6 +60,38 @@ func (a ActorContext) HasPermission(permission string) bool {
 	return false
 }
 
+func rewriteForRoute(prefix string, target *url.URL) func(*httputil.ProxyRequest) {
+	return func(pr *httputil.ProxyRequest) {
+		pr.SetURL(target)
+		pr.SetXForwarded()
+
+		path := strings.TrimPrefix(pr.In.URL.Path, prefix)
+		if path == "" {
+			path = "/"
+		}
+		pr.Out.URL.Path = path
+		pr.Out.URL.RawPath = ""
+		pr.Out.URL.RawQuery = pr.In.URL.RawQuery
+
+		pr.Out.Header.Set("X-Forwarded-Host", pr.In.Host)
+		pr.Out.Header.Set("X-Forwarded-Proto", scheme(pr.In))
+		if rid := RequestIDFrom(pr.In.Context()); rid != "" {
+			pr.Out.Header.Set("X-Request-Id", rid)
+		}
+		if tenant := TenantIDFrom(pr.In.Context()); tenant != "" {
+			pr.Out.Header.Set("X-Tenant-ID", tenant)
+			pr.Out.Header.Set("X-Actor-Tenant", tenant)
+		}
+		if actor := ActorFrom(pr.In.Context()); !actor.IsEmpty() {
+			pr.Out.Header.Set("X-Actor-User", actor.UserID)
+			pr.Out.Header.Set("X-Actor-Role", actor.Role)
+			if actor.Permissions != "" {
+				pr.Out.Header.Set("X-Actor-Permissions", actor.Permissions)
+			}
+		}
+	}
+}
+
 func (p *ReverseProxy) Handler(registry ServiceRegistry) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		rt, ok := registry.Match(r.URL.Path)
@@ -65,46 +106,7 @@ func (p *ReverseProxy) Handler(registry ServiceRegistry) http.Handler {
 			return
 		}
 
-		out := r.Clone(r.Context())
-		out.URL.Path = rt.StripPrefix(r.URL.Path)
-		out.URL.RawPath = ""
-		if out.URL.Path == "" {
-			out.URL.Path = "/"
-		}
-
-		out.Header.Set("X-Forwarded-Host", r.Host)
-		out.Header.Set("X-Forwarded-Proto", scheme(r))
-		if rid := RequestIDFrom(r.Context()); rid != "" {
-			out.Header.Set("X-Request-Id", rid)
-		}
-		if tenant := TenantIDFrom(r.Context()); tenant != "" {
-			out.Header.Set("X-Tenant-ID", tenant)
-			out.Header.Set("X-Actor-Tenant", tenant)
-		}
-		if actor := ActorFrom(r.Context()); !actor.IsEmpty() {
-			out.Header.Set("X-Actor-User", actor.UserID)
-			out.Header.Set("X-Actor-Role", actor.Role)
-			if actor.Permissions != "" {
-				out.Header.Set("X-Actor-Permissions", actor.Permissions)
-			}
-		}
-
-		originalDirector := proxy.Director
-		proxy.Director = func(req *http.Request) {
-			originalDirector(req)
-			req.URL.Path = out.URL.Path
-			req.URL.RawQuery = out.URL.RawQuery
-		}
-
-		if proxy.Transport == nil {
-			proxy.Transport = &http.Transport{
-				MaxIdleConns:        100,
-				MaxIdleConnsPerHost: 10,
-				IdleConnTimeout:     90 * time.Second,
-			}
-		}
-
-		proxy.ServeHTTP(w, out)
+		proxy.ServeHTTP(w, r)
 	})
 }
 

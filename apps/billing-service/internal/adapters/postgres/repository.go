@@ -1,3 +1,6 @@
+// Package postgres provides the Postgres implementations of the billing repository ports.
+//
+//nolint:misspell // British spelling "cancelled" is intentional for the billing domain.
 package postgres
 
 import (
@@ -183,7 +186,10 @@ func (r *PlanRepository) Delete(ctx context.Context, id string) error {
 func (r *SubscriptionRepository) Create(ctx context.Context, tenantID string, s *domain.Subscription) error {
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `
-			INSERT INTO billing_subscriptions (id, tenant_id, plan_id, status, current_period_start, current_period_end, trial_ends_at, cancelled_at, created_at, updated_at)
+			INSERT INTO billing_subscriptions (
+				id, tenant_id, plan_id, status, current_period_start, current_period_end,
+				trial_ends_at, cancelled_at, created_at, updated_at
+			)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		`, s.ID, tenantID, s.PlanID, s.Status, s.CurrentPeriodStart, s.CurrentPeriodEnd, s.TrialEndsAt, s.CancelledAt, s.CreatedAt, s.UpdatedAt)
 		if err != nil {

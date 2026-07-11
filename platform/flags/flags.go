@@ -1,3 +1,5 @@
+// Package flags implements feature-gate lookups for AuraEDU services. It
+// supports a live tenant-service client with a static YAML fallback.
 package flags
 
 import (
@@ -70,20 +72,25 @@ func (c *TenantServiceClient) IsEnabled(ctx context.Context, tenantID, key strin
 	return c.fallback.IsEnabled(ctx, tenantID, key)
 }
 
-func RequireEnabled(g Gate, ctx context.Context, tenantID, key string) error {
+// RequireEnabled returns ErrFeatureDisabled when key is not enabled for tenantID.
+func RequireEnabled(ctx context.Context, g Gate, tenantID, key string) error {
 	if !g.IsEnabled(ctx, tenantID, key) {
 		return fmt.Errorf("%w: %s", ErrFeatureDisabled, key)
 	}
 	return nil
 }
 
-func MustEnabled(g Gate, ctx context.Context, tenantID, key string) {
-	if err := RequireEnabled(g, ctx, tenantID, key); err != nil {
+// MustEnabled panics when key is not enabled for tenantID.
+func MustEnabled(ctx context.Context, g Gate, tenantID, key string) {
+	if err := RequireEnabled(ctx, g, tenantID, key); err != nil {
 		panic(err)
 	}
 }
 
+// LoadYAML reads a feature registry from path. The path is supplied by
+// deployment configuration and is therefore trusted.
 func LoadYAML(path string) (*Registry, error) {
+	//nolint:gosec // Path is provided by trusted configuration; no user-controlled file traversal.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("flags: read registry: %w", err)

@@ -1,3 +1,4 @@
+// Package http adapts HTTP requests to the assessment-service application layer.
 package http
 
 import (
@@ -47,7 +48,12 @@ func (h *Handler) listAssessments(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit := 25
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if parsed, err := strconv.Atoi(limitStr); err == nil {
+			limit = parsed
+		}
+	}
 	filter := ports.AssessmentListFilter{
 		Limit:          limit,
 		Cursor:         r.URL.Query().Get("cursor"),
@@ -176,7 +182,12 @@ func (h *Handler) listScores(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit := 25
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if parsed, err := strconv.Atoi(limitStr); err == nil {
+			limit = parsed
+		}
+	}
 	filter := ports.ScoreListFilter{
 		Limit:     limit,
 		Cursor:    r.URL.Query().Get("cursor"),

@@ -1,3 +1,4 @@
+// Package http adapts HTTP requests to the fees-service application.
 package http
 
 import (
@@ -46,9 +47,8 @@ func (h *Handler) listFeeStructures(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	filter := ports.FeeStructureFilter{
-		Limit:          limit,
+		Limit:          parseLimit(r.URL.Query().Get("limit")),
 		Cursor:         r.URL.Query().Get("cursor"),
 		AcademicYearID: r.URL.Query().Get("academic_year_id"),
 		Status:         r.URL.Query().Get("status"),
@@ -171,9 +171,8 @@ func (h *Handler) listInvoices(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	filter := ports.InvoiceFilter{
-		Limit:          limit,
+		Limit:          parseLimit(r.URL.Query().Get("limit")),
 		Cursor:         r.URL.Query().Get("cursor"),
 		StudentID:      r.URL.Query().Get("student_id"),
 		FeeStructureID: r.URL.Query().Get("fee_structure_id"),
@@ -315,4 +314,15 @@ func nullIfEmpty(v string) any {
 		return nil
 	}
 	return v
+}
+
+func parseLimit(s string) int {
+	n, err := strconv.Atoi(s)
+	if err != nil || n <= 0 {
+		return 25
+	}
+	if n > 100 {
+		return 100
+	}
+	return n
 }

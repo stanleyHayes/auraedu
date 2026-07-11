@@ -75,14 +75,25 @@ export function PortalShell({
   return (
     <div className="grid h-screen grid-cols-[240px_1fr] overflow-hidden max-md:grid-cols-1">
       <div data-tour="desktop-navigation" className="max-md:hidden">
-        <AppSidebar pathname={pathname} groups={groups} brand={<Brand tenant={tenant} />} className="h-full" />
+        <AppSidebar
+          pathname={pathname}
+          groups={groups}
+          brand={<Brand tenant={tenant} />}
+          className="h-full"
+        />
       </div>
       <Sheet open={mobileOpen} onClose={() => setMobileOpen(false)} side="left">
         <div className="flex h-full flex-col">
           <div className="px-4 pb-3 pt-4">
             <Brand tenant={tenant} />
           </div>
-          <AppSidebar pathname={pathname} groups={groups} brand={null} onNavigate={() => setMobileOpen(false)} className="flex-1 border-0" />
+          <AppSidebar
+            pathname={pathname}
+            groups={groups}
+            brand={null}
+            onNavigate={() => setMobileOpen(false)}
+            className="flex-1 border-0"
+          />
         </div>
       </Sheet>
       <div className="flex min-w-0 flex-col overflow-hidden">

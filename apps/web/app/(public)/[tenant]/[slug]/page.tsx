@@ -36,7 +36,9 @@ export default async function PublicPage({ params }: PublicPageProps) {
       ) : (
         <section className="py-16 lg:py-20">
           <div className="mx-auto max-w-3xl px-6 text-center">
-            <h1 className="font-display text-3xl font-bold text-[var(--foreground)]">{page.title}</h1>
+            <h1 className="font-display text-3xl font-bold text-[var(--foreground)]">
+              {page.title}
+            </h1>
             <p className="mt-4 text-[var(--muted-foreground)]">This page has no content yet.</p>
           </div>
         </section>

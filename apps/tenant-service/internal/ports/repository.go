@@ -1,3 +1,4 @@
+// Package ports defines the tenant service repository boundary.
 package ports
 
 import "github.com/auraedu/tenant-service/internal/domain"

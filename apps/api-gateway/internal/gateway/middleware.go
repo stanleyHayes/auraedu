@@ -1,9 +1,11 @@
+// Package gateway implements the api-gateway reverse proxy, middleware, and route registry.
 package gateway
 
 import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -155,7 +157,7 @@ func (b *Builder) auth(next http.Handler) http.Handler {
 
 		claims, err := auth.Verify(token, b.Config.SigningKey, time.Now())
 		if err != nil {
-			if err == auth.ErrExpiredToken {
+			if errors.Is(err, auth.ErrExpiredToken) {
 				writeJSONError(w, http.StatusUnauthorized, "token_expired", "token expired")
 			} else {
 				writeJSONError(w, http.StatusUnauthorized, "unauthorized", "invalid token")

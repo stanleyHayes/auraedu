@@ -6,12 +6,15 @@ import json
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import nats
 from nats.js import JetStreamContext
 
 from ai_recommendation_service.config import settings
+
+if TYPE_CHECKING:
+    from nats.aio.client import Client as NATSClient
 
 
 @dataclass
@@ -45,7 +48,7 @@ class RecommendationPublisher:
     """Publishes `ai.recommendation_generated.v1` events to NATS JetStream."""
 
     def __init__(self) -> None:
-        self._nc: nats.NATS | None = None
+        self._nc: NATSClient | None = None
         self._js: JetStreamContext | None = None
 
     async def connect(self) -> None:

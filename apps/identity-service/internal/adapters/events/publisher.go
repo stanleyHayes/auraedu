@@ -18,7 +18,7 @@ type Publisher struct {
 	logger *slog.Logger
 }
 
-func NewPublisher(ctx context.Context, logger *slog.Logger) (ports.EventPublisher, error) {
+func NewPublisher(_ context.Context, logger *slog.Logger) (ports.EventPublisher, error) {
 	if natsURL := config.Getenv("NATS_URL", ""); natsURL != "" {
 		nc, err := nats.Connect(natsURL)
 		if err != nil {
@@ -29,7 +29,7 @@ func NewPublisher(ctx context.Context, logger *slog.Logger) (ports.EventPublishe
 	return &Publisher{logger: logger}, nil
 }
 
-func (p *Publisher) Publish(ctx context.Context, e ports.Event) error {
+func (p *Publisher) Publish(_ context.Context, e ports.Event) error {
 	body, err := json.Marshal(e)
 	if err != nil {
 		return err
@@ -49,7 +49,7 @@ type RecordingPublisher struct {
 
 func NewRecordingPublisher() *RecordingPublisher { return &RecordingPublisher{} }
 
-func (r *RecordingPublisher) Publish(ctx context.Context, e ports.Event) error {
+func (r *RecordingPublisher) Publish(_ context.Context, e ports.Event) error {
 	r.Events = append(r.Events, e)
 	return nil
 }

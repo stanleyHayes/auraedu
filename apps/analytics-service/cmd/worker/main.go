@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -23,13 +24,18 @@ const service = "analytics-service"
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(log)
-	log.Info(service + " worker started")
 
+	if err := run(log); err != nil {
+		log.Error("worker failed", "err", err)
+		os.Exit(1)
+	}
+}
+
+func run(log *slog.Logger) error {
 	ctx := context.Background()
 	database, err := openDB(ctx)
 	if err != nil {
-		log.Error("failed to open database", "err", err)
-		os.Exit(1)
+		return err
 	}
 	defer database.Close()
 
@@ -38,34 +44,36 @@ func main() {
 
 	natsURL, err := config.MustGetenv("NATS_URL")
 	if err != nil {
-		log.Error("NATS_URL is required for worker", "err", err)
-		os.Exit(1)
+		return err
 	}
 
 	nc, err := nats.Connect(natsURL)
 	if err != nil {
-		log.Error("failed to connect to NATS", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("connect to NATS: %w", err)
 	}
 	defer nc.Close()
 
 	js, err := nc.JetStream()
 	if err != nil {
-		log.Error("failed to create JetStream context", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("create JetStream context: %w", err)
 	}
 
 	sub := svcevents.NewSubscriber(js, projection, log)
 	if err := sub.Start(ctx); err != nil {
-		log.Error("failed to start subscriber", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("start subscriber: %w", err)
 	}
-	defer func() { _ = sub.Stop() }()
+	defer func() {
+		if err := sub.Stop(); err != nil {
+			log.Error("subscriber stop error", "err", err)
+		}
+	}()
 
+	log.Info(service + " worker started")
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
 	log.Info(service + " worker stopped")
+	return nil
 }
 
 func openDB(ctx context.Context) (*db.DB, error) {

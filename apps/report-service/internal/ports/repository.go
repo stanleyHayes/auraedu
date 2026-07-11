@@ -1,3 +1,4 @@
+// Package ports defines the report service repository boundary.
 package ports
 
 import (

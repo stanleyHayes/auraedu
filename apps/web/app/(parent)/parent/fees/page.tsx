@@ -12,7 +12,7 @@ export interface Invoice {
 
 export default async function ParentFeesPage() {
   const client = await createServerClient();
-  let invoices: Invoice[] = [];
+  let invoices: Invoice[];
   try {
     invoices = await client.get<Invoice[]>("/api/v1/invoices");
   } catch {

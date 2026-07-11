@@ -31,7 +31,10 @@ export class ApiError extends Error {
 }
 
 export class FeatureDisabledError extends ApiError {
-  constructor(public readonly feature: string, message: string) {
+  constructor(
+    public readonly feature: string,
+    message: string,
+  ) {
     super(403, "feature_disabled", message);
     this.name = "FeatureDisabledError";
   }
@@ -75,10 +78,16 @@ export function createGatewayClient(options: GatewayClientOptions): GatewayClien
   const tenantHeader = options.tenantHeader ?? "x-tenant-code";
   const doFetch = options.fetch ?? fetch;
 
-  async function request<T>(method: string, path: string, body?: unknown, init: RequestInit = {}): Promise<T> {
+  async function request<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    init: RequestInit = {},
+  ): Promise<T> {
     const headers = new Headers(init.headers);
     headers.set("accept", "application/json");
-    if (body !== undefined && !headers.has("content-type")) headers.set("content-type", "application/json");
+    if (body !== undefined && !headers.has("content-type"))
+      headers.set("content-type", "application/json");
 
     const token = options.getToken?.();
     if (token) headers.set("authorization", `Bearer ${token}`);
@@ -113,13 +122,19 @@ export function createGatewayClient(options: GatewayClientOptions): GatewayClien
   return {
     request,
     get: <T>(path: string, init?: RequestInit) => request<T>("GET", path, undefined, init),
-    post: <T>(path: string, body: unknown, init?: RequestInit) => request<T>("POST", path, body, init),
-    patch: <T>(path: string, body: unknown, init?: RequestInit) => request<T>("PATCH", path, body, init),
-    put: <T>(path: string, body: unknown, init?: RequestInit) => request<T>("PUT", path, body, init),
+    post: <T>(path: string, body: unknown, init?: RequestInit) =>
+      request<T>("POST", path, body, init),
+    patch: <T>(path: string, body: unknown, init?: RequestInit) =>
+      request<T>("PATCH", path, body, init),
+    put: <T>(path: string, body: unknown, init?: RequestInit) =>
+      request<T>("PUT", path, body, init),
     del: <T>(path: string, init?: RequestInit) => request<T>("DELETE", path, undefined, init),
   };
 }
 
-export function toFeatureSnapshot(tenantCode: string, flags: FeatureFlag[]): { tenantCode: string; flags: FeatureFlag[] } {
+export function toFeatureSnapshot(
+  tenantCode: string,
+  flags: FeatureFlag[],
+): { tenantCode: string; flags: FeatureFlag[] } {
   return { tenantCode, flags };
 }

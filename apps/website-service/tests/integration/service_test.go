@@ -13,7 +13,7 @@ import (
 	"github.com/auraedu/website-service/internal/ports"
 )
 
-func newService(t *testing.T, enabled bool) (*application.Service, *events.RecordingPublisher, *testkit.PostgresTestDB) {
+func newService(t *testing.T, enabled bool) (*application.Service, *events.RecordingPublisher) {
 	t.Helper()
 	ctx := context.Background()
 	tdb := testkit.NewPostgres(ctx, t, "../../migrations")
@@ -25,24 +25,24 @@ func newService(t *testing.T, enabled bool) (*application.Service, *events.Recor
 		application.WithPublisher(pub),
 		application.WithFeatureGate(gate),
 	)
-	return svc, pub, tdb
+	return svc, pub
 }
 
-func actorWithPerm(perm string) auth.Actor {
+func actorWithPerm() auth.Actor {
 	return auth.Actor{
 		UserID:        "user-1",
 		TenantID:      tenantA,
 		Role:          "school_admin",
-		Permissions:   []string{perm},
+		Permissions:   []string{application.PermManage},
 		PlatformAdmin: false,
 	}
 }
 
 func TestService_FeatureFlagGatesCreate(t *testing.T) {
-	svc, _, _ := newService(t, false)
+	svc, _ := newService(t, false)
 	ctx := withTenant(context.Background(), tenantA)
 
-	_, err := svc.CreatePage(ctx, actorWithPerm(application.PermManage), application.CreatePageRequest{
+	_, err := svc.CreatePage(ctx, actorWithPerm(), application.CreatePageRequest{
 		Slug:  "home",
 		Title: "Home",
 	})
@@ -52,10 +52,10 @@ func TestService_FeatureFlagGatesCreate(t *testing.T) {
 }
 
 func TestService_CreatePagePublishesEvent(t *testing.T) {
-	svc, pub, _ := newService(t, true)
+	svc, pub := newService(t, true)
 	ctx := withTenant(context.Background(), tenantA)
 
-	page, err := svc.CreatePage(ctx, actorWithPerm(application.PermManage), application.CreatePageRequest{
+	page, err := svc.CreatePage(ctx, actorWithPerm(), application.CreatePageRequest{
 		Slug:  "home",
 		Title: "Home",
 	})
@@ -76,10 +76,10 @@ func TestService_CreatePagePublishesEvent(t *testing.T) {
 }
 
 func TestService_PublishPageFiresPagePublishedEvent(t *testing.T) {
-	svc, pub, _ := newService(t, true)
+	svc, pub := newService(t, true)
 	ctx := withTenant(context.Background(), tenantA)
 
-	page, err := svc.CreatePage(ctx, actorWithPerm(application.PermManage), application.CreatePageRequest{
+	page, err := svc.CreatePage(ctx, actorWithPerm(), application.CreatePageRequest{
 		Slug:  "home",
 		Title: "Home",
 	})
@@ -89,7 +89,7 @@ func TestService_PublishPageFiresPagePublishedEvent(t *testing.T) {
 	pub.Events = nil
 
 	status := "published"
-	_, err = svc.UpdatePage(ctx, actorWithPerm(application.PermManage), page.ID, application.UpdatePageRequest{
+	_, err = svc.UpdatePage(ctx, actorWithPerm(), page.ID, application.UpdatePageRequest{
 		Status: &status,
 	})
 	if err != nil {
@@ -109,7 +109,7 @@ func TestService_PublishPageFiresPagePublishedEvent(t *testing.T) {
 }
 
 func TestService_RBACGatesRead(t *testing.T) {
-	svc, _, _ := newService(t, true)
+	svc, _ := newService(t, true)
 	ctx := withTenant(context.Background(), tenantA)
 
 	actor := auth.Actor{UserID: "user-1", TenantID: tenantA, Permissions: []string{"other.read"}}

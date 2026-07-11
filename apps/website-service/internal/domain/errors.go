@@ -1,3 +1,4 @@
+// Package domain holds the website-service business rules and aggregate models.
 package domain
 
 import "errors"

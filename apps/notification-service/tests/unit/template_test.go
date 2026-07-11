@@ -29,7 +29,10 @@ func TestNewTemplate_Valid(t *testing.T) {
 }
 
 func TestTemplate_ApplyUpdate(t *testing.T) {
-	tmpl, _ := domain.NewTemplate("tenant-1", "welcome", "email", "Hello", "Body")
+	tmpl, err := domain.NewTemplate("tenant-1", "welcome", "email", "Hello", "Body")
+	if err != nil {
+		t.Fatalf("new template: %v", err)
+	}
 	status := string(domain.TemplateStatusArchived)
 	changed, err := tmpl.ApplyUpdate(domain.TemplatePatch{Status: &status})
 	if err != nil {

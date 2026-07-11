@@ -1,3 +1,4 @@
+// Package events adapts the platform eventbus to the academic-service EventPublisher port.
 package events
 
 import (

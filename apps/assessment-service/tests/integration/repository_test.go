@@ -25,13 +25,12 @@ const subject2 = "66666666-6666-6666-6666-666666666666"
 const studentA = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 const studentB = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
 const staff1 = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
-const staff2 = "ffffffff-ffff-ffff-ffff-ffffffffffff"
 
-func newRepo(t *testing.T) (ports.Repository, *testkit.PostgresTestDB) {
+func newRepo(t *testing.T) ports.Repository {
 	t.Helper()
 	ctx := context.Background()
 	tdb := testkit.NewPostgres(ctx, t, "../../migrations")
-	return postgres.NewRepository(tdb.DB), tdb
+	return postgres.NewRepository(tdb.DB)
 }
 
 func withTenant(ctx context.Context, tenantID string) context.Context {
@@ -42,25 +41,25 @@ func actorWithPerms(tenantID string, perms ...string) auth.Actor {
 	return auth.Actor{UserID: "user-1", TenantID: tenantID, Permissions: perms}
 }
 
-func mustCreateAssessment(t *testing.T, ctx context.Context, repo ports.Repository, tenantID, academicYearID, subjectID, assessmentType, title string, maxScore int) *domain.Assessment {
+func mustCreateAssessment(ctx context.Context, t *testing.T, repo ports.Repository, academicYearID, subjectID, assessmentType, title string, maxScore int) *domain.Assessment {
 	t.Helper()
-	a, err := domain.NewAssessment(tenantID, academicYearID, subjectID, assessmentType, title, "", maxScore, nil)
+	a, err := domain.NewAssessment(tenantA, academicYearID, subjectID, assessmentType, title, "", maxScore, nil)
 	if err != nil {
 		t.Fatalf("new assessment: %v", err)
 	}
-	if err := repo.CreateAssessment(ctx, tenantID, a); err != nil {
+	if err := repo.CreateAssessment(ctx, tenantA, a); err != nil {
 		t.Fatalf("create assessment: %v", err)
 	}
 	return a
 }
 
-func mustCreateScore(t *testing.T, ctx context.Context, repo ports.Repository, tenantID, assessmentID, studentID string, score int) *domain.Score {
+func mustCreateScore(ctx context.Context, t *testing.T, repo ports.Repository, assessmentID, studentID string, score int) *domain.Score {
 	t.Helper()
-	s, err := domain.NewScore(tenantID, assessmentID, studentID, score, staff1, "", 100)
+	s, err := domain.NewScore(tenantA, assessmentID, studentID, score, staff1, "", 100)
 	if err != nil {
 		t.Fatalf("new score: %v", err)
 	}
-	if err := repo.CreateScore(ctx, tenantID, s); err != nil {
+	if err := repo.CreateScore(ctx, tenantA, s); err != nil {
 		t.Fatalf("create score: %v", err)
 	}
 	return s
@@ -68,9 +67,9 @@ func mustCreateScore(t *testing.T, ctx context.Context, repo ports.Repository, t
 
 func TestRepository_CreateAndGetAssessment(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	a := mustCreateAssessment(t, ctx, repo, tenantA, ay1, subject1, "test", "Midterm", 100)
+	a := mustCreateAssessment(ctx, t, repo, ay1, subject1, "test", "Midterm", 100)
 
 	got, err := repo.GetAssessmentByID(ctx, tenantA, a.ID)
 	if err != nil {
@@ -83,10 +82,10 @@ func TestRepository_CreateAndGetAssessment(t *testing.T) {
 
 func TestRepository_ListAssessmentPagination(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	mustCreateAssessment(t, ctx, repo, tenantA, ay1, subject1, "test", "Quiz 1", 20)
-	a2 := mustCreateAssessment(t, ctx, repo, tenantA, ay1, subject1, "test", "Quiz 2", 20)
+	mustCreateAssessment(ctx, t, repo, ay1, subject1, "test", "Quiz 1", 20)
+	a2 := mustCreateAssessment(ctx, t, repo, ay1, subject1, "test", "Quiz 2", 20)
 
 	page, next, err := repo.ListAssessments(ctx, tenantA, ports.AssessmentListFilter{Limit: 1})
 	if err != nil {
@@ -110,11 +109,11 @@ func TestRepository_ListAssessmentPagination(t *testing.T) {
 
 func TestRepository_ListAssessmentFilters(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	mustCreateAssessment(t, ctx, repo, tenantA, ay1, subject1, "test", "Math Test", 100)
-	mustCreateAssessment(t, ctx, repo, tenantA, ay1, subject2, "assignment", "English Essay", 50)
-	mustCreateAssessment(t, ctx, repo, tenantA, ay2, subject1, "exam", "Science Exam", 100)
+	mustCreateAssessment(ctx, t, repo, ay1, subject1, "test", "Math Test", 100)
+	mustCreateAssessment(ctx, t, repo, ay1, subject2, "assignment", "English Essay", 50)
+	mustCreateAssessment(ctx, t, repo, ay2, subject1, "exam", "Science Exam", 100)
 
 	cases := []struct {
 		name   string
@@ -143,9 +142,9 @@ func TestRepository_ListAssessmentFilters(t *testing.T) {
 
 func TestRepository_UpdateAssessment(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	a := mustCreateAssessment(t, ctx, repo, tenantA, ay1, subject1, "test", "Midterm", 100)
+	a := mustCreateAssessment(ctx, t, repo, ay1, subject1, "test", "Midterm", 100)
 	title := "Final Exam"
 	status := string(domain.StatusPublished)
 	if _, err := a.ApplyUpdate(&title, nil, nil, nil, nil, &status); err != nil {
@@ -166,9 +165,9 @@ func TestRepository_UpdateAssessment(t *testing.T) {
 
 func TestRepository_DeleteAssessment(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	a := mustCreateAssessment(t, ctx, repo, tenantA, ay1, subject1, "test", "Midterm", 100)
+	a := mustCreateAssessment(ctx, t, repo, ay1, subject1, "test", "Midterm", 100)
 	if err := repo.DeleteAssessment(ctx, tenantA, a.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
@@ -179,10 +178,10 @@ func TestRepository_DeleteAssessment(t *testing.T) {
 
 func TestRepository_CreateAndGetScore(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	a := mustCreateAssessment(t, ctx, repo, tenantA, ay1, subject1, "test", "Midterm", 100)
-	s := mustCreateScore(t, ctx, repo, tenantA, a.ID, studentA, 85)
+	a := mustCreateAssessment(ctx, t, repo, ay1, subject1, "test", "Midterm", 100)
+	s := mustCreateScore(ctx, t, repo, a.ID, studentA, 85)
 
 	got, err := repo.GetScoreByID(ctx, tenantA, a.ID, s.ID)
 	if err != nil {
@@ -195,11 +194,11 @@ func TestRepository_CreateAndGetScore(t *testing.T) {
 
 func TestRepository_ListScoresFilter(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	a := mustCreateAssessment(t, ctx, repo, tenantA, ay1, subject1, "test", "Midterm", 100)
-	mustCreateScore(t, ctx, repo, tenantA, a.ID, studentA, 85)
-	mustCreateScore(t, ctx, repo, tenantA, a.ID, studentB, 90)
+	a := mustCreateAssessment(ctx, t, repo, ay1, subject1, "test", "Midterm", 100)
+	mustCreateScore(ctx, t, repo, a.ID, studentA, 85)
+	mustCreateScore(ctx, t, repo, a.ID, studentB, 90)
 
 	page, _, err := repo.ListScores(ctx, tenantA, a.ID, ports.ScoreListFilter{Limit: 10, StudentID: studentA})
 	if err != nil {
@@ -212,10 +211,10 @@ func TestRepository_ListScoresFilter(t *testing.T) {
 
 func TestRepository_UpdateScore(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	a := mustCreateAssessment(t, ctx, repo, tenantA, ay1, subject1, "test", "Midterm", 100)
-	s := mustCreateScore(t, ctx, repo, tenantA, a.ID, studentA, 75)
+	a := mustCreateAssessment(ctx, t, repo, ay1, subject1, "test", "Midterm", 100)
+	s := mustCreateScore(ctx, t, repo, a.ID, studentA, 75)
 	score := 88
 	notes := "Remarked"
 	if _, err := s.ApplyUpdate(&score, &notes, 100); err != nil {
@@ -236,10 +235,10 @@ func TestRepository_UpdateScore(t *testing.T) {
 
 func TestRepository_DeleteScore(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	a := mustCreateAssessment(t, ctx, repo, tenantA, ay1, subject1, "test", "Midterm", 100)
-	s := mustCreateScore(t, ctx, repo, tenantA, a.ID, studentA, 85)
+	a := mustCreateAssessment(ctx, t, repo, ay1, subject1, "test", "Midterm", 100)
+	s := mustCreateScore(ctx, t, repo, a.ID, studentA, 85)
 	if err := repo.DeleteScore(ctx, tenantA, a.ID, s.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
@@ -250,10 +249,10 @@ func TestRepository_DeleteScore(t *testing.T) {
 
 func TestRepository_TenantIsolation_Assessments(t *testing.T) {
 	ctx := context.Background()
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	aCtx := withTenant(ctx, tenantA)
-	a := mustCreateAssessment(t, aCtx, repo, tenantA, ay1, subject1, "test", "Midterm", 100)
+	a := mustCreateAssessment(aCtx, t, repo, ay1, subject1, "test", "Midterm", 100)
 
 	bCtx := withTenant(ctx, tenantB)
 	if _, err := repo.GetAssessmentByID(bCtx, tenantB, a.ID); err == nil {
@@ -271,11 +270,11 @@ func TestRepository_TenantIsolation_Assessments(t *testing.T) {
 
 func TestRepository_TenantIsolation_Scores(t *testing.T) {
 	ctx := context.Background()
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	aCtx := withTenant(ctx, tenantA)
-	a := mustCreateAssessment(t, aCtx, repo, tenantA, ay1, subject1, "test", "Midterm", 100)
-	s := mustCreateScore(t, aCtx, repo, tenantA, a.ID, studentA, 85)
+	a := mustCreateAssessment(aCtx, t, repo, ay1, subject1, "test", "Midterm", 100)
+	s := mustCreateScore(aCtx, t, repo, a.ID, studentA, 85)
 
 	bCtx := withTenant(ctx, tenantB)
 	if _, err := repo.GetScoreByID(bCtx, tenantB, a.ID, s.ID); err == nil {
@@ -293,7 +292,7 @@ func TestRepository_TenantIsolation_Scores(t *testing.T) {
 
 func TestService_FeatureFlagGatesAccess(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantB)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantB, application.FeatureAssessments, false)
@@ -315,7 +314,7 @@ func TestService_FeatureFlagGatesAccess(t *testing.T) {
 
 func TestService_FeatureFlagAllowsAccessWhenEnabled(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantA, application.FeatureAssessments, true)
@@ -340,7 +339,7 @@ func TestService_FeatureFlagAllowsAccessWhenEnabled(t *testing.T) {
 
 func TestService_CreateScoreRejectsExcessScore(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantA, application.FeatureAssessments, true)
@@ -373,7 +372,7 @@ func TestService_CreateScoreRejectsExcessScore(t *testing.T) {
 
 func TestService_CreateScoreSucceedsWithinMaxScore(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantA, application.FeatureAssessments, true)

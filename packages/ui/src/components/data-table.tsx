@@ -18,13 +18,25 @@ export interface DataTableProps<T> {
 }
 
 /** Simple accessible table with ruled rows and a sticky header (DESIGN_SYSTEM §15). */
-export function DataTable<T>({ columns, rows, keyExtractor, caption, className, empty }: DataTableProps<T>) {
+export function DataTable<T>({
+  columns,
+  rows,
+  keyExtractor,
+  caption,
+  className,
+  empty,
+}: DataTableProps<T>) {
   if (rows.length === 0 && empty) {
     return <>{empty}</>;
   }
 
   return (
-    <div className={cn("overflow-x-auto rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)]", className)}>
+    <div
+      className={cn(
+        "overflow-x-auto rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)]",
+        className,
+      )}
+    >
       <table className="w-full text-left text-sm">
         {caption ? <caption className="sr-only">{caption}</caption> : null}
         <thead className="bg-[var(--muted)]">
@@ -47,10 +59,16 @@ export function DataTable<T>({ columns, rows, keyExtractor, caption, className, 
           {rows.map((row, i) => (
             <tr
               key={keyExtractor(row)}
-              className={cn("transition-colors hover:bg-[var(--muted)]/50", i !== rows.length - 1 && "border-b border-[var(--border)]")}
+              className={cn(
+                "transition-colors hover:bg-[var(--muted)]/50",
+                i !== rows.length - 1 && "border-b border-[var(--border)]",
+              )}
             >
               {columns.map((col) => (
-                <td key={col.key} className={cn("px-4 py-3 text-[var(--foreground)]", col.className)}>
+                <td
+                  key={col.key}
+                  className={cn("px-4 py-3 text-[var(--foreground)]", col.className)}
+                >
                   {col.cell(row)}
                 </td>
               ))}

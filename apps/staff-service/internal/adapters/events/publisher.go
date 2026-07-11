@@ -1,3 +1,4 @@
+// Package events adapts outbound staff domain events to the platform eventbus.
 package events
 
 import (

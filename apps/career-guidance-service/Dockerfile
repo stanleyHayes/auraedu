@@ -1,4 +1,4 @@
-FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
+FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim AS builder
 
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 ENV UV_PYTHON_DOWNLOADS=0
@@ -14,7 +14,7 @@ COPY apps/career-guidance-service/ ./apps/career-guidance-service/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --package auraedu-career-guidance-service
 
-FROM python:3.13-slim-bookworm AS runner
+FROM python:3.14-slim-bookworm AS runner
 
 WORKDIR /app
 

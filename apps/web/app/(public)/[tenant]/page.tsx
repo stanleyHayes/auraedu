@@ -26,7 +26,7 @@ export default async function PublicHomePage({ params }: PublicHomePageProps) {
   const page = await fetchPageBySlug(tenantCode, "home");
 
   if (!page) {
-    return <WelcomePlaceholder tenantCode={tenantCode} />;
+    return <WelcomePlaceholder />;
   }
 
   return (
@@ -34,13 +34,13 @@ export default async function PublicHomePage({ params }: PublicHomePageProps) {
       {page.sections && page.sections.length > 0 ? (
         page.sections.map((section) => <WebsiteSection key={section.id} section={section} />)
       ) : (
-        <WelcomePlaceholder tenantCode={tenantCode} title={page.title} />
+        <WelcomePlaceholder title={page.title} />
       )}
     </article>
   );
 }
 
-function WelcomePlaceholder({ tenantCode, title }: { tenantCode: string; title?: string }) {
+function WelcomePlaceholder({ title }: { title?: string }) {
   return (
     <section className="py-20 lg:py-28">
       <div className="mx-auto max-w-3xl px-6 text-center">

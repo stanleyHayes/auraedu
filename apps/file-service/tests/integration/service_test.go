@@ -51,7 +51,11 @@ func TestService_UploadDownloadRoundtrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("download: %v", err)
 	}
-	defer rc.Close()
+	defer func() {
+		if err := rc.Close(); err != nil {
+			t.Fatalf("close download: %v", err)
+		}
+	}()
 
 	downloaded, err := io.ReadAll(rc)
 	if err != nil {

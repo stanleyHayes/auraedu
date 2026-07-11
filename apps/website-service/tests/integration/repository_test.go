@@ -17,18 +17,18 @@ import (
 const tenantA = "11111111-1111-1111-1111-111111111111"
 const tenantB = "22222222-2222-2222-2222-222222222222"
 
-func newRepo(t *testing.T) (ports.Repository, *testkit.PostgresTestDB) {
+func newRepo(t *testing.T) ports.Repository {
 	t.Helper()
 	ctx := context.Background()
 	tdb := testkit.NewPostgres(ctx, t, "../../migrations")
-	return postgres.NewRepository(tdb.DB), tdb
+	return postgres.NewRepository(tdb.DB)
 }
 
 func withTenant(ctx context.Context, tenantID string) context.Context {
 	return tenancy.WithContext(ctx, tenancy.TenantContext{TenantID: tenantID})
 }
 
-func mustCreatePage(t *testing.T, ctx context.Context, repo ports.Repository, tenantID, slug, title string) *domain.Page {
+func mustCreatePage(ctx context.Context, t *testing.T, repo ports.Repository, tenantID, slug, title string) *domain.Page {
 	t.Helper()
 	page, err := domain.NewPage(tenantID, slug, title)
 	if err != nil {
@@ -40,13 +40,13 @@ func mustCreatePage(t *testing.T, ctx context.Context, repo ports.Repository, te
 	return page
 }
 
-func mustCreateSection(t *testing.T, ctx context.Context, repo ports.Repository, tenantID, pageID string, sectionType domain.SectionType, order int) *domain.Section {
+func mustCreateSection(ctx context.Context, t *testing.T, repo ports.Repository, pageID string, sectionType domain.SectionType, order int) *domain.Section {
 	t.Helper()
-	section, err := domain.NewSection(tenantID, pageID, sectionType, domain.Content{"title": "Section"}, order)
+	section, err := domain.NewSection(tenantA, pageID, sectionType, domain.Content{"title": "Section"}, order)
 	if err != nil {
 		t.Fatalf("new section: %v", err)
 	}
-	if err := repo.CreateSection(ctx, tenantID, section); err != nil {
+	if err := repo.CreateSection(ctx, tenantA, section); err != nil {
 		t.Fatalf("create section: %v", err)
 	}
 	return section
@@ -54,9 +54,9 @@ func mustCreateSection(t *testing.T, ctx context.Context, repo ports.Repository,
 
 func TestRepository_CreateAndGetPage(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	page := mustCreatePage(t, ctx, repo, tenantA, "home", "Home")
+	page := mustCreatePage(ctx, t, repo, tenantA, "home", "Home")
 
 	got, err := repo.GetPageByID(ctx, tenantA, page.ID)
 	if err != nil {
@@ -69,9 +69,9 @@ func TestRepository_CreateAndGetPage(t *testing.T) {
 
 func TestRepository_GetPageBySlug(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	page := mustCreatePage(t, ctx, repo, tenantA, "about", "About")
+	page := mustCreatePage(ctx, t, repo, tenantA, "about", "About")
 
 	got, err := repo.GetPageBySlug(ctx, tenantA, "about")
 	if err != nil {
@@ -84,10 +84,10 @@ func TestRepository_GetPageBySlug(t *testing.T) {
 
 func TestRepository_ListPagesPagination(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	mustCreatePage(t, ctx, repo, tenantA, "page-a", "Page A")
-	page2 := mustCreatePage(t, ctx, repo, tenantA, "page-b", "Page B")
+	mustCreatePage(ctx, t, repo, tenantA, "page-a", "Page A")
+	page2 := mustCreatePage(ctx, t, repo, tenantA, "page-b", "Page B")
 
 	page, next, err := repo.ListPages(ctx, tenantA, 1, "", ports.PageFilter{})
 	if err != nil {
@@ -111,10 +111,10 @@ func TestRepository_ListPagesPagination(t *testing.T) {
 
 func TestRepository_ListPagesWithFilter(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	mustCreatePage(t, ctx, repo, tenantA, "landing-a", "Landing A")
-	page := mustCreatePage(t, ctx, repo, tenantA, "landing-b", "Landing B")
+	mustCreatePage(ctx, t, repo, tenantA, "landing-a", "Landing A")
+	page := mustCreatePage(ctx, t, repo, tenantA, "landing-b", "Landing B")
 	layout := string(domain.PageLayoutLanding)
 	if _, err := page.ApplyUpdate(nil, nil, nil, nil, &layout); err != nil {
 		t.Fatalf("apply layout update: %v", err)
@@ -135,9 +135,9 @@ func TestRepository_ListPagesWithFilter(t *testing.T) {
 
 func TestRepository_UpdatePage(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	page := mustCreatePage(t, ctx, repo, tenantA, "home", "Home")
+	page := mustCreatePage(ctx, t, repo, tenantA, "home", "Home")
 	title := "Welcome"
 	if _, err := page.ApplyUpdate(nil, &title, nil, nil, nil); err != nil {
 		t.Fatalf("apply update: %v", err)
@@ -157,9 +157,9 @@ func TestRepository_UpdatePage(t *testing.T) {
 
 func TestRepository_DeletePage(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	page := mustCreatePage(t, ctx, repo, tenantA, "home", "Home")
+	page := mustCreatePage(ctx, t, repo, tenantA, "home", "Home")
 	if err := repo.DeletePage(ctx, tenantA, page.ID); err != nil {
 		t.Fatalf("delete page: %v", err)
 	}
@@ -170,13 +170,13 @@ func TestRepository_DeletePage(t *testing.T) {
 
 func TestRepository_SlugUniquenessPerTenant(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	mustCreatePage(t, ctx, repo, tenantA, "home", "Home A")
+	mustCreatePage(ctx, t, repo, tenantA, "home", "Home A")
 
 	// Same slug in a different tenant should succeed.
 	bCtx := withTenant(context.Background(), tenantB)
-	mustCreatePage(t, bCtx, repo, tenantB, "home", "Home B")
+	mustCreatePage(bCtx, t, repo, tenantB, "home", "Home B")
 
 	// Same slug in the same tenant should fail.
 	page, err := domain.NewPage(tenantA, "home", "Home Again")
@@ -195,10 +195,10 @@ func TestRepository_SlugUniquenessPerTenant(t *testing.T) {
 
 func TestRepository_TenantIsolationPages(t *testing.T) {
 	ctx := context.Background()
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	aCtx := withTenant(ctx, tenantA)
-	page := mustCreatePage(t, aCtx, repo, tenantA, "home", "Home")
+	page := mustCreatePage(aCtx, t, repo, tenantA, "home", "Home")
 
 	bCtx := withTenant(ctx, tenantB)
 	if _, err := repo.GetPageByID(bCtx, tenantB, page.ID); err == nil {
@@ -216,10 +216,10 @@ func TestRepository_TenantIsolationPages(t *testing.T) {
 
 func TestRepository_CreateAndGetSection(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	page := mustCreatePage(t, ctx, repo, tenantA, "home", "Home")
-	section := mustCreateSection(t, ctx, repo, tenantA, page.ID, domain.SectionTypeHero, 0)
+	page := mustCreatePage(ctx, t, repo, tenantA, "home", "Home")
+	section := mustCreateSection(ctx, t, repo, page.ID, domain.SectionTypeHero, 0)
 
 	got, err := repo.GetSectionByID(ctx, tenantA, section.ID)
 	if err != nil {
@@ -232,11 +232,11 @@ func TestRepository_CreateAndGetSection(t *testing.T) {
 
 func TestRepository_ListSections(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	page := mustCreatePage(t, ctx, repo, tenantA, "home", "Home")
-	mustCreateSection(t, ctx, repo, tenantA, page.ID, domain.SectionTypeHero, 0)
-	section2 := mustCreateSection(t, ctx, repo, tenantA, page.ID, domain.SectionTypeText, 1)
+	page := mustCreatePage(ctx, t, repo, tenantA, "home", "Home")
+	mustCreateSection(ctx, t, repo, page.ID, domain.SectionTypeHero, 0)
+	section2 := mustCreateSection(ctx, t, repo, page.ID, domain.SectionTypeText, 1)
 
 	filter := ports.SectionFilter{Type: ptr(string(domain.SectionTypeText))}
 	list, _, err := repo.ListSections(ctx, tenantA, page.ID, 10, "", filter)
@@ -250,11 +250,11 @@ func TestRepository_ListSections(t *testing.T) {
 
 func TestRepository_ListSectionsPagination(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	page := mustCreatePage(t, ctx, repo, tenantA, "home", "Home")
-	mustCreateSection(t, ctx, repo, tenantA, page.ID, domain.SectionTypeHero, 0)
-	section2 := mustCreateSection(t, ctx, repo, tenantA, page.ID, domain.SectionTypeText, 1)
+	page := mustCreatePage(ctx, t, repo, tenantA, "home", "Home")
+	mustCreateSection(ctx, t, repo, page.ID, domain.SectionTypeHero, 0)
+	section2 := mustCreateSection(ctx, t, repo, page.ID, domain.SectionTypeText, 1)
 
 	list, next, err := repo.ListSections(ctx, tenantA, page.ID, 1, "", ports.SectionFilter{})
 	if err != nil {
@@ -278,10 +278,10 @@ func TestRepository_ListSectionsPagination(t *testing.T) {
 
 func TestRepository_UpdateSection(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	page := mustCreatePage(t, ctx, repo, tenantA, "home", "Home")
-	section := mustCreateSection(t, ctx, repo, tenantA, page.ID, domain.SectionTypeHero, 0)
+	page := mustCreatePage(ctx, t, repo, tenantA, "home", "Home")
+	section := mustCreateSection(ctx, t, repo, page.ID, domain.SectionTypeHero, 0)
 
 	sectionType := domain.SectionTypeText
 	content := domain.Content{"body": "Updated"}
@@ -303,10 +303,10 @@ func TestRepository_UpdateSection(t *testing.T) {
 
 func TestRepository_DeleteSection(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	page := mustCreatePage(t, ctx, repo, tenantA, "home", "Home")
-	section := mustCreateSection(t, ctx, repo, tenantA, page.ID, domain.SectionTypeHero, 0)
+	page := mustCreatePage(ctx, t, repo, tenantA, "home", "Home")
+	section := mustCreateSection(ctx, t, repo, page.ID, domain.SectionTypeHero, 0)
 
 	if err := repo.DeleteSection(ctx, tenantA, section.ID); err != nil {
 		t.Fatalf("delete section: %v", err)
@@ -318,10 +318,10 @@ func TestRepository_DeleteSection(t *testing.T) {
 
 func TestRepository_DeletePageCascadesSections(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	page := mustCreatePage(t, ctx, repo, tenantA, "home", "Home")
-	section := mustCreateSection(t, ctx, repo, tenantA, page.ID, domain.SectionTypeHero, 0)
+	page := mustCreatePage(ctx, t, repo, tenantA, "home", "Home")
+	section := mustCreateSection(ctx, t, repo, page.ID, domain.SectionTypeHero, 0)
 
 	if err := repo.DeletePage(ctx, tenantA, page.ID); err != nil {
 		t.Fatalf("delete page: %v", err)
@@ -333,11 +333,11 @@ func TestRepository_DeletePageCascadesSections(t *testing.T) {
 
 func TestRepository_TenantIsolationSections(t *testing.T) {
 	ctx := context.Background()
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	aCtx := withTenant(ctx, tenantA)
-	page := mustCreatePage(t, aCtx, repo, tenantA, "home", "Home")
-	section := mustCreateSection(t, aCtx, repo, tenantA, page.ID, domain.SectionTypeHero, 0)
+	page := mustCreatePage(aCtx, t, repo, tenantA, "home", "Home")
+	section := mustCreateSection(aCtx, t, repo, page.ID, domain.SectionTypeHero, 0)
 
 	bCtx := withTenant(ctx, tenantB)
 	if _, err := repo.GetSectionByID(bCtx, tenantB, section.ID); err == nil {

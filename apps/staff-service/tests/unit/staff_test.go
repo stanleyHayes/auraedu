@@ -85,7 +85,10 @@ func TestStaff_ApplyUpdate(t *testing.T) {
 }
 
 func TestStaff_InvalidStatus(t *testing.T) {
-	e, _ := domain.NewStaff("tenant-1", "Kwame", "Nkrumah", "teacher")
+	e, err := domain.NewStaff("tenant-1", "Kwame", "Nkrumah", "teacher")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	e.Status = "unknown"
 	if err := e.Validate(); err == nil {
 		t.Fatal("expected error for invalid status")
@@ -93,7 +96,10 @@ func TestStaff_InvalidStatus(t *testing.T) {
 }
 
 func TestStaff_InvalidStaffType(t *testing.T) {
-	e, _ := domain.NewStaff("tenant-1", "Kwame", "Nkrumah", "teacher")
+	e, err := domain.NewStaff("tenant-1", "Kwame", "Nkrumah", "teacher")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	e.StaffType = "robot"
 	if err := e.Validate(); err == nil {
 		t.Fatal("expected error for invalid staff_type")
@@ -102,7 +108,10 @@ func TestStaff_InvalidStaffType(t *testing.T) {
 
 func TestStaff_InvalidEmail(t *testing.T) {
 	bad := "not-an-email"
-	e, _ := domain.NewStaff("tenant-1", "Kwame", "Nkrumah", "teacher")
+	e, err := domain.NewStaff("tenant-1", "Kwame", "Nkrumah", "teacher")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	e.Email = &bad
 	if err := e.Validate(); err == nil {
 		t.Fatal("expected error for invalid email")
@@ -110,7 +119,10 @@ func TestStaff_InvalidEmail(t *testing.T) {
 }
 
 func TestStaff_ActivateDeactivate(t *testing.T) {
-	e, _ := domain.NewStaff("tenant-1", "Kwame", "Nkrumah", "teacher")
+	e, err := domain.NewStaff("tenant-1", "Kwame", "Nkrumah", "teacher")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	e.Deactivate()
 	if e.Status != string(domain.StatusInactive) {
 		t.Fatalf("expected inactive, got %q", e.Status)

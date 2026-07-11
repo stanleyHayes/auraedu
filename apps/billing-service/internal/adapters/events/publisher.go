@@ -1,3 +1,4 @@
+// Package events adapts the platform eventbus to the billing service publisher port.
 package events
 
 import (

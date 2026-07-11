@@ -13,7 +13,10 @@ const nav = [
 
 function Logo() {
   return (
-    <Link href="/" className="flex items-center gap-2.5 font-display text-xl font-extrabold tracking-tight">
+    <Link
+      href="/"
+      className="flex items-center gap-2.5 font-display text-xl font-extrabold tracking-tight"
+    >
       <span className="grid size-6 place-items-center rounded-md bg-foreground" aria-hidden="true">
         <svg viewBox="0 0 16 12" className="w-3.5 text-primary">
           <path

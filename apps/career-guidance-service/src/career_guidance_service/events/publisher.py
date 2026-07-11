@@ -14,12 +14,10 @@ if TYPE_CHECKING:
 
 async def publish_guidance(
     tenant_id: str,
-    actor_user_id: str | None,
-    guidance_items: list["Guidance"],
+    _actor_user_id: str | None,
+    guidance_items: list[Guidance],
 ) -> None:
     transport = await get_transport()
-    if transport is None:
-        return
 
     now = datetime.now(UTC).isoformat()
     for item in guidance_items:

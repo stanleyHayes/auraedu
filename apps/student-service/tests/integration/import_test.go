@@ -9,7 +9,7 @@ import (
 
 func TestService_ImportStudents(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	svc, _ := newService(t)
+	svc := newService(t)
 	actor := actorWith(application.PermCreate, application.PermRead)
 
 	result, err := svc.ImportStudents(ctx, actor, []application.ImportStudentRow{

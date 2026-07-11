@@ -22,14 +22,12 @@ const ay1 = "cccccccc-cccc-cccc-cccc-cccccccccccc"
 const ay2 = "dddddddd-dddd-dddd-dddd-dddddddddddd"
 const studentA = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 const studentB = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
-const template1 = "77777777-7777-7777-7777-777777777777"
-const template2 = "88888888-8888-8888-8888-888888888888"
 
-func newRepo(t *testing.T) (ports.Repository, *testkit.PostgresTestDB) {
+func newRepo(t *testing.T) ports.Repository {
 	t.Helper()
 	ctx := context.Background()
 	tdb := testkit.NewPostgres(ctx, t, "../../migrations")
-	return postgres.NewRepository(tdb.DB), tdb
+	return postgres.NewRepository(tdb.DB)
 }
 
 func withTenant(ctx context.Context, tenantID string) context.Context {
@@ -40,25 +38,25 @@ func actorWithPerms(tenantID string, perms ...string) auth.Actor {
 	return auth.Actor{UserID: "user-1", TenantID: tenantID, Permissions: perms}
 }
 
-func mustCreateTemplate(t *testing.T, ctx context.Context, repo ports.Repository, tenantID, name, academicYearID string) *domain.ReportTemplate {
+func mustCreateTemplate(ctx context.Context, t *testing.T, repo ports.Repository, name, academicYearID string) *domain.ReportTemplate {
 	t.Helper()
-	tmpl, err := domain.NewReportTemplate(tenantID, name, academicYearID, "# "+name)
+	tmpl, err := domain.NewReportTemplate(tenantA, name, academicYearID, "# "+name)
 	if err != nil {
 		t.Fatalf("new report template: %v", err)
 	}
-	if err := repo.CreateReportTemplate(ctx, tenantID, tmpl); err != nil {
+	if err := repo.CreateReportTemplate(ctx, tenantA, tmpl); err != nil {
 		t.Fatalf("create report template: %v", err)
 	}
 	return tmpl
 }
 
-func mustCreateCard(t *testing.T, ctx context.Context, repo ports.Repository, tenantID, studentID, academicYearID, templateID string) *domain.ReportCard {
+func mustCreateCard(ctx context.Context, t *testing.T, repo ports.Repository, studentID, templateID string) *domain.ReportCard {
 	t.Helper()
-	card, err := domain.NewReportCard(tenantID, studentID, academicYearID, templateID)
+	card, err := domain.NewReportCard(tenantA, studentID, ay1, templateID)
 	if err != nil {
 		t.Fatalf("new report card: %v", err)
 	}
-	if err := repo.CreateReportCard(ctx, tenantID, card); err != nil {
+	if err := repo.CreateReportCard(ctx, tenantA, card); err != nil {
 		t.Fatalf("create report card: %v", err)
 	}
 	return card
@@ -66,9 +64,9 @@ func mustCreateCard(t *testing.T, ctx context.Context, repo ports.Repository, te
 
 func TestRepository_CreateAndGetReportTemplate(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	tmpl := mustCreateTemplate(t, ctx, repo, tenantA, "Midterm", ay1)
+	tmpl := mustCreateTemplate(ctx, t, repo, "Midterm", ay1)
 
 	got, err := repo.GetReportTemplateByID(ctx, tenantA, tmpl.ID)
 	if err != nil {
@@ -81,10 +79,10 @@ func TestRepository_CreateAndGetReportTemplate(t *testing.T) {
 
 func TestRepository_ListReportTemplatePagination(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	mustCreateTemplate(t, ctx, repo, tenantA, "Q1", ay1)
-	t2 := mustCreateTemplate(t, ctx, repo, tenantA, "Q2", ay1)
+	mustCreateTemplate(ctx, t, repo, "Q1", ay1)
+	t2 := mustCreateTemplate(ctx, t, repo, "Q2", ay1)
 
 	page, next, err := repo.ListReportTemplates(ctx, tenantA, ports.ReportTemplateListFilter{Limit: 1})
 	if err != nil {
@@ -108,10 +106,10 @@ func TestRepository_ListReportTemplatePagination(t *testing.T) {
 
 func TestRepository_ListReportTemplateFilters(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	mustCreateTemplate(t, ctx, repo, tenantA, "Q1", ay1)
-	mustCreateTemplate(t, ctx, repo, tenantA, "Q2", ay2)
+	mustCreateTemplate(ctx, t, repo, "Q1", ay1)
+	mustCreateTemplate(ctx, t, repo, "Q2", ay2)
 
 	cases := []struct {
 		name   string
@@ -138,9 +136,9 @@ func TestRepository_ListReportTemplateFilters(t *testing.T) {
 
 func TestRepository_UpdateReportTemplate(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	tmpl := mustCreateTemplate(t, ctx, repo, tenantA, "Midterm", ay1)
+	tmpl := mustCreateTemplate(ctx, t, repo, "Midterm", ay1)
 	name := "Final"
 	if _, err := tmpl.ApplyUpdate(&name, nil, nil, nil); err != nil {
 		t.Fatalf("apply update: %v", err)
@@ -160,9 +158,9 @@ func TestRepository_UpdateReportTemplate(t *testing.T) {
 
 func TestRepository_DeleteReportTemplate(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	tmpl := mustCreateTemplate(t, ctx, repo, tenantA, "Midterm", ay1)
+	tmpl := mustCreateTemplate(ctx, t, repo, "Midterm", ay1)
 	if err := repo.DeleteReportTemplate(ctx, tenantA, tmpl.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
@@ -173,10 +171,10 @@ func TestRepository_DeleteReportTemplate(t *testing.T) {
 
 func TestRepository_CreateAndGetReportCard(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	tmpl := mustCreateTemplate(t, ctx, repo, tenantA, "Midterm", ay1)
-	card := mustCreateCard(t, ctx, repo, tenantA, studentA, ay1, tmpl.ID)
+	tmpl := mustCreateTemplate(ctx, t, repo, "Midterm", ay1)
+	card := mustCreateCard(ctx, t, repo, studentA, tmpl.ID)
 
 	got, err := repo.GetReportCardByID(ctx, tenantA, card.ID)
 	if err != nil {
@@ -189,11 +187,11 @@ func TestRepository_CreateAndGetReportCard(t *testing.T) {
 
 func TestRepository_ListReportCardsFilter(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	tmpl := mustCreateTemplate(t, ctx, repo, tenantA, "Midterm", ay1)
-	mustCreateCard(t, ctx, repo, tenantA, studentA, ay1, tmpl.ID)
-	mustCreateCard(t, ctx, repo, tenantA, studentB, ay1, tmpl.ID)
+	tmpl := mustCreateTemplate(ctx, t, repo, "Midterm", ay1)
+	mustCreateCard(ctx, t, repo, studentA, tmpl.ID)
+	mustCreateCard(ctx, t, repo, studentB, tmpl.ID)
 
 	page, _, err := repo.ListReportCards(ctx, tenantA, ports.ReportCardListFilter{Limit: 10, StudentID: studentA})
 	if err != nil {
@@ -206,10 +204,10 @@ func TestRepository_ListReportCardsFilter(t *testing.T) {
 
 func TestRepository_UpdateReportCard(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	tmpl := mustCreateTemplate(t, ctx, repo, tenantA, "Midterm", ay1)
-	card := mustCreateCard(t, ctx, repo, tenantA, studentA, ay1, tmpl.ID)
+	tmpl := mustCreateTemplate(ctx, t, repo, "Midterm", ay1)
+	card := mustCreateCard(ctx, t, repo, studentA, tmpl.ID)
 	student := studentB
 	if _, err := card.ApplyUpdate(&student, nil, nil, nil); err != nil {
 		t.Fatalf("apply update: %v", err)
@@ -229,10 +227,10 @@ func TestRepository_UpdateReportCard(t *testing.T) {
 
 func TestRepository_DeleteReportCard(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
-	tmpl := mustCreateTemplate(t, ctx, repo, tenantA, "Midterm", ay1)
-	card := mustCreateCard(t, ctx, repo, tenantA, studentA, ay1, tmpl.ID)
+	tmpl := mustCreateTemplate(ctx, t, repo, "Midterm", ay1)
+	card := mustCreateCard(ctx, t, repo, studentA, tmpl.ID)
 	if err := repo.DeleteReportCard(ctx, tenantA, card.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
@@ -243,10 +241,10 @@ func TestRepository_DeleteReportCard(t *testing.T) {
 
 func TestRepository_TenantIsolation_ReportTemplates(t *testing.T) {
 	ctx := context.Background()
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	aCtx := withTenant(ctx, tenantA)
-	tmpl := mustCreateTemplate(t, aCtx, repo, tenantA, "Midterm", ay1)
+	tmpl := mustCreateTemplate(aCtx, t, repo, "Midterm", ay1)
 
 	bCtx := withTenant(ctx, tenantB)
 	if _, err := repo.GetReportTemplateByID(bCtx, tenantB, tmpl.ID); err == nil {
@@ -264,11 +262,11 @@ func TestRepository_TenantIsolation_ReportTemplates(t *testing.T) {
 
 func TestRepository_TenantIsolation_ReportCards(t *testing.T) {
 	ctx := context.Background()
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	aCtx := withTenant(ctx, tenantA)
-	tmpl := mustCreateTemplate(t, aCtx, repo, tenantA, "Midterm", ay1)
-	card := mustCreateCard(t, aCtx, repo, tenantA, studentA, ay1, tmpl.ID)
+	tmpl := mustCreateTemplate(aCtx, t, repo, "Midterm", ay1)
+	card := mustCreateCard(aCtx, t, repo, studentA, tmpl.ID)
 
 	bCtx := withTenant(ctx, tenantB)
 	if _, err := repo.GetReportCardByID(bCtx, tenantB, card.ID); err == nil {
@@ -286,7 +284,7 @@ func TestRepository_TenantIsolation_ReportCards(t *testing.T) {
 
 func TestService_FeatureFlagGatesAccess(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantB)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantB, application.FeatureReportCards, false)
@@ -306,7 +304,7 @@ func TestService_FeatureFlagGatesAccess(t *testing.T) {
 
 func TestService_FeatureFlagAllowsAccessWhenEnabled(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantA, application.FeatureReportCards, true)
@@ -329,7 +327,7 @@ func TestService_FeatureFlagAllowsAccessWhenEnabled(t *testing.T) {
 
 func TestService_GenerateReportCardRoundtrip(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	repo, _ := newRepo(t)
+	repo := newRepo(t)
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantA, application.FeatureReportCards, true)

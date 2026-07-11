@@ -1,9 +1,11 @@
+// Package application implements the CBT use cases and RBAC policy.
 package application
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -99,7 +101,9 @@ func (s *Service) CreateQuestion(ctx context.Context, actor auth.Actor, req Crea
 	if err := s.repo.CreateQuestion(ctx, tenantID, q); err != nil {
 		return nil, err
 	}
-	_ = s.pub.PublishQuestionBank(ctx, "cbt.question_created.v1", q, nil)
+	if err := s.pub.PublishQuestionBank(ctx, "cbt.question_created.v1", q, nil); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish question created event", "err", err)
+	}
 	return q, nil
 }
 
@@ -145,7 +149,9 @@ func (s *Service) UpdateQuestion(ctx context.Context, actor auth.Actor, id strin
 	if err := s.repo.UpdateQuestion(ctx, tenantID, q); err != nil {
 		return nil, err
 	}
-	_ = s.pub.PublishQuestionBank(ctx, "cbt.question_updated.v1", q, map[string]any{"changed_fields": changed})
+	if err := s.pub.PublishQuestionBank(ctx, "cbt.question_updated.v1", q, map[string]any{"changed_fields": changed}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish question updated event", "err", err)
+	}
 	return q, nil
 }
 
@@ -162,7 +168,9 @@ func (s *Service) DeleteQuestion(ctx context.Context, actor auth.Actor, id strin
 	if err := s.repo.DeleteQuestion(ctx, tenantID, id); err != nil {
 		return err
 	}
-	_ = s.pub.PublishQuestionBank(ctx, "cbt.question_deleted.v1", q, nil)
+	if err := s.pub.PublishQuestionBank(ctx, "cbt.question_deleted.v1", q, nil); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish question deleted event", "err", err)
+	}
 	return nil
 }
 
@@ -205,7 +213,9 @@ func (s *Service) CreateExamSession(ctx context.Context, actor auth.Actor, req C
 	if err := s.repo.CreateExamSession(ctx, tenantID, e); err != nil {
 		return nil, err
 	}
-	_ = s.pub.PublishExamSession(ctx, "cbt.exam_created.v1", e, nil)
+	if err := s.pub.PublishExamSession(ctx, "cbt.exam_created.v1", e, nil); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish exam created event", "err", err)
+	}
 	return e, nil
 }
 
@@ -256,7 +266,9 @@ func (s *Service) UpdateExamSession(ctx context.Context, actor auth.Actor, id st
 	if err := s.repo.UpdateExamSession(ctx, tenantID, e); err != nil {
 		return nil, err
 	}
-	_ = s.pub.PublishExamSession(ctx, "cbt.exam_updated.v1", e, map[string]any{"changed_fields": changed})
+	if err := s.pub.PublishExamSession(ctx, "cbt.exam_updated.v1", e, map[string]any{"changed_fields": changed}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish exam updated event", "err", err)
+	}
 	return e, nil
 }
 
@@ -273,7 +285,9 @@ func (s *Service) DeleteExamSession(ctx context.Context, actor auth.Actor, id st
 	if err := s.repo.DeleteExamSession(ctx, tenantID, id); err != nil {
 		return err
 	}
-	_ = s.pub.PublishExamSession(ctx, "cbt.exam_deleted.v1", e, nil)
+	if err := s.pub.PublishExamSession(ctx, "cbt.exam_deleted.v1", e, nil); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish exam deleted event", "err", err)
+	}
 	return nil
 }
 
@@ -335,7 +349,9 @@ func (s *Service) SubmitAnswers(ctx context.Context, actor auth.Actor, submissio
 	if err := s.repo.UpdateSubmission(ctx, tenantID, sub); err != nil {
 		return nil, err
 	}
-	_ = s.pub.PublishSubmission(ctx, "cbt.exam_submitted.v1", sub, nil)
+	if err := s.pub.PublishSubmission(ctx, "cbt.exam_submitted.v1", sub, nil); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish exam submitted event", "err", err)
+	}
 	return sub, nil
 }
 
@@ -369,7 +385,9 @@ func (s *Service) GradeSubmission(ctx context.Context, actor auth.Actor, submiss
 	if err := s.repo.UpdateSubmission(ctx, tenantID, sub); err != nil {
 		return nil, err
 	}
-	_ = s.pub.PublishSubmission(ctx, "cbt.graded.v1", sub, nil)
+	if err := s.pub.PublishSubmission(ctx, "cbt.graded.v1", sub, nil); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish graded event", "err", err)
+	}
 	return sub, nil
 }
 

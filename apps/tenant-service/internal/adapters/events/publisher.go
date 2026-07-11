@@ -18,7 +18,7 @@ type Publisher struct {
 	logger *slog.Logger
 }
 
-func NewPublisher(ctx context.Context, logger *slog.Logger) (ports.EventPublisher, error) {
+func NewPublisher(_ context.Context, logger *slog.Logger) (ports.EventPublisher, error) {
 	if natsURL := config.Getenv("NATS_URL", ""); natsURL != "" {
 		nc, err := nats.Connect(natsURL)
 		if err != nil {
@@ -29,7 +29,7 @@ func NewPublisher(ctx context.Context, logger *slog.Logger) (ports.EventPublishe
 	return &Publisher{logger: logger}, nil
 }
 
-func (p *Publisher) Publish(ctx context.Context, eventType, tenantCode string, payload map[string]any) error {
+func (p *Publisher) Publish(_ context.Context, eventType, tenantCode string, payload map[string]any) error {
 	body, err := json.Marshal(map[string]any{
 		"specversion": "1.0",
 		"type":        eventType,
@@ -59,7 +59,7 @@ type RecordingPublisher struct {
 
 func NewRecordingPublisher() *RecordingPublisher { return &RecordingPublisher{} }
 
-func (r *RecordingPublisher) Publish(ctx context.Context, eventType, tenantCode string, payload map[string]any) error {
+func (r *RecordingPublisher) Publish(_ context.Context, eventType, tenantCode string, payload map[string]any) error {
 	r.Events = append(r.Events, struct {
 		Type       string
 		TenantCode string

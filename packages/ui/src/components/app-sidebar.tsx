@@ -31,7 +31,14 @@ function isActive(pathname: string, href: string): boolean {
 function Tick({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 16 12" className={className} aria-hidden="true">
-      <path d="M1 6.5 5.2 10.5 15 1" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M1 6.5 5.2 10.5 15 1"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2.4}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -43,7 +50,10 @@ function Connector({ last, active }: { last: boolean; active: boolean }) {
       viewBox="0 0 24 40"
       preserveAspectRatio="none"
       aria-hidden="true"
-      className={cn("absolute left-[18px] top-0 h-full w-5 transition-colors", active ? "text-[var(--primary)]" : "text-[var(--border)]")}
+      className={cn(
+        "absolute left-[18px] top-0 h-full w-5 transition-colors",
+        active ? "text-[var(--primary)]" : "text-[var(--border)]",
+      )}
     >
       <path
         d={last ? "M7 0 V17 Q7 23 13 23 H24" : "M7 0 V40 M7 23 Q7 23 13 23 H24"}
@@ -86,7 +96,13 @@ export function AppSidebar({ brand, groups, pathname, onNavigate, className }: A
   }, []);
 
   return (
-    <aside className={cn("flex w-60 flex-col overflow-y-auto border-r border-border bg-[var(--muted)]", className)} aria-label="Primary">
+    <aside
+      className={cn(
+        "flex w-60 flex-col overflow-y-auto border-r border-border bg-[var(--muted)]",
+        className,
+      )}
+      aria-label="Primary"
+    >
       <div className="px-4 pb-3 pt-4">{brand}</div>
       <nav className="pb-4">
         {groups.map((group) => {
@@ -103,7 +119,14 @@ export function AppSidebar({ brand, groups, pathname, onNavigate, className }: A
                 className="flex w-full items-center justify-between px-[18px] py-1.5 font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
               >
                 {group.heading}
-                <svg viewBox="0 0 24 24" className={cn("size-3 transition-transform", !isOpen && "-rotate-90")} fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round">
+                <svg
+                  viewBox="0 0 24 24"
+                  className={cn("size-3 transition-transform", !isOpen && "-rotate-90")}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2.4}
+                  strokeLinecap="round"
+                >
                   <path d="M6 9l6 6 6-6" />
                 </svg>
               </button>
@@ -125,14 +148,23 @@ export function AppSidebar({ brand, groups, pathname, onNavigate, className }: A
                         aria-current={active ? "page" : undefined}
                         className={cn(
                           "relative flex h-[38px] items-center gap-2 pl-10 pr-3.5 text-[13.5px] transition-colors",
-                          active ? "font-semibold text-[var(--primary)]" : "text-muted-foreground hover:text-foreground",
+                          active
+                            ? "font-semibold text-[var(--primary)]"
+                            : "text-muted-foreground hover:text-foreground",
                         )}
                       >
                         <Connector last={i === group.items.length - 1} active={active} />
-                        {active ? <span aria-hidden="true" className="absolute bottom-2 left-0 top-2 w-[3px] rounded-r bg-[var(--primary)]" /> : null}
+                        {active ? (
+                          <span
+                            aria-hidden="true"
+                            className="absolute bottom-2 left-0 top-2 w-[3px] rounded-r bg-[var(--primary)]"
+                          />
+                        ) : null}
                         <span className="truncate">{item.label}</span>
                         {item.badge ? (
-                          <span className="ml-auto rounded-full bg-[var(--color-crit)] px-1.5 font-mono text-[10px] text-white">{item.badge}</span>
+                          <span className="ml-auto rounded-full bg-[var(--color-crit)] px-1.5 font-mono text-[10px] text-white">
+                            {item.badge}
+                          </span>
                         ) : active ? (
                           <Tick className="ml-auto w-3.5 text-[var(--primary)]" />
                         ) : null}

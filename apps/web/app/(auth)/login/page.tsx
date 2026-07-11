@@ -41,7 +41,7 @@ export default function LoginPage() {
     setLoading(true);
 
     const form = new FormData(e.currentTarget);
-    const username = String(form.get("username") ?? "admin");
+    const username = String((form.get("username") as string | null) ?? "admin");
 
     await new Promise((resolve) => setTimeout(resolve, 800));
 
@@ -70,7 +70,7 @@ export default function LoginPage() {
         title="Welcome back"
         description="Sign in with the username and password from your school administrator."
       />
-      <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+      <form onSubmit={(e) => void handleSubmit(e)} className="mt-8 space-y-4">
         <div>
           <label htmlFor="username" className="mb-1.5 block text-sm font-medium">
             Username

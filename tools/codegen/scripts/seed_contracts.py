@@ -6,10 +6,12 @@ Run from the repo root:
 
 Existing files are never overwritten.
 """
+
 from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[3]
 OPENAPI_DIR = ROOT / "contracts" / "openapi"
@@ -150,24 +152,34 @@ def op(
     for p in all_params:
         lines.append(f"        - {p}")
     if request:
-        lines.extend([
-            "      requestBody:",
-            "        required: true",
-            "        content:",
-            "          application/json:",
-            f"            schema: {{ $ref: '#/components/schemas/{request}' }}",
-        ])
+        lines.extend(
+            [
+                "      requestBody:",
+                "        required: true",
+                "        content:",
+                "          application/json:",
+                f"            schema: {{ $ref: '#/components/schemas/{request}' }}",
+            ]
+        )
     lines.append("      responses:")
     if response:
         lines.append(f"        '{response_code}':")
-        lines.append("          description: OK" if response_code.startswith("2") else "          description: Accepted")
+        lines.append(
+            "          description: OK"
+            if response_code.startswith("2")
+            else "          description: Accepted"
+        )
         lines.append("          content:")
         lines.append("            application/json:")
         lines.append(f"              schema: {{ $ref: '#/components/schemas/{response}' }}")
     else:
         lines.append(f"        '{response_code}':")
         lines.append("          description: No content")
-    for r in (["'403': { $ref: '#/components/responses/Forbidden' }", "'404': { $ref: '#/components/responses/NotFound' }", "'422': { $ref: '#/components/responses/ValidationError' }"] + (extra_responses or [])):
+    for r in [
+        "'403': { $ref: '#/components/responses/Forbidden' }",
+        "'404': { $ref: '#/components/responses/NotFound' }",
+        "'422': { $ref: '#/components/responses/ValidationError' }",
+    ] + (extra_responses or []):
         lines.append(f"        {r}")
     lines.append("        '401': { $ref: '#/components/responses/Unauthorized' }")
     if no_auth:
@@ -188,32 +200,147 @@ def schema(name: str, body: str) -> str:
     return f"{name}:\n{indent(body, width=4)}"
 
 
-OPENAPI_SPECS: list[dict] = [
+OPENAPI_SPECS: list[dict[str, Any]] = [
     {
         "key": "identity",
         "title": "AuraEDU Identity Service API",
         "description": "Authentication, users, roles, and sessions (spec \\u00a77). Owned by lane L1 (EP-04).",
         "tags": ["auth", "users", "roles", "sessions"],
         "paths": [
-            ("/auth/login", op("post", "login", "Exchange credentials for JWT tokens", ["auth"], request="LoginRequest", response="TokenPair", no_auth=True)),
-            ("/auth/refresh", op("post", "refreshToken", "Rotate access token using refresh token", ["auth"], request="RefreshRequest", response="TokenPair", no_auth=True)),
-            ("/auth/sessions/{session_id}", op("delete", "revokeSession", "Revoke a session", ["sessions"], params=["$ref: '#/components/parameters/TenantId'"], response_code="204")),
-            ("/users", op("get", "listUsers", "List users for the tenant", ["users"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="UserList")),
-            ("/users", op("post", "createUser", "Create a user in the tenant", ["users"], request="CreateUser", response="User", response_code="201")),
-            ("/users/{user_id}", op("get", "getUser", "Get a user", ["users"], params=["$ref: '#/components/parameters/TenantId'"], response="User")),
-            ("/users/{user_id}", op("patch", "updateUser", "Update a user", ["users"], params=["$ref: '#/components/parameters/TenantId'"], request="UpdateUser", response="User")),
-            ("/users/{user_id}/roles", op("post", "assignRole", "Assign a role to a user", ["users", "roles"], params=["$ref: '#/components/parameters/TenantId'"], request="RoleAssignment", response="User")),
-            ("/roles", op("get", "listRoles", "List available roles", ["roles"], response="RoleList")),
+            (
+                "/auth/login",
+                op(
+                    "post",
+                    "login",
+                    "Exchange credentials for JWT tokens",
+                    ["auth"],
+                    request="LoginRequest",
+                    response="TokenPair",
+                    no_auth=True,
+                ),
+            ),
+            (
+                "/auth/refresh",
+                op(
+                    "post",
+                    "refreshToken",
+                    "Rotate access token using refresh token",
+                    ["auth"],
+                    request="RefreshRequest",
+                    response="TokenPair",
+                    no_auth=True,
+                ),
+            ),
+            (
+                "/auth/sessions/{session_id}",
+                op(
+                    "delete",
+                    "revokeSession",
+                    "Revoke a session",
+                    ["sessions"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    response_code="204",
+                ),
+            ),
+            (
+                "/users",
+                op(
+                    "get",
+                    "listUsers",
+                    "List users for the tenant",
+                    ["users"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="UserList",
+                ),
+            ),
+            (
+                "/users",
+                op(
+                    "post",
+                    "createUser",
+                    "Create a user in the tenant",
+                    ["users"],
+                    request="CreateUser",
+                    response="User",
+                    response_code="201",
+                ),
+            ),
+            (
+                "/users/{user_id}",
+                op(
+                    "get",
+                    "getUser",
+                    "Get a user",
+                    ["users"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    response="User",
+                ),
+            ),
+            (
+                "/users/{user_id}",
+                op(
+                    "patch",
+                    "updateUser",
+                    "Update a user",
+                    ["users"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    request="UpdateUser",
+                    response="User",
+                ),
+            ),
+            (
+                "/users/{user_id}/roles",
+                op(
+                    "post",
+                    "assignRole",
+                    "Assign a role to a user",
+                    ["users", "roles"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    request="RoleAssignment",
+                    response="User",
+                ),
+            ),
+            (
+                "/roles",
+                op("get", "listRoles", "List available roles", ["roles"], response="RoleList"),
+            ),
         ],
         "schemas": [
-            schema("LoginRequest", "type: object\nrequired: [identifier, password]\nproperties:\n  identifier: { type: string }\n  password: { type: string, format: password }"),
-            schema("RefreshRequest", "type: object\nrequired: [refresh_token]\nproperties:\n  refresh_token: { type: string }"),
-            schema("TokenPair", "type: object\nrequired: [access_token, refresh_token, expires_in]\nproperties:\n  access_token: { type: string }\n  refresh_token: { type: string }\n  expires_in: { type: integer }\n  token_type: { type: string, default: Bearer }"),
-            schema("User", "type: object\nrequired: [id, tenant_id, email, role, status]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  email: { type: string, format: email }\n  username: { type: [string, 'null'] }\n  role: { type: string }\n  status: { type: string, enum: [active, suspended, pending] }\n  created_at: { type: string, format: date-time }\n  updated_at: { type: string, format: date-time }"),
-            schema("CreateUser", "type: object\nrequired: [email, role]\nproperties:\n  email: { type: string, format: email }\n  username: { type: [string, 'null'] }\n  role: { type: string }\n  password: { type: string, format: password }"),
-            schema("UpdateUser", "type: object\nproperties:\n  email: { type: string, format: email }\n  username: { type: [string, 'null'] }\n  role: { type: string }\n  status: { type: string, enum: [active, suspended, pending] }"),
-            schema("RoleAssignment", "type: object\nrequired: [role]\nproperties:\n  role: { type: string }\n  permissions: { type: array, items: { type: string } }"),
-            schema("Role", "type: object\nrequired: [key, name]\nproperties:\n  key: { type: string }\n  name: { type: string }\n  permissions: { type: array, items: { type: string } }"),
+            schema(
+                "LoginRequest",
+                "type: object\nrequired: [identifier, password]\nproperties:\n  identifier: { type: string }\n  password: { type: string, format: password }",
+            ),
+            schema(
+                "RefreshRequest",
+                "type: object\nrequired: [refresh_token]\nproperties:\n  refresh_token: { type: string }",
+            ),
+            schema(
+                "TokenPair",
+                "type: object\nrequired: [access_token, refresh_token, expires_in]\nproperties:\n  access_token: { type: string }\n  refresh_token: { type: string }\n  expires_in: { type: integer }\n  token_type: { type: string, default: Bearer }",
+            ),
+            schema(
+                "User",
+                "type: object\nrequired: [id, tenant_id, email, role, status]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  email: { type: string, format: email }\n  username: { type: [string, 'null'] }\n  role: { type: string }\n  status: { type: string, enum: [active, suspended, pending] }\n  created_at: { type: string, format: date-time }\n  updated_at: { type: string, format: date-time }",
+            ),
+            schema(
+                "CreateUser",
+                "type: object\nrequired: [email, role]\nproperties:\n  email: { type: string, format: email }\n  username: { type: [string, 'null'] }\n  role: { type: string }\n  password: { type: string, format: password }",
+            ),
+            schema(
+                "UpdateUser",
+                "type: object\nproperties:\n  email: { type: string, format: email }\n  username: { type: [string, 'null'] }\n  role: { type: string }\n  status: { type: string, enum: [active, suspended, pending] }",
+            ),
+            schema(
+                "RoleAssignment",
+                "type: object\nrequired: [role]\nproperties:\n  role: { type: string }\n  permissions: { type: array, items: { type: string } }",
+            ),
+            schema(
+                "Role",
+                "type: object\nrequired: [key, name]\nproperties:\n  key: { type: string }\n  name: { type: string }\n  permissions: { type: array, items: { type: string } }",
+            ),
             schema("UserList", res("User", is_array=True)),
             schema("RoleList", res("Role", is_array=True)),
         ],
@@ -226,13 +353,46 @@ OPENAPI_SPECS: list[dict] = [
         "paths": [
             ("/health", op("get", "healthCheck", "Gateway health", ["health"], response="Health")),
             ("/ready", op("get", "readyCheck", "Gateway readiness", ["health"], response="Health")),
-            ("/routes", op("get", "listRoutes", "List configured upstream routes", ["routes"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="RouteList")),
-            ("/routes", op("post", "createRoute", "Register an upstream route", ["routes"], request="CreateRoute", response="Route", response_code="201")),
+            (
+                "/routes",
+                op(
+                    "get",
+                    "listRoutes",
+                    "List configured upstream routes",
+                    ["routes"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="RouteList",
+                ),
+            ),
+            (
+                "/routes",
+                op(
+                    "post",
+                    "createRoute",
+                    "Register an upstream route",
+                    ["routes"],
+                    request="CreateRoute",
+                    response="Route",
+                    response_code="201",
+                ),
+            ),
         ],
         "schemas": [
-            schema("Health", "type: object\nrequired: [status]\nproperties:\n  status: { type: string, enum: [ok, degraded, down] }\n  checks: { type: object, additionalProperties: true }"),
-            schema("Route", "type: object\nrequired: [path_prefix, upstream]\nproperties:\n  path_prefix: { type: string }\n  upstream: { type: string }\n  strip_prefix: { type: boolean, default: true }\n  require_auth: { type: boolean, default: true }"),
-            schema("CreateRoute", "type: object\nrequired: [path_prefix, upstream]\nproperties:\n  path_prefix: { type: string }\n  upstream: { type: string }\n  strip_prefix: { type: boolean, default: true }\n  require_auth: { type: boolean, default: true }"),
+            schema(
+                "Health",
+                "type: object\nrequired: [status]\nproperties:\n  status: { type: string, enum: [ok, degraded, down] }\n  checks: { type: object, additionalProperties: true }",
+            ),
+            schema(
+                "Route",
+                "type: object\nrequired: [path_prefix, upstream]\nproperties:\n  path_prefix: { type: string }\n  upstream: { type: string }\n  strip_prefix: { type: boolean, default: true }\n  require_auth: { type: boolean, default: true }",
+            ),
+            schema(
+                "CreateRoute",
+                "type: object\nrequired: [path_prefix, upstream]\nproperties:\n  path_prefix: { type: string }\n  upstream: { type: string }\n  strip_prefix: { type: boolean, default: true }\n  require_auth: { type: boolean, default: true }",
+            ),
             schema("RouteList", res("Route", is_array=True)),
         ],
     },
@@ -242,23 +402,142 @@ OPENAPI_SPECS: list[dict] = [
         "description": "Students, guardians, and enrollment (spec \\u00a77). Owned by lane L2 (EP-10). Feature flag: student_management.",
         "tags": ["students", "guardians", "enrollments"],
         "paths": [
-            ("/students", op("get", "listStudents", "List students", ["students"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="StudentList")),
-            ("/students", op("post", "createStudent", "Create a student", ["students"], request="CreateStudent", response="Student", response_code="201")),
-            ("/students/{student_id}", op("get", "getStudent", "Get a student", ["students"], params=["$ref: '#/components/parameters/TenantId'"], response="Student")),
-            ("/students/{student_id}", op("patch", "updateStudent", "Update a student", ["students"], params=["$ref: '#/components/parameters/TenantId'"], request="UpdateStudent", response="Student")),
-            ("/students/{student_id}", op("delete", "deleteStudent", "Delete a student", ["students"], params=["$ref: '#/components/parameters/TenantId'"], response_code="204")),
-            ("/students/{student_id}/enrollments", op("get", "listEnrollments", "List student enrollments", ["enrollments"], params=["$ref: '#/components/parameters/TenantId'", "$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="EnrollmentList")),
-            ("/students/{student_id}/enrollments", op("post", "createEnrollment", "Enroll a student", ["enrollments"], params=["$ref: '#/components/parameters/TenantId'"], request="CreateEnrollment", response="Enrollment", response_code="201")),
-            ("/students/{student_id}/guardians", op("get", "listStudentGuardians", "List a student's guardians", ["guardians"], params=["$ref: '#/components/parameters/TenantId'"], response="GuardianList")),
-            ("/guardians/{guardian_id}", op("get", "getGuardian", "Get a guardian", ["guardians"], params=["$ref: '#/components/parameters/TenantId'"], response="Guardian")),
+            (
+                "/students",
+                op(
+                    "get",
+                    "listStudents",
+                    "List students",
+                    ["students"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="StudentList",
+                ),
+            ),
+            (
+                "/students",
+                op(
+                    "post",
+                    "createStudent",
+                    "Create a student",
+                    ["students"],
+                    request="CreateStudent",
+                    response="Student",
+                    response_code="201",
+                ),
+            ),
+            (
+                "/students/{student_id}",
+                op(
+                    "get",
+                    "getStudent",
+                    "Get a student",
+                    ["students"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    response="Student",
+                ),
+            ),
+            (
+                "/students/{student_id}",
+                op(
+                    "patch",
+                    "updateStudent",
+                    "Update a student",
+                    ["students"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    request="UpdateStudent",
+                    response="Student",
+                ),
+            ),
+            (
+                "/students/{student_id}",
+                op(
+                    "delete",
+                    "deleteStudent",
+                    "Delete a student",
+                    ["students"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    response_code="204",
+                ),
+            ),
+            (
+                "/students/{student_id}/enrollments",
+                op(
+                    "get",
+                    "listEnrollments",
+                    "List student enrollments",
+                    ["enrollments"],
+                    params=[
+                        "$ref: '#/components/parameters/TenantId'",
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="EnrollmentList",
+                ),
+            ),
+            (
+                "/students/{student_id}/enrollments",
+                op(
+                    "post",
+                    "createEnrollment",
+                    "Enroll a student",
+                    ["enrollments"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    request="CreateEnrollment",
+                    response="Enrollment",
+                    response_code="201",
+                ),
+            ),
+            (
+                "/students/{student_id}/guardians",
+                op(
+                    "get",
+                    "listStudentGuardians",
+                    "List a student's guardians",
+                    ["guardians"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    response="GuardianList",
+                ),
+            ),
+            (
+                "/guardians/{guardian_id}",
+                op(
+                    "get",
+                    "getGuardian",
+                    "Get a guardian",
+                    ["guardians"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    response="Guardian",
+                ),
+            ),
         ],
         "schemas": [
-            schema("Student", "type: object\nrequired: [id, tenant_id, first_name, last_name, student_code]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  first_name: { type: string }\n  last_name: { type: string }\n  student_code: { type: string }\n  date_of_birth: { type: [string, 'null'], format: date }\n  gender: { type: [string, 'null'], enum: [male, female, other] }\n  status: { type: string, enum: [active, withdrawn, graduated] }\n  created_at: { type: string, format: date-time }\n  updated_at: { type: string, format: date-time }"),
-            schema("CreateStudent", "type: object\nrequired: [first_name, last_name]\nproperties:\n  first_name: { type: string }\n  last_name: { type: string }\n  date_of_birth: { type: [string, 'null'], format: date }\n  gender: { type: [string, 'null'], enum: [male, female, other] }\n  class_id: { type: [string, 'null'], format: uuid }"),
-            schema("UpdateStudent", "type: object\nproperties:\n  first_name: { type: string }\n  last_name: { type: string }\n  status: { type: string, enum: [active, withdrawn, graduated] }\n  class_id: { type: [string, 'null'], format: uuid }"),
-            schema("Guardian", "type: object\nrequired: [id, tenant_id, first_name, last_name, relationship]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  first_name: { type: string }\n  last_name: { type: string }\n  relationship: { type: string }\n  phone: { type: [string, 'null'] }\n  email: { type: [string, 'null'], format: email }"),
-            schema("Enrollment", "type: object\nrequired: [id, student_id, class_id, academic_year_id]\nproperties:\n  id: { type: string, format: uuid }\n  student_id: { type: string, format: uuid }\n  class_id: { type: string, format: uuid }\n  academic_year_id: { type: string, format: uuid }\n  enrolled_at: { type: string, format: date-time }"),
-            schema("CreateEnrollment", "type: object\nrequired: [class_id, academic_year_id]\nproperties:\n  class_id: { type: string, format: uuid }\n  academic_year_id: { type: string, format: uuid }"),
+            schema(
+                "Student",
+                "type: object\nrequired: [id, tenant_id, first_name, last_name, student_code]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  first_name: { type: string }\n  last_name: { type: string }\n  student_code: { type: string }\n  date_of_birth: { type: [string, 'null'], format: date }\n  gender: { type: [string, 'null'], enum: [male, female, other] }\n  status: { type: string, enum: [active, withdrawn, graduated] }\n  created_at: { type: string, format: date-time }\n  updated_at: { type: string, format: date-time }",
+            ),
+            schema(
+                "CreateStudent",
+                "type: object\nrequired: [first_name, last_name]\nproperties:\n  first_name: { type: string }\n  last_name: { type: string }\n  date_of_birth: { type: [string, 'null'], format: date }\n  gender: { type: [string, 'null'], enum: [male, female, other] }\n  class_id: { type: [string, 'null'], format: uuid }",
+            ),
+            schema(
+                "UpdateStudent",
+                "type: object\nproperties:\n  first_name: { type: string }\n  last_name: { type: string }\n  status: { type: string, enum: [active, withdrawn, graduated] }\n  class_id: { type: [string, 'null'], format: uuid }",
+            ),
+            schema(
+                "Guardian",
+                "type: object\nrequired: [id, tenant_id, first_name, last_name, relationship]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  first_name: { type: string }\n  last_name: { type: string }\n  relationship: { type: string }\n  phone: { type: [string, 'null'] }\n  email: { type: [string, 'null'], format: email }",
+            ),
+            schema(
+                "Enrollment",
+                "type: object\nrequired: [id, student_id, class_id, academic_year_id]\nproperties:\n  id: { type: string, format: uuid }\n  student_id: { type: string, format: uuid }\n  class_id: { type: string, format: uuid }\n  academic_year_id: { type: string, format: uuid }\n  enrolled_at: { type: string, format: date-time }",
+            ),
+            schema(
+                "CreateEnrollment",
+                "type: object\nrequired: [class_id, academic_year_id]\nproperties:\n  class_id: { type: string, format: uuid }\n  academic_year_id: { type: string, format: uuid }",
+            ),
             schema("StudentList", res("Student", is_array=True)),
             schema("GuardianList", res("Guardian", is_array=True)),
             schema("EnrollmentList", res("Enrollment", is_array=True)),
@@ -270,19 +549,101 @@ OPENAPI_SPECS: list[dict] = [
         "description": "Teachers and non-teaching staff (spec \\u00a77). Owned by lane L2 (EP-11). Feature flag: staff_management.",
         "tags": ["staff", "assignments"],
         "paths": [
-            ("/staff", op("get", "listStaff", "List staff", ["staff"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="StaffList")),
-            ("/staff", op("post", "createStaff", "Create a staff record", ["staff"], request="CreateStaff", response="Staff", response_code="201")),
-            ("/staff/{staff_id}", op("get", "getStaff", "Get a staff record", ["staff"], params=["$ref: '#/components/parameters/TenantId'"], response="Staff")),
-            ("/staff/{staff_id}", op("patch", "updateStaff", "Update a staff record", ["staff"], params=["$ref: '#/components/parameters/TenantId'"], request="UpdateStaff", response="Staff")),
-            ("/staff/{staff_id}/assignments", op("get", "listStaffAssignments", "List staff assignments", ["assignments"], params=["$ref: '#/components/parameters/TenantId'"], response="StaffAssignmentList")),
-            ("/staff/{staff_id}/assignments", op("post", "createStaffAssignment", "Assign staff to class/subject", ["assignments"], params=["$ref: '#/components/parameters/TenantId'"], request="CreateStaffAssignment", response="StaffAssignment", response_code="201")),
+            (
+                "/staff",
+                op(
+                    "get",
+                    "listStaff",
+                    "List staff",
+                    ["staff"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="StaffList",
+                ),
+            ),
+            (
+                "/staff",
+                op(
+                    "post",
+                    "createStaff",
+                    "Create a staff record",
+                    ["staff"],
+                    request="CreateStaff",
+                    response="Staff",
+                    response_code="201",
+                ),
+            ),
+            (
+                "/staff/{staff_id}",
+                op(
+                    "get",
+                    "getStaff",
+                    "Get a staff record",
+                    ["staff"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    response="Staff",
+                ),
+            ),
+            (
+                "/staff/{staff_id}",
+                op(
+                    "patch",
+                    "updateStaff",
+                    "Update a staff record",
+                    ["staff"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    request="UpdateStaff",
+                    response="Staff",
+                ),
+            ),
+            (
+                "/staff/{staff_id}/assignments",
+                op(
+                    "get",
+                    "listStaffAssignments",
+                    "List staff assignments",
+                    ["assignments"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    response="StaffAssignmentList",
+                ),
+            ),
+            (
+                "/staff/{staff_id}/assignments",
+                op(
+                    "post",
+                    "createStaffAssignment",
+                    "Assign staff to class/subject",
+                    ["assignments"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    request="CreateStaffAssignment",
+                    response="StaffAssignment",
+                    response_code="201",
+                ),
+            ),
         ],
         "schemas": [
-            schema("Staff", "type: object\nrequired: [id, tenant_id, first_name, last_name, staff_type]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  first_name: { type: string }\n  last_name: { type: string }\n  staff_type: { type: string, enum: [teacher, non_teaching] }\n  email: { type: [string, 'null'], format: email }\n  staff_code: { type: string }\n  created_at: { type: string, format: date-time }"),
-            schema("CreateStaff", "type: object\nrequired: [first_name, last_name, staff_type]\nproperties:\n  first_name: { type: string }\n  last_name: { type: string }\n  staff_type: { type: string, enum: [teacher, non_teaching] }\n  email: { type: [string, 'null'], format: email }"),
-            schema("UpdateStaff", "type: object\nproperties:\n  first_name: { type: string }\n  last_name: { type: string }\n  staff_type: { type: string, enum: [teacher, non_teaching] }\n  email: { type: [string, 'null'], format: email }"),
-            schema("StaffAssignment", "type: object\nrequired: [id, staff_id]\nproperties:\n  id: { type: string, format: uuid }\n  staff_id: { type: string, format: uuid }\n  class_id: { type: [string, 'null'], format: uuid }\n  subject_id: { type: [string, 'null'], format: uuid }\n  role: { type: [string, 'null'] }\n  assigned_at: { type: string, format: date-time }"),
-            schema("CreateStaffAssignment", "type: object\nrequired: [class_id]\nproperties:\n  class_id: { type: string, format: uuid }\n  subject_id: { type: [string, 'null'], format: uuid }\n  role: { type: [string, 'null'] }"),
+            schema(
+                "Staff",
+                "type: object\nrequired: [id, tenant_id, first_name, last_name, staff_type]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  first_name: { type: string }\n  last_name: { type: string }\n  staff_type: { type: string, enum: [teacher, non_teaching] }\n  email: { type: [string, 'null'], format: email }\n  staff_code: { type: string }\n  created_at: { type: string, format: date-time }",
+            ),
+            schema(
+                "CreateStaff",
+                "type: object\nrequired: [first_name, last_name, staff_type]\nproperties:\n  first_name: { type: string }\n  last_name: { type: string }\n  staff_type: { type: string, enum: [teacher, non_teaching] }\n  email: { type: [string, 'null'], format: email }",
+            ),
+            schema(
+                "UpdateStaff",
+                "type: object\nproperties:\n  first_name: { type: string }\n  last_name: { type: string }\n  staff_type: { type: string, enum: [teacher, non_teaching] }\n  email: { type: [string, 'null'], format: email }",
+            ),
+            schema(
+                "StaffAssignment",
+                "type: object\nrequired: [id, staff_id]\nproperties:\n  id: { type: string, format: uuid }\n  staff_id: { type: string, format: uuid }\n  class_id: { type: [string, 'null'], format: uuid }\n  subject_id: { type: [string, 'null'], format: uuid }\n  role: { type: [string, 'null'] }\n  assigned_at: { type: string, format: date-time }",
+            ),
+            schema(
+                "CreateStaffAssignment",
+                "type: object\nrequired: [class_id]\nproperties:\n  class_id: { type: string, format: uuid }\n  subject_id: { type: [string, 'null'], format: uuid }\n  role: { type: [string, 'null'] }",
+            ),
             schema("StaffList", res("Staff", is_array=True)),
             schema("StaffAssignmentList", res("StaffAssignment", is_array=True)),
         ],
@@ -293,28 +654,174 @@ OPENAPI_SPECS: list[dict] = [
         "description": "Academic years, terms, classes, subjects, curriculum, and grading scales (spec \\u00a77). Owned by lane L2 (EP-12).",
         "tags": ["academic-years", "terms", "classes", "subjects", "grading"],
         "paths": [
-            ("/academic-years", op("get", "listAcademicYears", "List academic years", ["academic-years"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="AcademicYearList")),
-            ("/academic-years", op("post", "createAcademicYear", "Create an academic year", ["academic-years"], request="CreateAcademicYear", response="AcademicYear", response_code="201")),
-            ("/terms", op("get", "listTerms", "List terms", ["terms"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="TermList")),
-            ("/terms", op("post", "createTerm", "Create a term", ["terms"], request="CreateTerm", response="Term", response_code="201")),
-            ("/classes", op("get", "listClasses", "List classes", ["classes"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="ClassList")),
-            ("/classes", op("post", "createClass", "Create a class", ["classes"], request="CreateClass", response="Class", response_code="201")),
-            ("/subjects", op("get", "listSubjects", "List subjects", ["subjects"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="SubjectList")),
-            ("/subjects", op("post", "createSubject", "Create a subject", ["subjects"], request="CreateSubject", response="Subject", response_code="201")),
-            ("/grading-scales", op("get", "listGradingScales", "List grading scales", ["grading"], response="GradingScaleList")),
-            ("/grading-scales", op("post", "createGradingScale", "Create a grading scale", ["grading"], request="CreateGradingScale", response="GradingScale", response_code="201")),
+            (
+                "/academic-years",
+                op(
+                    "get",
+                    "listAcademicYears",
+                    "List academic years",
+                    ["academic-years"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="AcademicYearList",
+                ),
+            ),
+            (
+                "/academic-years",
+                op(
+                    "post",
+                    "createAcademicYear",
+                    "Create an academic year",
+                    ["academic-years"],
+                    request="CreateAcademicYear",
+                    response="AcademicYear",
+                    response_code="201",
+                ),
+            ),
+            (
+                "/terms",
+                op(
+                    "get",
+                    "listTerms",
+                    "List terms",
+                    ["terms"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="TermList",
+                ),
+            ),
+            (
+                "/terms",
+                op(
+                    "post",
+                    "createTerm",
+                    "Create a term",
+                    ["terms"],
+                    request="CreateTerm",
+                    response="Term",
+                    response_code="201",
+                ),
+            ),
+            (
+                "/classes",
+                op(
+                    "get",
+                    "listClasses",
+                    "List classes",
+                    ["classes"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="ClassList",
+                ),
+            ),
+            (
+                "/classes",
+                op(
+                    "post",
+                    "createClass",
+                    "Create a class",
+                    ["classes"],
+                    request="CreateClass",
+                    response="Class",
+                    response_code="201",
+                ),
+            ),
+            (
+                "/subjects",
+                op(
+                    "get",
+                    "listSubjects",
+                    "List subjects",
+                    ["subjects"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="SubjectList",
+                ),
+            ),
+            (
+                "/subjects",
+                op(
+                    "post",
+                    "createSubject",
+                    "Create a subject",
+                    ["subjects"],
+                    request="CreateSubject",
+                    response="Subject",
+                    response_code="201",
+                ),
+            ),
+            (
+                "/grading-scales",
+                op(
+                    "get",
+                    "listGradingScales",
+                    "List grading scales",
+                    ["grading"],
+                    response="GradingScaleList",
+                ),
+            ),
+            (
+                "/grading-scales",
+                op(
+                    "post",
+                    "createGradingScale",
+                    "Create a grading scale",
+                    ["grading"],
+                    request="CreateGradingScale",
+                    response="GradingScale",
+                    response_code="201",
+                ),
+            ),
         ],
         "schemas": [
-            schema("AcademicYear", "type: object\nrequired: [id, tenant_id, name, start_date, end_date]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  name: { type: string }\n  start_date: { type: string, format: date }\n  end_date: { type: string, format: date }\n  is_current: { type: boolean }"),
-            schema("CreateAcademicYear", "type: object\nrequired: [name, start_date, end_date]\nproperties:\n  name: { type: string }\n  start_date: { type: string, format: date }\n  end_date: { type: string, format: date }\n  is_current: { type: boolean, default: false }"),
-            schema("Term", "type: object\nrequired: [id, tenant_id, academic_year_id, name, start_date, end_date]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  academic_year_id: { type: string, format: uuid }\n  name: { type: string }\n  start_date: { type: string, format: date }\n  end_date: { type: string, format: date }"),
-            schema("CreateTerm", "type: object\nrequired: [academic_year_id, name, start_date, end_date]\nproperties:\n  academic_year_id: { type: string, format: uuid }\n  name: { type: string }\n  start_date: { type: string, format: date }\n  end_date: { type: string, format: date }"),
-            schema("Class", "type: object\nrequired: [id, tenant_id, name, academic_year_id]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  name: { type: string }\n  academic_year_id: { type: string, format: uuid }\n  class_teacher_id: { type: [string, 'null'], format: uuid }\n  capacity: { type: [integer, 'null'] }"),
-            schema("CreateClass", "type: object\nrequired: [name, academic_year_id]\nproperties:\n  name: { type: string }\n  academic_year_id: { type: string, format: uuid }\n  class_teacher_id: { type: [string, 'null'], format: uuid }\n  capacity: { type: [integer, 'null'] }"),
-            schema("Subject", "type: object\nrequired: [id, tenant_id, name]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  name: { type: string }\n  code: { type: [string, 'null'] }\n  description: { type: [string, 'null'] }"),
-            schema("CreateSubject", "type: object\nrequired: [name]\nproperties:\n  name: { type: string }\n  code: { type: [string, 'null'] }\n  description: { type: [string, 'null'] }"),
-            schema("GradingScale", "type: object\nrequired: [id, tenant_id, name]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  name: { type: string }\n  ranges: { type: array, items: { type: object, properties: { min: { type: number }, max: { type: number }, grade: { type: string }, remark: { type: string } } } }"),
-            schema("CreateGradingScale", "type: object\nrequired: [name]\nproperties:\n  name: { type: string }\n  ranges: { type: array, items: { type: object, properties: { min: { type: number }, max: { type: number }, grade: { type: string }, remark: { type: string } } } }"),
+            schema(
+                "AcademicYear",
+                "type: object\nrequired: [id, tenant_id, name, start_date, end_date]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  name: { type: string }\n  start_date: { type: string, format: date }\n  end_date: { type: string, format: date }\n  is_current: { type: boolean }",
+            ),
+            schema(
+                "CreateAcademicYear",
+                "type: object\nrequired: [name, start_date, end_date]\nproperties:\n  name: { type: string }\n  start_date: { type: string, format: date }\n  end_date: { type: string, format: date }\n  is_current: { type: boolean, default: false }",
+            ),
+            schema(
+                "Term",
+                "type: object\nrequired: [id, tenant_id, academic_year_id, name, start_date, end_date]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  academic_year_id: { type: string, format: uuid }\n  name: { type: string }\n  start_date: { type: string, format: date }\n  end_date: { type: string, format: date }",
+            ),
+            schema(
+                "CreateTerm",
+                "type: object\nrequired: [academic_year_id, name, start_date, end_date]\nproperties:\n  academic_year_id: { type: string, format: uuid }\n  name: { type: string }\n  start_date: { type: string, format: date }\n  end_date: { type: string, format: date }",
+            ),
+            schema(
+                "Class",
+                "type: object\nrequired: [id, tenant_id, name, academic_year_id]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  name: { type: string }\n  academic_year_id: { type: string, format: uuid }\n  class_teacher_id: { type: [string, 'null'], format: uuid }\n  capacity: { type: [integer, 'null'] }",
+            ),
+            schema(
+                "CreateClass",
+                "type: object\nrequired: [name, academic_year_id]\nproperties:\n  name: { type: string }\n  academic_year_id: { type: string, format: uuid }\n  class_teacher_id: { type: [string, 'null'], format: uuid }\n  capacity: { type: [integer, 'null'] }",
+            ),
+            schema(
+                "Subject",
+                "type: object\nrequired: [id, tenant_id, name]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  name: { type: string }\n  code: { type: [string, 'null'] }\n  description: { type: [string, 'null'] }",
+            ),
+            schema(
+                "CreateSubject",
+                "type: object\nrequired: [name]\nproperties:\n  name: { type: string }\n  code: { type: [string, 'null'] }\n  description: { type: [string, 'null'] }",
+            ),
+            schema(
+                "GradingScale",
+                "type: object\nrequired: [id, tenant_id, name]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  name: { type: string }\n  ranges: { type: array, items: { type: object, properties: { min: { type: number }, max: { type: number }, grade: { type: string }, remark: { type: string } } } }",
+            ),
+            schema(
+                "CreateGradingScale",
+                "type: object\nrequired: [name]\nproperties:\n  name: { type: string }\n  ranges: { type: array, items: { type: object, properties: { min: { type: number }, max: { type: number }, grade: { type: string }, remark: { type: string } } } }",
+            ),
             schema("AcademicYearList", res("AcademicYear", is_array=True)),
             schema("TermList", res("Term", is_array=True)),
             schema("ClassList", res("Class", is_array=True)),
@@ -328,13 +835,57 @@ OPENAPI_SPECS: list[dict] = [
         "description": "Daily and subject attendance (spec \\u00a77). Owned by lane L2 (EP-13). Feature flag: attendance.",
         "tags": ["attendance"],
         "paths": [
-            ("/attendance", op("get", "listAttendance", "List attendance records", ["attendance"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="AttendanceRecordList")),
-            ("/attendance/bulk", op("post", "markAttendanceBulk", "Mark attendance in bulk", ["attendance"], request="BulkAttendanceRequest", response="AttendanceRecordList", response_code="201")),
-            ("/students/{student_id}/attendance", op("get", "getStudentAttendance", "Get attendance for a student", ["attendance"], params=["$ref: '#/components/parameters/TenantId'", "$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="AttendanceRecordList")),
+            (
+                "/attendance",
+                op(
+                    "get",
+                    "listAttendance",
+                    "List attendance records",
+                    ["attendance"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="AttendanceRecordList",
+                ),
+            ),
+            (
+                "/attendance/bulk",
+                op(
+                    "post",
+                    "markAttendanceBulk",
+                    "Mark attendance in bulk",
+                    ["attendance"],
+                    request="BulkAttendanceRequest",
+                    response="AttendanceRecordList",
+                    response_code="201",
+                ),
+            ),
+            (
+                "/students/{student_id}/attendance",
+                op(
+                    "get",
+                    "getStudentAttendance",
+                    "Get attendance for a student",
+                    ["attendance"],
+                    params=[
+                        "$ref: '#/components/parameters/TenantId'",
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="AttendanceRecordList",
+                ),
+            ),
         ],
         "schemas": [
-            schema("AttendanceRecord", "type: object\nrequired: [id, tenant_id, student_id, date, status]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  student_id: { type: string, format: uuid }\n  class_id: { type: [string, 'null'], format: uuid }\n  subject_id: { type: [string, 'null'], format: uuid }\n  date: { type: string, format: date }\n  status: { type: string, enum: [present, absent, late, excused] }\n  recorded_by: { type: string, format: uuid }\n  recorded_at: { type: string, format: date-time }"),
-            schema("BulkAttendanceRequest", "type: object\nrequired: [date, records]\nproperties:\n  date: { type: string, format: date }\n  class_id: { type: [string, 'null'], format: uuid }\n  subject_id: { type: [string, 'null'], format: uuid }\n  records: { type: array, items: { type: object, required: [student_id, status], properties: { student_id: { type: string, format: uuid }, status: { type: string, enum: [present, absent, late, excused] }, remark: { type: [string, 'null'] } } } }"),
+            schema(
+                "AttendanceRecord",
+                "type: object\nrequired: [id, tenant_id, student_id, date, status]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  student_id: { type: string, format: uuid }\n  class_id: { type: [string, 'null'], format: uuid }\n  subject_id: { type: [string, 'null'], format: uuid }\n  date: { type: string, format: date }\n  status: { type: string, enum: [present, absent, late, excused] }\n  recorded_by: { type: string, format: uuid }\n  recorded_at: { type: string, format: date-time }",
+            ),
+            schema(
+                "BulkAttendanceRequest",
+                "type: object\nrequired: [date, records]\nproperties:\n  date: { type: string, format: date }\n  class_id: { type: [string, 'null'], format: uuid }\n  subject_id: { type: [string, 'null'], format: uuid }\n  records: { type: array, items: { type: object, required: [student_id, status], properties: { student_id: { type: string, format: uuid }, status: { type: string, enum: [present, absent, late, excused] }, remark: { type: [string, 'null'] } } } }",
+            ),
             schema("AttendanceRecordList", res("AttendanceRecord", is_array=True)),
         ],
     },
@@ -344,20 +895,108 @@ OPENAPI_SPECS: list[dict] = [
         "description": "Assignments, tests, exams, and scores (spec \\u00a77). Owned by lane L2 (EP-14). Feature flags: assessments, assignments.",
         "tags": ["assessments", "scores", "assignments"],
         "paths": [
-            ("/assessments", op("get", "listAssessments", "List assessments", ["assessments"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="AssessmentList")),
-            ("/assessments", op("post", "createAssessment", "Create an assessment", ["assessments"], request="CreateAssessment", response="Assessment", response_code="201")),
-            ("/assessments/{assessment_id}", op("get", "getAssessment", "Get an assessment", ["assessments"], params=["$ref: '#/components/parameters/TenantId'"], response="Assessment")),
-            ("/assessments/{assessment_id}/scores", op("post", "recordScore", "Record a score", ["scores"], params=["$ref: '#/components/parameters/TenantId'"], request="CreateScore", response="Score", response_code="201")),
-            ("/assignments", op("get", "listAssignments", "List assignments", ["assignments"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="AssignmentList")),
-            ("/assignments", op("post", "createAssignment", "Create an assignment", ["assignments"], request="CreateAssignment", response="Assignment", response_code="201")),
+            (
+                "/assessments",
+                op(
+                    "get",
+                    "listAssessments",
+                    "List assessments",
+                    ["assessments"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="AssessmentList",
+                ),
+            ),
+            (
+                "/assessments",
+                op(
+                    "post",
+                    "createAssessment",
+                    "Create an assessment",
+                    ["assessments"],
+                    request="CreateAssessment",
+                    response="Assessment",
+                    response_code="201",
+                ),
+            ),
+            (
+                "/assessments/{assessment_id}",
+                op(
+                    "get",
+                    "getAssessment",
+                    "Get an assessment",
+                    ["assessments"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    response="Assessment",
+                ),
+            ),
+            (
+                "/assessments/{assessment_id}/scores",
+                op(
+                    "post",
+                    "recordScore",
+                    "Record a score",
+                    ["scores"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    request="CreateScore",
+                    response="Score",
+                    response_code="201",
+                ),
+            ),
+            (
+                "/assignments",
+                op(
+                    "get",
+                    "listAssignments",
+                    "List assignments",
+                    ["assignments"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="AssignmentList",
+                ),
+            ),
+            (
+                "/assignments",
+                op(
+                    "post",
+                    "createAssignment",
+                    "Create an assignment",
+                    ["assignments"],
+                    request="CreateAssignment",
+                    response="Assignment",
+                    response_code="201",
+                ),
+            ),
         ],
         "schemas": [
-            schema("Assessment", "type: object\nrequired: [id, tenant_id, name, type, subject_id]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  name: { type: string }\n  type: { type: string, enum: [test, exam, quiz] }\n  subject_id: { type: string, format: uuid }\n  class_id: { type: [string, 'null'], format: uuid }\n  term_id: { type: [string, 'null'], format: uuid }\n  max_score: { type: number, minimum: 0 }\n  scheduled_at: { type: [string, 'null'], format: date-time }"),
-            schema("CreateAssessment", "type: object\nrequired: [name, type, subject_id]\nproperties:\n  name: { type: string }\n  type: { type: string, enum: [test, exam, quiz] }\n  subject_id: { type: string, format: uuid }\n  class_id: { type: [string, 'null'], format: uuid }\n  term_id: { type: [string, 'null'], format: uuid }\n  max_score: { type: number, minimum: 0 }\n  scheduled_at: { type: [string, 'null'], format: date-time }"),
-            schema("Score", "type: object\nrequired: [id, assessment_id, student_id, score]\nproperties:\n  id: { type: string, format: uuid }\n  assessment_id: { type: string, format: uuid }\n  student_id: { type: string, format: uuid }\n  score: { type: number, minimum: 0 }\n  max_score: { type: [number, 'null'], minimum: 0 }\n  recorded_by: { type: [string, 'null'], format: uuid }"),
-            schema("CreateScore", "type: object\nrequired: [student_id, score]\nproperties:\n  student_id: { type: string, format: uuid }\n  score: { type: number, minimum: 0 }\n  max_score: { type: [number, 'null'], minimum: 0 }"),
-            schema("Assignment", "type: object\nrequired: [id, tenant_id, title, subject_id]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  title: { type: string }\n  subject_id: { type: string, format: uuid }\n  class_ids: { type: array, items: { type: string, format: uuid } }\n  due_date: { type: [string, 'null'], format: date-time }\n  published_at: { type: [string, 'null'], format: date-time }"),
-            schema("CreateAssignment", "type: object\nrequired: [title, subject_id]\nproperties:\n  title: { type: string }\n  subject_id: { type: string, format: uuid }\n  class_ids: { type: array, items: { type: string, format: uuid } }\n  due_date: { type: [string, 'null'], format: date-time }"),
+            schema(
+                "Assessment",
+                "type: object\nrequired: [id, tenant_id, name, type, subject_id]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  name: { type: string }\n  type: { type: string, enum: [test, exam, quiz] }\n  subject_id: { type: string, format: uuid }\n  class_id: { type: [string, 'null'], format: uuid }\n  term_id: { type: [string, 'null'], format: uuid }\n  max_score: { type: number, minimum: 0 }\n  scheduled_at: { type: [string, 'null'], format: date-time }",
+            ),
+            schema(
+                "CreateAssessment",
+                "type: object\nrequired: [name, type, subject_id]\nproperties:\n  name: { type: string }\n  type: { type: string, enum: [test, exam, quiz] }\n  subject_id: { type: string, format: uuid }\n  class_id: { type: [string, 'null'], format: uuid }\n  term_id: { type: [string, 'null'], format: uuid }\n  max_score: { type: number, minimum: 0 }\n  scheduled_at: { type: [string, 'null'], format: date-time }",
+            ),
+            schema(
+                "Score",
+                "type: object\nrequired: [id, assessment_id, student_id, score]\nproperties:\n  id: { type: string, format: uuid }\n  assessment_id: { type: string, format: uuid }\n  student_id: { type: string, format: uuid }\n  score: { type: number, minimum: 0 }\n  max_score: { type: [number, 'null'], minimum: 0 }\n  recorded_by: { type: [string, 'null'], format: uuid }",
+            ),
+            schema(
+                "CreateScore",
+                "type: object\nrequired: [student_id, score]\nproperties:\n  student_id: { type: string, format: uuid }\n  score: { type: number, minimum: 0 }\n  max_score: { type: [number, 'null'], minimum: 0 }",
+            ),
+            schema(
+                "Assignment",
+                "type: object\nrequired: [id, tenant_id, title, subject_id]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  title: { type: string }\n  subject_id: { type: string, format: uuid }\n  class_ids: { type: array, items: { type: string, format: uuid } }\n  due_date: { type: [string, 'null'], format: date-time }\n  published_at: { type: [string, 'null'], format: date-time }",
+            ),
+            schema(
+                "CreateAssignment",
+                "type: object\nrequired: [title, subject_id]\nproperties:\n  title: { type: string }\n  subject_id: { type: string, format: uuid }\n  class_ids: { type: array, items: { type: string, format: uuid } }\n  due_date: { type: [string, 'null'], format: date-time }",
+            ),
             schema("AssessmentList", res("Assessment", is_array=True)),
             schema("AssignmentList", res("Assignment", is_array=True)),
         ],
@@ -368,18 +1007,87 @@ OPENAPI_SPECS: list[dict] = [
         "description": "Report cards, transcripts, and templates (spec \\u00a77). Owned by lane L2 (EP-15). Feature flag: report_cards.",
         "tags": ["report-cards", "transcripts", "templates"],
         "paths": [
-            ("/report-cards", op("get", "listReportCards", "List report cards", ["report-cards"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="ReportCardList")),
-            ("/report-cards/generate", op("post", "generateReportCard", "Generate a report card", ["report-cards"], request="GenerateReportCardRequest", response="ReportCard", response_code="201")),
-            ("/transcripts/{student_id}", op("get", "getTranscript", "Get a student transcript", ["transcripts"], params=["$ref: '#/components/parameters/TenantId'"], response="Transcript")),
-            ("/report-templates", op("get", "listReportTemplates", "List report templates", ["templates"], response="ReportTemplateList")),
-            ("/report-templates", op("post", "createReportTemplate", "Create a report template", ["templates"], request="CreateReportTemplate", response="ReportTemplate", response_code="201")),
+            (
+                "/report-cards",
+                op(
+                    "get",
+                    "listReportCards",
+                    "List report cards",
+                    ["report-cards"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="ReportCardList",
+                ),
+            ),
+            (
+                "/report-cards/generate",
+                op(
+                    "post",
+                    "generateReportCard",
+                    "Generate a report card",
+                    ["report-cards"],
+                    request="GenerateReportCardRequest",
+                    response="ReportCard",
+                    response_code="201",
+                ),
+            ),
+            (
+                "/transcripts/{student_id}",
+                op(
+                    "get",
+                    "getTranscript",
+                    "Get a student transcript",
+                    ["transcripts"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    response="Transcript",
+                ),
+            ),
+            (
+                "/report-templates",
+                op(
+                    "get",
+                    "listReportTemplates",
+                    "List report templates",
+                    ["templates"],
+                    response="ReportTemplateList",
+                ),
+            ),
+            (
+                "/report-templates",
+                op(
+                    "post",
+                    "createReportTemplate",
+                    "Create a report template",
+                    ["templates"],
+                    request="CreateReportTemplate",
+                    response="ReportTemplate",
+                    response_code="201",
+                ),
+            ),
         ],
         "schemas": [
-            schema("ReportCard", "type: object\nrequired: [id, tenant_id, student_id, term_id]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  student_id: { type: string, format: uuid }\n  term_id: { type: string, format: uuid }\n  file_url: { type: [string, 'null'] }\n  generated_at: { type: string, format: date-time }"),
-            schema("GenerateReportCardRequest", "type: object\nrequired: [student_id, term_id]\nproperties:\n  student_id: { type: string, format: uuid }\n  term_id: { type: string, format: uuid }"),
-            schema("Transcript", "type: object\nrequired: [id, tenant_id, student_id]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  student_id: { type: string, format: uuid }\n  file_url: { type: [string, 'null'] }\n  entries: { type: array, items: { type: object, properties: { subject_id: { type: string, format: uuid }, subject_name: { type: string }, score: { type: number }, grade: { type: string } } } }"),
-            schema("ReportTemplate", "type: object\nrequired: [id, tenant_id, name]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  name: { type: string }\n  layout: { type: [string, 'null'] }\n  is_default: { type: boolean }"),
-            schema("CreateReportTemplate", "type: object\nrequired: [name]\nproperties:\n  name: { type: string }\n  layout: { type: [string, 'null'] }\n  is_default: { type: boolean, default: false }"),
+            schema(
+                "ReportCard",
+                "type: object\nrequired: [id, tenant_id, student_id, term_id]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  student_id: { type: string, format: uuid }\n  term_id: { type: string, format: uuid }\n  file_url: { type: [string, 'null'] }\n  generated_at: { type: string, format: date-time }",
+            ),
+            schema(
+                "GenerateReportCardRequest",
+                "type: object\nrequired: [student_id, term_id]\nproperties:\n  student_id: { type: string, format: uuid }\n  term_id: { type: string, format: uuid }",
+            ),
+            schema(
+                "Transcript",
+                "type: object\nrequired: [id, tenant_id, student_id]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  student_id: { type: string, format: uuid }\n  file_url: { type: [string, 'null'] }\n  entries: { type: array, items: { type: object, properties: { subject_id: { type: string, format: uuid }, subject_name: { type: string }, score: { type: number }, grade: { type: string } } } }",
+            ),
+            schema(
+                "ReportTemplate",
+                "type: object\nrequired: [id, tenant_id, name]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  name: { type: string }\n  layout: { type: [string, 'null'] }\n  is_default: { type: boolean }",
+            ),
+            schema(
+                "CreateReportTemplate",
+                "type: object\nrequired: [name]\nproperties:\n  name: { type: string }\n  layout: { type: [string, 'null'] }\n  is_default: { type: boolean, default: false }",
+            ),
             schema("ReportCardList", res("ReportCard", is_array=True)),
             schema("ReportTemplateList", res("ReportTemplate", is_array=True)),
         ],
@@ -390,21 +1098,117 @@ OPENAPI_SPECS: list[dict] = [
         "description": "Fee structures, invoices, balances, and receipts (spec \\u00a77). Owned by lane L2 (EP-16). Feature flag: fees.",
         "tags": ["fee-structures", "invoices", "balances", "receipts"],
         "paths": [
-            ("/fee-structures", op("get", "listFeeStructures", "List fee structures", ["fee-structures"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="FeeStructureList")),
-            ("/fee-structures", op("post", "createFeeStructure", "Create a fee structure", ["fee-structures"], request="CreateFeeStructure", response="FeeStructure", response_code="201")),
-            ("/invoices", op("get", "listInvoices", "List invoices", ["invoices"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="InvoiceList")),
-            ("/invoices", op("post", "createInvoice", "Create an invoice", ["invoices"], request="CreateInvoice", response="Invoice", response_code="201")),
-            ("/invoices/{invoice_id}", op("get", "getInvoice", "Get an invoice", ["invoices"], params=["$ref: '#/components/parameters/TenantId'"], response="Invoice")),
-            ("/balances/{student_id}", op("get", "getBalance", "Get a student balance", ["balances"], params=["$ref: '#/components/parameters/TenantId'"], response="Balance")),
-            ("/receipts/{receipt_id}", op("get", "getReceipt", "Get a receipt", ["receipts"], params=["$ref: '#/components/parameters/TenantId'"], response="Receipt")),
+            (
+                "/fee-structures",
+                op(
+                    "get",
+                    "listFeeStructures",
+                    "List fee structures",
+                    ["fee-structures"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="FeeStructureList",
+                ),
+            ),
+            (
+                "/fee-structures",
+                op(
+                    "post",
+                    "createFeeStructure",
+                    "Create a fee structure",
+                    ["fee-structures"],
+                    request="CreateFeeStructure",
+                    response="FeeStructure",
+                    response_code="201",
+                ),
+            ),
+            (
+                "/invoices",
+                op(
+                    "get",
+                    "listInvoices",
+                    "List invoices",
+                    ["invoices"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="InvoiceList",
+                ),
+            ),
+            (
+                "/invoices",
+                op(
+                    "post",
+                    "createInvoice",
+                    "Create an invoice",
+                    ["invoices"],
+                    request="CreateInvoice",
+                    response="Invoice",
+                    response_code="201",
+                ),
+            ),
+            (
+                "/invoices/{invoice_id}",
+                op(
+                    "get",
+                    "getInvoice",
+                    "Get an invoice",
+                    ["invoices"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    response="Invoice",
+                ),
+            ),
+            (
+                "/balances/{student_id}",
+                op(
+                    "get",
+                    "getBalance",
+                    "Get a student balance",
+                    ["balances"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    response="Balance",
+                ),
+            ),
+            (
+                "/receipts/{receipt_id}",
+                op(
+                    "get",
+                    "getReceipt",
+                    "Get a receipt",
+                    ["receipts"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    response="Receipt",
+                ),
+            ),
         ],
         "schemas": [
-            schema("FeeStructure", "type: object\nrequired: [id, tenant_id, name]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  name: { type: string }\n  class_ids: { type: array, items: { type: string, format: uuid } }\n  amount: { type: number, minimum: 0 }\n  term_id: { type: [string, 'null'], format: uuid }"),
-            schema("CreateFeeStructure", "type: object\nrequired: [name, amount]\nproperties:\n  name: { type: string }\n  class_ids: { type: array, items: { type: string, format: uuid } }\n  amount: { type: number, minimum: 0 }\n  term_id: { type: [string, 'null'], format: uuid }"),
-            schema("Invoice", "type: object\nrequired: [id, tenant_id, student_id, amount_due]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  student_id: { type: string, format: uuid }\n  amount_due: { type: number, minimum: 0 }\n  amount_paid: { type: number, minimum: 0, default: 0 }\n  due_date: { type: [string, 'null'], format: date }\n  status: { type: string, enum: [pending, partial, paid, overdue] }"),
-            schema("CreateInvoice", "type: object\nrequired: [student_id, amount_due]\nproperties:\n  student_id: { type: string, format: uuid }\n  amount_due: { type: number, minimum: 0 }\n  due_date: { type: [string, 'null'], format: date }"),
-            schema("Balance", "type: object\nrequired: [student_id, total_due, total_paid]\nproperties:\n  student_id: { type: string, format: uuid }\n  total_due: { type: number, minimum: 0 }\n  total_paid: { type: number, minimum: 0 }\n  outstanding: { type: number }"),
-            schema("Receipt", "type: object\nrequired: [id, tenant_id, invoice_id, amount]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  invoice_id: { type: string, format: uuid }\n  amount: { type: number, minimum: 0 }\n  payment_id: { type: [string, 'null'], format: uuid }\n  issued_at: { type: string, format: date-time }"),
+            schema(
+                "FeeStructure",
+                "type: object\nrequired: [id, tenant_id, name]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  name: { type: string }\n  class_ids: { type: array, items: { type: string, format: uuid } }\n  amount: { type: number, minimum: 0 }\n  term_id: { type: [string, 'null'], format: uuid }",
+            ),
+            schema(
+                "CreateFeeStructure",
+                "type: object\nrequired: [name, amount]\nproperties:\n  name: { type: string }\n  class_ids: { type: array, items: { type: string, format: uuid } }\n  amount: { type: number, minimum: 0 }\n  term_id: { type: [string, 'null'], format: uuid }",
+            ),
+            schema(
+                "Invoice",
+                "type: object\nrequired: [id, tenant_id, student_id, amount_due]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  student_id: { type: string, format: uuid }\n  amount_due: { type: number, minimum: 0 }\n  amount_paid: { type: number, minimum: 0, default: 0 }\n  due_date: { type: [string, 'null'], format: date }\n  status: { type: string, enum: [pending, partial, paid, overdue] }",
+            ),
+            schema(
+                "CreateInvoice",
+                "type: object\nrequired: [student_id, amount_due]\nproperties:\n  student_id: { type: string, format: uuid }\n  amount_due: { type: number, minimum: 0 }\n  due_date: { type: [string, 'null'], format: date }",
+            ),
+            schema(
+                "Balance",
+                "type: object\nrequired: [student_id, total_due, total_paid]\nproperties:\n  student_id: { type: string, format: uuid }\n  total_due: { type: number, minimum: 0 }\n  total_paid: { type: number, minimum: 0 }\n  outstanding: { type: number }",
+            ),
+            schema(
+                "Receipt",
+                "type: object\nrequired: [id, tenant_id, invoice_id, amount]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  invoice_id: { type: string, format: uuid }\n  amount: { type: number, minimum: 0 }\n  payment_id: { type: [string, 'null'], format: uuid }\n  issued_at: { type: string, format: date-time }",
+            ),
             schema("FeeStructureList", res("FeeStructure", is_array=True)),
             schema("InvoiceList", res("Invoice", is_array=True)),
         ],
@@ -415,17 +1219,79 @@ OPENAPI_SPECS: list[dict] = [
         "description": "Payment gateway integrations, transactions, and webhooks (spec \\u00a77). Owned by lane L2 (EP-17). Feature flag: online_payments.",
         "tags": ["payments", "transactions", "webhooks"],
         "paths": [
-            ("/payments/initiate", op("post", "initiatePayment", "Initiate a payment", ["payments"], request="InitiatePaymentRequest", response="Payment", response_code="201")),
-            ("/payments/{payment_id}", op("get", "getPayment", "Get payment status", ["payments"], params=["$ref: '#/components/parameters/TenantId'"], response="Payment")),
-            ("/transactions", op("get", "listTransactions", "List transactions", ["transactions"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="TransactionList")),
-            ("/webhooks/{provider}", op("post", "receiveWebhook", "Receive provider webhook", ["webhooks"], params=["$ref: '#/components/parameters/TenantId'"], request="WebhookPayload", response="WebhookEvent", response_code="201", no_auth=True)),
+            (
+                "/payments/initiate",
+                op(
+                    "post",
+                    "initiatePayment",
+                    "Initiate a payment",
+                    ["payments"],
+                    request="InitiatePaymentRequest",
+                    response="Payment",
+                    response_code="201",
+                ),
+            ),
+            (
+                "/payments/{payment_id}",
+                op(
+                    "get",
+                    "getPayment",
+                    "Get payment status",
+                    ["payments"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    response="Payment",
+                ),
+            ),
+            (
+                "/transactions",
+                op(
+                    "get",
+                    "listTransactions",
+                    "List transactions",
+                    ["transactions"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="TransactionList",
+                ),
+            ),
+            (
+                "/webhooks/{provider}",
+                op(
+                    "post",
+                    "receiveWebhook",
+                    "Receive provider webhook",
+                    ["webhooks"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    request="WebhookPayload",
+                    response="WebhookEvent",
+                    response_code="201",
+                    no_auth=True,
+                ),
+            ),
         ],
         "schemas": [
-            schema("InitiatePaymentRequest", "type: object\nrequired: [invoice_id, amount, gateway]\nproperties:\n  invoice_id: { type: string, format: uuid }\n  amount: { type: number, minimum: 0 }\n  gateway: { type: string, enum: [paystack, flutterwave] }\n  callback_url: { type: [string, 'null'] }"),
-            schema("Payment", "type: object\nrequired: [id, tenant_id, invoice_id, amount, status]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  invoice_id: { type: string, format: uuid }\n  amount: { type: number, minimum: 0 }\n  gateway: { type: string }\n  status: { type: string, enum: [pending, success, failed] }\n  reference: { type: [string, 'null'] }"),
-            schema("Transaction", "type: object\nrequired: [id, tenant_id, payment_id, amount]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  payment_id: { type: string, format: uuid }\n  amount: { type: number, minimum: 0 }\n  gateway_reference: { type: [string, 'null'] }\n  recorded_at: { type: string, format: date-time }"),
-            schema("WebhookPayload", "type: object\nadditionalProperties: true\nproperties:\n  event: { type: string }\n  data: { type: object, additionalProperties: true }"),
-            schema("WebhookEvent", "type: object\nrequired: [id, provider, event]\nproperties:\n  id: { type: string, format: uuid }\n  provider: { type: string }\n  event: { type: string }\n  processed: { type: boolean }"),
+            schema(
+                "InitiatePaymentRequest",
+                "type: object\nrequired: [invoice_id, amount, gateway]\nproperties:\n  invoice_id: { type: string, format: uuid }\n  amount: { type: number, minimum: 0 }\n  gateway: { type: string, enum: [paystack, flutterwave] }\n  callback_url: { type: [string, 'null'] }",
+            ),
+            schema(
+                "Payment",
+                "type: object\nrequired: [id, tenant_id, invoice_id, amount, status]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  invoice_id: { type: string, format: uuid }\n  amount: { type: number, minimum: 0 }\n  gateway: { type: string }\n  status: { type: string, enum: [pending, success, failed] }\n  reference: { type: [string, 'null'] }",
+            ),
+            schema(
+                "Transaction",
+                "type: object\nrequired: [id, tenant_id, payment_id, amount]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  payment_id: { type: string, format: uuid }\n  amount: { type: number, minimum: 0 }\n  gateway_reference: { type: [string, 'null'] }\n  recorded_at: { type: string, format: date-time }",
+            ),
+            schema(
+                "WebhookPayload",
+                "type: object\nadditionalProperties: true\nproperties:\n  event: { type: string }\n  data: { type: object, additionalProperties: true }",
+            ),
+            schema(
+                "WebhookEvent",
+                "type: object\nrequired: [id, provider, event]\nproperties:\n  id: { type: string, format: uuid }\n  provider: { type: string }\n  event: { type: string }\n  processed: { type: boolean }",
+            ),
             schema("TransactionList", res("Transaction", is_array=True)),
         ],
     },
@@ -435,20 +1301,110 @@ OPENAPI_SPECS: list[dict] = [
         "description": "Email, SMS, WhatsApp, in-app, and announcements (spec \\u00a77). Owned by lane L2 (EP-18). Feature flags: email_notifications, sms_notifications, whatsapp_notifications, announcements.",
         "tags": ["messages", "templates", "subscriptions"],
         "paths": [
-            ("/messages", op("get", "listMessages", "List messages", ["messages"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="MessageList")),
-            ("/messages/send", op("post", "sendMessage", "Send a message", ["messages"], request="SendMessageRequest", response="Message", response_code="201")),
-            ("/templates", op("get", "listTemplates", "List templates", ["templates"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="TemplateList")),
-            ("/templates", op("post", "createTemplate", "Create a template", ["templates"], request="CreateTemplate", response="Template", response_code="201")),
-            ("/subscriptions", op("get", "listSubscriptions", "List subscriptions", ["subscriptions"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="SubscriptionList")),
-            ("/subscriptions", op("post", "createSubscription", "Create a subscription", ["subscriptions"], request="CreateSubscription", response="Subscription", response_code="201")),
+            (
+                "/messages",
+                op(
+                    "get",
+                    "listMessages",
+                    "List messages",
+                    ["messages"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="MessageList",
+                ),
+            ),
+            (
+                "/messages/send",
+                op(
+                    "post",
+                    "sendMessage",
+                    "Send a message",
+                    ["messages"],
+                    request="SendMessageRequest",
+                    response="Message",
+                    response_code="201",
+                ),
+            ),
+            (
+                "/templates",
+                op(
+                    "get",
+                    "listTemplates",
+                    "List templates",
+                    ["templates"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="TemplateList",
+                ),
+            ),
+            (
+                "/templates",
+                op(
+                    "post",
+                    "createTemplate",
+                    "Create a template",
+                    ["templates"],
+                    request="CreateTemplate",
+                    response="Template",
+                    response_code="201",
+                ),
+            ),
+            (
+                "/subscriptions",
+                op(
+                    "get",
+                    "listSubscriptions",
+                    "List subscriptions",
+                    ["subscriptions"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="SubscriptionList",
+                ),
+            ),
+            (
+                "/subscriptions",
+                op(
+                    "post",
+                    "createSubscription",
+                    "Create a subscription",
+                    ["subscriptions"],
+                    request="CreateSubscription",
+                    response="Subscription",
+                    response_code="201",
+                ),
+            ),
         ],
         "schemas": [
-            schema("Message", "type: object\nrequired: [id, tenant_id, channel, recipient_id, status]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  channel: { type: string, enum: [email, sms, whatsapp, in_app] }\n  recipient_id: { type: string, format: uuid }\n  subject: { type: [string, 'null'] }\n  body: { type: [string, 'null'] }\n  status: { type: string, enum: [queued, sent, delivered, failed] }"),
-            schema("SendMessageRequest", "type: object\nrequired: [channel, recipient_id]\nproperties:\n  channel: { type: string, enum: [email, sms, whatsapp, in_app] }\n  recipient_id: { type: string, format: uuid }\n  subject: { type: [string, 'null'] }\n  body: { type: [string, 'null'] }\n  template_id: { type: [string, 'null'], format: uuid }\n  variables: { type: [object, 'null'], additionalProperties: true }"),
-            schema("Template", "type: object\nrequired: [id, tenant_id, name, channel]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  name: { type: string }\n  channel: { type: string, enum: [email, sms, whatsapp, in_app] }\n  subject_template: { type: [string, 'null'] }\n  body_template: { type: string }"),
-            schema("CreateTemplate", "type: object\nrequired: [name, channel, body_template]\nproperties:\n  name: { type: string }\n  channel: { type: string, enum: [email, sms, whatsapp, in_app] }\n  subject_template: { type: [string, 'null'] }\n  body_template: { type: string }"),
-            schema("Subscription", "type: object\nrequired: [id, tenant_id, user_id, channel]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  user_id: { type: string, format: uuid }\n  channel: { type: string, enum: [email, sms, whatsapp, in_app] }\n  is_enabled: { type: boolean }"),
-            schema("CreateSubscription", "type: object\nrequired: [user_id, channel]\nproperties:\n  user_id: { type: string, format: uuid }\n  channel: { type: string, enum: [email, sms, whatsapp, in_app] }\n  is_enabled: { type: boolean, default: true }"),
+            schema(
+                "Message",
+                "type: object\nrequired: [id, tenant_id, channel, recipient_id, status]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  channel: { type: string, enum: [email, sms, whatsapp, in_app] }\n  recipient_id: { type: string, format: uuid }\n  subject: { type: [string, 'null'] }\n  body: { type: [string, 'null'] }\n  status: { type: string, enum: [queued, sent, delivered, failed] }",
+            ),
+            schema(
+                "SendMessageRequest",
+                "type: object\nrequired: [channel, recipient_id]\nproperties:\n  channel: { type: string, enum: [email, sms, whatsapp, in_app] }\n  recipient_id: { type: string, format: uuid }\n  subject: { type: [string, 'null'] }\n  body: { type: [string, 'null'] }\n  template_id: { type: [string, 'null'], format: uuid }\n  variables: { type: [object, 'null'], additionalProperties: true }",
+            ),
+            schema(
+                "Template",
+                "type: object\nrequired: [id, tenant_id, name, channel]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  name: { type: string }\n  channel: { type: string, enum: [email, sms, whatsapp, in_app] }\n  subject_template: { type: [string, 'null'] }\n  body_template: { type: string }",
+            ),
+            schema(
+                "CreateTemplate",
+                "type: object\nrequired: [name, channel, body_template]\nproperties:\n  name: { type: string }\n  channel: { type: string, enum: [email, sms, whatsapp, in_app] }\n  subject_template: { type: [string, 'null'] }\n  body_template: { type: string }",
+            ),
+            schema(
+                "Subscription",
+                "type: object\nrequired: [id, tenant_id, user_id, channel]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  user_id: { type: string, format: uuid }\n  channel: { type: string, enum: [email, sms, whatsapp, in_app] }\n  is_enabled: { type: boolean }",
+            ),
+            schema(
+                "CreateSubscription",
+                "type: object\nrequired: [user_id, channel]\nproperties:\n  user_id: { type: string, format: uuid }\n  channel: { type: string, enum: [email, sms, whatsapp, in_app] }\n  is_enabled: { type: boolean, default: true }",
+            ),
             schema("MessageList", res("Message", is_array=True)),
             schema("TemplateList", res("Template", is_array=True)),
             schema("SubscriptionList", res("Subscription", is_array=True)),
@@ -460,18 +1416,78 @@ OPENAPI_SPECS: list[dict] = [
         "description": "Public site content, pages, and menus (spec \\u00a77). Owned by lane L2 (EP-19). Feature flag: public_website.",
         "tags": ["pages", "sections", "menus"],
         "paths": [
-            ("/pages", op("get", "listPages", "List pages", ["pages"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="PageList")),
-            ("/pages", op("post", "createPage", "Create a page", ["pages"], request="CreatePage", response="Page", response_code="201")),
-            ("/pages/{slug}", op("get", "getPageBySlug", "Get a public page by slug", ["pages"], params=["$ref: '#/components/parameters/TenantId'"], response="Page")),
+            (
+                "/pages",
+                op(
+                    "get",
+                    "listPages",
+                    "List pages",
+                    ["pages"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="PageList",
+                ),
+            ),
+            (
+                "/pages",
+                op(
+                    "post",
+                    "createPage",
+                    "Create a page",
+                    ["pages"],
+                    request="CreatePage",
+                    response="Page",
+                    response_code="201",
+                ),
+            ),
+            (
+                "/pages/{slug}",
+                op(
+                    "get",
+                    "getPageBySlug",
+                    "Get a public page by slug",
+                    ["pages"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    response="Page",
+                ),
+            ),
             ("/menus", op("get", "listMenus", "List menus", ["menus"], response="MenuList")),
-            ("/menus", op("post", "createMenu", "Create a menu", ["menus"], request="CreateMenu", response="Menu", response_code="201")),
+            (
+                "/menus",
+                op(
+                    "post",
+                    "createMenu",
+                    "Create a menu",
+                    ["menus"],
+                    request="CreateMenu",
+                    response="Menu",
+                    response_code="201",
+                ),
+            ),
         ],
         "schemas": [
-            schema("Page", "type: object\nrequired: [id, tenant_id, slug, title]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  slug: { type: string }\n  title: { type: string }\n  sections: { type: array, items: { $ref: '#/components/schemas/Section' } }\n  is_published: { type: boolean }\n  published_at: { type: [string, 'null'], format: date-time }"),
-            schema("CreatePage", "type: object\nrequired: [slug, title]\nproperties:\n  slug: { type: string }\n  title: { type: string }\n  sections: { type: array, items: { $ref: '#/components/schemas/Section' } }\n  is_published: { type: boolean, default: false }"),
-            schema("Section", "type: object\nrequired: [type]\nproperties:\n  type: { type: string, enum: [hero, text, gallery, call_to_action] }\n  title: { type: [string, 'null'] }\n  content: { type: [string, 'null'] }\n  media: { type: array, items: { type: string } }"),
-            schema("Menu", "type: object\nrequired: [id, tenant_id, name]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  name: { type: string }\n  items: { type: array, items: { type: object, properties: { label: { type: string }, url: { type: string }, page_id: { type: [string, 'null'], format: uuid } } } }"),
-            schema("CreateMenu", "type: object\nrequired: [name]\nproperties:\n  name: { type: string }\n  items: { type: array, items: { type: object, properties: { label: { type: string }, url: { type: string }, page_id: { type: [string, 'null'], format: uuid } } } }"),
+            schema(
+                "Page",
+                "type: object\nrequired: [id, tenant_id, slug, title]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  slug: { type: string }\n  title: { type: string }\n  sections: { type: array, items: { $ref: '#/components/schemas/Section' } }\n  is_published: { type: boolean }\n  published_at: { type: [string, 'null'], format: date-time }",
+            ),
+            schema(
+                "CreatePage",
+                "type: object\nrequired: [slug, title]\nproperties:\n  slug: { type: string }\n  title: { type: string }\n  sections: { type: array, items: { $ref: '#/components/schemas/Section' } }\n  is_published: { type: boolean, default: false }",
+            ),
+            schema(
+                "Section",
+                "type: object\nrequired: [type]\nproperties:\n  type: { type: string, enum: [hero, text, gallery, call_to_action] }\n  title: { type: [string, 'null'] }\n  content: { type: [string, 'null'] }\n  media: { type: array, items: { type: string } }",
+            ),
+            schema(
+                "Menu",
+                "type: object\nrequired: [id, tenant_id, name]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  name: { type: string }\n  items: { type: array, items: { type: object, properties: { label: { type: string }, url: { type: string }, page_id: { type: [string, 'null'], format: uuid } } } }",
+            ),
+            schema(
+                "CreateMenu",
+                "type: object\nrequired: [name]\nproperties:\n  name: { type: string }\n  items: { type: array, items: { type: object, properties: { label: { type: string }, url: { type: string }, page_id: { type: [string, 'null'], format: uuid } } } }",
+            ),
             schema("PageList", res("Page", is_array=True)),
             schema("MenuList", res("Menu", is_array=True)),
         ],
@@ -482,15 +1498,68 @@ OPENAPI_SPECS: list[dict] = [
         "description": "Uploads, documents, images, and certificates backed by Cloudinary (spec \\u00a77). Owned by lane L2 (EP-20).",
         "tags": ["uploads", "files"],
         "paths": [
-            ("/uploads/signed", op("post", "requestSignedUpload", "Request a signed Cloudinary upload", ["uploads"], request="SignedUploadRequest", response="SignedUploadResponse", response_code="201")),
-            ("/files", op("get", "listFiles", "List files", ["files"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="FileList")),
-            ("/files/{file_id}", op("get", "getFile", "Get a file", ["files"], params=["$ref: '#/components/parameters/TenantId'"], response="File")),
-            ("/files/{file_id}", op("delete", "deleteFile", "Delete a file", ["files"], params=["$ref: '#/components/parameters/TenantId'"], response_code="204")),
+            (
+                "/uploads/signed",
+                op(
+                    "post",
+                    "requestSignedUpload",
+                    "Request a signed Cloudinary upload",
+                    ["uploads"],
+                    request="SignedUploadRequest",
+                    response="SignedUploadResponse",
+                    response_code="201",
+                ),
+            ),
+            (
+                "/files",
+                op(
+                    "get",
+                    "listFiles",
+                    "List files",
+                    ["files"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="FileList",
+                ),
+            ),
+            (
+                "/files/{file_id}",
+                op(
+                    "get",
+                    "getFile",
+                    "Get a file",
+                    ["files"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    response="File",
+                ),
+            ),
+            (
+                "/files/{file_id}",
+                op(
+                    "delete",
+                    "deleteFile",
+                    "Delete a file",
+                    ["files"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    response_code="204",
+                ),
+            ),
         ],
         "schemas": [
-            schema("SignedUploadRequest", "type: object\nrequired: [folder, file_name]\nproperties:\n  folder: { type: string, example: upshs/documents }\n  file_name: { type: string }\n  resource_type: { type: string, enum: [image, raw, video], default: image }"),
-            schema("SignedUploadResponse", "type: object\nrequired: [signature, timestamp, api_key, folder]\nproperties:\n  signature: { type: string }\n  timestamp: { type: integer }\n  api_key: { type: string }\n  folder: { type: string }\n  cloud_name: { type: string }\n  upload_url: { type: string }"),
-            schema("File", "type: object\nrequired: [id, tenant_id, public_id, secure_url]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  public_id: { type: string }\n  secure_url: { type: string }\n  resource_type: { type: string, enum: [image, raw, video] }\n  folder: { type: string }\n  uploaded_by: { type: [string, 'null'], format: uuid }"),
+            schema(
+                "SignedUploadRequest",
+                "type: object\nrequired: [folder, file_name]\nproperties:\n  folder: { type: string, example: upshs/documents }\n  file_name: { type: string }\n  resource_type: { type: string, enum: [image, raw, video], default: image }",
+            ),
+            schema(
+                "SignedUploadResponse",
+                "type: object\nrequired: [signature, timestamp, api_key, folder]\nproperties:\n  signature: { type: string }\n  timestamp: { type: integer }\n  api_key: { type: string }\n  folder: { type: string }\n  cloud_name: { type: string }\n  upload_url: { type: string }",
+            ),
+            schema(
+                "File",
+                "type: object\nrequired: [id, tenant_id, public_id, secure_url]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  public_id: { type: string }\n  secure_url: { type: string }\n  resource_type: { type: string, enum: [image, raw, video] }\n  folder: { type: string }\n  uploaded_by: { type: [string, 'null'], format: uuid }",
+            ),
             schema("FileList", res("File", is_array=True)),
         ],
     },
@@ -500,12 +1569,44 @@ OPENAPI_SPECS: list[dict] = [
         "description": "KPIs, dashboards, and projections (spec \\u00a77). Owned by lane L2 (EP-21). Feature flag: analytics.",
         "tags": ["kpis", "projections"],
         "paths": [
-            ("/kpis", op("get", "listKpis", "List KPI snapshots", ["kpis"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="KpiSnapshotList")),
-            ("/projections", op("get", "listProjections", "List projections", ["projections"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="ProjectionList")),
+            (
+                "/kpis",
+                op(
+                    "get",
+                    "listKpis",
+                    "List KPI snapshots",
+                    ["kpis"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="KpiSnapshotList",
+                ),
+            ),
+            (
+                "/projections",
+                op(
+                    "get",
+                    "listProjections",
+                    "List projections",
+                    ["projections"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="ProjectionList",
+                ),
+            ),
         ],
         "schemas": [
-            schema("KpiSnapshot", "type: object\nrequired: [id, tenant_id, metric_key, value]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  metric_key: { type: string }\n  value: { type: number }\n  recorded_at: { type: string, format: date-time }"),
-            schema("Projection", "type: object\nrequired: [id, tenant_id, metric_key, projected_value]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  metric_key: { type: string }\n  projected_value: { type: number }\n  horizon: { type: string }\n  generated_at: { type: string, format: date-time }"),
+            schema(
+                "KpiSnapshot",
+                "type: object\nrequired: [id, tenant_id, metric_key, value]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  metric_key: { type: string }\n  value: { type: number }\n  recorded_at: { type: string, format: date-time }",
+            ),
+            schema(
+                "Projection",
+                "type: object\nrequired: [id, tenant_id, metric_key, projected_value]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  metric_key: { type: string }\n  projected_value: { type: number }\n  horizon: { type: string }\n  generated_at: { type: string, format: date-time }",
+            ),
             schema("KpiSnapshotList", res("KpiSnapshot", is_array=True)),
             schema("ProjectionList", res("Projection", is_array=True)),
         ],
@@ -517,15 +1618,64 @@ OPENAPI_SPECS: list[dict] = [
         "tags": ["plans", "subscriptions", "invoices"],
         "paths": [
             ("/plans", op("get", "listPlans", "List SaaS plans", ["plans"], response="PlanList")),
-            ("/subscriptions", op("get", "listSubscriptions", "List tenant subscriptions", ["subscriptions"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="SubscriptionList")),
-            ("/subscriptions", op("post", "createSubscription", "Create or update subscription", ["subscriptions"], request="CreateSubscription", response="Subscription", response_code="201")),
-            ("/saas-invoices", op("get", "listSaasInvoices", "List SaaS invoices", ["invoices"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="SaasInvoiceList")),
+            (
+                "/subscriptions",
+                op(
+                    "get",
+                    "listSubscriptions",
+                    "List tenant subscriptions",
+                    ["subscriptions"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="SubscriptionList",
+                ),
+            ),
+            (
+                "/subscriptions",
+                op(
+                    "post",
+                    "createSubscription",
+                    "Create or update subscription",
+                    ["subscriptions"],
+                    request="CreateSubscription",
+                    response="Subscription",
+                    response_code="201",
+                ),
+            ),
+            (
+                "/saas-invoices",
+                op(
+                    "get",
+                    "listSaasInvoices",
+                    "List SaaS invoices",
+                    ["invoices"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="SaasInvoiceList",
+                ),
+            ),
         ],
         "schemas": [
-            schema("Plan", "type: object\nrequired: [id, key, name]\nproperties:\n  id: { type: string, format: uuid }\n  key: { type: string }\n  name: { type: string }\n  features: { type: array, items: { type: string } }\n  price_monthly: { type: [number, 'null'], minimum: 0 }"),
-            schema("Subscription", "type: object\nrequired: [id, tenant_id, plan_key, status]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  plan_key: { type: string }\n  status: { type: string, enum: [active, canceled, past_due] }\n  current_period_start: { type: string, format: date-time }\n  current_period_end: { type: string, format: date-time }"),
-            schema("CreateSubscription", "type: object\nrequired: [tenant_id, plan_key]\nproperties:\n  tenant_id: { type: string, format: uuid }\n  plan_key: { type: string }\n  billing_email: { type: [string, 'null'], format: email }"),
-            schema("SaasInvoice", "type: object\nrequired: [id, tenant_id, amount, status]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  amount: { type: number, minimum: 0 }\n  status: { type: string, enum: [draft, open, paid, void] }\n  due_date: { type: [string, 'null'], format: date }"),
+            schema(
+                "Plan",
+                "type: object\nrequired: [id, key, name]\nproperties:\n  id: { type: string, format: uuid }\n  key: { type: string }\n  name: { type: string }\n  features: { type: array, items: { type: string } }\n  price_monthly: { type: [number, 'null'], minimum: 0 }",
+            ),
+            schema(
+                "Subscription",
+                "type: object\nrequired: [id, tenant_id, plan_key, status]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  plan_key: { type: string }\n  status: { type: string, enum: [active, canceled, past_due] }\n  current_period_start: { type: string, format: date-time }\n  current_period_end: { type: string, format: date-time }",
+            ),
+            schema(
+                "CreateSubscription",
+                "type: object\nrequired: [tenant_id, plan_key]\nproperties:\n  tenant_id: { type: string, format: uuid }\n  plan_key: { type: string }\n  billing_email: { type: [string, 'null'], format: email }",
+            ),
+            schema(
+                "SaasInvoice",
+                "type: object\nrequired: [id, tenant_id, amount, status]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  amount: { type: number, minimum: 0 }\n  status: { type: string, enum: [draft, open, paid, void] }\n  due_date: { type: [string, 'null'], format: date }",
+            ),
             schema("PlanList", res("Plan", is_array=True)),
             schema("SubscriptionList", res("Subscription", is_array=True)),
             schema("SaasInvoiceList", res("SaasInvoice", is_array=True)),
@@ -537,22 +1687,123 @@ OPENAPI_SPECS: list[dict] = [
         "description": "Computer-based / online exams: question banks, sessions, submissions, and auto-grading (spec \\u00a77). Owned by lane L2 (EP-24). Feature flag: cbt_exams.",
         "tags": ["exams", "question-banks", "submissions"],
         "paths": [
-            ("/exams", op("get", "listExams", "List exams", ["exams"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="ExamList")),
-            ("/exams", op("post", "createExam", "Create an exam", ["exams"], request="CreateExam", response="Exam", response_code="201")),
-            ("/exams/{exam_id}", op("get", "getExam", "Get an exam", ["exams"], params=["$ref: '#/components/parameters/TenantId'"], response="Exam")),
-            ("/exams/{exam_id}/sessions", op("post", "startExamSession", "Start an exam session", ["exams"], params=["$ref: '#/components/parameters/TenantId'"], response="ExamSession", response_code="201")),
-            ("/submissions", op("post", "submitExam", "Submit an exam", ["submissions"], request="CreateSubmission", response="Submission", response_code="201")),
-            ("/question-banks", op("get", "listQuestionBanks", "List question banks", ["question-banks"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="QuestionBankList")),
-            ("/question-banks", op("post", "createQuestionBank", "Create a question bank", ["question-banks"], request="CreateQuestionBank", response="QuestionBank", response_code="201")),
+            (
+                "/exams",
+                op(
+                    "get",
+                    "listExams",
+                    "List exams",
+                    ["exams"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="ExamList",
+                ),
+            ),
+            (
+                "/exams",
+                op(
+                    "post",
+                    "createExam",
+                    "Create an exam",
+                    ["exams"],
+                    request="CreateExam",
+                    response="Exam",
+                    response_code="201",
+                ),
+            ),
+            (
+                "/exams/{exam_id}",
+                op(
+                    "get",
+                    "getExam",
+                    "Get an exam",
+                    ["exams"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    response="Exam",
+                ),
+            ),
+            (
+                "/exams/{exam_id}/sessions",
+                op(
+                    "post",
+                    "startExamSession",
+                    "Start an exam session",
+                    ["exams"],
+                    params=["$ref: '#/components/parameters/TenantId'"],
+                    response="ExamSession",
+                    response_code="201",
+                ),
+            ),
+            (
+                "/submissions",
+                op(
+                    "post",
+                    "submitExam",
+                    "Submit an exam",
+                    ["submissions"],
+                    request="CreateSubmission",
+                    response="Submission",
+                    response_code="201",
+                ),
+            ),
+            (
+                "/question-banks",
+                op(
+                    "get",
+                    "listQuestionBanks",
+                    "List question banks",
+                    ["question-banks"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="QuestionBankList",
+                ),
+            ),
+            (
+                "/question-banks",
+                op(
+                    "post",
+                    "createQuestionBank",
+                    "Create a question bank",
+                    ["question-banks"],
+                    request="CreateQuestionBank",
+                    response="QuestionBank",
+                    response_code="201",
+                ),
+            ),
         ],
         "schemas": [
-            schema("Exam", "type: object\nrequired: [id, tenant_id, title, subject_id]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  title: { type: string }\n  subject_id: { type: string, format: uuid }\n  duration_minutes: { type: integer, minimum: 1 }\n  question_count: { type: integer, minimum: 0 }\n  starts_at: { type: [string, 'null'], format: date-time }\n  ends_at: { type: [string, 'null'], format: date-time }"),
-            schema("CreateExam", "type: object\nrequired: [title, subject_id]\nproperties:\n  title: { type: string }\n  subject_id: { type: string, format: uuid }\n  duration_minutes: { type: integer, minimum: 1 }\n  question_ids: { type: array, items: { type: string, format: uuid } }\n  starts_at: { type: [string, 'null'], format: date-time }\n  ends_at: { type: [string, 'null'], format: date-time }"),
-            schema("ExamSession", "type: object\nrequired: [id, exam_id, student_id, started_at]\nproperties:\n  id: { type: string, format: uuid }\n  exam_id: { type: string, format: uuid }\n  student_id: { type: string, format: uuid }\n  started_at: { type: string, format: date-time }\n  expires_at: { type: string, format: date-time }"),
-            schema("Submission", "type: object\nrequired: [id, exam_id, student_id, answers]\nproperties:\n  id: { type: string, format: uuid }\n  exam_id: { type: string, format: uuid }\n  student_id: { type: string, format: uuid }\n  answers: { type: array, items: { type: object, properties: { question_id: { type: string, format: uuid }, selected_option: { type: [string, 'null'] }, text_answer: { type: [string, 'null'] } } } }\n  score: { type: [number, 'null'], minimum: 0 }\n  max_score: { type: [number, 'null'], minimum: 0 }\n  submitted_at: { type: string, format: date-time }"),
-            schema("CreateSubmission", "type: object\nrequired: [exam_id, student_id, answers]\nproperties:\n  exam_id: { type: string, format: uuid }\n  student_id: { type: string, format: uuid }\n  answers: { type: array, items: { type: object, properties: { question_id: { type: string, format: uuid }, selected_option: { type: [string, 'null'] }, text_answer: { type: [string, 'null'] } } } }"),
-            schema("QuestionBank", "type: object\nrequired: [id, tenant_id, name]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  name: { type: string }\n  subject_id: { type: [string, 'null'], format: uuid }\n  question_count: { type: integer, minimum: 0 }"),
-            schema("CreateQuestionBank", "type: object\nrequired: [name]\nproperties:\n  name: { type: string }\n  subject_id: { type: [string, 'null'], format: uuid }"),
+            schema(
+                "Exam",
+                "type: object\nrequired: [id, tenant_id, title, subject_id]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  title: { type: string }\n  subject_id: { type: string, format: uuid }\n  duration_minutes: { type: integer, minimum: 1 }\n  question_count: { type: integer, minimum: 0 }\n  starts_at: { type: [string, 'null'], format: date-time }\n  ends_at: { type: [string, 'null'], format: date-time }",
+            ),
+            schema(
+                "CreateExam",
+                "type: object\nrequired: [title, subject_id]\nproperties:\n  title: { type: string }\n  subject_id: { type: string, format: uuid }\n  duration_minutes: { type: integer, minimum: 1 }\n  question_ids: { type: array, items: { type: string, format: uuid } }\n  starts_at: { type: [string, 'null'], format: date-time }\n  ends_at: { type: [string, 'null'], format: date-time }",
+            ),
+            schema(
+                "ExamSession",
+                "type: object\nrequired: [id, exam_id, student_id, started_at]\nproperties:\n  id: { type: string, format: uuid }\n  exam_id: { type: string, format: uuid }\n  student_id: { type: string, format: uuid }\n  started_at: { type: string, format: date-time }\n  expires_at: { type: string, format: date-time }",
+            ),
+            schema(
+                "Submission",
+                "type: object\nrequired: [id, exam_id, student_id, answers]\nproperties:\n  id: { type: string, format: uuid }\n  exam_id: { type: string, format: uuid }\n  student_id: { type: string, format: uuid }\n  answers: { type: array, items: { type: object, properties: { question_id: { type: string, format: uuid }, selected_option: { type: [string, 'null'] }, text_answer: { type: [string, 'null'] } } } }\n  score: { type: [number, 'null'], minimum: 0 }\n  max_score: { type: [number, 'null'], minimum: 0 }\n  submitted_at: { type: string, format: date-time }",
+            ),
+            schema(
+                "CreateSubmission",
+                "type: object\nrequired: [exam_id, student_id, answers]\nproperties:\n  exam_id: { type: string, format: uuid }\n  student_id: { type: string, format: uuid }\n  answers: { type: array, items: { type: object, properties: { question_id: { type: string, format: uuid }, selected_option: { type: [string, 'null'] }, text_answer: { type: [string, 'null'] } } } }",
+            ),
+            schema(
+                "QuestionBank",
+                "type: object\nrequired: [id, tenant_id, name]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  name: { type: string }\n  subject_id: { type: [string, 'null'], format: uuid }\n  question_count: { type: integer, minimum: 0 }",
+            ),
+            schema(
+                "CreateQuestionBank",
+                "type: object\nrequired: [name]\nproperties:\n  name: { type: string }\n  subject_id: { type: [string, 'null'], format: uuid }",
+            ),
             schema("ExamList", res("Exam", is_array=True)),
             schema("QuestionBankList", res("QuestionBank", is_array=True)),
         ],
@@ -563,17 +1814,33 @@ OPENAPI_SPECS: list[dict] = [
         "description": "Immutable audit log sink for compliance (spec \\u00a77). Owned by lane L2 (EP-23).",
         "tags": ["audit-logs"],
         "paths": [
-            ("/audit-logs", op("get", "listAuditLogs", "List audit logs", ["audit-logs"], params=["$ref: '#/components/parameters/Limit'", "$ref: '#/components/parameters/Cursor'"], response="AuditLogList")),
+            (
+                "/audit-logs",
+                op(
+                    "get",
+                    "listAuditLogs",
+                    "List audit logs",
+                    ["audit-logs"],
+                    params=[
+                        "$ref: '#/components/parameters/Limit'",
+                        "$ref: '#/components/parameters/Cursor'",
+                    ],
+                    response="AuditLogList",
+                ),
+            ),
         ],
         "schemas": [
-            schema("AuditLog", "type: object\nrequired: [id, tenant_id, event_type, actor_id, occurred_at]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  event_type: { type: string }\n  actor_id: { type: [string, 'null'], format: uuid }\n  resource_type: { type: [string, 'null'] }\n  resource_id: { type: [string, 'null'] }\n  metadata: { type: [object, 'null'], additionalProperties: true }\n  occurred_at: { type: string, format: date-time }"),
+            schema(
+                "AuditLog",
+                "type: object\nrequired: [id, tenant_id, event_type, actor_id, occurred_at]\nproperties:\n  id: { type: string, format: uuid }\n  tenant_id: { type: string, format: uuid }\n  event_type: { type: string }\n  actor_id: { type: [string, 'null'], format: uuid }\n  resource_type: { type: [string, 'null'] }\n  resource_id: { type: [string, 'null'] }\n  metadata: { type: [object, 'null'], additionalProperties: true }\n  occurred_at: { type: string, format: date-time }",
+            ),
             schema("AuditLogList", res("AuditLog", is_array=True)),
         ],
     },
 ]
 
 
-def render_paths(spec: dict) -> str:
+def render_paths(spec: dict[str, Any]) -> str:
     """Group operations by path and render the YAML block."""
     by_path: dict[str, list[str]] = {}
     for path, operation_yaml in spec["paths"]:
@@ -607,7 +1874,7 @@ def write_openapi_specs() -> None:
 # ---------------------------------------------------------------------------
 # CloudEvents seed definitions
 # ---------------------------------------------------------------------------
-EVENTS: list[dict] = [
+EVENTS: list[dict[str, Any]] = [
     {
         "type": "tenant.feature_enabled",
         "source": "tenant-service",

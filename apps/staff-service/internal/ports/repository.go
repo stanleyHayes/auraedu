@@ -1,3 +1,4 @@
+// Package ports defines the staff service repository boundary.
 package ports
 
 import (

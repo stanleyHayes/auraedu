@@ -1,6 +1,6 @@
 # tenant-service — hermetic single-module build (go.mod replaces platform → ../../platform).
 # Build from repo root: docker build -f apps/tenant-service/Dockerfile .
-FROM golang:1.25-alpine AS build
+FROM golang:1.26.5-alpine AS build
 WORKDIR /src
 COPY platform/ ./platform/
 COPY apps/tenant-service/ ./apps/tenant-service/

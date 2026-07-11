@@ -1,9 +1,11 @@
+// Package application implements the staff service use cases.
 package application
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/auraedu/platform/auth"
 	"github.com/auraedu/platform/flags"
@@ -20,7 +22,7 @@ const (
 	PermDelete = "staff.delete"
 )
 
-// Feature flag key from contracts/features/features.yaml.
+// FeatureStaffManagement is the feature flag key from contracts/features/features.yaml.
 const FeatureStaffManagement = "staff_management"
 
 // Service holds the staff use cases. Tenant scope + RBAC + feature-flag checks belong
@@ -91,7 +93,9 @@ func (s *Service) Create(ctx context.Context, actor auth.Actor, req CreateStaffR
 	if err := s.repo.Create(ctx, tenantID, staff); err != nil {
 		return nil, err
 	}
-	_ = s.pub.Publish(ctx, "staff.created.v1", staff, nil)
+	if err := s.pub.Publish(ctx, "staff.created.v1", staff, nil); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish staff.created event", "err", err)
+	}
 	return staff, nil
 }
 
@@ -136,7 +140,9 @@ func (s *Service) Update(ctx context.Context, actor auth.Actor, id string, req U
 	if err := s.repo.Update(ctx, tenantID, staff); err != nil {
 		return nil, err
 	}
-	_ = s.pub.Publish(ctx, "staff.updated.v1", staff, map[string]any{"changed_fields": changed})
+	if err := s.pub.Publish(ctx, "staff.updated.v1", staff, map[string]any{"changed_fields": changed}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish staff.updated event", "err", err)
+	}
 	return staff, nil
 }
 
@@ -153,7 +159,9 @@ func (s *Service) Delete(ctx context.Context, actor auth.Actor, id string) error
 	if err := s.repo.Delete(ctx, tenantID, id); err != nil {
 		return err
 	}
-	_ = s.pub.Publish(ctx, "staff.deleted.v1", staff, nil)
+	if err := s.pub.Publish(ctx, "staff.deleted.v1", staff, nil); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish staff.deleted event", "err", err)
+	}
 	return nil
 }
 

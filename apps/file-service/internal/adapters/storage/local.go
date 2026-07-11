@@ -1,9 +1,11 @@
+// Package storage implements file-service storage backends.
 package storage
 
 import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -28,7 +30,10 @@ func NewLocalStorage(baseDir string) *LocalStorage {
 func (s *LocalStorage) Backend() string { return string(domain.BackendLocal) }
 
 // DeliveryURL is not supported for local filesystem storage.
-func (s *LocalStorage) DeliveryURL(tenantID, path, resourceType, transform string) (string, error) {
+func (s *LocalStorage) DeliveryURL(_, path, resourceType, transform string) (string, error) {
+	_ = path
+	_ = resourceType
+	_ = transform
 	return "", fmt.Errorf("local storage does not support delivery URLs")
 }
 
@@ -43,11 +48,15 @@ func (s *LocalStorage) Save(ctx context.Context, tenantID, fileID string, r io.R
 		return "", fmt.Errorf("create tenant dir: %w", err)
 	}
 	path := filepath.Join(dir, fileID)
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o640)
+	f, err := os.OpenFile(filepath.Clean(path), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		return "", fmt.Errorf("create file: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			slog.Default().ErrorContext(ctx, "failed to close local file", "path", path, "err", err)
+		}
+	}()
 	if _, err := io.Copy(f, r); err != nil {
 		return "", fmt.Errorf("write file: %w", err)
 	}
@@ -61,7 +70,7 @@ func (s *LocalStorage) Open(ctx context.Context, tenantID, path string) (io.Read
 	if path == "" {
 		return nil, fmt.Errorf("path is required")
 	}
-	f, err := os.Open(path)
+	f, err := os.Open(filepath.Clean(path))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("file not found")
@@ -78,7 +87,7 @@ func (s *LocalStorage) Delete(ctx context.Context, tenantID, path string) error 
 	if path == "" {
 		return nil
 	}
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove(filepath.Clean(path)); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("remove file: %w", err)
 	}
 	return nil

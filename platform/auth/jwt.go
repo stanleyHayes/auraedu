@@ -27,7 +27,7 @@ var (
 )
 
 // HS256 header, pre-encoded (RawURL, no padding — per JWT spec).
-var jwtHeader = base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"HS256","typ":"JWT"}`))
+const jwtHeader = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
 
 // Sign issues an HS256 JWT for the claims using the shared signing key.
 func Sign(c Claims, key []byte) (string, error) {

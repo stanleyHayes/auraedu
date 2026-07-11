@@ -30,10 +30,26 @@ export default function AdminOverview() {
         <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-5">
           <h3 className="font-display font-semibold tracking-tight">Quick links</h3>
           <ul className="mt-4 space-y-2">
-            <QuickLink href="/admin/students" icon={<Users className="size-4" />} label="Students" />
-            <QuickLink href="/admin/staff" icon={<GraduationCap className="size-4" />} label="Staff" />
-            <QuickLink href="/admin/academic-years" icon={<CalendarDays className="size-4" />} label="Academic years" />
-            <QuickLink href="/admin/assessments" icon={<ClipboardList className="size-4" />} label="Assessments" />
+            <QuickLink
+              href="/admin/students"
+              icon={<Users className="size-4" />}
+              label="Students"
+            />
+            <QuickLink
+              href="/admin/staff"
+              icon={<GraduationCap className="size-4" />}
+              label="Staff"
+            />
+            <QuickLink
+              href="/admin/academic-years"
+              icon={<CalendarDays className="size-4" />}
+              label="Academic years"
+            />
+            <QuickLink
+              href="/admin/assessments"
+              icon={<ClipboardList className="size-4" />}
+              label="Assessments"
+            />
           </ul>
         </div>
 

@@ -42,11 +42,11 @@
   --foreground: var(--color-paper-50);
   --muted: #132019;
   --muted-foreground: var(--color-ink-200);
-  --border: #2B3D34;
-  --primary: color-mix(in oklab, var(--color-brand) 60%, #EAEDE6);
+  --border: #2b3d34;
+  --primary: color-mix(in oklab, var(--color-brand) 60%, #eaede6);
   --primary-foreground: var(--color-ink-950);
   --accent: color-mix(in oklab, var(--color-brand) 26%, var(--color-ink-900));
-  --ring: color-mix(in oklab, var(--color-brand) 60%, #EAEDE6);
+  --ring: color-mix(in oklab, var(--color-brand) 60%, #eaede6);
 }
 
 /* ---- base ---- */
@@ -62,29 +62,80 @@ body {
 
 /* ---- signature keyframes ---- */
 @keyframes button-wave {
-  0%, 60%, 100% { transform: translateY(0); opacity: 0.55; }
-  30% { transform: translateY(-0.28rem); opacity: 1; }
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.55;
+  }
+  30% {
+    transform: translateY(-0.28rem);
+    opacity: 1;
+  }
 }
-@keyframes tick-draw { from { stroke-dashoffset: 22; } to { stroke-dashoffset: 0; } }
-@keyframes empty-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-0.35rem); } }
-@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes slide-up { from { opacity: 0; transform: translateY(0.5rem); } to { opacity: 1; transform: none; } }
+@keyframes tick-draw {
+  from {
+    stroke-dashoffset: 22;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes empty-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-0.35rem);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 
 /* ---- theme toggle: circular reveal via the View Transitions API ---- */
-html.theme-reveal::view-transition-new(root) { animation: aura-reveal 450ms var(--ease-out-quart); }
-html.theme-reveal::view-transition-old(root) { animation: none; }
+html.theme-reveal::view-transition-new(root) {
+  animation: aura-reveal 450ms var(--ease-out-quart);
+}
+html.theme-reveal::view-transition-old(root) {
+  animation: none;
+}
 @keyframes aura-reveal {
-  from { clip-path: circle(0 at var(--theme-reveal-x) var(--theme-reveal-y)); }
-  to   { clip-path: circle(150vmax at var(--theme-reveal-x) var(--theme-reveal-y)); }
+  from {
+    clip-path: circle(0 at var(--theme-reveal-x) var(--theme-reveal-y));
+  }
+  to {
+    clip-path: circle(150vmax at var(--theme-reveal-x) var(--theme-reveal-y));
+  }
 }
 
 /* ---- reduced-motion kill-switch (four-layer strategy starts here) ---- */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
   }
-  html.theme-reveal::view-transition-new(root) { animation: none; }
+  html.theme-reveal::view-transition-new(root) {
+    animation: none;
+  }
 }

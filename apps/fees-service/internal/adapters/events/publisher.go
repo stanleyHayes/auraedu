@@ -1,3 +1,4 @@
+// Package events publishes fees-service domain events.
 package events
 
 import (

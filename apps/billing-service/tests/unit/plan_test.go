@@ -99,7 +99,10 @@ func TestPlan_ApplyUpdate_InvalidStatus(t *testing.T) {
 }
 
 func TestPlan_Validate_InvalidStatus(t *testing.T) {
-	p, _ := domain.NewPlan("Starter", "starter", "GHS", "monthly", 1000, nil, nil)
+	p, err := domain.NewPlan("Starter", "starter", "GHS", "monthly", 1000, nil, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	p.Status = "unknown"
 	if err := p.Validate(); err == nil {
 		t.Fatal("expected error for invalid status")

@@ -1,3 +1,6 @@
+// Package http provides the HTTP adapter for the billing service.
+//
+//nolint:misspell // British spelling "cancelled" is intentional for the billing domain.
 package http
 
 import (
@@ -56,7 +59,10 @@ func (h *Handler) listPlans(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
+	if err != nil {
+		limit = 0
+	}
 	filter := ports.PlanFilter{
 		Limit:  limit,
 		Cursor: r.URL.Query().Get("cursor"),
@@ -176,7 +182,10 @@ func (h *Handler) listSubscriptions(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
+	if err != nil {
+		limit = 0
+	}
 	filter := ports.SubscriptionFilter{
 		Limit:  limit,
 		Cursor: r.URL.Query().Get("cursor"),
@@ -309,7 +318,10 @@ func (h *Handler) listInvoices(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
+	if err != nil {
+		limit = 0
+	}
 	filter := ports.SaaSInvoiceFilter{
 		Limit:          limit,
 		Cursor:         r.URL.Query().Get("cursor"),

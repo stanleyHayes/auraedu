@@ -1,3 +1,4 @@
+// Package postgres provides the Postgres implementation of the CBT repository port.
 package postgres
 
 import (
@@ -37,7 +38,10 @@ func (r *Repository) CreateQuestion(ctx context.Context, tenantID string, q *dom
 			return fmt.Errorf("cbt: marshal options: %w", err)
 		}
 		_, err = tx.Exec(ctx, `
-			INSERT INTO cbt_questions (id, tenant_id, academic_year_id, subject_id, question_text, question_type, options, correct_answer, marks, status, created_at, updated_at)
+			INSERT INTO cbt_questions (
+				id, tenant_id, academic_year_id, subject_id, question_text, question_type,
+				options, correct_answer, marks, status, created_at, updated_at
+			)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		`, q.ID, tenantID, q.AcademicYearID, q.SubjectID, q.QuestionText, q.QuestionType, options, q.CorrectAnswer, q.Marks, q.Status, q.CreatedAt, q.UpdatedAt)
 		if err != nil {
@@ -136,7 +140,9 @@ func (r *Repository) UpdateQuestion(ctx context.Context, tenantID string, q *dom
 		}
 		_, err = tx.Exec(ctx, `
 			UPDATE cbt_questions
-			SET academic_year_id = $3, subject_id = $4, question_text = $5, question_type = $6, options = $7, correct_answer = $8, marks = $9, status = $10, updated_at = $11
+			SET academic_year_id = $3, subject_id = $4, question_text = $5,
+			    question_type = $6, options = $7, correct_answer = $8,
+			    marks = $9, status = $10, updated_at = $11
 			WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
 		`, q.ID, tenantID, q.AcademicYearID, q.SubjectID, q.QuestionText, q.QuestionType, options, q.CorrectAnswer, q.Marks, q.Status, q.UpdatedAt)
 		if err != nil {
@@ -170,7 +176,10 @@ func (r *Repository) CreateExamSession(ctx context.Context, tenantID string, e *
 			return err
 		}
 		_, err = tx.Exec(ctx, `
-			INSERT INTO cbt_exam_sessions (id, tenant_id, title, academic_year_id, subject_id, question_ids, duration_minutes, start_at, end_at, status, created_at, updated_at)
+			INSERT INTO cbt_exam_sessions (
+				id, tenant_id, title, academic_year_id, subject_id, question_ids,
+				duration_minutes, start_at, end_at, status, created_at, updated_at
+			)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		`, e.ID, tenantID, e.Title, e.AcademicYearID, e.SubjectID, qids, e.DurationMinutes, e.StartAt, e.EndAt, e.Status, e.CreatedAt, e.UpdatedAt)
 		if err != nil {
@@ -464,7 +473,9 @@ func scanQuestion(row scanner) (*domain.QuestionBank, error) {
 		return nil, err
 	}
 	if len(options) > 0 {
-		_ = json.Unmarshal(options, &q.Options)
+		if err := json.Unmarshal(options, &q.Options); err != nil {
+			return nil, fmt.Errorf("cbt: unmarshal options: %w", err)
+		}
 	}
 	return &q, nil
 }
@@ -493,7 +504,9 @@ func scanSubmission(row scanner) (*domain.Submission, error) {
 	}
 	s.Answers = make(map[string]string)
 	if len(answers) > 0 {
-		_ = json.Unmarshal(answers, &s.Answers)
+		if err := json.Unmarshal(answers, &s.Answers); err != nil {
+			return nil, fmt.Errorf("cbt: unmarshal answers: %w", err)
+		}
 	}
 	return &s, nil
 }

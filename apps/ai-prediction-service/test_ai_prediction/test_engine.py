@@ -11,12 +11,14 @@ from sqlalchemy import select
 @pytest.fixture
 def high_performing_student(make_metric):
     async def _builder(session, tenant_id: str, student_id: str):
-        session.add_all([
-            make_metric(tenant_id, student_id, "average_score", 85.0, days_ago=1),
-            make_metric(tenant_id, student_id, "average_score", 88.0, days_ago=2),
-            make_metric(tenant_id, student_id, "attendance_rate", 0.95, days_ago=1),
-            make_metric(tenant_id, student_id, "assignment_completion_rate", 0.92, days_ago=1),
-        ])
+        session.add_all(
+            [
+                make_metric(tenant_id, student_id, "average_score", 85.0, days_ago=1),
+                make_metric(tenant_id, student_id, "average_score", 88.0, days_ago=2),
+                make_metric(tenant_id, student_id, "attendance_rate", 0.95, days_ago=1),
+                make_metric(tenant_id, student_id, "assignment_completion_rate", 0.92, days_ago=1),
+            ]
+        )
         await session.commit()
 
     return _builder
@@ -25,11 +27,13 @@ def high_performing_student(make_metric):
 @pytest.fixture
 def at_risk_student(make_metric):
     async def _builder(session, tenant_id: str, student_id: str):
-        session.add_all([
-            make_metric(tenant_id, student_id, "average_score", 45.0, days_ago=1),
-            make_metric(tenant_id, student_id, "average_score", 50.0, days_ago=2),
-            make_metric(tenant_id, student_id, "attendance_rate", 0.55, days_ago=1),
-        ])
+        session.add_all(
+            [
+                make_metric(tenant_id, student_id, "average_score", 45.0, days_ago=1),
+                make_metric(tenant_id, student_id, "average_score", 50.0, days_ago=2),
+                make_metric(tenant_id, student_id, "attendance_rate", 0.55, days_ago=1),
+            ]
+        )
         await session.commit()
 
     return _builder
@@ -91,11 +95,13 @@ async def test_exam_readiness_for_high_performer(db_session, high_performing_stu
 async def test_performance_trend_requires_multiple_scores(db_session, make_metric):
     tenant_id = "tenant-a"
     student_id = "dddddddd-dddd-dddd-dddd-dddddddddddd"
-    db_session.add_all([
-        make_metric(tenant_id, student_id, "average_score", 60.0, days_ago=1),
-        make_metric(tenant_id, student_id, "average_score", 70.0, days_ago=2),
-        make_metric(tenant_id, student_id, "average_score", 80.0, days_ago=3),
-    ])
+    db_session.add_all(
+        [
+            make_metric(tenant_id, student_id, "average_score", 60.0, days_ago=1),
+            make_metric(tenant_id, student_id, "average_score", 70.0, days_ago=2),
+            make_metric(tenant_id, student_id, "average_score", 80.0, days_ago=3),
+        ]
+    )
     await db_session.commit()
 
     predictions = await generate_predictions(db_session, tenant_id, student_id)

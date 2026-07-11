@@ -1,6 +1,6 @@
 # Multi-stage build for the AuraEDU API Gateway (Go). Built from the repo root so
 # the local `platform` module is available: `docker build -f apps/api-gateway/Dockerfile .`
-FROM golang:1.25-alpine AS build
+FROM golang:1.26.5-alpine AS build
 WORKDIR /src
 
 # Hermetic single-module build: the gateway's go.mod `replace`s platform → ../../platform,

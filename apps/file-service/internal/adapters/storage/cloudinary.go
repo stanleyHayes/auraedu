@@ -1,9 +1,10 @@
+// Package storage implements file-service storage backends.
 package storage
 
 import (
 	"context"
 	"crypto/hmac"
-	"crypto/sha1"
+	"crypto/sha1" //nolint:gosec // SHA-1 is required for Cloudinary legacy webhook signatures
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -131,8 +132,7 @@ func (s *CloudinaryStorage) SignUpload(ctx context.Context, tenantID, fileID, fo
 // DeliveryURL returns a Cloudinary delivery URL, optionally with a transformation
 // chain (e.g. "w_300,h_300,c_fit"). If resourceType is empty it defaults to the
 // adapter's configured resource type.
-func (s *CloudinaryStorage) DeliveryURL(tenantID, path, resourceType, transform string) (string, error) {
-	_ = tenantID
+func (s *CloudinaryStorage) DeliveryURL(_, path, resourceType, transform string) (string, error) {
 	if path == "" {
 		return "", fmt.Errorf("path is required")
 	}
@@ -210,7 +210,9 @@ func (s *CloudinaryStorage) Open(ctx context.Context, tenantID, path string) (io
 		return nil, fmt.Errorf("cloudinary download failed: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		_ = resp.Body.Close()
+		if err := resp.Body.Close(); err != nil {
+			return nil, fmt.Errorf("cloudinary download failed: %s (close: %w)", resp.Status, err)
+		}
 		return nil, fmt.Errorf("cloudinary download failed: %s", resp.Status)
 	}
 	return resp.Body, nil

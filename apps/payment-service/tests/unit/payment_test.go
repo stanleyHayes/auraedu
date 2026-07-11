@@ -97,7 +97,10 @@ func TestPayment_ApplyUpdate_ProviderReference(t *testing.T) {
 }
 
 func TestPayment_Validate_InvalidProvider(t *testing.T) {
-	p, _ := domain.NewPayment("tenant-1", "inv-1", "mock", "GHS", 10000, nil)
+	p, err := domain.NewPayment("tenant-1", "inv-1", "mock", "GHS", 10000, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	p.Provider = "unknown"
 	if err := p.Validate(); err == nil {
 		t.Fatal("expected error for invalid provider")

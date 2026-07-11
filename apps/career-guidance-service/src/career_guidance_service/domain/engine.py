@@ -2,11 +2,37 @@
 
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from career_guidance_service.models import FeatureStoreMetric, Guidance
+
+_LOOKBACK_DAYS = 180
+_CONFIDENCE_BASE = 0.4
+_CONFIDENCE_STEP = 0.11
+_CONFIDENCE_CAP = 0.95
+_CONTRIBUTION_ROUND = 2
+_STRONG_NEGATIVE_THRESHOLD = -0.2
+_NEGATIVE_THRESHOLD = -0.05
+_POSITIVE_THRESHOLD = 0.05
+_STRONG_POSITIVE_THRESHOLD = 0.2
+_ATTENDANCE_THRESHOLD = 0.75
+_SCORE_THRESHOLD = 60.0
+_COMPLETION_THRESHOLD = 0.7
+_CAREER_TRACK_STEM_THRESHOLD = 75
+_CAREER_TRACK_GENERAL_THRESHOLD = 60
+_CAREER_ATTENDANCE_STEM_THRESHOLD = 0.8
+_COURSE_LOAD_MIN = 4
+_COURSE_LOAD_RANGE = 3
+_STUDY_STRATEGY_LOW_ATTENDANCE = 0.7
+_STUDY_STRATEGY_LOW_COMPLETION = 0.6
+_STUDY_STRATEGY_FOCUS_COMPLETION = 0.8
+
+
+def _average(values: list[float]) -> float:
+    return sum(values) / len(values) if values else 0.0
 
 
 async def fetch_student_metrics(
@@ -14,7 +40,7 @@ async def fetch_student_metrics(
     tenant_id: str,
     student_id: str,
 ) -> list[FeatureStoreMetric]:
-    since = datetime.now(UTC) - timedelta(days=180)
+    since = datetime.now(UTC) - timedelta(days=_LOOKBACK_DAYS)
     stmt = (
         select(FeatureStoreMetric)
         .where(
@@ -36,34 +62,46 @@ def _aggregate_metrics(metrics: list[FeatureStoreMetric]) -> dict[str, list[floa
 
 
 def _confidence(sample_count: int) -> float:
-    return round(min(0.4 + sample_count * 0.11, 0.95), 2)
+    return round(min(_CONFIDENCE_BASE + sample_count * _CONFIDENCE_STEP, _CONFIDENCE_CAP), 2)
 
 
 def _contribution(value: float, threshold: float, higher_is_better: bool) -> str:
     diff = (value - threshold) / threshold if threshold else 0.0
-    if higher_is_better:
-        if diff <= -0.2:
-            return "strong_negative"
-        if diff < -0.05:
-            return "negative"
-        if diff >= 0.2:
-            return "strong_positive"
-        if diff > 0.05:
-            return "positive"
-    else:
-        if diff >= 0.2:
-            return "strong_negative"
-        if diff > 0.05:
-            return "negative"
-        if diff <= -0.2:
-            return "strong_positive"
-        if diff < -0.05:
-            return "positive"
+    sign = 1 if higher_is_better else -1
+    signed_diff = diff * sign
+    if signed_diff <= _STRONG_NEGATIVE_THRESHOLD:
+        return "strong_negative"
+    if signed_diff < _NEGATIVE_THRESHOLD:
+        return "negative"
+    if signed_diff >= _STRONG_POSITIVE_THRESHOLD:
+        return "strong_positive"
+    if signed_diff > _POSITIVE_THRESHOLD:
+        return "positive"
     return "neutral"
 
 
-def _average(values: list[float]) -> float:
-    return sum(values) / len(values) if values else 0.0
+def _career_track(avg_score: float, avg_attendance: float) -> str:
+    stem_ready = (
+        avg_score >= _CAREER_TRACK_STEM_THRESHOLD
+        and avg_attendance >= _CAREER_ATTENDANCE_STEM_THRESHOLD
+    )
+    if stem_ready:
+        return "STEM / Health Sciences"
+    if avg_score >= _CAREER_TRACK_GENERAL_THRESHOLD:
+        return "Business / Arts / Social Sciences"
+    return "Foundation / Vocational / Support pathway"
+
+
+def _study_strategy(avg_attendance: float, avg_completion: float) -> str:
+    needs_attention = (
+        avg_attendance < _STUDY_STRATEGY_LOW_ATTENDANCE
+        or avg_completion < _STUDY_STRATEGY_LOW_COMPLETION
+    )
+    if needs_attention:
+        return "Increase attendance and complete missing assignments"
+    if avg_completion < _STUDY_STRATEGY_FOCUS_COMPLETION:
+        return "Focus on consistent assignment completion"
+    return "Maintain current study habits; consider advanced material"
 
 
 async def generate_guidance(
@@ -87,28 +125,23 @@ async def generate_guidance(
     # Career track recommendation
     if include("career_track") and score_values:
         avg_score = _average(score_values)
-        avg_attendance = _average(attendance_values) if attendance_values else 0.75
+        avg_attendance = _average(attendance_values) if attendance_values else _ATTENDANCE_THRESHOLD
         factors = [
             {
                 "metric_key": "average_score",
-                "value": round(avg_score, 2),
-                "contribution": _contribution(avg_score, 60.0, True),
+                "value": round(avg_score, _CONTRIBUTION_ROUND),
+                "contribution": _contribution(avg_score, _SCORE_THRESHOLD, True),
             }
         ]
         if attendance_values:
             factors.append(
                 {
                     "metric_key": "attendance_rate",
-                    "value": round(avg_attendance, 2),
-                    "contribution": _contribution(avg_attendance, 0.75, True),
+                    "value": round(avg_attendance, _CONTRIBUTION_ROUND),
+                    "contribution": _contribution(avg_attendance, _ATTENDANCE_THRESHOLD, True),
                 }
             )
-        if avg_score >= 75 and avg_attendance >= 0.8:
-            track = "STEM / Health Sciences"
-        elif avg_score >= 60:
-            track = "Business / Arts / Social Sciences"
-        else:
-            track = "Foundation / Vocational / Support pathway"
+        track = _career_track(avg_score, avg_attendance)
         guidance.append(
             Guidance(
                 tenant_id=tenant_id,
@@ -124,25 +157,25 @@ async def generate_guidance(
     # Course load recommendation
     if include("course_load") and (score_values or completion_values):
         avg_score = _average(score_values) if score_values else 50.0
-        avg_completion = _average(completion_values) if completion_values else 0.7
+        avg_completion = _average(completion_values) if completion_values else _COMPLETION_THRESHOLD
         # Recommend 4-7 courses based on readiness.
         readiness = min(1.0, (avg_score / 100.0) * 0.6 + avg_completion * 0.4)
-        recommended_courses = int(4 + readiness * 3)
+        recommended_courses = int(_COURSE_LOAD_MIN + readiness * _COURSE_LOAD_RANGE)
         factors = []
         if score_values:
             factors.append(
                 {
                     "metric_key": "average_score",
-                    "value": round(avg_score, 2),
-                    "contribution": _contribution(avg_score, 60.0, True),
+                    "value": round(avg_score, _CONTRIBUTION_ROUND),
+                    "contribution": _contribution(avg_score, _SCORE_THRESHOLD, True),
                 }
             )
         if completion_values:
             factors.append(
                 {
                     "metric_key": "assignment_completion_rate",
-                    "value": round(avg_completion, 2),
-                    "contribution": _contribution(avg_completion, 0.7, True),
+                    "value": round(avg_completion, _CONTRIBUTION_ROUND),
+                    "contribution": _contribution(avg_completion, _COMPLETION_THRESHOLD, True),
                 }
             )
         guidance.append(
@@ -159,29 +192,24 @@ async def generate_guidance(
 
     # Study strategy recommendation
     if include("study_strategy") and (attendance_values or completion_values):
-        avg_attendance = _average(attendance_values) if attendance_values else 0.75
-        avg_completion = _average(completion_values) if completion_values else 0.7
-        if avg_attendance < 0.7 or avg_completion < 0.6:
-            strategy = "Increase attendance and complete missing assignments"
-        elif avg_completion < 0.8:
-            strategy = "Focus on consistent assignment completion"
-        else:
-            strategy = "Maintain current study habits; consider advanced material"
+        avg_attendance = _average(attendance_values) if attendance_values else _ATTENDANCE_THRESHOLD
+        avg_completion = _average(completion_values) if completion_values else _COMPLETION_THRESHOLD
+        strategy = _study_strategy(avg_attendance, avg_completion)
         factors = []
         if attendance_values:
             factors.append(
                 {
                     "metric_key": "attendance_rate",
-                    "value": round(avg_attendance, 2),
-                    "contribution": _contribution(avg_attendance, 0.75, True),
+                    "value": round(avg_attendance, _CONTRIBUTION_ROUND),
+                    "contribution": _contribution(avg_attendance, _ATTENDANCE_THRESHOLD, True),
                 }
             )
         if completion_values:
             factors.append(
                 {
                     "metric_key": "assignment_completion_rate",
-                    "value": round(avg_completion, 2),
-                    "contribution": _contribution(avg_completion, 0.7, True),
+                    "value": round(avg_completion, _CONTRIBUTION_ROUND),
+                    "contribution": _contribution(avg_completion, _COMPLETION_THRESHOLD, True),
                 }
             )
         guidance.append(
@@ -215,7 +243,7 @@ async def generate_guidance(
 async def build_explanation(
     session: AsyncSession,
     guidance: Guidance,
-) -> dict:
+) -> dict[str, Any]:
     """Build explainability payload for guidance."""
     metrics = await fetch_student_metrics(
         session,
@@ -223,13 +251,13 @@ async def build_explanation(
         guidance.student_id,
     )
     buckets = _aggregate_metrics(metrics)
-    factors: list[dict] = []
+    factors: list[dict[str, Any]] = []
 
     thresholds = {
-        "attendance_rate": (0.75, True),
-        "average_score": (60.0, True),
-        "assessment_score": (60.0, True),
-        "assignment_completion_rate": (0.7, True),
+        "attendance_rate": (_ATTENDANCE_THRESHOLD, True),
+        "average_score": (_SCORE_THRESHOLD, True),
+        "assessment_score": (_SCORE_THRESHOLD, True),
+        "assignment_completion_rate": (_COMPLETION_THRESHOLD, True),
     }
 
     for key, values in buckets.items():
@@ -240,7 +268,7 @@ async def build_explanation(
         factors.append(
             {
                 "metric_key": key,
-                "value": round(avg, 2),
+                "value": round(avg, _CONTRIBUTION_ROUND),
                 "contribution": _contribution(avg, threshold, higher_is_better),
             }
         )

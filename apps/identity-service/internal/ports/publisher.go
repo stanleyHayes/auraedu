@@ -1,3 +1,4 @@
+// Package ports defines the identity-service boundary interfaces.
 package ports
 
 import (

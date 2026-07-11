@@ -109,8 +109,9 @@ func (r *Repository) Features(code string) ([]domain.FeatureFlag, error) {
 	if !ok {
 		return nil, domain.ErrNotFound
 	}
-	out := make([]domain.FeatureFlag, 0, len(domain.FeatureCatalog))
-	for _, f := range domain.FeatureCatalog {
+	catalog := domain.FeatureCatalog()
+	out := make([]domain.FeatureFlag, 0, len(catalog))
+	for _, f := range catalog {
 		out = append(out, domain.FeatureFlag{Key: f.Key, Enabled: on[f.Key], PlanRequired: f.PlanRequired})
 	}
 	return out, nil

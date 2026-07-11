@@ -1,9 +1,11 @@
+// Package application holds the website-service use cases.
 package application
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/auraedu/platform/auth"
 	"github.com/auraedu/platform/flags"
@@ -18,7 +20,7 @@ const (
 	PermManage = "website.manage"
 )
 
-// Feature flag key from contracts/features/features.yaml.
+// FeaturePublicWebsite is the feature flag key from contracts/features/features.yaml.
 const FeaturePublicWebsite = "public_website"
 
 // Service holds the website use cases. Tenant scope + RBAC + feature-flag checks
@@ -122,9 +124,9 @@ func (s *Service) CreatePage(ctx context.Context, actor auth.Actor, req CreatePa
 	if err := s.repo.CreatePage(ctx, tenantID, page); err != nil {
 		return nil, err
 	}
-	_ = s.pub.PublishPage(ctx, "website.page_created.v1", page, nil)
+	s.publishPage(ctx, "website.page_created.v1", page, nil)
 	if page.IsPublished() {
-		_ = s.pub.PublishPage(ctx, "website.page_published.v1", page, nil)
+		s.publishPage(ctx, "website.page_published.v1", page, nil)
 	}
 	return page, nil
 }
@@ -185,9 +187,9 @@ func (s *Service) UpdatePage(ctx context.Context, actor auth.Actor, id string, r
 		return nil, err
 	}
 	eventMeta := map[string]any{"changed_fields": changed}
-	_ = s.pub.PublishPage(ctx, "website.page_updated.v1", page, eventMeta)
+	s.publishPage(ctx, "website.page_updated.v1", page, eventMeta)
 	if !wasPublished && page.IsPublished() {
-		_ = s.pub.PublishPage(ctx, "website.page_published.v1", page, nil)
+		s.publishPage(ctx, "website.page_published.v1", page, nil)
 	}
 	return page, nil
 }
@@ -208,7 +210,7 @@ func (s *Service) DeletePage(ctx context.Context, actor auth.Actor, id string) e
 	if err := s.repo.DeletePage(ctx, tenantID, id); err != nil {
 		return err
 	}
-	_ = s.pub.PublishPage(ctx, "website.page_deleted.v1", page, nil)
+	s.publishPage(ctx, "website.page_deleted.v1", page, nil)
 	return nil
 }
 
@@ -241,12 +243,19 @@ func (s *Service) CreateSection(ctx context.Context, actor auth.Actor, req Creat
 	if err := s.repo.CreateSection(ctx, tenantID, section); err != nil {
 		return nil, err
 	}
-	_ = s.pub.PublishSection(ctx, "website.section_created.v1", section, nil)
+	s.publishSection(ctx, "website.section_created.v1", section, nil)
 	return section, nil
 }
 
 // ListSections returns a tenant-scoped page of sections for a page.
-func (s *Service) ListSections(ctx context.Context, actor auth.Actor, pageID string, limit int, cursor string, filter ports.SectionFilter) ([]*domain.Section, string, error) {
+func (s *Service) ListSections(
+	ctx context.Context,
+	actor auth.Actor,
+	pageID string,
+	limit int,
+	cursor string,
+	filter ports.SectionFilter,
+) ([]*domain.Section, string, error) {
 	tenantID, err := s.requireAccess(ctx, actor, PermRead)
 	if err != nil {
 		return nil, "", err
@@ -287,7 +296,7 @@ func (s *Service) UpdateSection(ctx context.Context, actor auth.Actor, id string
 		return nil, err
 	}
 	eventMeta := map[string]any{"changed_fields": changed}
-	_ = s.pub.PublishSection(ctx, "website.section_updated.v1", section, eventMeta)
+	s.publishSection(ctx, "website.section_updated.v1", section, eventMeta)
 	return section, nil
 }
 
@@ -304,7 +313,7 @@ func (s *Service) DeleteSection(ctx context.Context, actor auth.Actor, id string
 	if err := s.repo.DeleteSection(ctx, tenantID, id); err != nil {
 		return err
 	}
-	_ = s.pub.PublishSection(ctx, "website.section_deleted.v1", section, nil)
+	s.publishSection(ctx, "website.section_deleted.v1", section, nil)
 	return nil
 }
 
@@ -328,6 +337,18 @@ func (s *Service) requireAccess(ctx context.Context, actor auth.Actor, perm stri
 		return "", fmt.Errorf("%w: %s", flags.ErrFeatureDisabled, FeaturePublicWebsite)
 	}
 	return tenantID, nil
+}
+
+func (s *Service) publishPage(ctx context.Context, eventType string, page *domain.Page, meta map[string]any) {
+	if err := s.pub.PublishPage(ctx, eventType, page, meta); err != nil {
+		slog.ErrorContext(ctx, "failed to publish page event", "event_type", eventType, "page_id", page.ID, "err", err)
+	}
+}
+
+func (s *Service) publishSection(ctx context.Context, eventType string, section *domain.Section, meta map[string]any) {
+	if err := s.pub.PublishSection(ctx, eventType, section, meta); err != nil {
+		slog.ErrorContext(ctx, "failed to publish section event", "event_type", eventType, "section_id", section.ID, "err", err)
+	}
 }
 
 func normalizeLimit(n int) int {

@@ -1,3 +1,4 @@
+// Package gateway implements the api-gateway reverse proxy, middleware, and route registry.
 package gateway
 
 import (
@@ -45,7 +46,7 @@ func (tb *TokenBucket) Allow(ctx context.Context, key string) (bool, error) {
 		windowMs = 1000
 	}
 
-	result, err := tb.Store.Eval(ctx, tokenBucketScript, []string{key},
+	result, err := tb.Store.Eval(ctx, rateLimitScript, []string{key},
 		fmt.Sprintf("%d", now),
 		fmt.Sprintf("%f", rps),
 		fmt.Sprintf("%d", burst),
@@ -73,7 +74,7 @@ func luaResultToBool(result interface{}) (bool, error) {
 	}
 }
 
-const tokenBucketScript = `
+const rateLimitScript = `
 local key = KEYS[1]
 local now = tonumber(ARGV[1])
 local rate = tonumber(ARGV[2])

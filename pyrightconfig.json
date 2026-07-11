@@ -1,0 +1,19 @@
+{
+  "pythonVersion": "3.14",
+  "typeCheckingMode": "strict",
+  "include": [
+    "apps/ai-recommendation-service/src",
+    "apps/ai-prediction-service/src",
+    "apps/career-guidance-service/src"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "**/.venv",
+    "**/node_modules"
+  ],
+  "reportMissingImports": "error",
+  "reportMissingTypeStubs": "warning",
+  "reportUnknownMemberType": "warning",
+  "reportUnknownArgumentType": "warning",
+  "reportAttributeAccessIssue": "warning"
+}

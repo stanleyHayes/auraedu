@@ -12,7 +12,7 @@ import (
 	"github.com/auraedu/student-service/internal/application"
 )
 
-func newService(t *testing.T) (*application.Service, *testkit.PostgresTestDB) {
+func newService(t *testing.T) *application.Service {
 	t.Helper()
 	ctx := withTenant(context.Background(), tenantA)
 	tdb := testkit.NewPostgres(ctx, t, "../../migrations")
@@ -22,8 +22,7 @@ func newService(t *testing.T) (*application.Service, *testkit.PostgresTestDB) {
 	gates.Set(tenantA, application.FeatureStudentManagement, true)
 	gates.Set(tenantB, application.FeatureStudentManagement, true)
 
-	svc := application.NewService(repo, application.WithFeatureGate(gates))
-	return svc, tdb
+	return application.NewService(repo, application.WithFeatureGate(gates))
 }
 
 func actorWith(perms ...string) auth.Actor {
@@ -32,7 +31,7 @@ func actorWith(perms ...string) auth.Actor {
 
 func TestService_CreateAndGetRoundtrip(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	svc, _ := newService(t)
+	svc := newService(t)
 
 	actor := actorWith(application.PermCreate, application.PermRead)
 	created, err := svc.Create(ctx, actor, application.CreateStudentRequest{
@@ -57,7 +56,7 @@ func TestService_CreateAndGetRoundtrip(t *testing.T) {
 
 func TestService_ListPagination(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	svc, _ := newService(t)
+	svc := newService(t)
 
 	actor := actorWith(application.PermCreate, application.PermRead)
 	if _, err := svc.Create(ctx, actor, application.CreateStudentRequest{FirstName: "A", LastName: "One"}); err != nil {
@@ -90,7 +89,7 @@ func TestService_ListPagination(t *testing.T) {
 
 func TestService_UpdateAndDelete(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	svc, _ := newService(t)
+	svc := newService(t)
 
 	actor := actorWith(application.PermCreate, application.PermRead, application.PermUpdate, application.PermDelete)
 	created, err := svc.Create(ctx, actor, application.CreateStudentRequest{FirstName: "Yaa", LastName: "Asantewaa"})
@@ -132,7 +131,7 @@ func TestService_FeatureFlagDisabled(t *testing.T) {
 
 func TestService_TenantIsolation(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	svc, _ := newService(t)
+	svc := newService(t)
 
 	actorA := actorWith(application.PermCreate, application.PermRead)
 	actorB := auth.Actor{UserID: "user-2", TenantID: tenantB, Permissions: []string{application.PermRead}}
@@ -150,7 +149,7 @@ func TestService_TenantIsolation(t *testing.T) {
 
 func TestService_MissingPermission(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
-	svc, _ := newService(t)
+	svc := newService(t)
 
 	actor := actorWith() // no permissions
 	_, err := svc.Create(ctx, actor, application.CreateStudentRequest{FirstName: "X", LastName: "Y"})
