@@ -142,6 +142,39 @@ func TestUpdateTenantValidation(t *testing.T) {
 	}
 }
 
+func TestResolveTenantBySubdomain(t *testing.T) {
+	svc := newSvc()
+	if _, err := svc.ResolveTenant(ctx, "", ""); !errors.Is(err, domain.ErrValidation) {
+		t.Fatalf("empty lookup should be validation error, got %v", err)
+	}
+	if _, err := svc.ResolveTenant(ctx, "", "no-such-tenant"); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("unknown subdomain should be not found, got %v", err)
+	}
+	got, err := svc.ResolveTenant(ctx, "", "upshs")
+	if err != nil {
+		t.Fatalf("resolve upshs subdomain: %v", err)
+	}
+	if got.Code != "upshs" {
+		t.Fatalf("resolved code = %q, want upshs", got.Code)
+	}
+}
+
+func TestResolveTenantByDomain(t *testing.T) {
+	svc := newSvc()
+	// Seed a tenant with a custom domain via update.
+	domainHost := "upshs.edu.gh"
+	if _, err := svc.UpdateTenant(ctx, platformAdm, "upshs", domain.TenantUpdate{Domain: &domainHost}); err != nil {
+		t.Fatalf("set domain: %v", err)
+	}
+	got, err := svc.ResolveTenant(ctx, domainHost, "")
+	if err != nil {
+		t.Fatalf("resolve by domain: %v", err)
+	}
+	if got.Code != "upshs" {
+		t.Fatalf("resolved code = %q, want upshs", got.Code)
+	}
+}
+
 func TestDeleteTenantRequiresPlatformAdmin(t *testing.T) {
 	svc := newSvc()
 	if err := svc.DeleteTenant(ctx, upshsAdmin, "upshs"); !errors.Is(err, domain.ErrForbidden) {

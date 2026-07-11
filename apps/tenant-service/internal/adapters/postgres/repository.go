@@ -164,6 +164,26 @@ func (r *Repository) DeleteTenant(ctx context.Context, code string) error {
 	})
 }
 
+// ResolveTenant is a public lookup used before authentication. It searches across
+// all tenant rows, so it uses the raw pool rather than tenant-scoped transactions.
+func (r *Repository) ResolveTenant(ctx context.Context, domainHost, subdomain string) (domain.Tenant, error) {
+	var t domain.Tenant
+	err := r.db.Pool().QueryRow(ctx, `
+		SELECT code, name, short, status, domain, plan, brand_primary, brand_secondary, logo_url
+		FROM tenants
+		WHERE ($1 <> '' AND lower(domain) = lower($1))
+		   OR ($2 <> '' AND code = lower($2))
+		LIMIT 1
+	`, domainHost, subdomain).Scan(
+		&t.Code, &t.Name, &t.Short, &t.Status, &t.Domain, &t.Plan,
+		&t.Branding.Brand.Primary, &t.Branding.Brand.Secondary, &t.Branding.LogoURL,
+	)
+	if err != nil {
+		return domain.Tenant{}, tenantNotFound(err, domainHost+subdomain)
+	}
+	return t, nil
+}
+
 // Features returns the feature snapshot for a tenant, joining persisted state
 // with the canonical catalog so plan_required is always present.
 func (r *Repository) Features(ctx context.Context, code string) ([]domain.FeatureFlag, error) {

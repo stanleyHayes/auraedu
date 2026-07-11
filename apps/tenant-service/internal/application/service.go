@@ -130,9 +130,13 @@ func (s *Service) GetTenant(ctx context.Context, actor auth.Actor, code string) 
 }
 
 // ResolveTenant is a public lookup used by the API gateway before authentication.
-// It exposes only non-sensitive identity fields.
-func (s *Service) ResolveTenant(ctx context.Context, code string) (domain.Tenant, error) {
-	return s.repo.GetTenant(withTenant(ctx, code), code)
+// It resolves a school by its custom domain or subdomain and exposes only
+// non-sensitive identity fields.
+func (s *Service) ResolveTenant(ctx context.Context, domainHost, subdomain string) (domain.Tenant, error) {
+	if domainHost == "" && subdomain == "" {
+		return domain.Tenant{}, domain.ErrValidation
+	}
+	return s.repo.ResolveTenant(ctx, domainHost, subdomain)
 }
 
 // Branding is PUBLIC by design: a school's logo/colors theme the login page before

@@ -6,6 +6,7 @@ package memory
 
 import (
 	"context"
+	"strings"
 	"sync"
 
 	"github.com/auraedu/tenant-service/internal/domain"
@@ -134,6 +135,24 @@ func (r *Repository) DeleteTenant(_ context.Context, code string) error {
 		}
 	}
 	return nil
+}
+
+func (r *Repository) ResolveTenant(_ context.Context, domainHost, subdomain string) (domain.Tenant, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if domainHost != "" {
+		for _, t := range r.tenants {
+			if strings.EqualFold(t.Domain, domainHost) {
+				return t, nil
+			}
+		}
+	}
+	if subdomain != "" {
+		if t, ok := r.tenants[subdomain]; ok {
+			return t, nil
+		}
+	}
+	return domain.Tenant{}, domain.ErrNotFound
 }
 
 func (r *Repository) Features(_ context.Context, code string) ([]domain.FeatureFlag, error) {

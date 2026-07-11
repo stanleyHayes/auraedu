@@ -15,6 +15,7 @@ type Repository interface {
 	CreateTenant(ctx context.Context, t domain.Tenant) error
 	UpdateTenant(ctx context.Context, code string, upd domain.TenantUpdate) (domain.Tenant, error)
 	DeleteTenant(ctx context.Context, code string) error
+	ResolveTenant(ctx context.Context, domain, subdomain string) (domain.Tenant, error)
 	Features(ctx context.Context, code string) ([]domain.FeatureFlag, error)
 	SetFeature(ctx context.Context, code, key string, enabled bool) (domain.FeatureFlag, error)
 }

@@ -80,12 +80,13 @@ func (h *Handler) createTenant(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) resolveTenant(w http.ResponseWriter, r *http.Request) {
-	code := r.URL.Query().Get("code")
-	if code == "" {
-		writeJSON(w, http.StatusBadRequest, errEnv("validation_error", "?code= is required"))
+	domain := r.URL.Query().Get("domain")
+	subdomain := r.URL.Query().Get("subdomain")
+	if domain == "" && subdomain == "" {
+		writeJSON(w, http.StatusBadRequest, errEnv("validation_error", "?domain= or ?subdomain= is required"))
 		return
 	}
-	t, err := h.svc.ResolveTenant(r.Context(), code)
+	t, err := h.svc.ResolveTenant(r.Context(), domain, subdomain)
 	if err != nil {
 		writeErr(w, err)
 		return

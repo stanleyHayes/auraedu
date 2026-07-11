@@ -31,16 +31,6 @@ var (
 )
 
 func (r *TenantResolver) Resolve(ctx context.Context, req *http.Request) (Tenant, error) {
-	if header := strings.TrimSpace(req.Header.Get("X-Tenant-ID")); header != "" {
-		if t := r.lookupStatic(header); t.ID != "" {
-			return t, nil
-		}
-		if r.TenantServiceURL != "" {
-			return r.resolveFromService(ctx, req, header)
-		}
-		return Tenant{ID: header}, nil
-	}
-
 	host := req.Host
 	if host == "" {
 		host = req.URL.Host
@@ -48,26 +38,36 @@ func (r *TenantResolver) Resolve(ctx context.Context, req *http.Request) (Tenant
 	if i := strings.Index(host, ":"); i >= 0 {
 		host = host[:i]
 	}
+	host = strings.ToLower(host)
+
+	if header := strings.TrimSpace(req.Header.Get("X-Tenant-ID")); header != "" {
+		key := strings.ToLower(header)
+		if t := r.lookupStatic(key); t.ID != "" {
+			return t, nil
+		}
+		if r.TenantServiceURL != "" {
+			if t, err := r.resolveFromService(ctx, req, "", key); err == nil {
+				return t, nil
+			}
+		}
+		return Tenant{ID: key}, nil
+	}
 
 	if t := r.lookupStatic(host); t.ID != "" {
 		return t, nil
 	}
 
 	parts := strings.Split(host, ".")
+	var subdomain string
 	if len(parts) >= 2 {
-		sub := strings.ToLower(parts[0])
-		if t := r.lookupStatic(sub); t.ID != "" {
+		subdomain = parts[0]
+		if t := r.lookupStatic(subdomain); t.ID != "" {
 			return t, nil
-		}
-		if r.TenantServiceURL != "" {
-			if t, err := r.resolveFromService(ctx, req, sub); err == nil {
-				return t, nil
-			}
 		}
 	}
 
 	if r.TenantServiceURL != "" {
-		if t, err := r.resolveFromService(ctx, req, host); err == nil {
+		if t, err := r.resolveFromService(ctx, req, host, subdomain); err == nil {
 			return t, nil
 		}
 	}
@@ -90,14 +90,22 @@ func (r *TenantResolver) lookupStatic(key string) Tenant {
 	return Tenant{}
 }
 
-func (r *TenantResolver) resolveFromService(ctx context.Context, req *http.Request, identifier string) (Tenant, error) {
+func (r *TenantResolver) resolveFromService(ctx context.Context, req *http.Request, domain, subdomain string) (Tenant, error) {
 	base, err := url.Parse(r.TenantServiceURL)
 	if err != nil {
 		return Tenant{}, fmt.Errorf("invalid tenant service URL: %w", err)
 	}
-	u := base.JoinPath("api", "v1", "tenants", identifier)
+	u := base.JoinPath("api", "v1", "tenants", "resolve")
+	q := u.Query()
+	if domain != "" {
+		q.Set("domain", domain)
+	}
+	if subdomain != "" {
+		q.Set("subdomain", subdomain)
+	}
+	u.RawQuery = q.Encode()
 
-	out, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil) //nolint:gosec // Internal tenant-service call.
+	out, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return Tenant{}, err
 	}
@@ -113,7 +121,7 @@ func (r *TenantResolver) resolveFromService(ctx context.Context, req *http.Reque
 		client = http.DefaultClient
 	}
 
-	resp, err := client.Do(out) //nolint:gosec // Internal tenant-service call.
+	resp, err := client.Do(out)
 	if err != nil {
 		return Tenant{}, err
 	}
