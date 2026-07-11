@@ -4,6 +4,7 @@ go 1.25.7
 
 use (
 	./apps/academic-service
+	./apps/analytics-service
 	./apps/api-gateway
 	./apps/assessment-service
 	./apps/attendance-service
