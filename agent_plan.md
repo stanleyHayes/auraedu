@@ -83,7 +83,7 @@ This section tracks work currently in-flight and recently completed. It is updat
 | AURA-2.7 | EP-02 Platform Core | **Done** | Kimi Code CLI | `platform/flags.TenantServiceClient` now calls tenant-service `/api/v1/features` with actor headers and falls back to static snapshot. |
 | AURA-3.x | EP-03 API Gateway | **Done** | Kimi Code CLI | Gateway tenant resolver calls tenant-service `/api/v1/tenants/{code}`; feature-flag edge check uses live client via request context. |
 | AURA-5.x | EP-05 Tenant Service | **Done** | Kimi Code CLI | Postgres+RLS adapter, context-aware repository, `/api/v1/tenants/resolve` public endpoint, `/api/v1/admin/tenants/{code}/features/{key}` override. |
-| — | Backlog / Deferred | **Pending** | — | Add a CLI framework (cobra or urfave/cli) to each Go service for server/worker/migrate subcommands instead of separate binaries. |
+| — | Backlog / Deferred | **Done** | Kimi Code CLI | Added cobra-based CLI to every Go service: `cmd/<service>` with `server`, `worker` (where applicable) and `migrate` (where migrations exist) subcommands. Dockerfiles default to `CMD ["server"]`. |
 
 ---
 
