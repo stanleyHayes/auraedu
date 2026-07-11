@@ -33,12 +33,76 @@ type FeatureFlag struct {
 	PlanRequired string `json:"plan_required,omitempty"`
 }
 
+// TenantUpdate is a partial update to a tenant. Nil fields mean "no change".
+type TenantUpdate struct {
+	Name     *string   `json:"name,omitempty"`
+	Short    *string   `json:"short,omitempty"`
+	Status   *string   `json:"status,omitempty"`
+	Domain   *string   `json:"domain,omitempty"`
+	Plan     *string   `json:"plan,omitempty"`
+	Branding *Branding `json:"branding,omitempty"`
+}
+
 // Validate enforces tenant invariants.
 func (t Tenant) Validate() error {
 	if t.Code == "" {
 		return ErrValidation
 	}
 	if t.Name == "" {
+		return ErrValidation
+	}
+	return nil
+}
+
+// ApplyUpdate returns a copy of t with the non-nil fields of upd applied.
+func (t Tenant) ApplyUpdate(upd TenantUpdate) Tenant {
+	if upd.Name != nil {
+		t.Name = *upd.Name
+	}
+	if upd.Short != nil {
+		t.Short = *upd.Short
+	}
+	if upd.Status != nil {
+		t.Status = *upd.Status
+	}
+	if upd.Domain != nil {
+		t.Domain = *upd.Domain
+	}
+	if upd.Plan != nil {
+		t.Plan = *upd.Plan
+	}
+	if upd.Branding != nil {
+		t.Branding = *upd.Branding
+	}
+	return t
+}
+
+// ValidTenantStatuses returns the allowed tenant statuses.
+func ValidTenantStatuses() []string { return []string{"active", "onboarding", "suspended"} }
+
+// ValidPlans returns the allowed subscription plans.
+func ValidPlans() []string {
+	return []string{"core", "starter", "growth", "professional", "ai_plus", "enterprise"}
+}
+
+func inSlice(v string, ss []string) bool {
+	for _, s := range ss {
+		if s == v {
+			return true
+		}
+	}
+	return false
+}
+
+// ValidateUpdate checks the updated fields are legal.
+func (upd TenantUpdate) ValidateUpdate() error {
+	if upd.Status != nil && !inSlice(*upd.Status, ValidTenantStatuses()) {
+		return ErrValidation
+	}
+	if upd.Plan != nil && !inSlice(*upd.Plan, ValidPlans()) {
+		return ErrValidation
+	}
+	if upd.Name != nil && *upd.Name == "" {
 		return ErrValidation
 	}
 	return nil

@@ -75,6 +75,52 @@ func (s *Service) CreateTenant(ctx context.Context, actor auth.Actor, t domain.T
 	return t, nil
 }
 
+// UpdateTenant applies a partial update to a school. Platform super admins only.
+func (s *Service) UpdateTenant(ctx context.Context, actor auth.Actor, code string, upd domain.TenantUpdate) (domain.Tenant, error) {
+	if !actor.PlatformAdmin {
+		return domain.Tenant{}, domain.ErrForbidden
+	}
+	if code == "" {
+		return domain.Tenant{}, domain.ErrValidation
+	}
+	if err := upd.ValidateUpdate(); err != nil {
+		return domain.Tenant{}, err
+	}
+	t, err := s.repo.UpdateTenant(withTenant(ctx, code), code, upd)
+	if err != nil {
+		return domain.Tenant{}, err
+	}
+	if err := s.pub.Publish(ctx, "tenant.updated.v1", code, map[string]any{
+		"tenant_code": code,
+		"name":        t.Name,
+		"status":      t.Status,
+		"plan":        t.Plan,
+	}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish tenant.updated event", "err", err)
+	}
+	return t, nil
+}
+
+// DeleteTenant permanently removes a school and all of its feature flags.
+// Platform super admins only.
+func (s *Service) DeleteTenant(ctx context.Context, actor auth.Actor, code string) error {
+	if !actor.PlatformAdmin {
+		return domain.ErrForbidden
+	}
+	if code == "" {
+		return domain.ErrValidation
+	}
+	if err := s.repo.DeleteTenant(withTenant(ctx, code), code); err != nil {
+		return err
+	}
+	if err := s.pub.Publish(ctx, "tenant.deleted.v1", code, map[string]any{
+		"tenant_code": code,
+	}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish tenant.deleted event", "err", err)
+	}
+	return nil
+}
+
 // GetTenant returns a tenant record; the actor must belong to it (or be a platform admin).
 func (s *Service) GetTenant(ctx context.Context, actor auth.Actor, code string) (domain.Tenant, error) {
 	if !actor.CanAccessTenant(code) {

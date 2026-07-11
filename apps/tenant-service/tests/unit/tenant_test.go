@@ -108,6 +108,56 @@ func TestSetFeatureEntitlement(t *testing.T) {
 	}
 }
 
+func TestUpdateTenantRequiresPlatformAdmin(t *testing.T) {
+	svc := newSvc()
+	name := "Updated Name"
+	if _, err := svc.UpdateTenant(ctx, upshsAdmin, "upshs", domain.TenantUpdate{Name: &name}); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("school admin should not update tenant, got %v", err)
+	}
+	if _, err := svc.UpdateTenant(ctx, platformAdm, "no-such-tenant", domain.TenantUpdate{Name: &name}); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("unknown tenant should be not found, got %v", err)
+	}
+	updated, err := svc.UpdateTenant(ctx, platformAdm, "upshs", domain.TenantUpdate{Name: &name})
+	if err != nil {
+		t.Fatalf("platform admin should update tenant: %v", err)
+	}
+	if updated.Name != name {
+		t.Fatalf("name = %q, want %q", updated.Name, name)
+	}
+}
+
+func TestUpdateTenantValidation(t *testing.T) {
+	svc := newSvc()
+	empty := ""
+	if _, err := svc.UpdateTenant(ctx, platformAdm, "upshs", domain.TenantUpdate{Name: &empty}); !errors.Is(err, domain.ErrValidation) {
+		t.Fatalf("empty name should be validation error, got %v", err)
+	}
+	badStatus := "deleted"
+	if _, err := svc.UpdateTenant(ctx, platformAdm, "upshs", domain.TenantUpdate{Status: &badStatus}); !errors.Is(err, domain.ErrValidation) {
+		t.Fatalf("invalid status should be validation error, got %v", err)
+	}
+	badPlan := "ultimate"
+	if _, err := svc.UpdateTenant(ctx, platformAdm, "upshs", domain.TenantUpdate{Plan: &badPlan}); !errors.Is(err, domain.ErrValidation) {
+		t.Fatalf("invalid plan should be validation error, got %v", err)
+	}
+}
+
+func TestDeleteTenantRequiresPlatformAdmin(t *testing.T) {
+	svc := newSvc()
+	if err := svc.DeleteTenant(ctx, upshsAdmin, "upshs"); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("school admin should not delete tenant, got %v", err)
+	}
+	if err := svc.DeleteTenant(ctx, platformAdm, "no-such-tenant"); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("unknown tenant should be not found, got %v", err)
+	}
+	if err := svc.DeleteTenant(ctx, platformAdm, "upshs"); err != nil {
+		t.Fatalf("platform admin should delete tenant: %v", err)
+	}
+	if _, err := svc.GetTenant(ctx, platformAdm, "upshs"); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("deleted tenant should be not found, got %v", err)
+	}
+}
+
 func enabled(t *testing.T, svc *application.Service, actor auth.Actor, code, key string) bool {
 	t.Helper()
 	fs, err := svc.Features(ctx, actor, code)

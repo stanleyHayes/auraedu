@@ -24,6 +24,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/tenants", h.createTenant)
 	mux.HandleFunc("GET /api/v1/tenants/resolve", h.resolveTenant)
 	mux.HandleFunc("GET /api/v1/tenants/{code}", h.getTenant)
+	mux.HandleFunc("PATCH /api/v1/tenants/{code}", h.updateTenant)
+	mux.HandleFunc("DELETE /api/v1/tenants/{code}", h.deleteTenant)
 	mux.HandleFunc("GET /api/v1/tenants/{code}/branding", h.branding)
 	mux.HandleFunc("GET /api/v1/features", h.features)
 	mux.HandleFunc("PUT /api/v1/features/{key}", h.setFeature)
@@ -102,6 +104,28 @@ func (h *Handler) getTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, t)
+}
+
+func (h *Handler) updateTenant(w http.ResponseWriter, r *http.Request) {
+	var upd domain.TenantUpdate
+	if err := json.NewDecoder(r.Body).Decode(&upd); err != nil {
+		writeJSON(w, http.StatusBadRequest, errEnv("validation_error", "invalid request body"))
+		return
+	}
+	t, err := h.svc.UpdateTenant(r.Context(), auth.FromHeaders(r.Header), r.PathValue("code"), upd)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, t)
+}
+
+func (h *Handler) deleteTenant(w http.ResponseWriter, r *http.Request) {
+	if err := h.svc.DeleteTenant(r.Context(), auth.FromHeaders(r.Header), r.PathValue("code")); err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) branding(w http.ResponseWriter, r *http.Request) {

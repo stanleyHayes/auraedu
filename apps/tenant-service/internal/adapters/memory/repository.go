@@ -104,6 +104,38 @@ func (r *Repository) CreateTenant(_ context.Context, t domain.Tenant) error {
 	return nil
 }
 
+func (r *Repository) UpdateTenant(_ context.Context, code string, upd domain.TenantUpdate) (domain.Tenant, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	t, ok := r.tenants[code]
+	if !ok {
+		return domain.Tenant{}, domain.ErrNotFound
+	}
+	t = t.ApplyUpdate(upd)
+	if err := t.Validate(); err != nil {
+		return domain.Tenant{}, err
+	}
+	r.tenants[code] = t
+	return t, nil
+}
+
+func (r *Repository) DeleteTenant(_ context.Context, code string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.tenants[code]; !ok {
+		return domain.ErrNotFound
+	}
+	delete(r.tenants, code)
+	delete(r.enabled, code)
+	for i, c := range r.order {
+		if c == code {
+			r.order = append(r.order[:i], r.order[i+1:]...)
+			break
+		}
+	}
+	return nil
+}
+
 func (r *Repository) Features(_ context.Context, code string) ([]domain.FeatureFlag, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

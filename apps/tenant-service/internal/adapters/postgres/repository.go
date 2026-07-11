@@ -110,6 +110,60 @@ func (r *Repository) CreateTenant(ctx context.Context, t domain.Tenant) error {
 	})
 }
 
+// UpdateTenant applies a partial update to a tenant row inside a single
+// transaction scoped to that tenant's RLS policy.
+func (r *Repository) UpdateTenant(ctx context.Context, code string, upd domain.TenantUpdate) (domain.Tenant, error) {
+	var updated domain.Tenant
+	err := r.db.WithTx(withTenant(ctx, code), func(ctx context.Context, tx pgx.Tx) error {
+		var current domain.Tenant
+		if err := tx.QueryRow(ctx, `
+			SELECT code, name, short, status, domain, plan, brand_primary, brand_secondary, logo_url
+			FROM tenants
+			WHERE code = $1
+		`, code).Scan(
+			&current.Code, &current.Name, &current.Short, &current.Status, &current.Domain, &current.Plan,
+			&current.Branding.Brand.Primary, &current.Branding.Brand.Secondary, &current.Branding.LogoURL,
+		); err != nil {
+			return tenantNotFound(err, code)
+		}
+
+		updated = current.ApplyUpdate(upd)
+		if err := updated.Validate(); err != nil {
+			return err
+		}
+
+		_, err := tx.Exec(ctx, `
+			UPDATE tenants
+			SET name = $2, short = $3, status = $4, domain = $5, plan = $6,
+			    brand_primary = $7, brand_secondary = $8, logo_url = $9, updated_at = now()
+			WHERE code = $1
+		`, updated.Code, updated.Name, updated.Short, updated.Status, updated.Domain, updated.Plan,
+			updated.Branding.Brand.Primary, updated.Branding.Brand.Secondary, updated.Branding.LogoURL)
+		if err != nil {
+			return fmt.Errorf("update tenant: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return domain.Tenant{}, err
+	}
+	return updated, nil
+}
+
+// DeleteTenant removes a tenant and its feature flags (cascade).
+func (r *Repository) DeleteTenant(ctx context.Context, code string) error {
+	return r.db.WithTx(withTenant(ctx, code), func(ctx context.Context, tx pgx.Tx) error {
+		ct, err := tx.Exec(ctx, `DELETE FROM tenants WHERE code = $1`, code)
+		if err != nil {
+			return fmt.Errorf("delete tenant: %w", err)
+		}
+		if ct.RowsAffected() == 0 {
+			return fmt.Errorf("%w: %s", domain.ErrNotFound, code)
+		}
+		return nil
+	})
+}
+
 // Features returns the feature snapshot for a tenant, joining persisted state
 // with the canonical catalog so plan_required is always present.
 func (r *Repository) Features(ctx context.Context, code string) ([]domain.FeatureFlag, error) {
