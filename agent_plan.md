@@ -75,6 +75,7 @@ This section tracks work currently in-flight and recently completed. It is updat
 | AURA-20.10.3 | EP-20 File Service | **Done** | Kimi Code CLI | Per-tenant usage accounting: `file_usage` table, record storage/delivery, `GET /files/usage`. |
 | AURA-20.10 | EP-20 File Service | **Done** | Kimi Code CLI | Transform presets + delivery, Cloudinary webhook, usage accounting all complete. |
 | AURA-23.1 | EP-23 Audit (base) | **Done** | Kimi Code CLI | Audit sink service + worker already implemented; added Docker worker build and deployment wiring in `docker-compose.yml` and `render.yaml`. |
+| AURA-10.1 | EP-10 Student Service | **Done** | Kimi Code CLI | Student CRUD spine: domain, repository, service, HTTP, events, feature-flag gating, tenant-isolation tests; wired into gateway, docker-compose, and render.yaml. |
 
 ---
 

@@ -20,7 +20,7 @@ permissions:
   payments:   [payments.read, payments.initiate]
   notifications: [notifications.read, notifications.send, notifications.manage]
   website:    [website.read, website.manage]
-  files:      [files.read, files.upload, files.delete]
+  files:      [files.read, files.upload, files.update, files.delete]
   analytics:  [analytics.view]
   billing:    [billing.read, billing.manage]
   cbt:        [cbt.read, cbt.author, cbt.take, cbt.grade]

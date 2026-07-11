@@ -200,6 +200,10 @@ services:
         fromService:
           name: file-service
           property: hostport
+      - key: SERVICE_STUDENT_URL
+        fromService:
+          name: student-service
+          property: hostport
       - key: JWT_SIGNING_KEY
         fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
