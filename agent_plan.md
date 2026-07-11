@@ -79,6 +79,9 @@ This section tracks work currently in-flight and recently completed. It is updat
 | AURA-10.9 | EP-10 Student Service | **Done** | Kimi Code CLI | Bulk import students+guardians via CSV (`POST /students/import`), per-row error collection, dedupe by guardian email, tenant-scoped. |
 | AURA-12.1 | EP-12 Academic Service | **Done** | Kimi Code CLI | Academic Service deployment wiring: `academic_management` core flag, `academic.read`/`academic.manage` RBAC, gateway route, docker-compose, render.yaml, Dockerfile feature registry. |
 | AURA-2.4 | EP-02 Platform Core | **Done** | Kimi Code CLI | Added `httpx.RequirePermission` middleware; gateway-injected actor must hold permission; platform super-admins implicitly pass. |
+| AURA-2.6 | EP-02 Platform Core | **Done** | Kimi Code CLI | Concrete NATS JetStream DLQ: failed events published to `AURA_DLQ` stream with original event, error, and timestamp. |
+| AURA-2.7 | EP-02 Platform Core | **Done** | Kimi Code CLI | `platform/flags.TenantServiceClient` now calls tenant-service `/api/v1/features` with actor headers and falls back to static snapshot. |
+| AURA-3.x | EP-03 API Gateway | **Done** | Kimi Code CLI | Gateway tenant resolver calls tenant-service `/api/v1/tenants/{code}`; feature-flag edge check uses live client via request context. |
 | — | Backlog / Deferred | **Pending** | — | Add a CLI framework (cobra or urfave/cli) to each Go service for server/worker/migrate subcommands instead of separate binaries. |
 
 ---

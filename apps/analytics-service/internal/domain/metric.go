@@ -4,6 +4,7 @@ package domain
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -86,9 +87,14 @@ func (d Dimensions) Key() string {
 	if len(d) == 0 {
 		return ""
 	}
+	keys := make([]string, 0, len(d))
+	for k := range d {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
 	parts := make([]string, 0, len(d))
-	for k, v := range d {
-		parts = append(parts, fmt.Sprintf("%s=%s", k, v))
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s=%s", k, d[k]))
 	}
 	return strings.Join(parts, "|")
 }

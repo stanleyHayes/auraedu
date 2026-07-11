@@ -3,9 +3,14 @@ package stubs
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
+
+	"github.com/auraedu/platform/auth"
 )
 
 type TenantResolver struct {
@@ -31,7 +36,7 @@ func (r *TenantResolver) Resolve(ctx context.Context, req *http.Request) (Tenant
 			return t, nil
 		}
 		if r.TenantServiceURL != "" {
-			return r.resolveFromService(ctx, header)
+			return r.resolveFromService(ctx, req, header)
 		}
 		return Tenant{ID: header}, nil
 	}
@@ -55,14 +60,14 @@ func (r *TenantResolver) Resolve(ctx context.Context, req *http.Request) (Tenant
 			return t, nil
 		}
 		if r.TenantServiceURL != "" {
-			if t, err := r.resolveFromService(ctx, sub); err == nil {
+			if t, err := r.resolveFromService(ctx, req, sub); err == nil {
 				return t, nil
 			}
 		}
 	}
 
 	if r.TenantServiceURL != "" {
-		if t, err := r.resolveFromService(ctx, host); err == nil {
+		if t, err := r.resolveFromService(ctx, req, host); err == nil {
 			return t, nil
 		}
 	}
@@ -85,8 +90,50 @@ func (r *TenantResolver) lookupStatic(key string) Tenant {
 	return Tenant{}
 }
 
-func (r *TenantResolver) resolveFromService(ctx context.Context, identifier string) (Tenant, error) {
-	_ = ctx
-	_ = identifier
-	return Tenant{}, ErrTenantNotFound
+func (r *TenantResolver) resolveFromService(ctx context.Context, req *http.Request, identifier string) (Tenant, error) {
+	base, err := url.Parse(r.TenantServiceURL)
+	if err != nil {
+		return Tenant{}, fmt.Errorf("invalid tenant service URL: %w", err)
+	}
+	u := base.JoinPath("api", "v1", "tenants", identifier)
+
+	out, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil) //nolint:gosec // Internal tenant-service call.
+	if err != nil {
+		return Tenant{}, err
+	}
+
+	for _, h := range []string{auth.HeaderUserID, auth.HeaderTenant, auth.HeaderRole, auth.HeaderPermissions} {
+		if v := req.Header.Get(h); v != "" {
+			out.Header.Set(h, v)
+		}
+	}
+
+	client := r.Client
+	if client == nil {
+		client = http.DefaultClient
+	}
+
+	resp, err := client.Do(out) //nolint:gosec // Internal tenant-service call.
+	if err != nil {
+		return Tenant{}, err
+	}
+	defer resp.Body.Close() //nolint:errcheck // response body close errors are safe to ignore
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		var tr tenantResponse
+		if err := json.NewDecoder(resp.Body).Decode(&tr); err != nil {
+			return Tenant{}, err
+		}
+		return Tenant{ID: tr.TenantCode, Name: tr.Name}, nil
+	case http.StatusNotFound:
+		return Tenant{}, ErrTenantNotFound
+	default:
+		return Tenant{}, fmt.Errorf("tenant service returned status %d", resp.StatusCode)
+	}
+}
+
+type tenantResponse struct {
+	TenantCode string `json:"tenant_code"`
+	Name       string `json:"name"`
 }

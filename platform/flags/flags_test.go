@@ -2,9 +2,14 @@ package flags
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/auraedu/platform/auth"
 )
 
 func TestStaticSnapshot(t *testing.T) {
@@ -34,6 +39,53 @@ func TestRequireEnabled(t *testing.T) {
 	}
 	if err := RequireEnabled(ctx, s, "upshs", "cbt_exams"); err == nil {
 		t.Fatal("expected feature disabled error")
+	}
+}
+
+func TestTenantServiceClientEnabledAndFallback(t *testing.T) {
+	ctx := context.Background()
+	fallback := NewStaticSnapshot()
+	fallback.Set("upshs", "cbt_exams", true)
+
+	var requests int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if !strings.HasPrefix(r.URL.Path, "/api/v1/features") {
+			http.NotFound(w, r)
+			return
+		}
+		if r.URL.Query().Get("tenant") != "upshs" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if requests == 3 && r.Header.Get("X-Actor-User") != "u1" {
+			t.Errorf("expected X-Actor-User header u1, got %q", r.Header.Get("X-Actor-User"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"tenant_code":"upshs","features":[{"feature_key":"assessments","is_enabled":true},{"feature_key":"cbt_exams","is_enabled":false}]}`))
+	}))
+	defer server.Close()
+
+	client := NewTenantServiceClient(server.URL, fallback)
+	if !client.IsEnabled(ctx, "upshs", "assessments") {
+		t.Fatal("expected assessments enabled from service")
+	}
+	if client.IsEnabled(ctx, "upshs", "cbt_exams") {
+		t.Fatal("expected cbt_exams disabled from service")
+	}
+
+	actorCtx := auth.WithActor(ctx, auth.Actor{UserID: "u1", TenantID: "upshs", Role: "teacher", Permissions: []string{"x"}})
+	if !client.IsEnabled(actorCtx, "upshs", "assessments") {
+		t.Fatal("expected assessments enabled with actor")
+	}
+
+	if client.IsEnabled(ctx, "unknown", "cbt_exams") {
+		t.Fatal("expected fallback for unknown tenant (404)")
+	}
+
+	nilClient := (*TenantServiceClient)(nil)
+	if nilClient.IsEnabled(ctx, "upshs", "cbt_exams") {
+		t.Fatal("expected nil client to return false")
 	}
 }
 

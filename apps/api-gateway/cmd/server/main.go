@@ -17,6 +17,7 @@ import (
 	"github.com/auraedu/api-gateway/internal/gateway"
 	"github.com/auraedu/api-gateway/internal/stubs"
 	"github.com/auraedu/platform/config"
+	"github.com/auraedu/platform/flags"
 )
 
 const service = "api-gateway"
@@ -62,28 +63,39 @@ func main() {
 		TenantServiceURL: config.Getenv("SERVICE_TENANT_URL", "http://localhost:8082"),
 	}
 
-	flagClient := &stubs.FeatureFlagClient{
-		Defaults: map[string]bool{
+	defaults := map[string]bool{
+		"student_management": true,
+		"staff_management":   true,
+		"attendance":         true,
+		"assessments":        true,
+		"billing":            true,
+		"identity":           true,
+	}
+	tenantOverrides := map[string]map[string]bool{
+		"upshs": {
 			"student_management": true,
-			"staff_management":   true,
-			"attendance":         true,
-			"assessments":        true,
-			"billing":            true,
-			"identity":           true,
+			"online_payments":    true,
+			"cbt_exams":          true,
 		},
-		TenantOverrides: map[string]map[string]bool{
-			"upshs": {
-				"student_management": true,
-				"online_payments":    true,
-				"cbt_exams":          true,
-			},
-			"aboom": {
-				"student_management": true,
-				"online_payments":    false,
-				"cbt_exams":          false,
-			},
+		"aboom": {
+			"student_management": true,
+			"online_payments":    false,
+			"cbt_exams":          false,
 		},
 	}
+
+	fallback := flags.NewStaticSnapshot()
+	for tenant := range tenantOverrides {
+		for feature, enabled := range defaults {
+			fallback.Set(tenant, feature, enabled)
+		}
+	}
+	for tenant, overrides := range tenantOverrides {
+		for feature, enabled := range overrides {
+			fallback.Set(tenant, feature, enabled)
+		}
+	}
+	flagClient := flags.NewTenantServiceClient(config.Getenv("SERVICE_TENANT_URL", ""), fallback)
 
 	limiter := newRateLimiter(cfg, health, log)
 

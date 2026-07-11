@@ -22,7 +22,7 @@ type TenantResolver interface {
 }
 
 type FeatureFlagClient interface {
-	IsEnabled(tenantID, feature string) bool
+	IsEnabled(ctx context.Context, tenantID, feature string) bool
 }
 
 type Builder struct {
@@ -166,13 +166,14 @@ func (b *Builder) auth(next http.Handler) http.Handler {
 		}
 
 		actor := claims.Actor()
-		ctx := WithActor(r.Context(), ActorContext{
+		actorCtx := WithActor(r.Context(), ActorContext{
 			UserID:      actor.UserID,
 			Role:        actor.Role,
 			Permissions: strings.Join(actor.Permissions, ", "),
 			Platform:    actor.PlatformAdmin,
 		})
-		next.ServeHTTP(w, r.WithContext(ctx))
+		actorCtx = auth.WithActor(actorCtx, actor)
+		next.ServeHTTP(w, r.WithContext(actorCtx))
 	})
 }
 
@@ -271,7 +272,7 @@ func (b *Builder) featureFlag(next http.Handler) http.Handler {
 			return
 		}
 
-		if !b.Flags.IsEnabled(tenantID, rt.FeatureKey) {
+		if !b.Flags.IsEnabled(r.Context(), tenantID, rt.FeatureKey) {
 			writeJSONError(w, http.StatusForbidden, "feature_disabled", "this feature is not enabled for the tenant")
 			return
 		}

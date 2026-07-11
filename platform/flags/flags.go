@@ -4,6 +4,7 @@ package flags
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/auraedu/platform/auth"
 	"gopkg.in/yaml.v3"
 )
 
@@ -62,6 +64,14 @@ func NewTenantServiceClient(baseURL string, fallback Gate) *TenantServiceClient 
 	}
 }
 
+type featureResponse struct {
+	TenantCode string `json:"tenant_code"`
+	Features   []struct {
+		Key     string `json:"feature_key"`
+		Enabled bool   `json:"is_enabled"`
+	} `json:"features"`
+}
+
 func (c *TenantServiceClient) IsEnabled(ctx context.Context, tenantID, key string) bool {
 	if c == nil {
 		return false
@@ -69,7 +79,42 @@ func (c *TenantServiceClient) IsEnabled(ctx context.Context, tenantID, key strin
 	if c.baseURL == "" {
 		return c.fallback.IsEnabled(ctx, tenantID, key)
 	}
-	return c.fallback.IsEnabled(ctx, tenantID, key)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/features?tenant="+tenantID, nil)
+	if err != nil {
+		return c.fallback.IsEnabled(ctx, tenantID, key)
+	}
+
+	if actor, ok := auth.ActorFromContext(ctx); ok {
+		req.Header.Set(auth.HeaderUserID, actor.UserID)
+		req.Header.Set(auth.HeaderTenant, actor.TenantID)
+		req.Header.Set(auth.HeaderRole, actor.Role)
+		if len(actor.Permissions) > 0 {
+			req.Header.Set(auth.HeaderPermissions, strings.Join(actor.Permissions, ","))
+		}
+	}
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return c.fallback.IsEnabled(ctx, tenantID, key)
+	}
+	defer resp.Body.Close() //nolint:errcheck // response body close errors are safe to ignore
+
+	if resp.StatusCode != http.StatusOK {
+		return c.fallback.IsEnabled(ctx, tenantID, key)
+	}
+
+	var fr featureResponse
+	if err := json.NewDecoder(resp.Body).Decode(&fr); err != nil {
+		return c.fallback.IsEnabled(ctx, tenantID, key)
+	}
+
+	for _, f := range fr.Features {
+		if f.Key == key {
+			return f.Enabled
+		}
+	}
+	return false
 }
 
 // RequireEnabled returns ErrFeatureDisabled when key is not enabled for tenantID.
