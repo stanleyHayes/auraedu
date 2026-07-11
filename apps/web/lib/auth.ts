@@ -16,6 +16,7 @@ const USER_COOKIE = "auraedu_user";
 export const ADMIN_ROLES = new Set(["school_admin", "platform_super_admin", "super_admin"]);
 export const TEACHER_ROLES = new Set(["teacher", "school_admin", "super_admin"]);
 export const PARENT_ROLES = new Set(["parent", "school_admin", "super_admin"]);
+export const STUDENT_ROLES = new Set(["student", "school_admin", "super_admin"]);
 
 export function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
@@ -86,4 +87,8 @@ export function isTeacher(session: UserSession): boolean {
 
 export function isParent(session: UserSession): boolean {
   return PARENT_ROLES.has(session.role);
+}
+
+export function isStudent(session: UserSession): boolean {
+  return STUDENT_ROLES.has(session.role);
 }

@@ -125,6 +125,27 @@ export const ADMIN_NAV: NavGroupDef[] = [
   },
 ];
 
+export const STUDENT_NAV: NavGroupDef[] = [
+  {
+    heading: "Overview",
+    items: [{ label: "Dashboard", href: "/student" }],
+  },
+  {
+    heading: "Academic",
+    items: [
+      { label: "Timetable", href: "/student/timetable", feature: "timetable" },
+      { label: "Assignments", href: "/student/assignments", feature: "assignments" },
+      { label: "Results", href: "/student/results", feature: "assessments" },
+      { label: "Report Card", href: "/student/report-card", feature: "report_cards" },
+      { label: "CBT Exams", href: "/student/cbt-exams", feature: "cbt" },
+    ],
+  },
+  {
+    heading: "Growth",
+    items: [{ label: "Recommendations", href: "/student/recommendations", feature: "ai_recommendations" }],
+  },
+];
+
 export const PARENT_NAV: NavGroupDef[] = [
   {
     heading: "Overview",

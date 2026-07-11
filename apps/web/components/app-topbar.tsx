@@ -27,7 +27,13 @@ export function AppTopbar({
   showMobileMenu = false,
 }: AppTopbarProps) {
   const profileHref =
-    user?.role === "teacher" ? "/teacher" : user?.role === "parent" ? "/parent" : "/admin/settings";
+    user?.role === "teacher"
+      ? "/teacher"
+      : user?.role === "parent"
+        ? "/parent"
+        : user?.role === "student"
+          ? "/student"
+          : "/admin/settings";
 
   const menuItems: UserMenuItem[] = [
     {
