@@ -125,6 +125,39 @@ export const ADMIN_NAV: NavGroupDef[] = [
   },
 ];
 
+export const PARENT_NAV: NavGroupDef[] = [
+  {
+    heading: "Overview",
+    items: [{ label: "Dashboard", href: "/parent" }],
+  },
+  {
+    heading: "Family",
+    items: [{ label: "My Children", href: "/parent/children", feature: "student_management" }],
+  },
+  {
+    heading: "Academic",
+    items: [
+      { label: "Attendance", href: "/parent/attendance", feature: "attendance" },
+      { label: "Results", href: "/parent/results", feature: "assessments" },
+      { label: "Report Cards", href: "/parent/reports", feature: "report_cards" },
+    ],
+  },
+  {
+    heading: "Finance",
+    items: [
+      { label: "Fees", href: "/parent/fees", feature: "fees" },
+      { label: "Payments", href: "/parent/payments", feature: "payments" },
+    ],
+  },
+  {
+    heading: "School",
+    items: [
+      { label: "Notifications", href: "/parent/notifications", feature: "communications" },
+      { label: "Guidance", href: "/parent/guidance", feature: "guidance" },
+    ],
+  },
+];
+
 export function resolveTenantFromHost(host: string): string {
   const [name] = host.split(":");
   if (!name) return DEFAULT_CODE;
