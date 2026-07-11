@@ -111,3 +111,61 @@ func TestHandleMessage(t *testing.T) {
 		t.Fatalf("unexpected tenant: %s", received.TenantID)
 	}
 }
+
+func TestJetStreamDLQDeadLetter(t *testing.T) {
+	fake := &fakeJS{}
+	dlq := NewJetStreamDLQ(fake)
+
+	event := tenancy.CloudEvent{
+		SpecVersion:    "1.0",
+		Type:           "student.enrolled",
+		ID:             "evt-1",
+		TenantID:       "upshs",
+		IdempotencyKey: "idem-1",
+		Data:           json.RawMessage(`{"id":"s1"}`),
+	}
+	handlerErr := errors.New("student not found")
+
+	if err := dlq.DeadLetter(context.Background(), event, handlerErr); err != nil {
+		t.Fatalf("dead letter: %v", err)
+	}
+
+	if len(fake.published) != 1 {
+		t.Fatalf("expected 1 dlq message, got %d", len(fake.published))
+	}
+	msg := fake.published[0]
+	if msg.Subject != "AURA.dlq.student.enrolled" {
+		t.Fatalf("unexpected dlq subject: %s", msg.Subject)
+	}
+	if msg.Header.Get("Nats-Msg-Id") != "idem-1" {
+		t.Fatalf("expected idempotency key header")
+	}
+
+	var entry dlqEvent
+	if err := json.Unmarshal(msg.Data, &entry); err != nil {
+		t.Fatalf("unmarshal dlq entry: %v", err)
+	}
+	if entry.Original.ID != event.ID {
+		t.Fatalf("unexpected original event id: %s", entry.Original.ID)
+	}
+	if entry.Error != handlerErr.Error() {
+		t.Fatalf("unexpected error string: %s", entry.Error)
+	}
+	if entry.Timestamp.IsZero() {
+		t.Fatal("expected timestamp")
+	}
+}
+
+func TestEnsureDLQStream(t *testing.T) {
+	fake := &fakeJS{}
+	info, err := EnsureDLQStream(fake)
+	if err != nil {
+		t.Fatalf("ensure dlq stream: %v", err)
+	}
+	if info.Config.Name != DLQStreamName {
+		t.Fatalf("unexpected dlq stream name: %s", info.Config.Name)
+	}
+	if len(info.Config.Subjects) != 1 || info.Config.Subjects[0] != "AURA.dlq.*" {
+		t.Fatalf("unexpected dlq subjects: %v", info.Config.Subjects)
+	}
+}
