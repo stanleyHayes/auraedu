@@ -80,6 +80,31 @@ export const TEACHER_NAV: NavGroupDef[] = [
   },
 ];
 
+export const SUPERADMIN_NAV: NavGroupDef[] = [
+  {
+    heading: "Overview",
+    items: [{ label: "Dashboard", href: "/superadmin" }],
+  },
+  {
+    heading: "Platform",
+    items: [
+      { label: "Tenants", href: "/superadmin/tenants" },
+      { label: "System Health", href: "/superadmin/system-health" },
+    ],
+  },
+  {
+    heading: "Billing",
+    items: [
+      { label: "Billing Plans", href: "/superadmin/billing-plans" },
+      { label: "Subscriptions", href: "/superadmin/subscriptions" },
+    ],
+  },
+  {
+    heading: "Compliance",
+    items: [{ label: "Audit Logs", href: "/superadmin/audit-logs" }],
+  },
+];
+
 export const ADMIN_NAV: NavGroupDef[] = [
   {
     heading: "Overview",
