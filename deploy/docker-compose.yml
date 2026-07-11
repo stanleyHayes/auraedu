@@ -137,6 +137,38 @@ services:
       nats: { condition: service_healthy }
     restart: unless-stopped
 
+
+  # ---- Audit Service --------------------------------------------------------
+  audit-service:
+    build:
+      context: ..
+      dockerfile: ./apps/audit-service/Dockerfile
+      args:
+        GIT_SHA: local
+    ports: ["8103:8080"]
+    environment:
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/audit?sslmode=disable
+      NATS_URL: nats://nats:4222
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      postgres: { condition: service_healthy }
+      nats: { condition: service_healthy }
+    restart: unless-stopped
+  audit-worker:
+    build:
+      context: ..
+      dockerfile: ./apps/audit-service/Dockerfile
+      args:
+        GIT_SHA: local
+    environment:
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/audit?sslmode=disable
+      NATS_URL: nats://nats:4222
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    entrypoint: ["/worker"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      nats: { condition: service_healthy }
+    restart: unless-stopped
   # ---- Frontends ------------------------------------------------------------
   web:
     build:
