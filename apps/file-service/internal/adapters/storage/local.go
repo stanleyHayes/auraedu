@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/auraedu/file-service/internal/domain"
 	"github.com/auraedu/file-service/internal/ports"
 )
 
@@ -21,6 +22,9 @@ var _ ports.Storage = (*LocalStorage)(nil)
 func NewLocalStorage(baseDir string) *LocalStorage {
 	return &LocalStorage{baseDir: baseDir}
 }
+
+// Backend returns the domain backend key for local storage.
+func (s *LocalStorage) Backend() string { return string(domain.BackendLocal) }
 
 // Save writes the contents of r to a tenant-scoped path and returns the relative path.
 func (s *LocalStorage) Save(ctx context.Context, tenantID, fileID string, r io.Reader) (string, error) {

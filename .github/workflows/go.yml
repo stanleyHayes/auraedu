@@ -1,0 +1,31 @@
+name: go-gates
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    env:
+      GOFLAGS: -mod=readonly
+      GOTOOLCHAIN: local
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: 'stable' }
+      - name: Go gates per module (build, vet, govulncheck)
+        run: |
+          set -euo pipefail
+          mods=$(find platform apps -name go.mod -exec dirname {} \; | sort)
+          echo "modules: $mods"
+          for m in $mods; do
+            echo "::group::$m"
+            ( cd "$m" && GOWORK=off go build ./... && GOWORK=off go vet ./... \
+              && GOWORK=off go run golang.org/x/vuln/cmd/govulncheck@latest ./... )
+            echo "::endgroup::"
+          done
+      - name: gofmt
+        run: test -z "$(gofmt -l platform apps)"

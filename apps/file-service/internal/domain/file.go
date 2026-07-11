@@ -25,7 +25,8 @@ const (
 type StorageBackend string
 
 const (
-	BackendLocal StorageBackend = "local"
+	BackendLocal      StorageBackend = "local"
+	BackendCloudinary StorageBackend = "cloudinary"
 )
 
 // FileUpload is the aggregate root of the file service. Every record is tenant-scoped.
@@ -41,6 +42,7 @@ type FileUpload struct {
 	OwnerID          string         `json:"owner_id"`
 	Purpose          string         `json:"purpose"`
 	Status           string         `json:"status"`
+	SecureURL        string         `json:"secure_url,omitempty"`
 	Metadata         map[string]any `json:"metadata,omitempty"`
 	CreatedAt        time.Time      `json:"created_at"`
 	UpdatedAt        time.Time      `json:"updated_at"`
@@ -159,7 +161,7 @@ func isValidStatus(v string) bool {
 
 func isValidBackend(v string) bool {
 	switch StorageBackend(v) {
-	case BackendLocal:
+	case BackendLocal, BackendCloudinary:
 		return true
 	}
 	return false

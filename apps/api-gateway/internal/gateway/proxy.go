@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -34,6 +35,21 @@ type ActorContext struct {
 }
 
 func (a ActorContext) IsEmpty() bool { return a.UserID == "" }
+
+func (a ActorContext) HasPermission(permission string) bool {
+	if a.IsEmpty() || permission == "" {
+		return false
+	}
+	if a.Platform {
+		return true
+	}
+	for _, p := range strings.Split(a.Permissions, ",") {
+		if strings.TrimSpace(p) == permission {
+			return true
+		}
+	}
+	return false
+}
 
 func (p *ReverseProxy) Handler(registry ServiceRegistry) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

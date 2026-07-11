@@ -148,3 +148,8 @@ features:
     plan_required: professional
     description: Custom domain for the school
     defaults: { upshs: on, aboom: off }
+
+  - key: file_management
+    plan_required: core
+    description: File uploads and storage
+    defaults: { upshs: on, aboom: on }

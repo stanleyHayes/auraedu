@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "AuraEDU",
+    "slug": "auraedu",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.auraedu.mobile"
+    },
+    "android": {
+      "package": "com.auraedu.mobile"
+    },
+    "extra": {
+      "apiUrl": "https://api.auraedu.com"
+    }
+  }
+}

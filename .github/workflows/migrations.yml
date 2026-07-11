@@ -1,0 +1,27 @@
+name: migration-gates
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  migrations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Migration validation placeholder
+        run: |
+          set -euo pipefail
+          base=${GITHUB_BASE_REF:-main}
+          git fetch origin "$base" --depth=1 || true
+          changed=$(git diff --name-only "origin/$base"...HEAD | grep -E '^apps/[^/]+/migrations/' || true)
+          if [ -z "$changed" ]; then
+            echo "::notice::No migrations changed."
+            exit 0
+          fi
+          echo "Changed migrations:"
+          echo "$changed"
+          echo "TODO: run per-service migration lint/validate (AURA-2.5, EP-07)"

@@ -52,6 +52,36 @@ paths:
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
+    /files/{file_id}/complete:
+      post:
+            operationId: completeSignedUpload
+            tags: ['uploads']
+            summary: Finalize a signed Cloudinary upload
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/TenantId'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    required: [secure_url, public_id, size_bytes]
+                    properties:
+                      secure_url: { type: string }
+                      public_id: { type: string }
+                      size_bytes: { type: integer, minimum: 0 }
+                      content_type: { type: string }
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/File' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
     /files/{file_id}:
       get:
             operationId: getFile
@@ -124,7 +154,7 @@ components:
           resource_type: { type: string, enum: [image, raw, video], default: image }
     SignedUploadResponse:
         type: object
-        required: [signature, timestamp, api_key, folder]
+        required: [signature, timestamp, api_key, folder, public_id, file_id]
         properties:
           signature: { type: string }
           timestamp: { type: integer }
@@ -132,6 +162,8 @@ components:
           folder: { type: string }
           cloud_name: { type: string }
           upload_url: { type: string }
+          public_id: { type: string }
+          file_id: { type: string, format: uuid }
     File:
         type: object
         required: [id, tenant_id, public_id, secure_url]

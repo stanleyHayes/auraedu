@@ -1,0 +1,153 @@
+package storage
+
+import (
+	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+)
+
+func TestNewCloudinaryStorage_RequiresURL(t *testing.T) {
+	if _, err := NewCloudinaryStorage(""); err == nil {
+		t.Fatal("expected error for empty cloudinary URL")
+	}
+}
+
+func TestNewCloudinaryStorage_InvalidURL(t *testing.T) {
+	if _, err := NewCloudinaryStorage("not-a-url"); err == nil {
+		t.Fatal("expected error for invalid cloudinary URL")
+	}
+}
+
+func TestCloudinaryStorage_Open(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		wantPrefix := "/raw/upload/tenant-1/file-1"
+		if !strings.HasPrefix(r.URL.Path, wantPrefix) {
+			t.Errorf("path: got %q, want prefix %q", r.URL.Path, wantPrefix)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("hello cloudinary"))
+	}))
+	defer server.Close()
+
+	store, err := NewCloudinaryStorage("cloudinary://key:secret@testcloud",
+		WithDeliveryBaseURL(server.URL+"/raw/upload"),
+	)
+	if err != nil {
+		t.Fatalf("new storage: %v", err)
+	}
+
+	rc, err := store.Open(context.Background(), "tenant-1", "tenant-1/file-1")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer rc.Close()
+
+	body, _ := io.ReadAll(rc)
+	if string(body) != "hello cloudinary" {
+		t.Fatalf("body: got %q", string(body))
+	}
+}
+
+func TestCloudinaryStorage_OpenNotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	store, err := NewCloudinaryStorage("cloudinary://key:secret@testcloud",
+		WithDeliveryBaseURL(server.URL+"/raw/upload"),
+	)
+	if err != nil {
+		t.Fatalf("new storage: %v", err)
+	}
+
+	_, err = store.Open(context.Background(), "tenant-1", "tenant-1/file-1")
+	if err == nil {
+		t.Fatal("expected error for 404 response")
+	}
+}
+
+func TestCloudinaryStorage_DeleteEmptyPath(t *testing.T) {
+	store, err := NewCloudinaryStorage("cloudinary://key:secret@testcloud")
+	if err != nil {
+		t.Fatalf("new storage: %v", err)
+	}
+	if err := store.Delete(context.Background(), "tenant-1", ""); err != nil {
+		t.Fatalf("delete empty path: %v", err)
+	}
+}
+
+func TestCloudinaryStorage_SaveRequiresIDs(t *testing.T) {
+	store, err := NewCloudinaryStorage("cloudinary://key:secret@testcloud")
+	if err != nil {
+		t.Fatalf("new storage: %v", err)
+	}
+	if _, err := store.Save(context.Background(), "", "file-1", strings.NewReader("x")); err == nil {
+		t.Fatal("expected error when tenant_id is empty")
+	}
+	if _, err := store.Save(context.Background(), "tenant-1", "", strings.NewReader("x")); err == nil {
+		t.Fatal("expected error when file_id is empty")
+	}
+}
+
+func TestCloudinaryStorage_SignUpload(t *testing.T) {
+	store, err := NewCloudinaryStorage("cloudinary://key:secret@testcloud")
+	if err != nil {
+		t.Fatalf("new storage: %v", err)
+	}
+
+	signed, err := store.SignUpload(context.Background(), "tenant-1", "file-1", "tenant-1/documents", "raw")
+	if err != nil {
+		t.Fatalf("sign upload: %v", err)
+	}
+	if signed.Signature == "" {
+		t.Fatal("expected non-empty signature")
+	}
+	if signed.Timestamp == 0 {
+		t.Fatal("expected non-zero timestamp")
+	}
+	if signed.APIKey != "key" {
+		t.Fatalf("api key: got %q, want key", signed.APIKey)
+	}
+	if signed.CloudName != "testcloud" {
+		t.Fatalf("cloud name: got %q, want testcloud", signed.CloudName)
+	}
+	if signed.PublicID != "tenant-1/documents/file-1" {
+		t.Fatalf("public id: got %q", signed.PublicID)
+	}
+	wantURL := "https://api.cloudinary.com/v1_1/testcloud/raw/upload"
+	if signed.UploadURL != wantURL {
+		t.Fatalf("upload url: got %q, want %q", signed.UploadURL, wantURL)
+	}
+}
+
+func TestCloudinaryStorage_SignUploadDefaultsResourceType(t *testing.T) {
+	store, err := NewCloudinaryStorage("cloudinary://key:secret@testcloud")
+	if err != nil {
+		t.Fatalf("new storage: %v", err)
+	}
+
+	signed, err := store.SignUpload(context.Background(), "tenant-1", "file-1", "tenant-1/docs", "")
+	if err != nil {
+		t.Fatalf("sign upload: %v", err)
+	}
+	if signed.ResourceType != "raw" {
+		t.Fatalf("resource type: got %q, want raw", signed.ResourceType)
+	}
+}
+
+func TestCloudinaryStorage_SignUploadRequiresIDs(t *testing.T) {
+	store, err := NewCloudinaryStorage("cloudinary://key:secret@testcloud")
+	if err != nil {
+		t.Fatalf("new storage: %v", err)
+	}
+	if _, err := store.SignUpload(context.Background(), "", "file-1", "folder", "raw"); err == nil {
+		t.Fatal("expected error when tenant_id is empty")
+	}
+	if _, err := store.SignUpload(context.Background(), "tenant-1", "", "folder", "raw"); err == nil {
+		t.Fatal("expected error when file_id is empty")
+	}
+}

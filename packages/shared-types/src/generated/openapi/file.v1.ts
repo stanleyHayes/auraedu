@@ -36,6 +36,23 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/files/{file_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Finalize a signed Cloudinary upload */
+        post: operations["completeSignedUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/files/{file_id}": {
         parameters: {
             query?: never;
@@ -81,6 +98,9 @@ export type components = {
             folder: string;
             cloud_name?: string;
             upload_url?: string;
+            public_id: string;
+            /** Format: uuid */
+            file_id: string;
         };
         File: {
             /** Format: uuid */
@@ -222,6 +242,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FileList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    completeSignedUpload: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                tenant_id: components["parameters"]["TenantId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    secure_url: string;
+                    public_id: string;
+                    size_bytes: number;
+                    content_type?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["File"];
                 };
             };
             401: components["responses"]["Unauthorized"];

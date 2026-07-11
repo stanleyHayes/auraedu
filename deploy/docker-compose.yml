@@ -56,6 +56,9 @@ services:
       IDENTITY_HOSTPORT: identity-service:8081
       TENANT_HOSTPORT: tenant-service:8082
       SERVICE_AI_RECOMMENDATION_URL: http://ai-recommendation-service:8200
+      SERVICE_AI_PREDICTION_URL: http://ai-prediction-service:8201
+      SERVICE_CAREER_GUIDANCE_URL: http://career-guidance-service:8112
+      SERVICE_FILE_URL: http://file-service:8098
       REDIS_URL: redis://redis:6379
       NATS_HOST: nats:4222
       JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-local-dev-signing-key-change-me}
@@ -64,7 +67,30 @@ services:
       identity-service: { condition: service_started }
       tenant-service: { condition: service_started }
       ai-recommendation-service: { condition: service_started }
+      ai-prediction-service: { condition: service_started }
+      career-guidance-service: { condition: service_started }
+      file-service: { condition: service_started }
       redis: { condition: service_healthy }
+      nats: { condition: service_healthy }
+    restart: unless-stopped
+
+  # ---- File Service ---------------------------------------------------------
+  file-service:
+    build:
+      context: ..
+      dockerfile: ./apps/file-service/Dockerfile
+      args:
+        GIT_SHA: local
+    ports: ["8098:8098"]
+    environment:
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/file?sslmode=disable
+      NATS_HOST: nats:4222
+      FILE_STORAGE_DIR: /tmp/auraedu-files
+      CLOUDINARY_URL: ${CLOUDINARY_URL:-}
+      CLOUDINARY_RESOURCE_TYPE: ${CLOUDINARY_RESOURCE_TYPE:-raw}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      postgres: { condition: service_healthy }
       nats: { condition: service_healthy }
     restart: unless-stopped
 
@@ -78,6 +104,34 @@ services:
       AI_REC_DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/ai?sslmode=disable
       AI_REC_NATS_HOST: nats:4222
       AI_REC_PORT: 8200
+    depends_on:
+      postgres: { condition: service_healthy }
+      nats: { condition: service_healthy }
+    restart: unless-stopped
+
+  ai-prediction-service:
+    build:
+      context: ..
+      dockerfile: ./apps/ai-prediction-service/Dockerfile
+    ports: ["8201:8201"]
+    environment:
+      AI_PRED_DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/ai?sslmode=disable
+      AI_PRED_NATS_HOST: nats:4222
+      AI_PRED_PORT: 8201
+    depends_on:
+      postgres: { condition: service_healthy }
+      nats: { condition: service_healthy }
+    restart: unless-stopped
+
+  career-guidance-service:
+    build:
+      context: ..
+      dockerfile: ./apps/career-guidance-service/Dockerfile
+    ports: ["8112:8112"]
+    environment:
+      AI_GUIDANCE_DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/ai?sslmode=disable
+      AI_GUIDANCE_NATS_HOST: nats:4222
+      AI_GUIDANCE_PORT: 8112
     depends_on:
       postgres: { condition: service_healthy }
       nats: { condition: service_healthy }

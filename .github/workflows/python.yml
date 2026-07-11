@@ -1,0 +1,23 @@
+name: python-gates
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Python gates
+        run: |
+          if [ ! -f uv.lock ]; then
+            echo "::notice::No uv.lock yet — Python services not scaffolded; skipping gates."
+            exit 0
+          fi
+          uv sync
+          uv run ruff check .
+          uv run pytest

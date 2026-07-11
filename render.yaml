@@ -188,6 +188,18 @@ services:
         fromService:
           name: ai-recommendation-service
           property: hostport
+      - key: SERVICE_AI_PREDICTION_URL
+        fromService:
+          name: ai-prediction-service
+          property: hostport
+      - key: SERVICE_CAREER_GUIDANCE_URL
+        fromService:
+          name: career-guidance-service
+          property: hostport
+      - key: SERVICE_FILE_URL
+        fromService:
+          name: file-service
+          property: hostport
       - key: JWT_SIGNING_KEY
         fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
@@ -439,9 +451,79 @@ services:
           property: host
       - fromGroup: auraedu-shared-config
 
-  # - name: ai-prediction-service
-  #   type: pserv
-  #   ...
-  # - name: career-guidance-service
-  #   type: pserv
-  #   ...
+  - name: ai-prediction-service
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/ai-prediction-service/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/ai-prediction-service/**
+        - pyproject.toml
+        - uv.lock
+    envVars:
+      - key: AI_PRED_DATABASE_URL
+        fromDatabase:
+          name: ai-db
+          property: connectionString
+      - key: AI_PRED_NATS_HOST
+        fromService:
+          name: nats
+          property: host
+      - fromGroup: auraedu-shared-config
+
+  - name: career-guidance-service
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/career-guidance-service/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/career-guidance-service/**
+        - pyproject.toml
+        - uv.lock
+    envVars:
+      - key: AI_GUIDANCE_DATABASE_URL
+        fromDatabase:
+          name: ai-db
+          property: connectionString
+      - key: AI_GUIDANCE_NATS_HOST
+        fromService:
+          name: nats
+          property: host
+      - fromGroup: auraedu-shared-config
+
+  # ---- File Service (private) -----------------------------------------------
+  - name: file-service
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/file-service/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/file-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: file-db
+          property: connectionString
+      - key: NATS_HOST
+        fromService:
+          name: nats
+          property: host
+      - key: CLOUDINARY_URL
+        fromGroup: auraedu-secrets
+      - fromGroup: auraedu-shared-config

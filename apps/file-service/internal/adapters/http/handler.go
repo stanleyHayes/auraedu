@@ -31,10 +31,12 @@ func NewHandler(svc *application.Service) *Handler { return &Handler{svc: svc} }
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/files", h.list)
 	mux.HandleFunc("POST /api/v1/files", h.create)
+	mux.HandleFunc("POST /api/v1/uploads/signed", h.requestSignedUpload)
 	mux.HandleFunc("GET /api/v1/files/{file_id}", h.get)
 	mux.HandleFunc("PATCH /api/v1/files/{file_id}", h.update)
 	mux.HandleFunc("DELETE /api/v1/files/{file_id}", h.delete)
 	mux.HandleFunc("GET /api/v1/files/{file_id}/download", h.download)
+	mux.HandleFunc("POST /api/v1/files/{file_id}/complete", h.completeSignedUpload)
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
@@ -97,6 +99,34 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	httpx.RespondJSON(w, r, http.StatusCreated, uploaded)
 }
 
+type signedUploadRequestBody struct {
+	Folder       string `json:"folder"`
+	FileName     string `json:"file_name"`
+	ResourceType string `json:"resource_type"`
+}
+
+func (h *Handler) requestSignedUpload(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	var body signedUploadRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		httpx.ValidationError(w, r, map[string]any{"body": "invalid JSON"})
+		return
+	}
+	resp, err := h.svc.RequestSignedUpload(ctx, actor, application.SignedUploadRequest{
+		Folder:       body.Folder,
+		FileName:     body.FileName,
+		ResourceType: body.ResourceType,
+	})
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusCreated, resp)
+}
+
 func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 	ctx, actor, ok := h.context(r)
 	if !ok {
@@ -152,6 +182,36 @@ func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+type completeSignedUploadBody struct {
+	SecureURL   string `json:"secure_url"`
+	PublicID    string `json:"public_id"`
+	SizeBytes   int64  `json:"size_bytes"`
+	ContentType string `json:"content_type"`
+}
+
+func (h *Handler) completeSignedUpload(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	var body completeSignedUploadBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		httpx.ValidationError(w, r, map[string]any{"body": "invalid JSON"})
+		return
+	}
+	file, err := h.svc.CompleteSignedUpload(ctx, actor, r.PathValue("file_id"), application.CompleteSignedUploadRequest{
+		SecureURL:   body.SecureURL,
+		PublicID:    body.PublicID,
+		SizeBytes:   body.SizeBytes,
+		ContentType: body.ContentType,
+	})
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, file)
 }
 
 func (h *Handler) download(w http.ResponseWriter, r *http.Request) {

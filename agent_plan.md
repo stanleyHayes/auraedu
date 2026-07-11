@@ -58,6 +58,22 @@
 
 ---
 
+## 1a. Agent Task Board (live)
+
+This section tracks work currently in-flight and recently completed. It is updated by the active agent after every batch of work.
+
+| Story | Epic | Status | Agent | Notes |
+|---|---|---|---|---|
+| AURA-31.1 | EP-31 AI Prediction Service | **Done** | Kimi Code CLI | FastAPI service with feature-store metrics, rule-based predictions, explainability, approve/reject, CloudEvent publisher, NATS subscriber stub, feature-flag gating, Dockerfile, tests. |
+| AURA-32.1 | EP-32 Career Guidance Service | **Done** | Kimi Code CLI | Full FastAPI service with contracts, rule-based guidance, teacher review, feature-flag gating, tests, Dockerfile. |
+| AURA-7.1 | EP-07 CI/CD & Developer Experience | **Done** | Kimi Code CLI | Split monolithic `ci.yml` into reusable workflows; `actionlint` passes. |
+| AURA-48.1/48.2 | EP-48 Mobile Shell | **Done** | Kimi Code CLI | Expo SDK 52 + React Native 0.76 scaffold with tenant/role-aware `App.tsx`; `pnpm lint` and `typecheck` pass. |
+| AURA-3.6 | EP-03 API Gateway | **Done** | Kimi Code CLI | Route-level RBAC permission enforcement; method-aware permissions for `/api/v1/files` and `/api/v1/uploads`. |
+| AURA-20.9 | EP-20 File Service | **Done** | Kimi Code CLI | Cloudinary SDK v2 adapter, direct signed upload flow (`POST /uploads/signed` + `POST /files/{id}/complete`), deployment wiring in `docker-compose.yml` and `render.yaml`. |
+| AURA-20.10 | EP-20 File Service | **Next** | Kimi Code CLI | Transform presets + delivery, Cloudinary notification webhook, per-tenant usage accounting. Will be broken into sub-tasks in the next update. |
+
+---
+
 ## 2. Non-Negotiable Engineering Rules
 
 Lifted from spec §22 and the operations manuals. Every agent enforces these; PRs violating them are rejected automatically in review.

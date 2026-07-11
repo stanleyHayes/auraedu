@@ -63,7 +63,7 @@ func (b *Builder) chain(next http.Handler) http.Handler {
 	// request-id is generated before auth/tenant so all logs carry it; auth and
 	// tenant resolve the caller; feature-flag and rate-limit are edge gates
 	// immediately before the upstream proxy.
-	return b.accessLog(b.cors(b.requestID(b.auth(b.tenant(b.featureFlag(b.rateLimit(next)))))))
+	return b.accessLog(b.cors(b.requestID(b.auth(b.tenant(b.permission(b.featureFlag(b.rateLimit(next))))))))
 }
 
 func (b *Builder) skipAuth(r *http.Request) bool {
@@ -172,6 +172,43 @@ func (b *Builder) auth(next http.Handler) http.Handler {
 		})
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func (b *Builder) permission(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rt, ok := b.Registry.Match(r.URL.Path)
+		if !ok {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		permission := requiredPermission(rt, r.Method)
+		if permission == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		actor := ActorFrom(r.Context())
+		if actor.IsEmpty() {
+			writeJSONError(w, http.StatusForbidden, "permission_required", "route requires an authenticated actor")
+			return
+		}
+		if !actor.HasPermission(permission) {
+			writeJSONError(w, http.StatusForbidden, "permission_denied", "actor lacks permission for this route")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func requiredPermission(rt Route, method string) string {
+	if len(rt.Permissions) > 0 {
+		if p, ok := rt.Permissions[method]; ok {
+			return p
+		}
+		return ""
+	}
+	return rt.Permission
 }
 
 func bearerToken(r *http.Request) (string, bool) {

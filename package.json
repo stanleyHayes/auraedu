@@ -15,11 +15,14 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "clean": "turbo run clean",
-    "contracts": "turbo run generate --filter=@auraedu/shared-types"
+    "contracts": "turbo run generate --filter=@auraedu/shared-types",
+    "changeset": "changeset",
+    "version-packages": "changeset version"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.31.0",
+    "prettier": "^3.4.2",
     "turbo": "^2.5.8",
-    "typescript": "^5.9.2",
-    "prettier": "^3.4.2"
+    "typescript": "^5.9.2"
   }
 }

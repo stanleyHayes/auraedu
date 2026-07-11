@@ -22,6 +22,8 @@ type SignedUploadResponse struct {
 	Folder    string  `json:"folder"`
 	CloudName *string `json:"cloud_name,omitempty"`
 	UploadUrl *string `json:"upload_url,omitempty"`
+	PublicId  string  `json:"public_id"`
+	FileId    string  `json:"file_id"`
 }
 
 // File generated from OpenAPI schema.
@@ -45,6 +47,7 @@ type FileList struct {
 type ServerInterface interface {
 	requestSignedUpload(w http.ResponseWriter, r *http.Request)
 	listFiles(w http.ResponseWriter, r *http.Request)
+	completeSignedUpload(w http.ResponseWriter, r *http.Request)
 	getFile(w http.ResponseWriter, r *http.Request)
 	deleteFile(w http.ResponseWriter, r *http.Request)
 }
@@ -53,6 +56,7 @@ type ServerInterface interface {
 type ClientInterface interface {
 	requestSignedUpload(ctx context.Context) (*http.Response, error)
 	listFiles(ctx context.Context) (*http.Response, error)
+	completeSignedUpload(ctx context.Context) (*http.Response, error)
 	getFile(ctx context.Context) (*http.Response, error)
 	deleteFile(ctx context.Context) (*http.Response, error)
 }

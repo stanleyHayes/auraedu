@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
+	"time"
 
 	"github.com/auraedu/file-service/internal/domain"
 	"github.com/auraedu/file-service/internal/ports"
@@ -14,10 +16,10 @@ import (
 	"github.com/auraedu/platform/tenancy"
 )
 
-// RBAC permission keys.
+// RBAC permission keys (must match contracts/permissions/permissions.yaml).
 const (
 	PermRead   = "files.read"
-	PermCreate = "files.create"
+	PermCreate = "files.upload"
 	PermUpdate = "files.update"
 	PermDelete = "files.delete"
 )
@@ -30,6 +32,7 @@ const FeatureFileManagement = "file_management"
 type Service struct {
 	repo    ports.Repository
 	storage ports.Storage
+	signer  ports.SignedUploadProvider
 	pub     ports.EventPublisher
 	gates   flags.Gate
 }
@@ -42,6 +45,11 @@ func WithPublisher(pub ports.EventPublisher) Option { return func(s *Service) { 
 
 // WithFeatureGate sets the feature-flag gate.
 func WithFeatureGate(g flags.Gate) Option { return func(s *Service) { s.gates = g } }
+
+// WithSignedUploadProvider sets the provider used to sign direct uploads.
+func WithSignedUploadProvider(p ports.SignedUploadProvider) Option {
+	return func(s *Service) { s.signer = p }
+}
 
 type noopPublisher struct{}
 
@@ -77,6 +85,33 @@ type UpdateFileRequest struct {
 	Metadata         map[string]any
 }
 
+// SignedUploadRequest is the input for requesting a signed direct upload.
+type SignedUploadRequest struct {
+	Folder       string
+	FileName     string
+	ResourceType string
+}
+
+// SignedUploadResponse is the payload returned to the client for a signed upload.
+type SignedUploadResponse struct {
+	Signature string `json:"signature"`
+	Timestamp int64  `json:"timestamp"`
+	APIKey    string `json:"api_key"`
+	Folder    string `json:"folder"`
+	CloudName string `json:"cloud_name"`
+	UploadURL string `json:"upload_url"`
+	PublicID  string `json:"public_id"`
+	FileID    string `json:"file_id"`
+}
+
+// CompleteSignedUploadRequest is the input for finalizing a signed upload.
+type CompleteSignedUploadRequest struct {
+	SecureURL   string
+	PublicID    string
+	SizeBytes   int64
+	ContentType string
+}
+
 // Create validates, stores, and persists a new FileUpload for the actor's tenant.
 func (s *Service) Create(ctx context.Context, actor auth.Actor, req CreateFileRequest) (*domain.FileUpload, error) {
 	tenantID, err := s.requireAccess(ctx, actor, PermCreate)
@@ -100,6 +135,7 @@ func (s *Service) Create(ctx context.Context, actor auth.Actor, req CreateFileRe
 		return nil, fmt.Errorf("%w: %v", domain.ErrStorage, err)
 	}
 	file.StoragePath = path
+	file.StorageBackend = s.storage.Backend()
 	file.Status = string(domain.StatusActive)
 	if err := file.Validate(); err != nil {
 		return nil, err
@@ -174,6 +210,95 @@ func (s *Service) Delete(ctx context.Context, actor auth.Actor, id string) error
 	}
 	_ = s.pub.Publish(ctx, "file.deleted.v1", file, nil)
 	return nil
+}
+
+// RequestSignedUpload creates a pending file record and returns signed upload parameters.
+func (s *Service) RequestSignedUpload(ctx context.Context, actor auth.Actor, req SignedUploadRequest) (*SignedUploadResponse, error) {
+	tenantID, err := s.requireAccess(ctx, actor, PermCreate)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(req.Folder) == "" || strings.TrimSpace(req.FileName) == "" {
+		return nil, domain.ErrValidation
+	}
+	if req.ResourceType == "" {
+		req.ResourceType = "raw"
+	}
+
+	file, err := domain.NewFileUpload(tenantID, req.FileName, "", actor.UserID, "", 0, "")
+	if err != nil {
+		return nil, err
+	}
+	file.StoragePath = req.Folder + "/" + file.ID
+	file.StorageBackend = string(domain.BackendCloudinary)
+	file.Status = string(domain.StatusPending)
+
+	if s.signer == nil {
+		return nil, fmt.Errorf("%w: signed upload provider not configured", domain.ErrStorage)
+	}
+	signed, err := s.signer.SignUpload(ctx, tenantID, file.ID, req.Folder, req.ResourceType)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", domain.ErrStorage, err)
+	}
+
+	if err := s.repo.Create(ctx, tenantID, file); err != nil {
+		return nil, err
+	}
+
+	return &SignedUploadResponse{
+		Signature: signed.Signature,
+		Timestamp: signed.Timestamp,
+		APIKey:    signed.APIKey,
+		Folder:    signed.Folder,
+		CloudName: signed.CloudName,
+		UploadURL: signed.UploadURL,
+		PublicID:  signed.PublicID,
+		FileID:    signed.FileID,
+	}, nil
+}
+
+// CompleteSignedUpload finalizes a pending signed upload after the client has
+// uploaded the asset directly to the storage backend.
+func (s *Service) CompleteSignedUpload(ctx context.Context, actor auth.Actor, fileID string, req CompleteSignedUploadRequest) (*domain.FileUpload, error) {
+	tenantID, err := s.requireAccess(ctx, actor, PermCreate)
+	if err != nil {
+		return nil, err
+	}
+	if fileID == "" || strings.TrimSpace(req.PublicID) == "" || strings.TrimSpace(req.SecureURL) == "" || req.SizeBytes < 0 {
+		return nil, domain.ErrValidation
+	}
+
+	file, err := s.repo.GetByID(ctx, tenantID, fileID)
+	if err != nil {
+		return nil, err
+	}
+	if file.Status != string(domain.StatusPending) || file.StorageBackend != string(domain.BackendCloudinary) {
+		return nil, domain.ErrNotFound
+	}
+	if file.StoragePath != req.PublicID {
+		return nil, domain.ErrValidation
+	}
+
+	file.Status = string(domain.StatusActive)
+	file.SizeBytes = req.SizeBytes
+	if req.ContentType != "" {
+		file.ContentType = req.ContentType
+	}
+	file.SecureURL = req.SecureURL
+	if file.Metadata == nil {
+		file.Metadata = make(map[string]any)
+	}
+	file.Metadata["secure_url"] = req.SecureURL
+	file.UpdatedAt = time.Now().UTC()
+
+	if err := file.Validate(); err != nil {
+		return nil, err
+	}
+	if err := s.repo.Update(ctx, tenantID, file); err != nil {
+		return nil, err
+	}
+	_ = s.pub.Publish(ctx, "file.uploaded.v1", file, nil)
+	return file, nil
 }
 
 // Download returns a reader for the stored file bytes.

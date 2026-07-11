@@ -41,6 +41,27 @@ export interface AcademicYearCreatedData {
 
 export type AcademicYearCreatedEvent = CloudEventEnvelope<AcademicYearCreatedData>;
 
+/** Emitted when AI career guidance is generated. */
+export interface AiGuidanceGeneratedData {
+  student_id: string;
+  guidance_type: string;
+  confidence?: number | null;
+  explanation?: string | null;
+}
+
+export type AiGuidanceGeneratedEvent = CloudEventEnvelope<AiGuidanceGeneratedData>;
+
+/** Emitted when an AI prediction is generated. */
+export interface AiPredictionGeneratedV1Data {
+  student_id: string;
+  prediction_type: string;
+  value: number;
+  confidence?: number | null;
+  explanation?: string | null;
+}
+
+export type AiPredictionGeneratedV1Event = CloudEventEnvelope<AiPredictionGeneratedV1Data>;
+
 /** Emitted when an AI learning recommendation is generated. */
 export interface AiRecommendationGeneratedData {
   student_id: string;

@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -13,10 +14,12 @@ import (
 type ServiceRegistry []Route
 
 type Route struct {
-	Prefix     string
-	Target     string
-	FeatureKey string
-	Public     bool
+	Prefix      string
+	Target      string
+	FeatureKey  string
+	Permission  string
+	Permissions map[string]string
+	Public      bool
 }
 
 func DefaultRegistry() ServiceRegistry {
@@ -31,15 +34,23 @@ func DefaultRegistry() ServiceRegistry {
 		{Prefix: "/api/v1/fees", Target: envURL("SERVICE_FEES_URL", "http://localhost:8095"), FeatureKey: "fees"},
 		{Prefix: "/api/v1/payments", Target: envURL("SERVICE_PAYMENT_URL", "http://localhost:8096"), FeatureKey: "online_payments"},
 		{Prefix: "/api/v1/notifications", Target: envURL("SERVICE_NOTIFICATION_URL", "http://localhost:8097"), FeatureKey: "email_notifications"},
-		{Prefix: "/api/v1/files", Target: envURL("SERVICE_FILE_URL", "http://localhost:8098"), FeatureKey: ""},
+		{Prefix: "/api/v1/files", Target: envURL("SERVICE_FILE_URL", "http://localhost:8098"), FeatureKey: "file_management", Permissions: map[string]string{
+			http.MethodGet:    "files.read",
+			http.MethodPost:   "files.upload",
+			http.MethodPatch:  "files.update",
+			http.MethodDelete: "files.delete",
+		}},
+		{Prefix: "/api/v1/uploads", Target: envURL("SERVICE_FILE_URL", "http://localhost:8098"), FeatureKey: "file_management", Permissions: map[string]string{
+			http.MethodPost: "files.upload",
+		}},
 		{Prefix: "/api/v1/website", Target: envURL("SERVICE_WEBSITE_URL", "http://localhost:8099"), FeatureKey: "public_website"},
 		{Prefix: "/api/v1/analytics", Target: envURL("SERVICE_ANALYTICS_URL", "http://localhost:8100"), FeatureKey: "analytics"},
 		{Prefix: "/api/v1/billing", Target: envURL("SERVICE_BILLING_URL", "http://localhost:8101"), FeatureKey: "billing"},
 		{Prefix: "/api/v1/cbt", Target: envURL("SERVICE_CBT_URL", "http://localhost:8102"), FeatureKey: "cbt_exams"},
 		{Prefix: "/api/v1/audit", Target: envURL("SERVICE_AUDIT_URL", "http://localhost:8103"), FeatureKey: ""},
-		{Prefix: "/api/v1/ai/recommendations", Target: envURL("SERVICE_AI_RECOMMENDATION_URL", "http://localhost:8200"), FeatureKey: "ai_recommendations"},
-		{Prefix: "/api/v1/ai/predictions", Target: envURL("SERVICE_AI_PREDICTION_URL", "http://localhost:8201"), FeatureKey: "ai_predictions"},
-		{Prefix: "/api/v1/career", Target: envURL("SERVICE_CAREER_GUIDANCE_URL", "http://localhost:8202"), FeatureKey: "career_guidance"},
+		{Prefix: "/api/v1/ai/recommendations", Target: envURL("SERVICE_AI_RECOMMENDATION_URL", "http://localhost:8200"), FeatureKey: "ai_recommendations", Permission: "ai.view_recommendations"},
+		{Prefix: "/api/v1/ai/predictions", Target: envURL("SERVICE_AI_PREDICTION_URL", "http://localhost:8201"), FeatureKey: "ai_predictions", Permission: "ai.view_predictions"},
+		{Prefix: "/api/v1/ai/career-guidance", Target: envURL("SERVICE_CAREER_GUIDANCE_URL", "http://localhost:8112"), FeatureKey: "career_guidance", Permission: "ai.view_guidance"},
 	}
 }
 

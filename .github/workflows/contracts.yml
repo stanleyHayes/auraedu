@@ -1,0 +1,31 @@
+name: contracts-gates
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: 'stable' }
+      - uses: pnpm/action-setup@v4
+        with: { version: '10.27.0' }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install Spectral
+        run: npm install -g @stoplight/spectral-cli
+      - name: Lint contracts
+        run: make contracts-lint
+      - name: Regenerate contract stubs/types
+        run: make contracts
+      - name: Check for contract drift
+        run: git diff --exit-code

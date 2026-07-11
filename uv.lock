@@ -95,14 +95,26 @@ name = "auraedu-ai-prediction-service"
 version = "0.1.0"
 source = { editable = "apps/ai-prediction-service" }
 dependencies = [
+    { name = "asyncpg" },
     { name = "fastapi" },
-    { name = "uvicorn" },
+    { name = "greenlet" },
+    { name = "nats-py" },
+    { name = "pydantic-settings" },
+    { name = "pyyaml" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "uvicorn", extra = ["standard"] },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "asyncpg" },
     { name = "fastapi" },
-    { name = "uvicorn" },
+    { name = "greenlet" },
+    { name = "nats-py" },
+    { name = "pydantic-settings" },
+    { name = "pyyaml" },
+    { name = "sqlalchemy", extras = ["asyncio"] },
+    { name = "uvicorn", extras = ["standard"] },
 ]
 
 [[package]]
@@ -148,14 +160,26 @@ name = "auraedu-career-guidance-service"
 version = "0.1.0"
 source = { editable = "apps/career-guidance-service" }
 dependencies = [
+    { name = "asyncpg" },
     { name = "fastapi" },
-    { name = "uvicorn" },
+    { name = "greenlet" },
+    { name = "nats-py" },
+    { name = "pydantic-settings" },
+    { name = "pyyaml" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "uvicorn", extra = ["standard"] },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "asyncpg" },
     { name = "fastapi" },
-    { name = "uvicorn" },
+    { name = "greenlet" },
+    { name = "nats-py" },
+    { name = "pydantic-settings" },
+    { name = "pyyaml" },
+    { name = "sqlalchemy", extras = ["asyncio"] },
+    { name = "uvicorn", extras = ["standard"] },
 ]
 
 [[package]]

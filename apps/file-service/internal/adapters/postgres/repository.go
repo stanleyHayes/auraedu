@@ -29,12 +29,12 @@ func (r *Repository) Create(ctx context.Context, tenantID string, f *domain.File
 		_, err := tx.Exec(ctx, `
 			INSERT INTO file_uploads (
 				id, tenant_id, original_filename, storage_path, storage_backend,
-				content_type, size_bytes, checksum, owner_id, purpose, status, metadata,
+				content_type, size_bytes, checksum, owner_id, purpose, status, secure_url, metadata,
 				created_at, updated_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 		`, f.ID, tenantID, f.OriginalFilename, f.StoragePath, f.StorageBackend,
-			f.ContentType, f.SizeBytes, f.Checksum, f.OwnerID, f.Purpose, f.Status, f.Metadata,
+			f.ContentType, f.SizeBytes, f.Checksum, f.OwnerID, f.Purpose, f.Status, f.SecureURL, f.Metadata,
 			f.CreatedAt, f.UpdatedAt)
 		if err != nil {
 			return fmt.Errorf("file: create: %w", err)
@@ -49,7 +49,7 @@ func (r *Repository) GetByID(ctx context.Context, tenantID, id string) (*domain.
 		row := tx.QueryRow(ctx, `
 			SELECT
 				id, tenant_id, original_filename, storage_path, storage_backend,
-				content_type, size_bytes, checksum, owner_id, purpose, status, metadata,
+				content_type, size_bytes, checksum, owner_id, purpose, status, secure_url, metadata,
 				created_at, updated_at
 			FROM file_uploads
 			WHERE id = $1 AND tenant_id = $2
@@ -100,7 +100,7 @@ func listQuery(ctx context.Context, tx pgx.Tx, tenantID string, limit int, curso
 		return tx.Query(ctx, `
 			SELECT
 				id, tenant_id, original_filename, storage_path, storage_backend,
-				content_type, size_bytes, checksum, owner_id, purpose, status, metadata,
+				content_type, size_bytes, checksum, owner_id, purpose, status, secure_url, metadata,
 				created_at, updated_at
 			FROM file_uploads
 			WHERE tenant_id = $1 AND (created_at, id) > (
@@ -113,7 +113,7 @@ func listQuery(ctx context.Context, tx pgx.Tx, tenantID string, limit int, curso
 	return tx.Query(ctx, `
 		SELECT
 			id, tenant_id, original_filename, storage_path, storage_backend,
-			content_type, size_bytes, checksum, owner_id, purpose, status, metadata,
+			content_type, size_bytes, checksum, owner_id, purpose, status, secure_url, metadata,
 			created_at, updated_at
 		FROM file_uploads
 		WHERE tenant_id = $1
@@ -135,11 +135,12 @@ func (r *Repository) Update(ctx context.Context, tenantID string, f *domain.File
 			    owner_id = $9,
 			    purpose = $10,
 			    status = $11,
-			    metadata = $12,
-			    updated_at = $13
+			    secure_url = $12,
+			    metadata = $13,
+			    updated_at = $14
 			WHERE id = $1 AND tenant_id = $2
 		`, f.ID, tenantID, f.OriginalFilename, f.StoragePath, f.StorageBackend,
-			f.ContentType, f.SizeBytes, f.Checksum, f.OwnerID, f.Purpose, f.Status, f.Metadata,
+			f.ContentType, f.SizeBytes, f.Checksum, f.OwnerID, f.Purpose, f.Status, f.SecureURL, f.Metadata,
 			f.UpdatedAt)
 		if err != nil {
 			return fmt.Errorf("file: update: %w", err)
@@ -166,7 +167,7 @@ func scanFile(row scanner) (*domain.FileUpload, error) {
 	var f domain.FileUpload
 	if err := row.Scan(
 		&f.ID, &f.TenantID, &f.OriginalFilename, &f.StoragePath, &f.StorageBackend,
-		&f.ContentType, &f.SizeBytes, &f.Checksum, &f.OwnerID, &f.Purpose, &f.Status, &f.Metadata,
+		&f.ContentType, &f.SizeBytes, &f.Checksum, &f.OwnerID, &f.Purpose, &f.Status, &f.SecureURL, &f.Metadata,
 		&f.CreatedAt, &f.UpdatedAt,
 	); err != nil {
 		return nil, err

@@ -1,0 +1,60 @@
+name: docker-gates
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Determine changed services with Dockerfiles
+        id: changed
+        run: |
+          set -euo pipefail
+          base=${GITHUB_BASE_REF:-main}
+          git fetch origin "$base" --depth=1 || true
+          changed=$(git diff --name-only "origin/$base"...HEAD | grep -E '^apps/[^/]+/|^infrastructure/docker/' || true)
+          services=""
+          add_svc() {
+            case "$services" in
+              *" $1 "*) ;;
+              *) services="$services $1 " ;;
+            esac
+          }
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            dir=$(echo "$f" | cut -d/ -f1-2)
+            if [ -f "$dir/Dockerfile" ]; then
+              add_svc "$dir"
+            fi
+          done <<< "$changed"
+          if echo "$changed" | grep -q '^infrastructure/docker/' && [ -f infrastructure/docker/nats.Dockerfile ]; then
+            add_svc "infrastructure/docker"
+          fi
+          echo "services=$services" >> "$GITHUB_OUTPUT"
+          read -ra svc_arr <<< "$services"
+          matrix=$(printf '%s\n' "${svc_arr[@]}" | jq -R . | jq -s -c .)
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+      - name: Build changed Docker images
+        if: steps.changed.outputs.services != ''
+        env:
+          SERVICES: ${{ steps.changed.outputs.services }}
+        run: |
+          read -ra svcs <<< "$SERVICES"
+          for svc in "${svcs[@]}"; do
+            if [ "$svc" = "infrastructure/docker" ]; then
+              echo "::group::build infrastructure/docker/nats.Dockerfile"
+              docker build -f infrastructure/docker/nats.Dockerfile -t auraedu/nats:pr .
+              echo "::endgroup::"
+            else
+              tag=$(basename "$svc")
+              echo "::group::build $svc/Dockerfile"
+              docker build -f "$svc/Dockerfile" -t "auraedu/$tag:pr" .
+              echo "::endgroup::"
+            fi
+          done

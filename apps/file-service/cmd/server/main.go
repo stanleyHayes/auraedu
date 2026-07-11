@@ -25,6 +25,7 @@ import (
 	"github.com/auraedu/file-service/internal/adapters/postgres"
 	"github.com/auraedu/file-service/internal/adapters/storage"
 	"github.com/auraedu/file-service/internal/application"
+	"github.com/auraedu/file-service/internal/ports"
 )
 
 const service = "file-service"
@@ -52,10 +53,14 @@ func main() {
 	gates := featureGates(log)
 
 	repo := postgres.NewRepository(database)
-	svc := application.NewService(repo, store,
+	opts := []application.Option{
 		application.WithPublisher(pub),
 		application.WithFeatureGate(gates),
-	)
+	}
+	if signer, ok := store.(ports.SignedUploadProvider); ok {
+		opts = append(opts, application.WithSignedUploadProvider(signer))
+	}
+	svc := application.NewService(repo, store, opts...)
 	handler := svchttp.NewHandler(svc)
 
 	health := httpx.NewHealth(service, version).WithLogger(log)
@@ -102,7 +107,19 @@ func openDB(ctx context.Context) (*db.DB, error) {
 	})
 }
 
-func initStorage(log *slog.Logger) *storage.LocalStorage {
+func initStorage(log *slog.Logger) ports.Storage {
+	if cloudURL := config.Getenv("CLOUDINARY_URL", ""); cloudURL != "" {
+		store, err := storage.NewCloudinaryStorage(cloudURL,
+			storage.WithResourceType(config.Getenv("CLOUDINARY_RESOURCE_TYPE", "raw")),
+		)
+		if err != nil {
+			log.Error("failed to initialize cloudinary storage", "err", err)
+			os.Exit(1)
+		}
+		log.Info("cloudinary storage initialized")
+		return store
+	}
+
 	dir := config.Getenv("FILE_STORAGE_DIR", "/tmp/auraedu-files")
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		log.Error("failed to create storage directory", "dir", dir, "err", err)

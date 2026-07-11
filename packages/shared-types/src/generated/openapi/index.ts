@@ -1,10 +1,12 @@
 export * as academic_v1 from "./academic.v1.js";
+export * as ai_prediction_v1 from "./ai-prediction.v1.js";
 export * as ai_recommendation_v1 from "./ai-recommendation.v1.js";
 export * as analytics_v1 from "./analytics.v1.js";
 export * as assessment_v1 from "./assessment.v1.js";
 export * as attendance_v1 from "./attendance.v1.js";
 export * as audit_v1 from "./audit.v1.js";
 export * as billing_v1 from "./billing.v1.js";
+export * as career_guidance_v1 from "./career-guidance.v1.js";
 export * as cbt_v1 from "./cbt.v1.js";
 export * as fees_v1 from "./fees.v1.js";
 export * as file_v1 from "./file.v1.js";

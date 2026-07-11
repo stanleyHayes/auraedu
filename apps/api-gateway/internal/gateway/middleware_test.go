@@ -28,6 +28,13 @@ func testBuilder() *Builder {
 		{Prefix: "/api/v1/identity", Target: "http://localhost:8081", Public: true},
 		{Prefix: "/api/v1/students", Target: "http://localhost:8090", FeatureKey: "student_management"},
 		{Prefix: "/api/v1/cbt", Target: "http://localhost:8102", FeatureKey: "cbt_exams"},
+		{Prefix: "/api/v1/ai/predictions", Target: "http://localhost:8201", FeatureKey: "ai_predictions", Permission: "ai.view_predictions"},
+		{Prefix: "/api/v1/files", Target: "http://localhost:8098", FeatureKey: "file_management", Permissions: map[string]string{
+			http.MethodGet: "files.read", http.MethodPost: "files.upload", http.MethodPatch: "files.update", http.MethodDelete: "files.delete",
+		}},
+		{Prefix: "/api/v1/uploads", Target: "http://localhost:8098", FeatureKey: "file_management", Permissions: map[string]string{
+			http.MethodPost: "files.upload",
+		}},
 	}
 	proxy, _ := NewReverseProxy(cfg.Registry, slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 
@@ -40,7 +47,7 @@ func testBuilder() *Builder {
 			BySubdomain: map[string]string{"upshs": "upshs", "aboom": "aboom"},
 		},
 		Flags: &stubs.FeatureFlagClient{
-			Defaults: map[string]bool{"student_management": true},
+			Defaults: map[string]bool{"student_management": true, "ai_predictions": true, "file_management": true},
 			TenantOverrides: map[string]map[string]bool{
 				"upshs": {"cbt_exams": true},
 				"aboom": {"cbt_exams": false},
@@ -239,5 +246,204 @@ func TestRateLimitBlocksWhenExhausted(t *testing.T) {
 	}
 	if rr.Header().Get("Retry-After") == "" {
 		t.Fatal("expected Retry-After header")
+	}
+}
+
+func TestPermissionAllowsAuthorizedActor(t *testing.T) {
+	b := testBuilder()
+	token := signTestToken(b, auth.Claims{
+		Subject:     "u1",
+		TenantID:    "upshs",
+		Role:        "teacher",
+		Permissions: []string{"ai.view_predictions"},
+	})
+	called := false
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/ai/predictions/students/s1", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("X-Tenant-ID", "upshs")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if !called {
+		t.Fatal("handler should be called for permitted actor")
+	}
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", rr.Code, http.StatusOK)
+	}
+}
+
+func TestPermissionDeniesUnauthorizedActor(t *testing.T) {
+	b := testBuilder()
+	token := signTestToken(b, auth.Claims{
+		Subject:     "u1",
+		TenantID:    "upshs",
+		Role:        "teacher",
+		Permissions: []string{"students.read"},
+	})
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("should not reach handler without permission")
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/ai/predictions/students/s1", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("X-Tenant-ID", "upshs")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("status: got %d, want %d", rr.Code, http.StatusForbidden)
+	}
+	if !strings.Contains(rr.Body.String(), "permission_denied") {
+		t.Fatalf("expected permission_denied error, got %q", rr.Body.String())
+	}
+}
+
+func TestPermissionSkippedForPublicRoute(t *testing.T) {
+	b := testBuilder()
+	called := false
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/identity/login", nil)
+	req.Header.Set("X-Tenant-ID", "upshs")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if !called {
+		t.Fatal("public route should not require permission")
+	}
+}
+
+func TestPermissionAllowsPlatformAdmin(t *testing.T) {
+	b := testBuilder()
+	token := signTestToken(b, auth.Claims{
+		Subject:  "admin1",
+		TenantID: "upshs",
+		Role:     auth.RolePlatformSuperAdmin,
+	})
+	called := false
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/ai/predictions/students/s1", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("X-Tenant-ID", "upshs")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if !called {
+		t.Fatal("platform admin should bypass permission check")
+	}
+}
+
+func TestPermissionRespectsMethodMap(t *testing.T) {
+	b := testBuilder()
+	token := signTestToken(b, auth.Claims{
+		Subject:     "u1",
+		TenantID:    "upshs",
+		Role:        "teacher",
+		Permissions: []string{"files.read"},
+	})
+	called := false
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/files/123", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("X-Tenant-ID", "upshs")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if !called {
+		t.Fatal("GET /files should be allowed with files.read")
+	}
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", rr.Code, http.StatusOK)
+	}
+}
+
+func TestUploadsPermissionAllowsAuthorizedActor(t *testing.T) {
+	b := testBuilder()
+	token := signTestToken(b, auth.Claims{
+		Subject:     "u1",
+		TenantID:    "upshs",
+		Role:        "teacher",
+		Permissions: []string{"files.upload"},
+	})
+	called := false
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads/signed", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("X-Tenant-ID", "upshs")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if !called {
+		t.Fatal("POST /uploads should be allowed with files.upload")
+	}
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", rr.Code, http.StatusOK)
+	}
+}
+
+func TestUploadsPermissionDeniesUnauthorizedActor(t *testing.T) {
+	b := testBuilder()
+	token := signTestToken(b, auth.Claims{
+		Subject:     "u1",
+		TenantID:    "upshs",
+		Role:        "teacher",
+		Permissions: []string{"files.read"},
+	})
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("POST /uploads should be denied without files.upload")
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/uploads/signed", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("X-Tenant-ID", "upshs")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("status: got %d, want %d", rr.Code, http.StatusForbidden)
+	}
+	if !strings.Contains(rr.Body.String(), "permission_denied") {
+		t.Fatalf("expected permission_denied error, got %q", rr.Body.String())
+	}
+}
+
+func TestPermissionMethodMapDeniesMissingPermission(t *testing.T) {
+	b := testBuilder()
+	token := signTestToken(b, auth.Claims{
+		Subject:     "u1",
+		TenantID:    "upshs",
+		Role:        "teacher",
+		Permissions: []string{"files.read"},
+	})
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("POST /files should be denied without files.upload")
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/files", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("X-Tenant-ID", "upshs")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("status: got %d, want %d", rr.Code, http.StatusForbidden)
+	}
+	if !strings.Contains(rr.Body.String(), "permission_denied") {
+		t.Fatalf("expected permission_denied error, got %q", rr.Body.String())
 	}
 }

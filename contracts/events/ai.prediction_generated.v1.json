@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.auraedu.dev/events/ai.prediction_generated.v1.json",
+  "title": "ai.prediction_generated.v1",
+  "description": "Emitted when an AI prediction is generated.",
+  "type": "object",
+  "required": [
+    "specversion",
+    "type",
+    "source",
+    "id",
+    "time",
+    "tenant_id",
+    "data"
+  ],
+  "properties": {
+    "specversion": {
+      "const": "1.0"
+    },
+    "type": {
+      "const": "ai.prediction_generated.v1"
+    },
+    "source": {
+      "const": "ai-prediction-service"
+    },
+    "subject": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tenant_id": {
+      "type": "string"
+    },
+    "datacontenttype": {
+      "const": "application/json"
+    },
+    "data": {
+      "type": "object",
+      "required": [
+        "student_id",
+        "prediction_type",
+        "value"
+      ],
+      "properties": {
+        "student_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "prediction_type": {
+          "type": "string"
+        },
+        "value": {
+          "type": "number"
+        },
+        "confidence": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "explanation": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}
