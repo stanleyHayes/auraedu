@@ -67,7 +67,25 @@ export type paths = {
         /** List a student's guardians */
         get: operations["listStudentGuardians"];
         put?: never;
-        post?: never;
+        /** Link a guardian to a student */
+        post: operations["linkGuardian"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guardians": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a guardian */
+        post: operations["createGuardian"];
         delete?: never;
         options?: never;
         head?: never;
@@ -85,7 +103,26 @@ export type paths = {
         get: operations["getGuardian"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Delete a guardian */
+        delete: operations["deleteGuardian"];
+        options?: never;
+        head?: never;
+        /** Update a guardian */
+        patch: operations["updateGuardian"];
+        trace?: never;
+    };
+    "/students/{student_id}/guardians/{guardian_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Unlink a guardian from a student */
+        delete: operations["unlinkGuardian"];
         options?: never;
         head?: never;
         patch?: never;
@@ -149,6 +186,41 @@ export type components = {
             phone?: string | null;
             /** Format: email */
             email?: string | null;
+        };
+        CreateGuardian: {
+            first_name: string;
+            last_name: string;
+            relationship: string;
+            phone?: string | null;
+            /** Format: email */
+            email?: string | null;
+        };
+        UpdateGuardian: {
+            first_name?: string;
+            last_name?: string;
+            relationship?: string;
+            phone?: string | null;
+            /** Format: email */
+            email?: string | null;
+        };
+        LinkGuardian: {
+            /** Format: uuid */
+            guardian_id: string;
+            relationship?: string;
+            /** @default false */
+            is_primary: boolean;
+        };
+        StudentGuardianLink: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            tenant_id: string;
+            /** Format: uuid */
+            student_id: string;
+            /** Format: uuid */
+            guardian_id: string;
+            relationship?: string | null;
+            is_primary: boolean;
         };
         Enrollment: {
             /** Format: uuid */
@@ -494,6 +566,70 @@ export interface operations {
             422: components["responses"]["ValidationError"];
         };
     };
+    linkGuardian: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                tenant_id: components["parameters"]["TenantId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkGuardian"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentGuardianLink"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    createGuardian: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateGuardian"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Guardian"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
     getGuardian: {
         parameters: {
             query?: never;
@@ -516,6 +652,93 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Guardian"];
                 };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    deleteGuardian: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                tenant_id: components["parameters"]["TenantId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    updateGuardian: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                tenant_id: components["parameters"]["TenantId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateGuardian"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Guardian"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    unlinkGuardian: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                tenant_id: components["parameters"]["TenantId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];

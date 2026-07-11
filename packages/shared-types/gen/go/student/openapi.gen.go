@@ -49,6 +49,41 @@ type Guardian struct {
 	Email        *string `json:"email,omitempty"`
 }
 
+// CreateGuardian generated from OpenAPI schema.
+type CreateGuardian struct {
+	FirstName    string  `json:"first_name"`
+	LastName     string  `json:"last_name"`
+	Relationship string  `json:"relationship"`
+	Phone        *string `json:"phone,omitempty"`
+	Email        *string `json:"email,omitempty"`
+}
+
+// UpdateGuardian generated from OpenAPI schema.
+type UpdateGuardian struct {
+	FirstName    *string `json:"first_name,omitempty"`
+	LastName     *string `json:"last_name,omitempty"`
+	Relationship *string `json:"relationship,omitempty"`
+	Phone        *string `json:"phone,omitempty"`
+	Email        *string `json:"email,omitempty"`
+}
+
+// LinkGuardian generated from OpenAPI schema.
+type LinkGuardian struct {
+	GuardianId   string  `json:"guardian_id"`
+	Relationship *string `json:"relationship,omitempty"`
+	IsPrimary    *bool   `json:"is_primary,omitempty"`
+}
+
+// StudentGuardianLink generated from OpenAPI schema.
+type StudentGuardianLink struct {
+	Id           string  `json:"id"`
+	TenantId     string  `json:"tenant_id"`
+	StudentId    string  `json:"student_id"`
+	GuardianId   string  `json:"guardian_id"`
+	Relationship *string `json:"relationship,omitempty"`
+	IsPrimary    bool    `json:"is_primary"`
+}
+
 // Enrollment generated from OpenAPI schema.
 type Enrollment struct {
 	Id             string  `json:"id"`
@@ -92,7 +127,12 @@ type ServerInterface interface {
 	listEnrollments(w http.ResponseWriter, r *http.Request)
 	createEnrollment(w http.ResponseWriter, r *http.Request)
 	listStudentGuardians(w http.ResponseWriter, r *http.Request)
+	linkGuardian(w http.ResponseWriter, r *http.Request)
+	createGuardian(w http.ResponseWriter, r *http.Request)
 	getGuardian(w http.ResponseWriter, r *http.Request)
+	updateGuardian(w http.ResponseWriter, r *http.Request)
+	deleteGuardian(w http.ResponseWriter, r *http.Request)
+	unlinkGuardian(w http.ResponseWriter, r *http.Request)
 }
 
 // ClientInterface is the generated consumer stub for this service.
@@ -105,5 +145,10 @@ type ClientInterface interface {
 	listEnrollments(ctx context.Context) (*http.Response, error)
 	createEnrollment(ctx context.Context) (*http.Response, error)
 	listStudentGuardians(ctx context.Context) (*http.Response, error)
+	linkGuardian(ctx context.Context) (*http.Response, error)
+	createGuardian(ctx context.Context) (*http.Response, error)
 	getGuardian(ctx context.Context) (*http.Response, error)
+	updateGuardian(ctx context.Context) (*http.Response, error)
+	deleteGuardian(ctx context.Context) (*http.Response, error)
+	unlinkGuardian(ctx context.Context) (*http.Response, error)
 }

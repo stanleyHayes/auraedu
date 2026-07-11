@@ -70,6 +70,31 @@ type UpdateStudentRequest struct {
 	Status    *string
 }
 
+// CreateGuardianRequest is the input for creating a guardian.
+type CreateGuardianRequest struct {
+	FirstName   string
+	LastName    string
+	Relationship string
+	Phone       *string
+	Email       *string
+}
+
+// UpdateGuardianRequest is the input for patching a guardian.
+type UpdateGuardianRequest struct {
+	FirstName   *string
+	LastName    *string
+	Relationship *string
+	Phone       *string
+	Email       *string
+}
+
+// LinkGuardianRequest links a guardian to a student.
+type LinkGuardianRequest struct {
+	GuardianID   string
+	Relationship *string
+	IsPrimary    bool
+}
+
 // Create validates and persists a new Student for the actor's tenant.
 func (s *Service) Create(ctx context.Context, actor auth.Actor, req CreateStudentRequest) (*domain.Student, error) {
 	tenantID, err := s.requireAccess(ctx, actor, PermCreate)
@@ -186,6 +211,138 @@ func normalizeLimit(n int) int {
 		return 100
 	}
 	return n
+}
+
+// --- Guardians ---
+
+// CreateGuardian validates and persists a new Guardian for the actor's tenant.
+func (s *Service) CreateGuardian(ctx context.Context, actor auth.Actor, req CreateGuardianRequest) (*domain.Guardian, error) {
+	tenantID, err := s.requireAccess(ctx, actor, PermCreate)
+	if err != nil {
+		return nil, err
+	}
+	g, err := domain.NewGuardian(tenantID, req.FirstName, req.LastName, req.Relationship)
+	if err != nil {
+		return nil, err
+	}
+	g.Phone = req.Phone
+	g.Email = req.Email
+	if err := g.Validate(); err != nil {
+		return nil, err
+	}
+	if err := s.repo.CreateGuardian(ctx, tenantID, g); err != nil {
+		return nil, err
+	}
+	_ = s.pub.Publish(ctx, "guardian.created.v1", nil, map[string]any{"guardian_id": g.ID, "tenant_id": g.TenantID})
+	return g, nil
+}
+
+// GetGuardian returns a single guardian.
+func (s *Service) GetGuardian(ctx context.Context, actor auth.Actor, id string) (*domain.Guardian, error) {
+	tenantID, err := s.requireAccess(ctx, actor, PermRead)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.GetGuardianByID(ctx, tenantID, id)
+}
+
+// ListStudentGuardians returns the guardians linked to a student.
+func (s *Service) ListStudentGuardians(ctx context.Context, actor auth.Actor, studentID string, limit int, cursor string) ([]*domain.Guardian, string, error) {
+	tenantID, err := s.requireAccess(ctx, actor, PermRead)
+	if err != nil {
+		return nil, "", err
+	}
+	// Verify the student belongs to the tenant (will return not-found otherwise).
+	if _, err := s.repo.GetByID(ctx, tenantID, studentID); err != nil {
+		return nil, "", err
+	}
+	return s.repo.ListGuardiansByStudent(ctx, tenantID, studentID, normalizeLimit(limit), cursor)
+}
+
+// UpdateGuardian patches a guardian record.
+func (s *Service) UpdateGuardian(ctx context.Context, actor auth.Actor, id string, req UpdateGuardianRequest) (*domain.Guardian, error) {
+	tenantID, err := s.requireAccess(ctx, actor, PermUpdate)
+	if err != nil {
+		return nil, err
+	}
+	g, err := s.repo.GetGuardianByID(ctx, tenantID, id)
+	if err != nil {
+		return nil, err
+	}
+	changed, err := g.ApplyUpdate(req.FirstName, req.LastName, req.Relationship, req.Phone, req.Email)
+	if err != nil {
+		return nil, err
+	}
+	if len(changed) == 0 {
+		return g, nil
+	}
+	if err := g.Validate(); err != nil {
+		return nil, err
+	}
+	if err := s.repo.UpdateGuardian(ctx, tenantID, g); err != nil {
+		return nil, err
+	}
+	_ = s.pub.Publish(ctx, "guardian.updated.v1", nil, map[string]any{"guardian_id": g.ID, "changed_fields": changed})
+	return g, nil
+}
+
+// DeleteGuardian removes a guardian and all its student links.
+func (s *Service) DeleteGuardian(ctx context.Context, actor auth.Actor, id string) error {
+	tenantID, err := s.requireAccess(ctx, actor, PermDelete)
+	if err != nil {
+		return err
+	}
+	if _, err := s.repo.GetGuardianByID(ctx, tenantID, id); err != nil {
+		return err
+	}
+	if err := s.repo.DeleteGuardian(ctx, tenantID, id); err != nil {
+		return err
+	}
+	_ = s.pub.Publish(ctx, "guardian.deleted.v1", nil, map[string]any{"guardian_id": id})
+	return nil
+}
+
+// LinkGuardian links an existing guardian to a student.
+func (s *Service) LinkGuardian(ctx context.Context, actor auth.Actor, studentID string, req LinkGuardianRequest) (*domain.StudentGuardian, error) {
+	tenantID, err := s.requireAccess(ctx, actor, PermUpdate)
+	if err != nil {
+		return nil, err
+	}
+	// Verify both resources belong to the tenant.
+	if _, err := s.repo.GetByID(ctx, tenantID, studentID); err != nil {
+		return nil, err
+	}
+	if _, err := s.repo.GetGuardianByID(ctx, tenantID, req.GuardianID); err != nil {
+		return nil, err
+	}
+	link, err := domain.NewStudentGuardian(tenantID, studentID, req.GuardianID, req.Relationship, req.IsPrimary)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.repo.LinkGuardianToStudent(ctx, tenantID, link); err != nil {
+		return nil, err
+	}
+	_ = s.pub.Publish(ctx, "guardian.linked.v1", nil, map[string]any{
+		"student_id":  link.StudentID,
+		"guardian_id": link.GuardianID,
+	})
+	return link, nil
+}
+
+// UnlinkGuardian removes the link between a student and a guardian.
+func (s *Service) UnlinkGuardian(ctx context.Context, actor auth.Actor, studentID, guardianID string) error {
+	tenantID, err := s.requireAccess(ctx, actor, PermUpdate)
+	if err != nil {
+		return err
+	}
+	if err := s.repo.UnlinkGuardianFromStudent(ctx, tenantID, studentID, guardianID); err != nil {
+		return err
+	}
+	_ = s.pub.Publish(ctx, "guardian.unlinked.v1", nil, map[string]any{
+		"student_id":  studentID,
+		"guardian_id": guardianID,
+	})
+	return nil
 }
 
 // IsNotFound reports whether an error is a not-found domain error.

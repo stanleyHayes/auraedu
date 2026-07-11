@@ -166,6 +166,50 @@ paths:
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
+      post:
+            operationId: linkGuardian
+            tags: ['guardians']
+            summary: Link a guardian to a student
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/TenantId'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/LinkGuardian' }
+            responses:
+              '201':
+                description: Created
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/StudentGuardianLink' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /guardians:
+      post:
+            operationId: createGuardian
+            tags: ['guardians']
+            summary: Create a guardian
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/CreateGuardian' }
+            responses:
+              '201':
+                description: Created
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Guardian' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
     /guardians/{guardian_id}:
       get:
             operationId: getGuardian
@@ -180,6 +224,57 @@ paths:
                 content:
                   application/json:
                     schema: { $ref: '#/components/schemas/Guardian' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      patch:
+            operationId: updateGuardian
+            tags: ['guardians']
+            summary: Update a guardian
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/TenantId'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/UpdateGuardian' }
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Guardian' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      delete:
+            operationId: deleteGuardian
+            tags: ['guardians']
+            summary: Delete a guardian
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/TenantId'
+            responses:
+              '204':
+                description: No content
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /students/{student_id}/guardians/{guardian_id}:
+      delete:
+            operationId: unlinkGuardian
+            tags: ['guardians']
+            summary: Unlink a guardian from a student
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/TenantId'
+            responses:
+              '204':
+                description: No content
               '403': { $ref: '#/components/responses/Forbidden' }
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
@@ -256,6 +351,40 @@ components:
           relationship: { type: string }
           phone: { type: [string, 'null'] }
           email: { type: [string, 'null'], format: email }
+    CreateGuardian:
+        type: object
+        required: [first_name, last_name, relationship]
+        properties:
+          first_name: { type: string }
+          last_name: { type: string }
+          relationship: { type: string }
+          phone: { type: [string, 'null'] }
+          email: { type: [string, 'null'], format: email }
+    UpdateGuardian:
+        type: object
+        properties:
+          first_name: { type: string }
+          last_name: { type: string }
+          relationship: { type: string }
+          phone: { type: [string, 'null'] }
+          email: { type: [string, 'null'], format: email }
+    LinkGuardian:
+        type: object
+        required: [guardian_id]
+        properties:
+          guardian_id: { type: string, format: uuid }
+          relationship: { type: string }
+          is_primary: { type: boolean, default: false }
+    StudentGuardianLink:
+        type: object
+        required: [id, tenant_id, student_id, guardian_id, is_primary]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          student_id: { type: string, format: uuid }
+          guardian_id: { type: string, format: uuid }
+          relationship: { type: [string, 'null'] }
+          is_primary: { type: boolean }
     Enrollment:
         type: object
         required: [id, student_id, class_id, academic_year_id]

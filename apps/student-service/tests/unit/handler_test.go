@@ -25,24 +25,32 @@ const tenantA = "11111111-1111-1111-1111-111111111111"
 
 // fakeRepo is an in-memory ports.Repository for fast handler tests.
 type fakeRepo struct {
-	mu   sync.Mutex
-	data map[string]*domain.Student
+	mu        sync.Mutex
+	students  map[string]*domain.Student
+	guardians map[string]*domain.Guardian
+	links     map[string]*domain.StudentGuardian
 }
 
-func newFakeRepo() *fakeRepo { return &fakeRepo{data: make(map[string]*domain.Student)} }
+func newFakeRepo() *fakeRepo {
+	return &fakeRepo{
+		students:  make(map[string]*domain.Student),
+		guardians: make(map[string]*domain.Guardian),
+		links:     make(map[string]*domain.StudentGuardian),
+	}
+}
 
 func (r *fakeRepo) Create(_ context.Context, tenantID string, s *domain.Student) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	s.TenantID = tenantID
-	r.data[s.ID] = s
+	r.students[s.ID] = s
 	return nil
 }
 
 func (r *fakeRepo) GetByID(_ context.Context, tenantID, id string) (*domain.Student, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	s, ok := r.data[id]
+	s, ok := r.students[id]
 	if !ok || s.TenantID != tenantID {
 		return nil, domain.ErrNotFound
 	}
@@ -53,7 +61,7 @@ func (r *fakeRepo) List(_ context.Context, tenantID string, limit int, cursor st
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var out []*domain.Student
-	for _, s := range r.data {
+	for _, s := range r.students {
 		if s.TenantID == tenantID {
 			out = append(out, s)
 		}
@@ -88,22 +96,100 @@ func (r *fakeRepo) List(_ context.Context, tenantID string, limit int, cursor st
 func (r *fakeRepo) Update(_ context.Context, tenantID string, s *domain.Student) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	existing, ok := r.data[s.ID]
+	existing, ok := r.students[s.ID]
 	if !ok || existing.TenantID != tenantID {
 		return domain.ErrNotFound
 	}
-	r.data[s.ID] = s
+	r.students[s.ID] = s
 	return nil
 }
 
 func (r *fakeRepo) Delete(_ context.Context, tenantID, id string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	existing, ok := r.data[id]
+	existing, ok := r.students[id]
 	if !ok || existing.TenantID != tenantID {
 		return domain.ErrNotFound
 	}
-	delete(r.data, id)
+	delete(r.students, id)
+	return nil
+}
+
+func (r *fakeRepo) CreateGuardian(_ context.Context, tenantID string, g *domain.Guardian) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	g.TenantID = tenantID
+	r.guardians[g.ID] = g
+	return nil
+}
+
+func (r *fakeRepo) GetGuardianByID(_ context.Context, tenantID, id string) (*domain.Guardian, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	g, ok := r.guardians[id]
+	if !ok || g.TenantID != tenantID {
+		return nil, domain.ErrNotFound
+	}
+	return g, nil
+}
+
+func (r *fakeRepo) ListGuardiansByStudent(_ context.Context, tenantID, studentID string, limit int, _ string) ([]*domain.Guardian, string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []*domain.Guardian
+	for _, link := range r.links {
+		if link.TenantID == tenantID && link.StudentID == studentID {
+			if g, ok := r.guardians[link.GuardianID]; ok {
+				out = append(out, g)
+			}
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
+	if limit > 0 && len(out) > limit {
+		return out[:limit], out[limit-1].ID, nil
+	}
+	return out, "", nil
+}
+
+func (r *fakeRepo) UpdateGuardian(_ context.Context, tenantID string, g *domain.Guardian) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	existing, ok := r.guardians[g.ID]
+	if !ok || existing.TenantID != tenantID {
+		return domain.ErrNotFound
+	}
+	r.guardians[g.ID] = g
+	return nil
+}
+
+func (r *fakeRepo) DeleteGuardian(_ context.Context, tenantID, id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	existing, ok := r.guardians[id]
+	if !ok || existing.TenantID != tenantID {
+		return domain.ErrNotFound
+	}
+	delete(r.guardians, id)
+	return nil
+}
+
+func (r *fakeRepo) LinkGuardianToStudent(_ context.Context, tenantID string, link *domain.StudentGuardian) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	link.TenantID = tenantID
+	r.links[link.ID] = link
+	return nil
+}
+
+func (r *fakeRepo) UnlinkGuardianFromStudent(_ context.Context, tenantID, studentID, guardianID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for k, link := range r.links {
+		if link.TenantID == tenantID && link.StudentID == studentID && link.GuardianID == guardianID {
+			delete(r.links, k)
+			return nil
+		}
+	}
 	return nil
 }
 
@@ -254,5 +340,31 @@ func TestFakeRepo_Isolation(t *testing.T) {
 	}
 	if _, err := repo.GetByID(ctx, "other-tenant", s.ID); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("expected not found for other tenant, got %v", err)
+	}
+}
+
+func TestHandler_CreateAndLinkGuardian(t *testing.T) {
+	h, _ := newTestHandler()
+	req := request(t, http.MethodPost, "/api/v1/guardians", map[string]any{
+		"first_name":    "Mother",
+		"last_name":     "Guardian",
+		"relationship":  "mother",
+		"phone":         "+233",
+		"email":         "mother@example.com",
+	}, application.PermCreate)
+	rr := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	h.Register(mux)
+	mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var got map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got["relationship"] != "mother" {
+		t.Fatalf("unexpected guardian: %v", got)
 	}
 }
