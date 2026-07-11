@@ -183,7 +183,7 @@ func (s *Service) SetFeature(ctx context.Context, actor auth.Actor, code, key st
 			return domain.FeatureFlag{}, domain.ErrEntitlement
 		}
 	}
-	flag, err := s.repo.SetFeature(withTenant(ctx, code), code, key, enabled)
+	flag, err := s.repo.SetFeature(withTenant(ctx, code), code, key, enabled, "")
 	if err != nil {
 		return domain.FeatureFlag{}, err
 	}
@@ -195,6 +195,48 @@ func (s *Service) SetFeature(ctx context.Context, actor auth.Actor, code, key st
 		"feature_key": key,
 		"is_enabled":  enabled,
 		"plan":        flag.PlanRequired,
+	}); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish tenant.feature event", "err", err)
+	}
+	return flag, nil
+}
+
+// OverrideFeature is a platform super-admin override of a tenant feature flag.
+// It bypasses the normal `features.manage` permission check but still enforces
+// tenant scope and plan entitlement. The reason is persisted for audit.
+func (s *Service) OverrideFeature(ctx context.Context, actor auth.Actor, code, key string, enabled bool, reason string) (domain.FeatureFlag, error) {
+	if code == "" {
+		return domain.FeatureFlag{}, domain.ErrNoTenant
+	}
+	if !actor.PlatformAdmin || !actor.CanAccessTenant(code) {
+		return domain.FeatureFlag{}, domain.ErrForbidden
+	}
+	if enabled {
+		tenant, err := s.repo.GetTenant(withTenant(ctx, code), code)
+		if err != nil {
+			return domain.FeatureFlag{}, err
+		}
+		plan, known := domain.FeaturePlan(key)
+		if !known {
+			return domain.FeatureFlag{}, domain.ErrValidation
+		}
+		if !domain.PlanAllows(tenant.Plan, plan) {
+			return domain.FeatureFlag{}, domain.ErrEntitlement
+		}
+	}
+	flag, err := s.repo.SetFeature(withTenant(ctx, code), code, key, enabled, reason)
+	if err != nil {
+		return domain.FeatureFlag{}, err
+	}
+	eventType := "tenant.feature_disabled.v1"
+	if enabled {
+		eventType = "tenant.feature_enabled.v1"
+	}
+	if err := s.pub.Publish(ctx, eventType, code, map[string]any{
+		"feature_key": key,
+		"is_enabled":  enabled,
+		"plan":        flag.PlanRequired,
+		"reason":      reason,
 	}); err != nil {
 		slog.Default().ErrorContext(ctx, "failed to publish tenant.feature event", "err", err)
 	}

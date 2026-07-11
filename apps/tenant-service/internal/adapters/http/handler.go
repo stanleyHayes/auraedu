@@ -29,7 +29,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/tenants/{code}/branding", h.branding)
 	mux.HandleFunc("GET /api/v1/features", h.features)
 	mux.HandleFunc("PUT /api/v1/features/{key}", h.setFeature)
-	mux.HandleFunc("PUT /api/v1/admin/tenants/{code}/features/{key}", h.setFeatureAdmin)
+	mux.HandleFunc("POST /api/v1/super-admin/features/{key}/override", h.overrideFeature)
 }
 
 func tenantCode(r *http.Request) string {
@@ -171,13 +171,23 @@ func (h *Handler) setFeature(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, f)
 }
 
-func (h *Handler) setFeatureAdmin(w http.ResponseWriter, r *http.Request) {
-	var body setFeatureBody
+type overrideFeatureBody struct {
+	Tenant  string `json:"tenant_code"`
+	Enabled bool   `json:"is_enabled"`
+	Reason  string `json:"reason"`
+}
+
+func (h *Handler) overrideFeature(w http.ResponseWriter, r *http.Request) {
+	var body overrideFeatureBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, errEnv("validation_error", "invalid request body"))
 		return
 	}
-	f, err := h.svc.SetFeature(r.Context(), auth.FromHeaders(r.Header), r.PathValue("code"), r.PathValue("key"), body.Enabled)
+	if body.Tenant == "" {
+		writeJSON(w, http.StatusBadRequest, errEnv("validation_error", "tenant_code is required"))
+		return
+	}
+	f, err := h.svc.OverrideFeature(r.Context(), auth.FromHeaders(r.Header), body.Tenant, r.PathValue("key"), body.Enabled, body.Reason)
 	if err != nil {
 		writeErr(w, err)
 		return

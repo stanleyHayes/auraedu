@@ -91,6 +91,28 @@ func TestSetFeatureRBACAndScope(t *testing.T) {
 	}
 }
 
+func TestOverrideFeatureRequiresPlatformAdmin(t *testing.T) {
+	svc := newSvc()
+	reason := "trial unlock"
+	if _, err := svc.OverrideFeature(ctx, upshsAdmin, "upshs", "analytics", true, reason); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("school admin should not override features, got %v", err)
+	}
+	if _, err := svc.OverrideFeature(ctx, platformAdm, "no-such-tenant", "analytics", true, reason); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("unknown tenant should be not found, got %v", err)
+	}
+	// upshs is ai_plus, analytics is professional → allowed.
+	if _, err := svc.OverrideFeature(ctx, platformAdm, "upshs", "analytics", true, reason); err != nil {
+		t.Fatalf("platform admin should override feature: %v", err)
+	}
+}
+
+func TestOverrideFeatureEntitlement(t *testing.T) {
+	svc := newSvc()
+	if _, err := svc.OverrideFeature(ctx, platformAdm, "aboom-ame-zion-c", "ai_recommendations", true, "trial"); !errors.Is(err, domain.ErrEntitlement) {
+		t.Fatalf("enabling above plan should be ErrEntitlement, got %v", err)
+	}
+}
+
 func TestSetFeatureEntitlement(t *testing.T) {
 	svc := newSvc()
 	// Aboom is on the 'starter' plan; ai_recommendations needs 'ai_plus'. Even a platform

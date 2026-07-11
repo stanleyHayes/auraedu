@@ -237,7 +237,7 @@ func (r *Repository) Features(ctx context.Context, code string) ([]domain.Featur
 }
 
 // SetFeature upserts a tenant feature flag and returns the updated flag.
-func (r *Repository) SetFeature(ctx context.Context, code, key string, enabled bool) (domain.FeatureFlag, error) {
+func (r *Repository) SetFeature(ctx context.Context, code, key string, enabled bool, reason string) (domain.FeatureFlag, error) {
 	plan, known := domain.FeaturePlan(key)
 	if !known {
 		return domain.FeatureFlag{}, domain.ErrValidation
@@ -245,11 +245,11 @@ func (r *Repository) SetFeature(ctx context.Context, code, key string, enabled b
 
 	err := r.db.WithTx(withTenant(ctx, code), func(ctx context.Context, tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `
-			INSERT INTO tenant_features (tenant_code, feature_key, is_enabled)
-			VALUES ($1, $2, $3)
+			INSERT INTO tenant_features (tenant_code, feature_key, is_enabled, reason)
+			VALUES ($1, $2, $3, $4)
 			ON CONFLICT (tenant_code, feature_key)
-			DO UPDATE SET is_enabled = EXCLUDED.is_enabled, updated_at = now()
-		`, code, key, enabled)
+			DO UPDATE SET is_enabled = EXCLUDED.is_enabled, reason = EXCLUDED.reason, updated_at = now()
+		`, code, key, enabled, reason)
 		if err != nil {
 			return fmt.Errorf("upsert feature: %w", err)
 		}

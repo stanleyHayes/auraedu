@@ -170,7 +170,7 @@ func (r *Repository) Features(_ context.Context, code string) ([]domain.FeatureF
 	return out, nil
 }
 
-func (r *Repository) SetFeature(_ context.Context, code, key string, enabled bool) (domain.FeatureFlag, error) {
+func (r *Repository) SetFeature(_ context.Context, code, key string, enabled bool, _ string) (domain.FeatureFlag, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	on, ok := r.enabled[code]

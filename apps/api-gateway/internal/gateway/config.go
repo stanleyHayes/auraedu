@@ -27,6 +27,7 @@ func DefaultRegistry() ServiceRegistry {
 	return ServiceRegistry{
 		{Prefix: "/api/v1/identity", Target: envURL("SERVICE_IDENTITY_URL", "http://localhost:8081"), FeatureKey: "", Public: true},
 		{Prefix: "/api/v1/tenants", Target: envURL("SERVICE_TENANT_URL", "http://localhost:8082"), FeatureKey: "billing", Public: false},
+		{Prefix: "/api/v1/super-admin", Target: envURL("SERVICE_TENANT_URL", "http://localhost:8082"), FeatureKey: "billing", Public: false},
 		{Prefix: "/api/v1/students", Target: envURL("SERVICE_STUDENT_URL", "http://localhost:8090"), FeatureKey: "student_management", Permissions: map[string]string{
 			http.MethodGet:    "students.read",
 			http.MethodPost:   "students.create",
