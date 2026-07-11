@@ -13,6 +13,7 @@ export interface UserSession {
 const TOKEN_COOKIE = "auraedu_access_token";
 const USER_COOKIE = "auraedu_user";
 
+export const SUPER_ADMIN_ROLES = new Set(["platform_super_admin"]);
 export const ADMIN_ROLES = new Set(["school_admin", "platform_super_admin", "super_admin"]);
 export const TEACHER_ROLES = new Set(["teacher", "school_admin", "super_admin"]);
 export const PARENT_ROLES = new Set(["parent", "school_admin", "super_admin"]);
@@ -75,6 +76,10 @@ export async function requireAuth(): Promise<UserSession> {
     throw new Error("unauthenticated");
   }
   return session;
+}
+
+export function isSuperAdmin(session: UserSession): boolean {
+  return SUPER_ADMIN_ROLES.has(session.role);
 }
 
 export function isAdmin(session: UserSession): boolean {
