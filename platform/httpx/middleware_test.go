@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/auraedu/platform/auth"
 )
 
 func TestRequestIDMiddlewarePreservesInbound(t *testing.T) {
@@ -77,5 +79,74 @@ func TestErrorResponses(t *testing.T) {
 		if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
 			t.Fatalf("%s: expected json, got %s", c.code, ct)
 		}
+	}
+}
+
+func TestRequirePermissionAllowsHolder(t *testing.T) {
+	handler := RequirePermission("students.read")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
+	req.Header.Set(auth.HeaderUserID, "u1")
+	req.Header.Set(auth.HeaderTenant, "upshs")
+	req.Header.Set(auth.HeaderRole, "teacher")
+	req.Header.Set(auth.HeaderPermissions, "students.read,students.write")
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+}
+
+func TestRequirePermissionAllowsPlatformAdmin(t *testing.T) {
+	handler := RequirePermission("anything.manage")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
+	req.Header.Set(auth.HeaderUserID, "admin1")
+	req.Header.Set(auth.HeaderRole, auth.RolePlatformSuperAdmin)
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+}
+
+func TestRequirePermissionRejectsMissingPermission(t *testing.T) {
+	handler := RequirePermission("students.delete")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), "DELETE", "/students/1", nil)
+	req.Header.Set(auth.HeaderUserID, "u1")
+	req.Header.Set(auth.HeaderTenant, "upshs")
+	req.Header.Set(auth.HeaderRole, "teacher")
+	req.Header.Set(auth.HeaderPermissions, "students.read")
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", rec.Code)
+	}
+}
+
+func TestRequirePermissionRejectsUnauthenticated(t *testing.T) {
+	handler := RequirePermission("students.read")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", rec.Code)
 	}
 }

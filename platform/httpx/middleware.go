@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/auraedu/platform/auth"
 	"github.com/auraedu/platform/tenancy"
 	"github.com/google/uuid"
 )
@@ -20,6 +21,27 @@ func RequestIDMiddleware(next http.Handler) http.Handler {
 		w.Header().Set(RequestIDHeader, id)
 		next.ServeHTTP(w, r)
 	})
+}
+
+// RequirePermission returns HTTP middleware that allows the request only if the
+// gateway-injected actor holds the given permission. Platform super-admins
+// implicitly pass. Unauthenticated callers and actors without the permission
+// receive a canonical 403 forbidden response.
+func RequirePermission(perm string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			actor := auth.FromHeaders(r.Header)
+			if !actor.Authenticated() {
+				Forbidden(w, r, "authentication required")
+				return
+			}
+			if !actor.Has(perm) {
+				Forbidden(w, r, "permission required: "+perm)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 type CORSConfig struct {
