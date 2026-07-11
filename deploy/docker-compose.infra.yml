@@ -1,12 +1,12 @@
 # AuraEDU local infrastructure (agent_plan §3, AURA-7.2). `make infra-up`.
-# Mirrors prod dependencies: Postgres 17 (DB-per-service logical DBs), Valkey, NATS JetStream,
+# Mirrors prod dependencies: Postgres 18 (DB-per-service logical DBs), Valkey, Kafka,
 # OTel collector. Media uses Cloudinary (a dev cloud) even locally — no object store here.
 
 name: auraedu-infra
 
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_USER: auraedu
       POSTGRES_PASSWORD: auraedu

@@ -106,15 +106,15 @@ The spec is prescriptive; these are the locked choices. Agents do **not** re-lit
 
 | Concern | Decision | Notes |
 |---|---|---|
-| Domain microservices | **Go 1.24+**, Hexagonal | spec §12 mandates Go hexagonal |
+| Domain microservices | **Go 1.25+ (latest stable)**, Hexagonal | spec §12 mandates Go hexagonal; always target latest Go at implement time |
 | AI microservices | **Python 3.13+**, FastAPI + `uv` | spec §15 mandates Python AI services |
-| Web frontend | **Next.js 16 (App Router), React 19, TypeScript 5.9+** | tenant-aware; **deploys to Render** |
+| Web frontend | **Next.js 16 (App Router), React 19, TypeScript 5.9+** | tenant-aware; **deploys to Vercel** |
 | Company marketing site | **Next.js 16** (`apps/marketing`) — auraedu.com, Framer Motion allowed | product marketing + school sign-up funnel |
 | Mobile apps | **Expo SDK 54+ / React Native 0.81+**, Expo Router, **NativeWind v4** | one tenant-aware app (parent/student/teacher), ships via **EAS** |
 | API Gateway | **Custom Go gateway** (`apps/api-gateway`) | owns auth verify, tenant resolution, rate limit, request-id |
-| Inter-service sync | **REST/HTTP + JSON** through gateway; internal gRPC optional later | OpenAPI 3.1 contracts |
-| Inter-service async | **NATS JetStream 2.11+** (MVP) → Kafka later | CloudEvents 1.0 envelope; on Render = private service + disk |
-| Datastore | **PostgreSQL 17** (Render Postgres), database-per-service, shared schema + `tenant_id`, **Row-Level Security** | spec §5.2 |
+| Inter-service sync | **REST/HTTP + JSON** through gateway; **internal gRPC where latency/throughput matters** | OpenAPI 3.1 contracts; gRPC is allowed now, not deferred |
+| Inter-service async | **Kafka** (managed or self-hosted) | CloudEvents 1.0 envelope; Kafka is the production bus now, not a future migration |
+| Datastore | **PostgreSQL 18** (Render Postgres), database-per-service, shared schema + `tenant_id`, **Row-Level Security** | spec §5.2 |
 | Cache / sessions | **Render Key Value** (Valkey/Redis-compatible 7.x), tenant-prefixed keys | spec §5.3 |
 | Media & files | **Cloudinary** (images, documents, video, PDFs) — SDK v2 / `next-cloudinary`; folders prefixed by tenant code; signed uploads + on-the-fly transforms | File Service (EP-20) |
 | Contract types (TS) | generated from OpenAPI into `packages/shared-types` | |
@@ -122,8 +122,8 @@ The spec is prescriptive; these are the locked choices. Agents do **not** re-lit
 | Monorepo (Go) | **Go workspaces** (`go.work`) across `apps/*-service` | |
 | Monorepo (Py) | **uv workspaces** across `apps/ai-*` | |
 | Task orchestration | root **`Makefile`** + Turborepo pipelines | `make dev`, `make test`, `make contracts` |
-| Containers | **Docker**; local **docker-compose**; **prod = Render** (Docker/native runtimes) | replaces spec §18 Kubernetes |
-| Deployment | **Render Blueprints (`render.yaml`)** — gateway/web/marketing = `web`, domain services = private services (`pserv`), workers = `worker`, scheduled = `cron`; Render Postgres + Key Value; PR preview environments | user directive |
+| Containers | **Docker**; local **docker-compose**; **backend prod = Render**, **frontend prod = Vercel** | replaces spec §18 Kubernetes |
+| Deployment | **Render Blueprints (`render.yaml`)** — gateway + domain/AI services = `web`/`pserv`/`worker`/`cron`; Render Postgres + Key Value; PR preview environments. **Web (`apps/web`) and marketing (`apps/marketing`) deploy to Vercel** | user directive |
 | Observability | **OpenTelemetry → Grafana Cloud** (or self-host Prometheus/Loki/Tempo on Render), **Sentry** | spec §17 |
 | CI/CD | **GitHub Actions** (latest action majors) for lint/test/contract/security gates → **Render auto-deploy via Blueprint** (`buildFilter` paths) with manual prod promotion; **Renovate** for automated dependency updates | spec §13 |
 | Auth tokens | **JWT** (access+refresh); claims: `tenant_id, user_id, role, permissions[], features_hash` | Identity Service issues, Gateway verifies |
@@ -133,9 +133,9 @@ The spec is prescriptive; these are the locked choices. Agents do **not** re-lit
 
 **Every package is pinned to its latest stable major and kept current automatically.** Rules for all lanes:
 
-1. **Scaffold with latest.** When generating a service/app, use the toolchain's latest stable (`go 1.25.x`, `node 24 LTS`, `pnpm@latest`, `python 3.13.x`, latest Next/React/Tailwind/Expo) and **commit lockfiles** (`go.sum`, `pnpm-lock.yaml`, `uv.lock`).
+1. **Scaffold with latest.** When generating a service/app, use the toolchain's latest stable at implement time (`go 1.25.x+`, `node 24 LTS`, `pnpm@latest`, `python 3.13.x`, latest Next/React/Tailwind/Expo) and **commit lockfiles** (`go.sum`, `pnpm-lock.yaml`, `uv.lock`).
 2. **Renovate bot** runs on the repo: grouped weekly PRs for minor/patch, separate PRs for majors, auto-merge for green patch updates. Also updates **GitHub Actions** action versions and **Dockerfile base images**.
-3. **Pinned baseline matrix** (verify latest at implement time — training data may lag): Go 1.25 · Node 24 LTS · pnpm 11 · Turborepo 2.5 · TypeScript 5.9 · Next.js 16 · React 19 · Tailwind v4 · Expo SDK 54 · RN 0.81 · Python 3.13 · FastAPI (latest) · Pydantic v2 · PostgreSQL 17 · NATS 2.11 · Cloudinary SDK v2.
+3. **Pinned baseline matrix** (verify latest at implement time — training data may lag): Go 1.25+ · Node 24 LTS · pnpm 11 · Turborepo 2.5 · TypeScript 5.9 · Next.js 16 · React 19 · Tailwind v4 · Expo SDK 54 · RN 0.81 · Python 3.13 · FastAPI (latest) · Pydantic v2 · PostgreSQL 18 · Kafka · Cloudinary SDK v2.
 4. **CI enforces** `pnpm audit` / `govulncheck` / `pip-audit`; a failing security scan blocks merge (spec §13).
 
 > **Assumption note:** The Workflow Manual lists "Node.js/NestJS/Golang" generically. The AuraEDU spec §12 explicitly mandates **Go hexagonal** services and **Python** AI services, so those win. Go for the gateway + all domain services; TypeScript for `apps/{web,marketing,mobile}`; Python for `apps/ai-*`.
@@ -524,7 +524,7 @@ graph TD
 | **5** | Insight & AI | EP-21, EP-33, EP-30, EP-31, EP-32, EP-24 | L2×2, L3×3, L4, L7 | Analytics projections; feature store; AI recs/predictions/career (explainable, teacher-approved); CBT exams; **mobile parity for new features** |
 | **6** | Hardening & Go-Live | EP-50, EP-51, EP-53, EP-54, EP-08(full), EP-09(full), EP-55, EP-52 | L6, L5, L7, all | Isolation+flag suites green; security & load pass; observability complete; **Render prod + preview envs**; **mobile apps submitted to App Store/Play**; UPSHS + Aboom onboarded & live |
 
-**Backlog (post-MVP):** EP-25 Library, EP-26 Hostel/Transport, WhatsApp channel hardening, custom-domain automation, per-tenant model training pipeline, Kafka migration, **optional per-school white-label mobile builds via EAS**.
+**Backlog (post-MVP):** EP-25 Library, EP-26 Hostel/Transport, WhatsApp channel hardening, custom-domain automation, per-tenant model training pipeline, **optional per-school white-label mobile builds via EAS**.
 
 ---
 
@@ -759,7 +759,7 @@ One story per package; all buildable in parallel within L0 once AURA-0.1 lands.
 
 | Story | Title | AC highlights | Est | Depends-On |
 |---|---|---|---|---|
-| AURA-47.1 | Marketing app scaffold + design | `apps/marketing` Next.js 16; AuraEDU brand; shared `packages/{ui,tokens}`; deploy to Render; SEO/OG/sitemap | 5 | EP-46, AURA-9.1 |
+| AURA-47.1 | Marketing app scaffold + design | `apps/marketing` Next.js 16; AuraEDU brand; shared `packages/{ui,tokens}`; deploy to Vercel; SEO/OG/sitemap | 5 | EP-46, AURA-9.1 |
 | AURA-47.2 | Content pages | home, features, per-role value, pricing (maps to Billing plans, spec §16), about, contact, blog/CMS-ready | 8 | AURA-47.1 |
 | AURA-47.3 | "Sign up your school" funnel | lead capture → creates a tenant + starts subscription via Billing/Tenant onboarding (EP-22/EP-52); confirmation + hand-off to onboarding wizard | 8 | AURA-47.1, EP-05, EP-22 contract |
 | AURA-47.4 | Marketing motion primitives | ScrollReveal/StaggerChildren/Parallax/AnimatedCounter (Framer Motion), all reduced-motion safe; optional mega-menu. DESIGN §18 | 5 | AURA-47.1 |
@@ -1043,12 +1043,12 @@ Ports are local-dev conventions. **Render service type** = how each deploys (§3
 | AI Recommendation | `apps/ai-recommendation-service` | Python | ai_db | 8110 | pserv + worker | ai_recommendations | 5 |
 | AI Prediction | `apps/ai-prediction-service` | Python | ai_db | 8111 | pserv + worker | ai_predictions | 5 |
 | Career Guidance | `apps/career-guidance-service` | Python | ai_db | 8112 | pserv | career_guidance | 5 |
-| NATS JetStream | (infra) | — | — | 4222 | pserv + disk | — | 0 |
-| Web (portals + school sites) | `apps/web` | TS/Next | — | 3000 | web (public) | — | 1+ |
-| Marketing (auraedu.com) | `apps/marketing` | TS/Next | — | 3001 | web (public) | — | 1 |
+| Kafka | (infra) | — | — | 9092 | pserv + disk | — | 0 |
+| Web (portals + school sites) | `apps/web` | TS/Next | — | 3000 | Vercel | — | 1+ |
+| Marketing (auraedu.com) | `apps/marketing` | TS/Next | — | 3001 | Vercel | — | 1 |
 | Mobile (teacher/parent/student) | `apps/mobile` | TS/Expo | — | 8085(metro) | EAS (App Store/Play) | — | 2+ |
 
-**Infra:** Render Postgres (one per service DB), Render Key Value (shared Redis/Valkey), Cloudinary (media), env groups for shared secrets. Scheduled work (spec cron jobs) → Render `cron` services.
+**Infra:** Render Postgres (one per service DB), Render Key Value (shared Redis/Valkey), Kafka (event bus), Cloudinary (media), env groups for shared secrets. Scheduled work (spec cron jobs) → Render `cron` services.
 
 ---
 
