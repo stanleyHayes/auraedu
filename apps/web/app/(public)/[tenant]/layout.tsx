@@ -78,11 +78,11 @@ function PublicHeader({
               className="size-10 rounded-[var(--radius-sm)] object-contain"
             />
           ) : (
-            <span className="grid size-10 place-items-center rounded-[var(--radius-sm)] bg-[var(--primary)] font-display text-lg font-extrabold text-[var(--primary-foreground)]">
+            <span className="grid size-10 place-items-center rounded-[var(--radius-sm)] bg-[var(--primary)] font-sans text-lg font-extrabold text-[var(--primary-foreground)]">
               {tenant.short.charAt(0)}
             </span>
           )}
-          <span className="font-display text-xl font-bold text-[var(--foreground)]">
+          <span className="font-sans text-xl font-bold text-[var(--foreground)]">
             {tenant.name}
           </span>
         </Link>
@@ -136,7 +136,7 @@ function PublicFooter({ tenant }: { tenant: TenantData }) {
       <div className="mx-auto max-w-6xl px-6 py-8">
         <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
           <div className="flex items-center gap-2">
-            <span className="font-display text-lg font-bold text-[var(--foreground)]">
+            <span className="font-sans text-lg font-bold text-[var(--foreground)]">
               {tenant.name}
             </span>
           </div>

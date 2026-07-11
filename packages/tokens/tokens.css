@@ -5,10 +5,8 @@
 
 @theme {
   /* ---- typography ---- */
-  --font-sans:
-    var(--font-public-sans), ui-sans-serif, system-ui, "Helvetica Neue", Arial, sans-serif;
-  --font-display:
-    var(--font-bricolage), var(--font-public-sans), "Helvetica Neue", Arial, sans-serif;
+  --font-sans: var(--font-outfit), ui-sans-serif, system-ui, "Helvetica Neue", Arial, sans-serif;
+  --font-heading: var(--font-fraunces), ui-serif, Georgia, "Times New Roman", serif;
   --font-mono: var(--font-spline-mono), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
   --text-xs: 0.75rem;

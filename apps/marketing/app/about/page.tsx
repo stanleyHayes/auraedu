@@ -34,7 +34,7 @@ export default function AboutPage() {
   return (
     <div className="mx-auto max-w-3xl px-6 py-16">
       <Eyebrow>About us</Eyebrow>
-      <h1 className="mt-4 text-balance font-display text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl">
+      <h1 className="mt-4 text-balance font-heading text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl">
         Built for every school in Ghana.
       </h1>
 
@@ -62,7 +62,7 @@ export default function AboutPage() {
           { label: "Modules", value: "12" },
         ].map((s) => (
           <div key={s.label} className="rounded-lg border border-border bg-surface p-5 text-center">
-            <p className="font-display text-3xl font-extrabold text-primary">{s.value}</p>
+            <p className="font-sans text-3xl font-extrabold text-primary">{s.value}</p>
             <p className="mt-1 text-sm text-muted-foreground">{s.label}</p>
           </div>
         ))}

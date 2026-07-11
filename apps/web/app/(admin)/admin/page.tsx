@@ -7,7 +7,7 @@ export default function AdminOverview() {
   return (
     <div className="space-y-8">
       <section className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-6">
-        <h2 className="font-display text-xl font-extrabold tracking-tight">Welcome back</h2>
+        <h2 className="font-heading text-xl font-extrabold tracking-tight">Welcome back</h2>
         <p className="mt-1 text-sm text-[var(--muted-foreground)]">
           Here is what is happening at your school today.
         </p>
@@ -28,7 +28,7 @@ export default function AdminOverview() {
 
       <section className="grid gap-6 md:grid-cols-2">
         <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-5">
-          <h3 className="font-display font-semibold tracking-tight">Quick links</h3>
+          <h3 className="font-sans font-semibold tracking-tight">Quick links</h3>
           <ul className="mt-4 space-y-2">
             <QuickLink
               href="/admin/students"
@@ -54,7 +54,7 @@ export default function AdminOverview() {
         </div>
 
         <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-5">
-          <h3 className="font-display font-semibold tracking-tight">Recent activity</h3>
+          <h3 className="font-sans font-semibold tracking-tight">Recent activity</h3>
           <p className="mt-4 text-sm text-[var(--muted-foreground)]">
             Recent actions will appear here once the audit feed is wired.
           </p>

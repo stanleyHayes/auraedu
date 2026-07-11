@@ -24,7 +24,7 @@ export function PageHeader({ icon, title, description, action, className }: Page
         </span>
       ) : null}
       <div className="min-w-0 flex-1">
-        <h1 className="text-balance font-display text-2xl font-extrabold tracking-tight">
+        <h1 className="text-balance font-heading text-2xl font-extrabold tracking-tight">
           {title}
         </h1>
         {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}

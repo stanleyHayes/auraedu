@@ -7,7 +7,7 @@ export default function SuperAdminDashboard() {
   return (
     <div className="space-y-8">
       <section className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-6">
-        <h2 className="font-display text-xl font-extrabold tracking-tight">
+        <h2 className="font-heading text-xl font-extrabold tracking-tight">
           Welcome to the platform console
         </h2>
         <p className="mt-1 text-sm text-[var(--muted-foreground)]">
@@ -35,7 +35,7 @@ export default function SuperAdminDashboard() {
 
       <section className="grid gap-6 md:grid-cols-2">
         <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-5">
-          <h3 className="font-display font-semibold tracking-tight">Quick links</h3>
+          <h3 className="font-sans font-semibold tracking-tight">Quick links</h3>
           <ul className="mt-4 space-y-2">
             <QuickLink
               href="/superadmin/tenants"
@@ -66,7 +66,7 @@ export default function SuperAdminDashboard() {
         </div>
 
         <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-5">
-          <h3 className="font-display font-semibold tracking-tight">Platform notices</h3>
+          <h3 className="font-sans font-semibold tracking-tight">Platform notices</h3>
           <p className="mt-4 text-sm text-[var(--muted-foreground)]">
             Notices and alerts will appear here once the platform health feed is wired.
           </p>

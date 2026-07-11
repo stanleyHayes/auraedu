@@ -27,7 +27,7 @@ export default async function ParentPaymentsPage() {
         description="View payments you have made to the school."
       />
       <section className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-5">
-        <h3 className="font-display font-semibold tracking-tight">Payment history</h3>
+        <h3 className="font-sans font-semibold tracking-tight">Payment history</h3>
         <div className="mt-4">
           <DataTable
             caption="Payments made to the school"

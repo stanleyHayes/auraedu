@@ -61,11 +61,13 @@ Contrast: `--mark` on `--paper` and `--ink` on `--paper` both pass WCAG AA.
 Character comes from **treatment** (ruled baselines, tracked mono labels, the red tick,
 dramatic scale), so the faces are chosen to be reliable and institutional, not novel.
 
-- **Display — institutional grotesque.** In the product/web: load **Bricolage Grotesque**
-  (700/800) via `next/font`. In constrained contexts (email, artifacts with no webfont): fall
-  back to a heavy Helvetica/Arial stack set tight (`letter-spacing:-.02em`). Helvetica is owned
-  here as *the* face of signage and official forms — a choice, not a fallback.
-- **Body / UI — Public Sans.** Open, legible, governmental. Reinforces "system of record."
+- **Display / h1–h2 — Fraunces.** A warm, editorial serif for the two largest heading levels.
+  Load **Fraunces** (600/700/800) via `next/font` and bind it to `--font-heading`. In
+  constrained contexts (email, artifacts with no webfont): fall back to a classic serif stack
+  (`Georgia`, `Times New Roman`, serif).
+- **Body / UI — Outfit.** Open, legible, and institutional. Used for everything that is not an
+  h1 or h2: running text, navigation, labels, buttons, logos, KPI values, and empty-state titles.
+  Load **Outfit** (400/500/600/700) via `next/font` and bind it to `--font-sans`.
 - **Data / ledger — monospace** (`Spline Sans Mono`, or system `ui-monospace`). Registers,
   marks, IDs, tenant codes, timetables, KPI values. `font-variant-numeric: tabular-nums` wherever
   digits align. Uppercase mono with `letter-spacing:.14em` for eyebrows and labels.

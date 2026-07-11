@@ -27,7 +27,7 @@ export function EmptyState({ icon, title, description, actions, className }: Emp
           {icon}
         </span>
       ) : null}
-      <h3 className="font-display text-lg font-semibold text-[var(--foreground)]">{title}</h3>
+      <h3 className="font-sans text-lg font-semibold text-[var(--foreground)]">{title}</h3>
       {description ? (
         <p className="mt-2 max-w-sm text-sm text-[var(--muted-foreground)]">{description}</p>
       ) : null}

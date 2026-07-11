@@ -29,7 +29,7 @@ export function StatCard({ label, value, unit, tone = "default", className }: St
       </div>
       <div
         className={cn("mt-1.5 text-[28px] font-extrabold tracking-[-0.02em]", toneClass[tone])}
-        style={{ fontFamily: "var(--font-display)" }}
+        style={{ fontFamily: "var(--font-sans)" }}
       >
         {value}
         {unit ? (

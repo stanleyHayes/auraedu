@@ -167,7 +167,7 @@ export function SignupForm() {
     <div className="mx-auto max-w-2xl px-6 py-16">
       <div className="text-center">
         <Eyebrow>Sign up your school</Eyebrow>
-        <h1 className="mt-4 text-balance font-display text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl">
+        <h1 className="mt-4 text-balance font-heading text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl">
           Create your AuraEDU school.
         </h1>
         <p className="mx-auto mt-3 max-w-[56ch] text-muted-foreground">
@@ -181,7 +181,7 @@ export function SignupForm() {
             <div className="mx-auto grid size-12 place-items-center rounded-full bg-[var(--color-brand-tint)] text-primary">
               <Tick className="w-6" />
             </div>
-            <h2 className="mt-4 font-display text-xl font-extrabold">School created</h2>
+            <h2 className="mt-4 font-heading text-xl font-extrabold">School created</h2>
             <p className="mx-auto mt-2 max-w-[46ch] text-sm text-muted-foreground">
               {result.message}
             </p>

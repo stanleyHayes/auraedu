@@ -31,7 +31,7 @@ export function TeacherDashboard({ userName }: TeacherDashboardProps) {
             <GraduationCap className="size-6" />
           </span>
           <div className="min-w-0 flex-1">
-            <h2 className="font-display text-xl font-extrabold tracking-tight">{greeting}</h2>
+            <h2 className="font-heading text-xl font-extrabold tracking-tight">{greeting}</h2>
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">
               Here is what is happening in your classes today.
             </p>
@@ -58,7 +58,7 @@ export function TeacherDashboard({ userName }: TeacherDashboardProps) {
 
       <section className="grid gap-6 md:grid-cols-2">
         <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-5">
-          <h3 className="font-display font-semibold tracking-tight">Today&apos;s overview</h3>
+          <h3 className="font-sans font-semibold tracking-tight">Today&apos;s overview</h3>
           <ul className="mt-4 space-y-2 text-sm text-[var(--muted-foreground)]">
             <li className="flex items-center gap-2">
               <CalendarDays className="size-4 text-[var(--primary)]" aria-hidden="true" />
@@ -72,7 +72,7 @@ export function TeacherDashboard({ userName }: TeacherDashboardProps) {
         </div>
 
         <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-5">
-          <h3 className="font-display font-semibold tracking-tight">Recent notifications</h3>
+          <h3 className="font-sans font-semibold tracking-tight">Recent notifications</h3>
           <div className="mt-4 flex flex-col items-center justify-center rounded-[var(--radius-sm)] border border-dashed border-[var(--border)] p-6 text-center">
             <Megaphone className="size-6 text-[var(--muted-foreground)]" aria-hidden="true" />
             <p className="mt-2 text-sm text-[var(--muted-foreground)]">

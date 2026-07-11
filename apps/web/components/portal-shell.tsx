@@ -9,7 +9,7 @@ import { useFeatureSnapshot } from "@auraedu/flags";
 
 function Brand({ tenant }: { tenant?: TenantData }) {
   return (
-    <span className="flex items-center gap-2.5 font-display text-base font-extrabold tracking-tight">
+    <span className="flex items-center gap-2.5 font-sans text-base font-extrabold tracking-tight">
       <span className="grid size-6 place-items-center rounded-md bg-foreground" aria-hidden="true">
         <svg viewBox="0 0 16 12" className="w-3 text-[var(--primary)]">
           <path

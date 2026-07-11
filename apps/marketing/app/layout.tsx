@@ -1,19 +1,19 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Public_Sans, Spline_Sans_Mono } from "next/font/google";
+import { Fraunces, Outfit, Spline_Sans_Mono } from "next/font/google";
 import "./globals.css";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 
-const display = Bricolage_Grotesque({
+const fraunces = Fraunces({
   subsets: ["latin"],
   weight: ["600", "700", "800"],
-  variable: "--font-bricolage",
+  variable: "--font-fraunces",
   display: "swap",
 });
-const body = Public_Sans({
+const outfit = Outfit({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
-  variable: "--font-public-sans",
+  variable: "--font-outfit",
   display: "swap",
 });
 const mono = Spline_Sans_Mono({
@@ -36,7 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={`${display.variable} ${body.variable} ${mono.variable}`}
+      className={`${fraunces.variable} ${outfit.variable} ${mono.variable}`}
       suppressHydrationWarning
     >
       <head>

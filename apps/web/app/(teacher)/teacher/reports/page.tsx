@@ -29,7 +29,7 @@ export default function TeacherReportsPage() {
                 <GraduationCap className="size-5" />
               </span>
               <div className="min-w-0 flex-1">
-                <h3 className="font-display font-semibold tracking-tight">{report.label}</h3>
+                <h3 className="font-sans font-semibold tracking-tight">{report.label}</h3>
                 <p className="mt-1 text-sm text-[var(--muted-foreground)]">{report.description}</p>
               </div>
             </div>

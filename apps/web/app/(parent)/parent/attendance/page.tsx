@@ -26,7 +26,7 @@ export default async function ParentAttendancePage() {
         description="Attendance records for your children."
       />
       <section className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-5">
-        <h3 className="font-display font-semibold tracking-tight">Attendance records</h3>
+        <h3 className="font-sans font-semibold tracking-tight">Attendance records</h3>
         <div className="mt-4">
           <DataTable
             caption="Attendance records for your children"

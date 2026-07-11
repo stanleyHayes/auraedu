@@ -17,7 +17,7 @@ export default function TeacherAnalyticsPage() {
       </section>
       <section className="grid gap-6 md:grid-cols-3">
         <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-5 md:col-span-2">
-          <h3 className="font-display font-semibold tracking-tight">Performance over time</h3>
+          <h3 className="font-sans font-semibold tracking-tight">Performance over time</h3>
           <div className="mt-8 flex h-48 items-end justify-around gap-2">
             {[40, 55, 45, 70, 60, 75, 65].map((h, i) => (
               <div

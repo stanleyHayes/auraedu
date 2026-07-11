@@ -59,7 +59,7 @@ Matches `agent_plan.md` §3 exactly, confirmed by the `aura` reference app.
 | Motion | **Pure CSS** + **View Transitions API** (portals); **Framer Motion** on public/marketing only (§18) | RN `Animated`/Reanimated; `expo-router` shared-element transitions |
 | TTS | native `window.speechSynthesis` | `expo-speech` |
 | Push | (web push optional) | **`expo-notifications`** → Notification Service |
-| Fonts | `next/font` → **Outfit** | `expo-font` → Outfit |
+| Fonts | `next/font` → **Fraunces** (h1/h2) + **Outfit** (body/UI) | `expo-font` → Outfit |
 | Theme state | custom (localStorage + no-FOUC inline script) — **not** `next-themes` | `AsyncStorage` + `useColorScheme` |
 | Media | **Cloudinary** (`next-cloudinary`) | **Cloudinary** (`cloudinary-react-native` / signed URLs) |
 
@@ -100,7 +100,7 @@ Tenant Service (`EP-05`, `tenant_db` branding) stores a tiny palette per tenant.
 {
   "logo_url": "https://…/upshs/logo.svg",
   "brand": { "primary": "#7B1113", "secondary": "#1E7D52" },  // hex from the school
-  "display_font": "Outfit"          // optional; defaults to Outfit
+  "display_font": "Fraunces"        // optional; defaults to Fraunces for h1/h2
 }
 ```
 
@@ -154,6 +154,7 @@ Author in Tailwind v4 `@theme` (`packages/ui/src/styles/tokens.css`). Use **OKLC
 @theme {
   /* Typography */
   --font-sans: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-fraunces), ui-serif, Georgia, serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --text-xs: 0.75rem; /* … */ --text-4xl: 2.25rem; --text-5xl: 3.25rem;
   --radius-sm: 0.375rem; --radius-lg: 0.625rem; --radius-2xl: 1.5rem;
@@ -379,7 +380,7 @@ Wrap each control so the product tour (§10) can target it: `<span data-tour="th
 Every page opens with `<PageHeader icon title description help action />`.
 
 - **Icon chip:** `grid size-14 place-items-center rounded-2xl bg-[var(--accent)] text-[var(--primary)]` holding a lucide icon (`aria-hidden` — the `<h1>` carries meaning). Re-skins per tenant automatically (accent = brand tint).
-- **Title** `<h1>` (Outfit 600), **description** one sentence (`data-page-description` hook).
+- **Title** `<h1>` (Fraunces 700/800), **description** one sentence (`data-page-description` hook).
 - **Help "?"** — a `HelpCircle` button beside the title opening a Radix Popover with a **numbered "how to…" walkthrough** (`<ol>`). `aria-describedby` points at a hidden transcript for AT. The popover footer hosts the TTS control (§11).
 - **Primary action** right-aligned (the page's main verb; omit on read-only pages).
 - **Auto-wire:** if `help` is omitted, derive it from a route registry (`getPageGuide({ title, description })`) so *every* page gets contextual help for free; pass explicit `help` to override.
@@ -616,7 +617,7 @@ Build these in `packages/ui` (EP-46) and consume in `apps/web` (EP-06 + portals)
 | Tour completion key | `auraedu-tour-complete:<mode>:<tenantId>:<userId>` |
 | Replay event | `new CustomEvent('auraedu:replay-tour')` |
 | z-index | tour `z-90`, sticky topbar `z-30`, sheet overlay `z-210` / content `z-211`, popovers/menus `z-220` |
-| Font | Outfit via `next/font`, `--font-sans`, weights 400/500/600/700, `display: swap` |
+| Font | Fraunces for h1/h2, Outfit for body/UI via `next/font`; `--font-sans` / `--font-heading`; `display: swap` |
 
 ---
 

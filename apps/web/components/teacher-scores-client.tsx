@@ -34,7 +34,7 @@ export function TeacherScoresClient({ assessments }: TeacherScoresClientProps) {
   return (
     <div className="space-y-6">
       <section className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-5">
-        <h3 className="font-display font-semibold tracking-tight">Assessments</h3>
+        <h3 className="font-sans font-semibold tracking-tight">Assessments</h3>
         <div className="mt-4">
           <DataTable
             caption="Assessments available for scoring"
@@ -53,7 +53,7 @@ export function TeacherScoresClient({ assessments }: TeacherScoresClientProps) {
       </section>
 
       <section className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-5">
-        <h3 className="font-display font-semibold tracking-tight">Record a score</h3>
+        <h3 className="font-sans font-semibold tracking-tight">Record a score</h3>
         <p className="mt-1 text-sm text-[var(--muted-foreground)]">
           Enter a score for a student on an existing assessment.
         </p>

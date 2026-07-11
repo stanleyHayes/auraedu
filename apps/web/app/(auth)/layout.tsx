@@ -2,9 +2,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   return (
     <div className="grid min-h-screen lg:grid-cols-[45%_1fr]">
       <div className="hidden flex-col justify-between bg-[var(--primary)] p-10 text-[var(--primary-foreground)] lg:flex">
-        <div className="font-display text-2xl font-extrabold tracking-tight">AuraEDU</div>
+        <div className="font-sans text-2xl font-extrabold tracking-tight">AuraEDU</div>
         <div>
-          <h2 className="font-display text-4xl font-extrabold leading-tight">
+          <h2 className="font-heading text-4xl font-extrabold leading-tight">
             Run your school from one place.
           </h2>
           <p className="mt-4 text-lg opacity-90">

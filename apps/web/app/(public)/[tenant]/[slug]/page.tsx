@@ -36,7 +36,7 @@ export default async function PublicPage({ params }: PublicPageProps) {
       ) : (
         <section className="py-16 lg:py-20">
           <div className="mx-auto max-w-3xl px-6 text-center">
-            <h1 className="font-display text-3xl font-bold text-[var(--foreground)]">
+            <h1 className="font-heading text-3xl font-bold text-[var(--foreground)]">
               {page.title}
             </h1>
             <p className="mt-4 text-[var(--muted-foreground)]">This page has no content yet.</p>
@@ -51,7 +51,7 @@ function PageNotFoundPlaceholder({ slug }: { slug: string }) {
   return (
     <section className="py-20 lg:py-28">
       <div className="mx-auto max-w-3xl px-6 text-center">
-        <h1 className="font-display text-4xl font-extrabold tracking-tight text-[var(--foreground)] lg:text-5xl">
+        <h1 className="font-heading text-4xl font-extrabold tracking-tight text-[var(--foreground)] lg:text-5xl">
           Page not found
         </h1>
         <p className="mx-auto mt-6 max-w-xl text-lg text-[var(--muted-foreground)]">

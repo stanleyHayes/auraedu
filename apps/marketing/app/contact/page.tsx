@@ -39,7 +39,7 @@ export default function ContactPage() {
     <div className="mx-auto max-w-2xl px-6 py-16">
       <div className="text-center">
         <Eyebrow>Contact</Eyebrow>
-        <h1 className="mt-4 text-balance font-display text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl">
+        <h1 className="mt-4 text-balance font-heading text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl">
           Talk to the AuraEDU team.
         </h1>
         <p className="mx-auto mt-3 max-w-[56ch] text-muted-foreground">
@@ -53,7 +53,7 @@ export default function ContactPage() {
             <div className="mx-auto grid size-12 place-items-center rounded-full bg-[var(--color-brand-tint)] text-primary">
               <Tick className="w-6" />
             </div>
-            <h2 className="mt-4 font-display text-xl font-extrabold">Message sent</h2>
+            <h2 className="mt-4 font-heading text-xl font-extrabold">Message sent</h2>
             <p className="mt-2 text-sm text-muted-foreground">
               Thank you for reaching out. We will get back to you shortly.
             </p>

@@ -33,7 +33,7 @@ export function ParentDashboard({ userName }: ParentDashboardProps) {
             <Users className="size-6" />
           </span>
           <div className="min-w-0 flex-1">
-            <h2 className="font-display text-xl font-extrabold tracking-tight">{greeting}</h2>
+            <h2 className="font-heading text-xl font-extrabold tracking-tight">{greeting}</h2>
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">
               Here is an overview of your children and what is happening at school.
             </p>
@@ -60,7 +60,7 @@ export function ParentDashboard({ userName }: ParentDashboardProps) {
 
       <section className="grid gap-6 md:grid-cols-2">
         <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-5">
-          <h3 className="font-display font-semibold tracking-tight">Children overview</h3>
+          <h3 className="font-sans font-semibold tracking-tight">Children overview</h3>
           <ul className="mt-4 space-y-2 text-sm text-[var(--muted-foreground)]">
             <li className="flex items-center gap-2">
               <GraduationCap className="size-4 text-[var(--primary)]" aria-hidden="true" />
@@ -74,7 +74,7 @@ export function ParentDashboard({ userName }: ParentDashboardProps) {
         </div>
 
         <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-5">
-          <h3 className="font-display font-semibold tracking-tight">Quick links</h3>
+          <h3 className="font-sans font-semibold tracking-tight">Quick links</h3>
           <ul className="mt-4 space-y-2 text-sm text-[var(--muted-foreground)]">
             <li className="flex items-center gap-2">
               <ClipboardList className="size-4 text-[var(--primary)]" aria-hidden="true" />

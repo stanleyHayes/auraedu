@@ -44,7 +44,7 @@ function WelcomePlaceholder({ title }: { title?: string }) {
   return (
     <section className="py-20 lg:py-28">
       <div className="mx-auto max-w-3xl px-6 text-center">
-        <h1 className="font-display text-4xl font-extrabold tracking-tight text-[var(--foreground)] lg:text-5xl">
+        <h1 className="font-heading text-4xl font-extrabold tracking-tight text-[var(--foreground)] lg:text-5xl">
           {title ?? "Welcome"}
         </h1>
         <p className="mx-auto mt-6 max-w-xl text-lg text-[var(--muted-foreground)]">

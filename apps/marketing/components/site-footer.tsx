@@ -2,7 +2,7 @@ import Link from "next/link";
 
 function Logo() {
   return (
-    <span className="flex items-center gap-2 font-display text-base font-extrabold text-foreground">
+    <span className="flex items-center gap-2 font-sans text-base font-extrabold text-foreground">
       <span className="grid size-5 place-items-center rounded bg-foreground" aria-hidden="true">
         <svg viewBox="0 0 16 12" className="w-3 text-primary">
           <path

@@ -110,7 +110,7 @@ export function UserMenu({ user, items = [], align = "end", className }: UserMen
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Account menu"
-        className="grid size-9 place-items-center rounded-full border border-[var(--border)] bg-[var(--accent)] font-display text-sm font-extrabold text-[var(--primary)] transition-colors hover:brightness-95"
+        className="grid size-9 place-items-center rounded-full border border-[var(--border)] bg-[var(--accent)] font-sans text-sm font-extrabold text-[var(--primary)] transition-colors hover:brightness-95"
       >
         {initials}
       </button>

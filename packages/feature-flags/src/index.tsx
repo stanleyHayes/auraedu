@@ -98,7 +98,7 @@ export function FeatureDisabled({
 
   return (
     <div role="status" className="rounded-lg border border-border bg-surface p-6 text-center">
-      <h3 className="font-display text-lg font-semibold">{title}</h3>
+      <h3 className="font-sans text-lg font-semibold">{title}</h3>
       <p className="mt-2 text-sm text-muted-foreground">
         {description}
         {upgradeHint}

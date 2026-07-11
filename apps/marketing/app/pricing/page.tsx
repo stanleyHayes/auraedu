@@ -103,7 +103,7 @@ export default function PricingPage() {
           <Tick className="w-3.5 text-primary" />
           Simple pricing
         </span>
-        <h1 className="text-balance font-display text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl">
+        <h1 className="text-balance font-heading text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl">
           Plans that scale with your school.
         </h1>
         <p className="mx-auto max-w-[56ch] text-muted-foreground">
@@ -130,7 +130,7 @@ export default function PricingPage() {
                 key={plan.id}
                 className="flex flex-col rounded-lg border border-border bg-surface p-6 transition-colors hover:border-[var(--color-brand)]/40"
               >
-                <h2 className="font-display text-xl font-extrabold">{plan.name}</h2>
+                <h2 className="font-heading text-xl font-extrabold">{plan.name}</h2>
                 <p className="mt-2 text-3xl font-extrabold tracking-tight">
                   {formatPrice(plan.price_monthly)}
                 </p>

@@ -64,7 +64,7 @@ export default async function ParentResultsPage() {
         description="Published assessment scores for your children."
       />
       <section className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-5">
-        <h3 className="font-display font-semibold tracking-tight">Assessment scores</h3>
+        <h3 className="font-sans font-semibold tracking-tight">Assessment scores</h3>
         <div className="mt-4">
           <DataTable
             caption="Published assessment scores"

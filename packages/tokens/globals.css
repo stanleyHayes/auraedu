@@ -55,6 +55,10 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
 }
+h1,
+h2 {
+  font-family: var(--font-heading);
+}
 :focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;

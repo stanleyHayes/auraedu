@@ -37,7 +37,7 @@ export function TeacherAttendanceClient({ initialRecords }: TeacherAttendanceCli
   return (
     <div className="space-y-6">
       <section className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-5">
-        <h3 className="font-display font-semibold tracking-tight">Attendance records</h3>
+        <h3 className="font-sans font-semibold tracking-tight">Attendance records</h3>
         <div className="mt-4">
           <DataTable
             caption="Attendance records for the teacher's tenant"
@@ -56,7 +56,7 @@ export function TeacherAttendanceClient({ initialRecords }: TeacherAttendanceCli
       </section>
 
       <section className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-5">
-        <h3 className="font-display font-semibold tracking-tight">Mark attendance</h3>
+        <h3 className="font-sans font-semibold tracking-tight">Mark attendance</h3>
         <p className="mt-1 text-sm text-[var(--muted-foreground)]">
           Record attendance for a single student.
         </p>

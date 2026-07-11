@@ -19,7 +19,7 @@ export default function SystemHealthPage() {
 
       <section className="grid gap-6 md:grid-cols-2">
         <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-5">
-          <h3 className="flex items-center gap-2 font-display font-semibold tracking-tight">
+          <h3 className="flex items-center gap-2 font-sans font-semibold tracking-tight">
             <Activity className="size-4 text-[var(--primary)]" />
             Service metrics
           </h3>
@@ -29,7 +29,7 @@ export default function SystemHealthPage() {
         </div>
 
         <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-5">
-          <h3 className="flex items-center gap-2 font-display font-semibold tracking-tight">
+          <h3 className="flex items-center gap-2 font-sans font-semibold tracking-tight">
             <Server className="size-4 text-[var(--primary)]" />
             Upstream services
           </h3>
@@ -63,7 +63,7 @@ export default function SystemHealthPage() {
       </section>
 
       <section className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-5">
-        <h3 className="flex items-center gap-2 font-display font-semibold tracking-tight">
+        <h3 className="flex items-center gap-2 font-sans font-semibold tracking-tight">
           <Database className="size-4 text-[var(--primary)]" />
           Infrastructure overview
         </h3>

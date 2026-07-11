@@ -41,7 +41,7 @@ export default async function StudentResultsPage() {
 
   return (
     <div className="space-y-4">
-      <h2 className="font-display text-lg font-semibold tracking-tight">Results</h2>
+      <h2 className="font-heading text-lg font-semibold tracking-tight">Results</h2>
       <ul className="space-y-3">
         {assessments.map((assessment) => (
           <li

@@ -27,7 +27,7 @@ export default async function ParentFeesPage() {
         description="View invoices and outstanding fees for your children."
       />
       <section className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-5">
-        <h3 className="font-display font-semibold tracking-tight">Invoices</h3>
+        <h3 className="font-sans font-semibold tracking-tight">Invoices</h3>
         <div className="mt-4">
           <DataTable
             caption="Invoices for your children"

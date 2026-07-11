@@ -62,7 +62,7 @@ function HeroSection({ section }: { section: WebsiteSection }) {
   return (
     <section className="bg-[var(--surface)] py-20 lg:py-28">
       <div className="mx-auto max-w-5xl px-6 text-center">
-        <h1 className="font-display text-4xl font-extrabold tracking-tight text-[var(--foreground)] lg:text-5xl">
+        <h1 className="font-heading text-4xl font-extrabold tracking-tight text-[var(--foreground)] lg:text-5xl">
           {title}
         </h1>
         {body ? (
@@ -90,7 +90,7 @@ function TextSection({ section }: { section: WebsiteSection }) {
     <section className="py-16 lg:py-20">
       <div className="mx-auto max-w-3xl px-6">
         {title ? (
-          <h2 className="font-display text-2xl font-bold text-[var(--foreground)]">{title}</h2>
+          <h2 className="font-heading text-2xl font-bold text-[var(--foreground)]">{title}</h2>
         ) : null}
         {body ? (
           <div
@@ -116,7 +116,7 @@ function FeaturesSection({ section }: { section: WebsiteSection }) {
     <section className="py-16 lg:py-20">
       <div className="mx-auto max-w-5xl px-6">
         {title ? (
-          <h2 className="text-center font-display text-2xl font-bold text-[var(--foreground)]">
+          <h2 className="text-center font-heading text-2xl font-bold text-[var(--foreground)]">
             {title}
           </h2>
         ) : null}
@@ -146,7 +146,7 @@ function FeatureCard({ item }: { item: FeatureItem }) {
           <Icon className="size-5" aria-hidden="true" />
         </div>
       ) : null}
-      <h3 className="font-display text-lg font-semibold text-[var(--foreground)]">
+      <h3 className="font-sans text-lg font-semibold text-[var(--foreground)]">
         {item.title ?? "Feature"}
       </h3>
       {item.description ? (
@@ -168,7 +168,7 @@ function CTASection({ section }: { section: WebsiteSection }) {
     <section className="py-16 lg:py-20">
       <div className="mx-auto max-w-4xl px-6">
         <div className="rounded-[var(--radius-lg)] bg-[var(--primary)] px-8 py-12 text-center text-[var(--primary-foreground)] lg:px-16 lg:py-16">
-          <h2 className="font-display text-2xl font-bold lg:text-3xl">{title}</h2>
+          <h2 className="font-heading text-2xl font-bold lg:text-3xl">{title}</h2>
           {body ? <p className="mx-auto mt-4 max-w-xl opacity-90">{body}</p> : null}
           {ctaLabel && ctaUrl ? (
             <div className="mt-6">
@@ -195,7 +195,7 @@ function ContactSection({ section }: { section: WebsiteSection }) {
     <section className="py-16 lg:py-20">
       <div className="mx-auto max-w-4xl px-6">
         {title ? (
-          <h2 className="text-center font-display text-2xl font-bold text-[var(--foreground)]">
+          <h2 className="text-center font-heading text-2xl font-bold text-[var(--foreground)]">
             {title}
           </h2>
         ) : null}

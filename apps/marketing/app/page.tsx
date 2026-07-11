@@ -118,7 +118,7 @@ export default function HomePage() {
       <section className="mx-auto grid max-w-6xl items-center gap-14 px-6 py-16 lg:grid-cols-[1.04fr_0.96fr] lg:py-20">
         <div>
           <Eyebrow>School operating system · Ghana</Eyebrow>
-          <h1 className="mt-5 text-balance font-display text-4xl font-extrabold leading-[1.03] tracking-tight sm:text-5xl lg:text-[4rem]">
+          <h1 className="mt-5 text-balance font-heading text-4xl font-extrabold leading-[1.03] tracking-tight sm:text-5xl lg:text-[4rem]">
             Every student accounted for.{" "}
             <span className="text-primary [box-shadow:inset_0_-0.09em_0_var(--color-brand-tint)]">
               Every school
@@ -160,7 +160,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-6xl px-6 py-16">
           <div className="flex flex-col gap-3.5">
             <Eyebrow>Core modules</Eyebrow>
-            <h2 className="text-balance font-display text-3xl font-extrabold tracking-tight sm:text-4xl">
+            <h2 className="text-balance font-heading text-3xl font-extrabold tracking-tight sm:text-4xl">
               Everything a school runs on, module by module.
             </h2>
             <p className="max-w-[58ch] text-muted-foreground">
@@ -190,7 +190,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-6xl px-6 py-16">
           <div className="flex flex-col gap-3.5">
             <Eyebrow>How it works</Eyebrow>
-            <h2 className="text-balance font-display text-3xl font-extrabold tracking-tight sm:text-4xl">
+            <h2 className="text-balance font-heading text-3xl font-extrabold tracking-tight sm:text-4xl">
               From sign-up to first register in a day.
             </h2>
           </div>
@@ -213,7 +213,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-6xl px-6 py-16">
           <div className="flex flex-col gap-3.5">
             <Eyebrow>Schools using AuraEDU</Eyebrow>
-            <h2 className="text-balance font-display text-3xl font-extrabold tracking-tight sm:text-4xl">
+            <h2 className="text-balance font-heading text-3xl font-extrabold tracking-tight sm:text-4xl">
               Trusted by schools across Ghana.
             </h2>
           </div>
@@ -238,7 +238,7 @@ export default function HomePage() {
             <Tick className="w-3.5 text-primary" />
             Onboard in a day
           </span>
-          <h2 className="mt-3.5 max-w-[18ch] text-balance font-display text-3xl font-extrabold tracking-tight sm:text-[2.75rem]">
+          <h2 className="mt-3.5 max-w-[18ch] text-balance font-heading text-3xl font-extrabold tracking-tight sm:text-[2.75rem]">
             Bring your school onto AuraEDU.
           </h2>
           <p className="mt-4 max-w-[46ch] text-ink-200">
