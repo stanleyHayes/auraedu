@@ -30,6 +30,7 @@ func NewHandler(svc *application.Service) *Handler { return &Handler{svc: svc} }
 // Register mounts the service routes.
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/files", h.list)
+	mux.HandleFunc("GET /api/v1/files/usage", h.usage)
 	mux.HandleFunc("POST /api/v1/files", h.create)
 	mux.HandleFunc("POST /api/v1/uploads/signed", h.requestSignedUpload)
 	mux.HandleFunc("POST /api/v1/files/webhook", h.cloudinaryWebhook)
@@ -54,6 +55,20 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.RespondJSON(w, r, http.StatusOK, map[string]any{"data": files, "next_cursor": nullIfEmpty(nextCursor)})
+}
+
+func (h *Handler) usage(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	records, err := h.svc.GetUsage(ctx, actor, limit)
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, map[string]any{"data": records})
 }
 
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {

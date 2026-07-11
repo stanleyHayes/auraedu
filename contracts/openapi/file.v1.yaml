@@ -131,6 +131,24 @@ paths:
               '403': { $ref: '#/components/responses/Forbidden' }
               '422': { $ref: '#/components/responses/ValidationError' }
             security: []
+    /files/usage:
+      get:
+            operationId: getFileUsage
+            tags: ['files']
+            summary: Get per-day file usage for the tenant
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/Limit'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/FileUsageList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
     /files/{file_id}/url:
       get:
             operationId: getFileDeliveryURL
@@ -239,6 +257,18 @@ components:
           bytes: { type: integer, minimum: 0 }
           resource_type: { type: string }
           moderation_status: { type: string }
+    FileUsageRecord:
+        type: object
+        required: [tenant_id, date, bytes_stored, bytes_delivered]
+        properties:
+          tenant_id: { type: string }
+          date: { type: string, format: date }
+          bytes_stored: { type: integer, minimum: 0 }
+          bytes_delivered: { type: integer, minimum: 0 }
+    FileUsageList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/FileUsageRecord' } }
 
   responses:
     Unauthorized:

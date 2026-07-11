@@ -61,6 +61,19 @@ type CloudinaryWebhookBody struct {
 	ModerationStatus *string `json:"moderation_status,omitempty"`
 }
 
+// FileUsageRecord generated from OpenAPI schema.
+type FileUsageRecord struct {
+	TenantId       string `json:"tenant_id"`
+	Date           string `json:"date"`
+	BytesStored    int    `json:"bytes_stored"`
+	BytesDelivered int    `json:"bytes_delivered"`
+}
+
+// FileUsageList generated from OpenAPI schema.
+type FileUsageList struct {
+	Data *[]FileUsageRecord `json:"data,omitempty"`
+}
+
 // ServerInterface is implemented by the service HTTP adapter.
 type ServerInterface interface {
 	requestSignedUpload(w http.ResponseWriter, r *http.Request)
@@ -69,6 +82,7 @@ type ServerInterface interface {
 	getFile(w http.ResponseWriter, r *http.Request)
 	deleteFile(w http.ResponseWriter, r *http.Request)
 	cloudinaryWebhook(w http.ResponseWriter, r *http.Request)
+	getFileUsage(w http.ResponseWriter, r *http.Request)
 	getFileDeliveryURL(w http.ResponseWriter, r *http.Request)
 }
 
@@ -80,5 +94,6 @@ type ClientInterface interface {
 	getFile(ctx context.Context) (*http.Response, error)
 	deleteFile(ctx context.Context) (*http.Response, error)
 	cloudinaryWebhook(ctx context.Context) (*http.Response, error)
+	getFileUsage(ctx context.Context) (*http.Response, error)
 	getFileDeliveryURL(ctx context.Context) (*http.Response, error)
 }

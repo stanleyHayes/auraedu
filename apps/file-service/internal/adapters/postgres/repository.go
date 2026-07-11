@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/auraedu/file-service/internal/domain"
 	"github.com/auraedu/file-service/internal/ports"
@@ -173,4 +174,73 @@ func scanFile(row scanner) (*domain.FileUpload, error) {
 		return nil, err
 	}
 	return &f, nil
+}
+
+func (r *Repository) RecordStorage(ctx context.Context, tenantID string, bytes int64) error {
+	if bytes <= 0 {
+		return nil
+	}
+	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			INSERT INTO file_usage (tenant_id, date, bytes_stored)
+			VALUES ($1, CURRENT_DATE, $2)
+			ON CONFLICT (tenant_id, date)
+			DO UPDATE SET bytes_stored = file_usage.bytes_stored + EXCLUDED.bytes_stored,
+			              updated_at = now()
+		`, tenantID, bytes)
+		if err != nil {
+			return fmt.Errorf("file: record storage: %w", err)
+		}
+		return nil
+	})
+}
+
+func (r *Repository) RecordDelivery(ctx context.Context, tenantID string, bytes int64) error {
+	if bytes <= 0 {
+		return nil
+	}
+	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			INSERT INTO file_usage (tenant_id, date, bytes_delivered)
+			VALUES ($1, CURRENT_DATE, $2)
+			ON CONFLICT (tenant_id, date)
+			DO UPDATE SET bytes_delivered = file_usage.bytes_delivered + EXCLUDED.bytes_delivered,
+			              updated_at = now()
+		`, tenantID, bytes)
+		if err != nil {
+			return fmt.Errorf("file: record delivery: %w", err)
+		}
+		return nil
+	})
+}
+
+func (r *Repository) GetUsage(ctx context.Context, tenantID string, limit int) ([]*ports.UsageRecord, error) {
+	if limit <= 0 {
+		limit = 30
+	}
+	var out []*ports.UsageRecord
+	err := r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			SELECT tenant_id, date, bytes_stored, bytes_delivered
+			FROM file_usage
+			WHERE tenant_id = $1
+			ORDER BY date DESC
+			LIMIT $2
+		`, tenantID, limit)
+		if err != nil {
+			return fmt.Errorf("file: get usage: %w", err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var rec ports.UsageRecord
+			var date time.Time
+			if err := rows.Scan(&rec.TenantID, &date, &rec.BytesStored, &rec.BytesDelivered); err != nil {
+				return fmt.Errorf("file: scan usage: %w", err)
+			}
+			rec.Date = date.Format(time.DateOnly)
+			out = append(out, &rec)
+		}
+		return rows.Err()
+	})
+	return out, err
 }

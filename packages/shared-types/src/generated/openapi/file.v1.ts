@@ -91,6 +91,23 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/files/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get per-day file usage for the tenant */
+        get: operations["getFileUsage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/files/{file_id}/url": {
         parameters: {
             query?: never;
@@ -170,6 +187,16 @@ export type components = {
             bytes?: number;
             resource_type?: string;
             moderation_status?: string;
+        };
+        FileUsageRecord: {
+            tenant_id: string;
+            /** Format: date */
+            date: string;
+            bytes_stored: number;
+            bytes_delivered: number;
+        };
+        FileUsageList: {
+            data?: components["schemas"]["FileUsageRecord"][];
         };
     };
     responses: {
@@ -417,6 +444,35 @@ export interface operations {
                 content?: never;
             };
             403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getFileUsage: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileUsageList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationError"];
         };
     };

@@ -156,6 +156,7 @@ func (s *Service) Create(ctx context.Context, actor auth.Actor, req CreateFileRe
 	if err := s.repo.Create(ctx, tenantID, file); err != nil {
 		return nil, err
 	}
+	_ = s.repo.RecordStorage(ctx, tenantID, int64(len(req.Data)))
 	_ = s.pub.Publish(ctx, "file.uploaded.v1", file, nil)
 	return file, nil
 }
@@ -310,6 +311,7 @@ func (s *Service) CompleteSignedUpload(ctx context.Context, actor auth.Actor, fi
 	if err := s.repo.Update(ctx, tenantID, file); err != nil {
 		return nil, err
 	}
+	_ = s.repo.RecordStorage(ctx, tenantID, req.SizeBytes)
 	_ = s.pub.Publish(ctx, "file.uploaded.v1", file, nil)
 	return file, nil
 }
@@ -394,6 +396,7 @@ func (s *Service) ProcessCloudinaryWebhook(ctx context.Context, timestamp int64,
 	if err := s.repo.Update(ctx, tenantID, file); err != nil {
 		return err
 	}
+	_ = s.repo.RecordStorage(ctx, tenantID, payload.Bytes)
 	_ = s.pub.Publish(ctx, "file.uploaded.v1", file, nil)
 	return nil
 }
@@ -424,6 +427,7 @@ func (s *Service) GetDeliveryURL(ctx context.Context, actor auth.Actor, fileID, 
 	if err != nil {
 		return "", "", fmt.Errorf("%w: %v", domain.ErrStorage, err)
 	}
+	_ = s.repo.RecordDelivery(ctx, tenantID, file.SizeBytes)
 	return url, transform, nil
 }
 
@@ -456,7 +460,17 @@ func (s *Service) Download(ctx context.Context, actor auth.Actor, id string) (*d
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w: %v", domain.ErrStorage, err)
 	}
+	_ = s.repo.RecordDelivery(ctx, tenantID, file.SizeBytes)
 	return file, rc, nil
+}
+
+// GetUsage returns per-day usage records for the actor's tenant.
+func (s *Service) GetUsage(ctx context.Context, actor auth.Actor, limit int) ([]*ports.UsageRecord, error) {
+	tenantID, err := s.requireAccess(ctx, actor, PermRead)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.GetUsage(ctx, tenantID, normalizeLimit(limit))
 }
 
 func (s *Service) requireAccess(ctx context.Context, actor auth.Actor, perm string) (string, error) {
