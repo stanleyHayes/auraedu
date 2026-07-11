@@ -12,6 +12,11 @@ export GOTOOLCHAIN := auto
 # Go modules in the workspace (platform + any service with a go.mod).
 GO_MODULES := $(shell find platform apps -name go.mod -exec dirname {} \; | sort)
 
+# Prefer the golangci-lint installed via `go install` in GOPATH/bin; fall back
+# to PATH. This avoids stale Homebrew builds shadowing a Go-1.26.5-compiled
+# binary when running `make lint-go` locally.
+GOLANGCI_LINT := $(shell test -x "$$(go env GOPATH)/bin/golangci-lint" && echo "$$(go env GOPATH)/bin/golangci-lint" || command -v golangci-lint)
+
 # ---- Toolchain bootstrap ---------------------------------------------------
 .PHONY: bootstrap
 bootstrap: ## Install all toolchains + workspace deps (JS, Go, Python)
@@ -47,9 +52,10 @@ lint: lint-go lint-python lint-web ## Run all linters (Go + Python + TS/Web)
 
 .PHONY: lint-go
 lint-go: ## Lint all Go modules (golangci-lint)
+	@test -n "$(GOLANGCI_LINT)" || (echo "golangci-lint not found; install with: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest" && exit 1)
 	@for d in $(GO_MODULES); do \
 		echo "==> golangci-lint $$d"; \
-		(cd "$$d" && GOWORK=off golangci-lint run --concurrency 1 ./...) || exit 1; \
+		(cd "$$d" && GOWORK=off $(GOLANGCI_LINT) run --concurrency 1 ./...) || exit 1; \
 	done
 
 .PHONY: lint-python
