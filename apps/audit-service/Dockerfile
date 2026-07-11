@@ -7,7 +7,7 @@ COPY apps/audit-service/ ./apps/audit-service/
 WORKDIR /src/apps/audit-service
 ENV GOWORK=off GOFLAGS=-mod=readonly CGO_ENABLED=0 GOTOOLCHAIN=local
 ARG GIT_SHA=dev
-RUN go build -ldflags "-s -w -X main.version=${GIT_SHA}" -o /out/app ./cmd/server && \
+RUN go build -ldflags "-s -w -X main.version=${GIT_SHA}" -o /out/app ./cmd/audit-service && \
     go build -ldflags "-s -w -X main.version=${GIT_SHA}" -o /out/worker ./cmd/worker
 
 FROM gcr.io/distroless/static-debian12:nonroot
@@ -16,3 +16,4 @@ COPY --from=build /out/worker /worker
 EXPOSE 8080
 USER nonroot:nonroot
 ENTRYPOINT ["/app"]
+CMD ["server"]

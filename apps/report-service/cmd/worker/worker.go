@@ -1,0 +1,180 @@
+// Package workercmd provides the report-service worker command.
+package workercmd
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/auraedu/platform/config"
+	"github.com/auraedu/platform/db"
+	"github.com/auraedu/platform/eventbus"
+	"github.com/auraedu/platform/tenancy"
+
+	// Register pgx SQL driver for database/sql based migrations.
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/nats-io/nats.go"
+)
+
+const service = "report-service-worker"
+
+// version is injected via -ldflags "-X main.version=<sha>" (Dockerfile); falls back to env.
+var version = ""
+
+func main() {
+	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(log)
+	if version == "" {
+		version = config.Getenv("GIT_SHA", "dev")
+	}
+
+	ctx := context.Background()
+	database, err := openDB(ctx)
+	if err != nil {
+		log.Error("failed to open database", "err", err)
+		os.Exit(1)
+	}
+
+	nc, js, err := connectNATS(log)
+	if err != nil {
+		log.Error("failed to connect to NATS", "err", err)
+		database.Close()
+		os.Exit(1)
+	}
+
+	if _, err := eventbus.EnsureStream(js, "AURA"); err != nil {
+		log.Error("failed to ensure NATS stream", "err", err)
+		nc.Close()
+		database.Close()
+		os.Exit(1)
+	}
+
+	consumer := newConsumer(js, log)
+	if err := consumer.Start(ctx); err != nil {
+		log.Error("failed to start consumer", "err", err)
+		nc.Close()
+		database.Close()
+		os.Exit(1)
+	}
+	defer func() {
+		if err := consumer.Stop(); err != nil {
+			log.Error("consumer stop error", "err", err)
+		}
+	}()
+	defer database.Close()
+
+	log.Info(service+" started", "version", version)
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+	<-stop
+
+	_, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	nc.Close()
+	log.Info(service + " stopped")
+}
+
+func openDB(ctx context.Context) (*db.DB, error) {
+	dsn, err := config.MustGetenv("DATABASE_URL")
+	if err != nil {
+		return nil, err
+	}
+	return db.Open(ctx, db.Config{
+		DSN:        dsn,
+		Migrations: "migrations",
+	})
+}
+
+func connectNATS(log *slog.Logger) (*nats.Conn, eventbus.JetStreamContext, error) {
+	natsURL := config.Getenv("NATS_URL", nats.DefaultURL)
+	nc, err := nats.Connect(natsURL)
+	if err != nil {
+		return nil, nil, fmt.Errorf("nats connect: %w", err)
+	}
+	js, err := nc.JetStream()
+	if err != nil {
+		nc.Close()
+		return nil, nil, fmt.Errorf("nats jetstream: %w", err)
+	}
+	log.Info("connected to NATS", "url", natsURL)
+	return nc, js, nil
+}
+
+type consumer struct {
+	js   eventbus.JetStreamContext
+	subs []*nats.Subscription
+	log  *slog.Logger
+}
+
+func newConsumer(js eventbus.JetStreamContext, log *slog.Logger) *consumer {
+	return &consumer{js: js, log: log}
+}
+
+func (c *consumer) Start(ctx context.Context) error {
+	for _, eventType := range []string{"assessment.score_recorded.v1", "attendance.marked.v1"} {
+		subject := eventbus.Subject("AURA", eventType)
+		sub, err := c.js.Subscribe(subject, c.handleMsg,
+			nats.Durable("report-worker-"+eventType),
+			nats.ManualAck(),
+			nats.AckWait(30*time.Second),
+		)
+		if err != nil {
+			return fmt.Errorf("subscribe to %s: %w", subject, err)
+		}
+		c.subs = append(c.subs, sub)
+		c.log.Info("subscribed", "subject", subject)
+	}
+	_ = ctx
+	return nil
+}
+
+func (c *consumer) Stop() error {
+	for _, sub := range c.subs {
+		if sub != nil {
+			if err := sub.Unsubscribe(); err != nil {
+				return err
+			}
+		}
+	}
+	c.subs = nil
+	return nil
+}
+
+func (c *consumer) handleMsg(msg *nats.Msg) {
+	var event tenancy.CloudEvent
+	if err := json.Unmarshal(msg.Data, &event); err != nil {
+		c.log.Error("unmarshal message", "err", err)
+		if nerr := msg.Nak(); nerr != nil {
+			c.log.Error("failed to nak message", "err", nerr)
+		}
+		return
+	}
+	if err := event.Validate(); err != nil {
+		c.log.Error("invalid cloudevent", "err", err)
+		if nerr := msg.Nak(); nerr != nil {
+			c.log.Error("failed to nak message", "err", nerr)
+		}
+		return
+	}
+	c.log.Info("received event",
+		"type", event.Type,
+		"tenant_id", event.TenantID,
+		"subject", event.Subject,
+	)
+	// Placeholder consumption: no side effects for this story.
+	if err := msg.Ack(); err != nil {
+		c.log.Error("failed to ack message", "err", err)
+	}
+}
+
+// Run starts the report-service background worker. It is invoked by the service CLI.
+func Run() error {
+	main()
+	return nil
+}

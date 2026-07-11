@@ -11,10 +11,11 @@ COPY apps/api-gateway/ ./apps/api-gateway/
 WORKDIR /src/apps/api-gateway
 ENV GOWORK=off GOFLAGS=-mod=readonly CGO_ENABLED=0 GOTOOLCHAIN=local
 ARG GIT_SHA=dev
-RUN go build -ldflags "-s -w -X main.version=${GIT_SHA}" -o /out/gateway ./cmd/server
+RUN go build -ldflags "-s -w -X main.version=${GIT_SHA}" -o /out/gateway ./cmd/api-gateway
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/gateway /gateway
 EXPOSE 8080
 USER nonroot:nonroot
 ENTRYPOINT ["/gateway"]
+CMD ["server"]

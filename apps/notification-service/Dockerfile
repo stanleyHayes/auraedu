@@ -7,10 +7,11 @@ COPY apps/notification-service/ ./apps/notification-service/
 WORKDIR /src/apps/notification-service
 ENV GOWORK=off GOFLAGS=-mod=readonly CGO_ENABLED=0 GOTOOLCHAIN=local
 ARG GIT_SHA=dev
-RUN go build -ldflags "-s -w -X main.version=${GIT_SHA}" -o /out/app ./cmd/server
+RUN go build -ldflags "-s -w -X main.version=${GIT_SHA}" -o /out/app ./cmd/notification-service
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/app /app
 EXPOSE 8080
 USER nonroot:nonroot
 ENTRYPOINT ["/app"]
+CMD ["server"]
