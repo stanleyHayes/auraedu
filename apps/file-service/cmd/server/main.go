@@ -60,6 +60,9 @@ func main() {
 	if signer, ok := store.(ports.SignedUploadProvider); ok {
 		opts = append(opts, application.WithSignedUploadProvider(signer))
 	}
+	if delivery, ok := store.(ports.DeliveryURLProvider); ok {
+		opts = append(opts, application.WithDeliveryURLProvider(delivery))
+	}
 	svc := application.NewService(repo, store, opts...)
 	handler := svchttp.NewHandler(svc)
 

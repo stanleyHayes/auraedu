@@ -30,11 +30,12 @@ const FeatureFileManagement = "file_management"
 // Service holds the file use cases. Tenant scope + RBAC + feature-flag checks belong
 // here (agent_plan §5), never in HTTP handlers.
 type Service struct {
-	repo    ports.Repository
-	storage ports.Storage
-	signer  ports.SignedUploadProvider
-	pub     ports.EventPublisher
-	gates   flags.Gate
+	repo             ports.Repository
+	storage          ports.Storage
+	signer           ports.SignedUploadProvider
+	deliveryProvider ports.DeliveryURLProvider
+	pub              ports.EventPublisher
+	gates            flags.Gate
 }
 
 // Option configures the service.
@@ -49,6 +50,11 @@ func WithFeatureGate(g flags.Gate) Option { return func(s *Service) { s.gates = 
 // WithSignedUploadProvider sets the provider used to sign direct uploads.
 func WithSignedUploadProvider(p ports.SignedUploadProvider) Option {
 	return func(s *Service) { s.signer = p }
+}
+
+// WithDeliveryURLProvider sets the provider used to generate CDN/transform URLs.
+func WithDeliveryURLProvider(p ports.DeliveryURLProvider) Option {
+	return func(s *Service) { s.deliveryProvider = p }
 }
 
 type noopPublisher struct{}
@@ -299,6 +305,50 @@ func (s *Service) CompleteSignedUpload(ctx context.Context, actor auth.Actor, fi
 	}
 	_ = s.pub.Publish(ctx, "file.uploaded.v1", file, nil)
 	return file, nil
+}
+
+// GetDeliveryURL returns a CDN/transform URL for a Cloudinary-backed file.
+func (s *Service) GetDeliveryURL(ctx context.Context, actor auth.Actor, fileID, preset, transform string) (string, string, error) {
+	tenantID, err := s.requireAccess(ctx, actor, PermRead)
+	if err != nil {
+		return "", "", err
+	}
+	if fileID == "" {
+		return "", "", domain.ErrValidation
+	}
+	file, err := s.repo.GetByID(ctx, tenantID, fileID)
+	if err != nil {
+		return "", "", err
+	}
+	if file.StorageBackend != string(domain.BackendCloudinary) {
+		return "", "", fmt.Errorf("%w: delivery URLs are only available for Cloudinary-backed files", domain.ErrStorage)
+	}
+	if s.deliveryProvider == nil {
+		return "", "", fmt.Errorf("%w: delivery URL provider not configured", domain.ErrStorage)
+	}
+	if transform == "" {
+		transform = transformForPreset(preset)
+	}
+	url, err := s.deliveryProvider.DeliveryURL(tenantID, file.StoragePath, "", transform)
+	if err != nil {
+		return "", "", fmt.Errorf("%w: %v", domain.ErrStorage, err)
+	}
+	return url, transform, nil
+}
+
+func transformForPreset(preset string) string {
+	switch preset {
+	case "thumbnail":
+		return "w_150,h_150,c_fill"
+	case "avatar":
+		return "w_200,h_200,c_fill,g_face"
+	case "banner":
+		return "w_1200,h_400,c_fit"
+	case "", "original":
+		return ""
+	default:
+		return ""
+	}
 }
 
 // Download returns a reader for the stored file bytes.

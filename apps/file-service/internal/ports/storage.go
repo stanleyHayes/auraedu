@@ -24,6 +24,11 @@ type SignedUploadProvider interface {
 	SignUpload(ctx context.Context, tenantID, fileID, folder, resourceType string) (SignedUpload, error)
 }
 
+// DeliveryURLProvider returns a CDN/transform URL for a stored object.
+type DeliveryURLProvider interface {
+	DeliveryURL(tenantID, path, resourceType, transform string) (string, error)
+}
+
 // SignedUpload contains the parameters a client needs to perform a direct
 // backend-signed upload.
 type SignedUpload struct {

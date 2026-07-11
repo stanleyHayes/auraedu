@@ -17,6 +17,7 @@ type LocalStorage struct {
 }
 
 var _ ports.Storage = (*LocalStorage)(nil)
+var _ ports.DeliveryURLProvider = (*LocalStorage)(nil)
 
 // NewLocalStorage creates a local filesystem storage adapter backed by baseDir.
 func NewLocalStorage(baseDir string) *LocalStorage {
@@ -25,6 +26,11 @@ func NewLocalStorage(baseDir string) *LocalStorage {
 
 // Backend returns the domain backend key for local storage.
 func (s *LocalStorage) Backend() string { return string(domain.BackendLocal) }
+
+// DeliveryURL is not supported for local filesystem storage.
+func (s *LocalStorage) DeliveryURL(tenantID, path, resourceType, transform string) (string, error) {
+	return "", fmt.Errorf("local storage does not support delivery URLs")
+}
 
 // Save writes the contents of r to a tenant-scoped path and returns the relative path.
 func (s *LocalStorage) Save(ctx context.Context, tenantID, fileID string, r io.Reader) (string, error) {

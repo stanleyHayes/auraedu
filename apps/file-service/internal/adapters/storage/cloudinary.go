@@ -74,6 +74,7 @@ func NewCloudinaryStorage(cloudURL string, opts ...CloudinaryOption) (*Cloudinar
 func (s *CloudinaryStorage) Backend() string { return string(domain.BackendCloudinary) }
 
 var _ ports.SignedUploadProvider = (*CloudinaryStorage)(nil)
+var _ ports.DeliveryURLProvider = (*CloudinaryStorage)(nil)
 
 // SignUpload returns the parameters required for a direct Cloudinary signed upload.
 // The caller supplies fileID; public_id in the upload parameters is set to fileID
@@ -118,6 +119,24 @@ func (s *CloudinaryStorage) SignUpload(ctx context.Context, tenantID, fileID, fo
 		CloudName:    s.cld.Config.Cloud.CloudName,
 		UploadURL:    uploadURL,
 	}, nil
+}
+
+// DeliveryURL returns a Cloudinary delivery URL, optionally with a transformation
+// chain (e.g. "w_300,h_300,c_fit"). If resourceType is empty it defaults to the
+// adapter's configured resource type.
+func (s *CloudinaryStorage) DeliveryURL(tenantID, path, resourceType, transform string) (string, error) {
+	_ = tenantID
+	if path == "" {
+		return "", fmt.Errorf("path is required")
+	}
+	if resourceType == "" {
+		resourceType = s.resourceType
+	}
+	base := fmt.Sprintf("https://res.cloudinary.com/%s/%s", s.cld.Config.Cloud.CloudName, resourceType)
+	if transform != "" {
+		return fmt.Sprintf("%s/%s/upload/%s", base, transform, path), nil
+	}
+	return fmt.Sprintf("%s/upload/%s", base, path), nil
 }
 
 // Save uploads the contents of r to Cloudinary under a tenant-scoped public_id.

@@ -70,7 +70,10 @@ This section tracks work currently in-flight and recently completed. It is updat
 | AURA-48.1/48.2 | EP-48 Mobile Shell | **Done** | Kimi Code CLI | Expo SDK 52 + React Native 0.76 scaffold with tenant/role-aware `App.tsx`; `pnpm lint` and `typecheck` pass. |
 | AURA-3.6 | EP-03 API Gateway | **Done** | Kimi Code CLI | Route-level RBAC permission enforcement; method-aware permissions for `/api/v1/files` and `/api/v1/uploads`. |
 | AURA-20.9 | EP-20 File Service | **Done** | Kimi Code CLI | Cloudinary SDK v2 adapter, direct signed upload flow (`POST /uploads/signed` + `POST /files/{id}/complete`), deployment wiring in `docker-compose.yml` and `render.yaml`. |
-| AURA-20.10 | EP-20 File Service | **Next** | Kimi Code CLI | Transform presets + delivery, Cloudinary notification webhook, per-tenant usage accounting. Will be broken into sub-tasks in the next update. |
+| AURA-20.10 | EP-20 File Service | **In Progress** | Kimi Code CLI | Broken into sub-tasks below. |
+| AURA-20.10.1 | EP-20 File Service | **Done** | Kimi Code CLI | Transform presets + delivery URL endpoint for Cloudinary-backed files. |
+| AURA-20.10.2 | EP-20 File Service | **In Progress** | Kimi Code CLI | Cloudinary notification webhook (upload confirmation, moderation/virus-scan status, eager transforms). |
+| AURA-20.10.3 | EP-20 File Service | **Pending** | Kimi Code CLI | Per-tenant usage accounting (bytes stored/transferred). |
 
 ---
 

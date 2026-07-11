@@ -114,6 +114,30 @@ paths:
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
+    /files/{file_id}/url:
+      get:
+            operationId: getFileDeliveryURL
+            tags: ['files']
+            summary: Get a Cloudinary delivery or transform URL
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/TenantId'
+              - name: preset
+                in: query
+                schema: { type: string, enum: [thumbnail, avatar, banner, original], default: original }
+              - name: transform
+                in: query
+                schema: { type: string, example: 'w_300,h_300,c_fit' }
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/DeliveryURL' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
 
 components:
   parameters:
@@ -180,6 +204,14 @@ components:
         properties:
           data: { type: array, items: { $ref: '#/components/schemas/File' } }
           next_cursor: { type: [string, 'null'] }
+    DeliveryURL:
+        type: object
+        required: [url]
+        properties:
+          url: { type: string, format: uri }
+          public_id: { type: string }
+          resource_type: { type: string }
+          transformations: { type: string }
 
   responses:
     Unauthorized:

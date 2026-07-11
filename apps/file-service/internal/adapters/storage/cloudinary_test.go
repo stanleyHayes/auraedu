@@ -151,3 +151,40 @@ func TestCloudinaryStorage_SignUploadRequiresIDs(t *testing.T) {
 		t.Fatal("expected error when file_id is empty")
 	}
 }
+
+func TestCloudinaryStorage_DeliveryURL(t *testing.T) {
+	store, err := NewCloudinaryStorage("cloudinary://key:secret@testcloud",
+		WithResourceType("image"),
+	)
+	if err != nil {
+		t.Fatalf("new storage: %v", err)
+	}
+
+	url, err := store.DeliveryURL("tenant-1", "tenant-1/file-1", "", "w_300,h_300,c_fit")
+	if err != nil {
+		t.Fatalf("delivery url: %v", err)
+	}
+	want := "https://res.cloudinary.com/testcloud/image/w_300,h_300,c_fit/upload/tenant-1/file-1"
+	if url != want {
+		t.Fatalf("url: got %q, want %q", url, want)
+	}
+
+	url, err = store.DeliveryURL("tenant-1", "tenant-1/file-1", "", "")
+	if err != nil {
+		t.Fatalf("delivery url no transform: %v", err)
+	}
+	want = "https://res.cloudinary.com/testcloud/image/upload/tenant-1/file-1"
+	if url != want {
+		t.Fatalf("url: got %q, want %q", url, want)
+	}
+}
+
+func TestCloudinaryStorage_DeliveryURLEmptyPath(t *testing.T) {
+	store, err := NewCloudinaryStorage("cloudinary://key:secret@testcloud")
+	if err != nil {
+		t.Fatalf("new storage: %v", err)
+	}
+	if _, err := store.DeliveryURL("tenant-1", "", "", ""); err == nil {
+		t.Fatal("expected error for empty path")
+	}
+}

@@ -43,6 +43,14 @@ type FileList struct {
 	NextCursor *string `json:"next_cursor,omitempty"`
 }
 
+// DeliveryURL generated from OpenAPI schema.
+type DeliveryURL struct {
+	Url             string  `json:"url"`
+	PublicId        *string `json:"public_id,omitempty"`
+	ResourceType    *string `json:"resource_type,omitempty"`
+	Transformations *string `json:"transformations,omitempty"`
+}
+
 // ServerInterface is implemented by the service HTTP adapter.
 type ServerInterface interface {
 	requestSignedUpload(w http.ResponseWriter, r *http.Request)
@@ -50,6 +58,7 @@ type ServerInterface interface {
 	completeSignedUpload(w http.ResponseWriter, r *http.Request)
 	getFile(w http.ResponseWriter, r *http.Request)
 	deleteFile(w http.ResponseWriter, r *http.Request)
+	getFileDeliveryURL(w http.ResponseWriter, r *http.Request)
 }
 
 // ClientInterface is the generated consumer stub for this service.
@@ -59,4 +68,5 @@ type ClientInterface interface {
 	completeSignedUpload(ctx context.Context) (*http.Response, error)
 	getFile(ctx context.Context) (*http.Response, error)
 	deleteFile(ctx context.Context) (*http.Response, error)
+	getFileDeliveryURL(ctx context.Context) (*http.Response, error)
 }

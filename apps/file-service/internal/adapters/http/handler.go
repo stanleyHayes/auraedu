@@ -36,6 +36,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/v1/files/{file_id}", h.update)
 	mux.HandleFunc("DELETE /api/v1/files/{file_id}", h.delete)
 	mux.HandleFunc("GET /api/v1/files/{file_id}/download", h.download)
+	mux.HandleFunc("GET /api/v1/files/{file_id}/url", h.deliveryURL)
 	mux.HandleFunc("POST /api/v1/files/{file_id}/complete", h.completeSignedUpload)
 }
 
@@ -212,6 +213,22 @@ func (h *Handler) completeSignedUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.RespondJSON(w, r, http.StatusOK, file)
+}
+
+func (h *Handler) deliveryURL(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	url, transforms, err := h.svc.GetDeliveryURL(ctx, actor, r.PathValue("file_id"), r.URL.Query().Get("preset"), r.URL.Query().Get("transform"))
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, map[string]any{
+		"url":             url,
+		"transformations": transforms,
+	})
 }
 
 func (h *Handler) download(w http.ResponseWriter, r *http.Request) {
