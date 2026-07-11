@@ -7,6 +7,8 @@ WORKDIR /repo
 FROM base AS build
 COPY . .
 RUN pnpm install --frozen-lockfile
+# Build shared-types so generated .d.ts are available for subpath imports.
+RUN pnpm --filter @auraedu/shared-types run build
 RUN pnpm --filter web build
 
 FROM base AS runner
