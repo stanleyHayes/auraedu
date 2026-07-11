@@ -57,6 +57,51 @@ export const NAV: NavGroupDef[] = [
   },
 ];
 
+export const ADMIN_NAV: NavGroupDef[] = [
+  {
+    heading: "Overview",
+    items: [{ label: "Dashboard", href: "/admin" }],
+  },
+  {
+    heading: "People",
+    items: [
+      { label: "Students", href: "/admin/students", feature: "student_management" },
+      { label: "Staff", href: "/admin/staff", feature: "staff_management" },
+    ],
+  },
+  {
+    heading: "Academics",
+    items: [
+      { label: "Academic years", href: "/admin/academic-years", feature: "academic_management" },
+      { label: "Classes", href: "/admin/classes", feature: "academic_management" },
+      { label: "Subjects", href: "/admin/subjects", feature: "academic_management" },
+    ],
+  },
+  {
+    heading: "Operations",
+    items: [
+      { label: "Attendance", href: "/admin/attendance", feature: "attendance" },
+      { label: "Assessments", href: "/admin/assessments", feature: "assessments" },
+      { label: "Reports", href: "/admin/reports", feature: "report_cards" },
+    ],
+  },
+  {
+    heading: "Finance",
+    items: [
+      { label: "Fees", href: "/admin/fees", feature: "fees" },
+      { label: "Payments", href: "/admin/payments", feature: "payments" },
+    ],
+  },
+  {
+    heading: "School",
+    items: [
+      { label: "Communications", href: "/admin/communications", feature: "communications" },
+      { label: "Website", href: "/admin/website", feature: "website" },
+      { label: "Settings", href: "/admin/settings", feature: "settings" },
+    ],
+  },
+];
+
 export function resolveTenantFromHost(host: string): string {
   const [name] = host.split(":");
   if (!name) return DEFAULT_CODE;

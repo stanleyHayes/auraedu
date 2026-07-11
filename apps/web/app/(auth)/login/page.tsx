@@ -5,6 +5,33 @@ import { useRouter } from "next/navigation";
 import { KeyRound } from "lucide-react";
 import { Button, PageHeader } from "@auraedu/ui";
 
+function setCookie(name: string, value: string, days = 7) {
+  try {
+    const expires = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toUTCString();
+    document.cookie = `${name}=${encodeURIComponent(value)};path=/;expires=${expires};SameSite=Lax`;
+  } catch {
+    /* ignore */
+  }
+}
+
+function buildDummyJwt(role: string, email: string, tenantId: string): string {
+  const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+  const payload = btoa(
+    JSON.stringify({
+      sub: "admin-user",
+      tenant_id: tenantId,
+      role,
+      email,
+      name: "School Administrator",
+      perms: ["admin"],
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7,
+    }),
+  );
+  const signature = btoa("dummy-signature");
+  return `${header}.${payload}.${signature}`;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [loading, setLoading] = React.useState(false);
@@ -12,7 +39,26 @@ export default function LoginPage() {
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
+
+    const form = new FormData(e.currentTarget);
+    const username = String(form.get("username") ?? "admin");
+
     await new Promise((resolve) => setTimeout(resolve, 800));
+
+    // TEMPORARY: until the Identity Service login flow is wired end-to-end, set a
+    // dummy JWT + user cookie so the admin shell auth guard can demo the experience.
+    const tenantId = "upshs";
+    const token = buildDummyJwt("school_admin", `${username}@auraedu.local`, tenantId);
+    setCookie("auraedu_access_token", token);
+    setCookie(
+      "auraedu_user",
+      JSON.stringify({
+        email: `${username}@auraedu.local`,
+        name: "School Administrator",
+        role: "school_admin",
+      }),
+    );
+
     setLoading(false);
     router.push("/admin");
   }

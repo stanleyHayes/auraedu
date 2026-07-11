@@ -1,16 +1,62 @@
 "use client";
 
-import { ThemeToggle, cn } from "@auraedu/ui";
+import { LogOut, Menu, User } from "lucide-react";
+import { ThemeToggle, UserMenu, type UserMenuItem, cn } from "@auraedu/ui";
 import { SWITCHER } from "@/lib/tenant";
 
 interface AppTopbarProps {
   currentCode?: string;
   onSelect?: (code: string) => void;
+  user?: {
+    name?: string;
+    email?: string;
+    role?: string;
+    initials?: string;
+  };
+  onLogout?: () => void;
+  onMobileMenuToggle?: () => void;
+  showMobileMenu?: boolean;
 }
 
-export function AppTopbar({ currentCode, onSelect }: AppTopbarProps) {
+export function AppTopbar({
+  currentCode,
+  onSelect,
+  user,
+  onLogout,
+  onMobileMenuToggle,
+  showMobileMenu = false,
+}: AppTopbarProps) {
+  const menuItems: UserMenuItem[] = [
+    {
+      id: "profile",
+      label: "Profile",
+      description: "View your account details",
+      icon: <User className="size-4" />,
+      href: "/admin/settings",
+    },
+    {
+      id: "logout",
+      label: "Sign out",
+      description: "Log out of the admin console",
+      icon: <LogOut className="size-4" />,
+      onClick: onLogout,
+      destructive: true,
+    },
+  ];
+
   return (
     <header className="flex h-[60px] items-center gap-3 border-b border-border bg-background/90 px-5 backdrop-blur">
+      {showMobileMenu ? (
+        <button
+          type="button"
+          onClick={onMobileMenuToggle}
+          aria-label="Open navigation"
+          className="grid size-10 place-items-center rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] md:hidden"
+          data-tour="mobile-navigation"
+        >
+          <Menu className="size-5" />
+        </button>
+      ) : null}
       <span className="font-mono text-xs text-muted-foreground max-sm:hidden">
         AuraEDU&nbsp;/&nbsp;<b className="font-semibold text-foreground">Portal</b>
       </span>
@@ -40,13 +86,10 @@ export function AppTopbar({ currentCode, onSelect }: AppTopbarProps) {
           })}
         </div>
       ) : null}
-      <ThemeToggle />
-      <span
-        className="grid size-9 place-items-center rounded-full border border-border bg-[var(--accent)] font-display text-sm font-extrabold text-[var(--primary)]"
-        aria-label="User menu"
-      >
-        U
+      <span data-tour="theme-toggle">
+        <ThemeToggle />
       </span>
+      <UserMenu user={user} items={menuItems} />
     </header>
   );
 }
