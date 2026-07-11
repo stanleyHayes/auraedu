@@ -45,6 +45,7 @@ export type AcademicYearCreatedEvent = CloudEventEnvelope<AcademicYearCreatedDat
 export interface AiRecommendationGeneratedData {
   student_id: string;
   recommendation_type: string;
+  status?: "pending" | "approved" | "rejected" | "overridden";
   confidence?: number | null;
   explanation?: string | null;
 }

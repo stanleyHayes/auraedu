@@ -141,7 +141,7 @@ async function generateIndexFiles(): Promise<void> {
   // OpenAPI index
   const openapiFiles = (await fs.readdir(OPENAPI_OUT)).filter((f) => f.endsWith(".ts") && f !== "index.ts").sort();
   const openapiIndex = openapiFiles
-    .map((f) => `export * as ${path.basename(f, ".ts").replace(/\./g, "_")} from "./${f.replace(/\.ts$/, ".js")}";`)
+    .map((f) => `export * as ${path.basename(f, ".ts").replace(/[.-]/g, "_")} from "./${f.replace(/\.ts$/, ".js")}";`)
     .join("\n");
   await fs.writeFile(path.join(OPENAPI_OUT, "index.ts"), `${openapiIndex}\n`, "utf8");
 

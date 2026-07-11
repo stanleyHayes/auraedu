@@ -76,7 +76,7 @@ contracts: ## Regenerate types/stubs from contracts/ (OpenAPI + events)
 contracts-lint: ## Lint OpenAPI + validate event JSON schemas
 	@command -v spectral >/dev/null 2>&1 || \
 		(echo "spectral not installed; run: npm install -g @stoplight/spectral-cli" && exit 1)
-	spectral lint 'contracts/openapi/*.yaml'
+	spectral lint --fail-severity error 'contracts/openapi/*.yaml'
 	@echo "==> event JSON schema validation: TODO (AURA-1.2)"
 
 # ---- Scaffolding -----------------------------------------------------------

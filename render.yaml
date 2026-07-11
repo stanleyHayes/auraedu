@@ -184,6 +184,10 @@ services:
         fromService:
           name: tenant-service
           property: hostport
+      - key: SERVICE_AI_RECOMMENDATION_URL
+        fromService:
+          name: ai-recommendation-service
+          property: hostport
       - key: JWT_SIGNING_KEY
         fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
@@ -410,9 +414,31 @@ services:
   # - name: audit-service
   #   type: pserv
   #   ...
-  # - name: ai-recommendation-service
-  #   type: pserv
-  #   ...
+  - name: ai-recommendation-service
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/ai-recommendation-service/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/ai-recommendation-service/**
+        - pyproject.toml
+        - uv.lock
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ai-db
+          property: connectionString
+      - key: NATS_HOST
+        fromService:
+          name: nats
+          property: host
+      - fromGroup: auraedu-shared-config
+
   # - name: ai-prediction-service
   #   type: pserv
   #   ...
