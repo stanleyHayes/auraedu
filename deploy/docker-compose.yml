@@ -55,6 +55,7 @@ services:
     environment:
       IDENTITY_HOSTPORT: identity-service:8081
       TENANT_HOSTPORT: tenant-service:8082
+      SERVICE_AI_RECOMMENDATION_URL: http://ai-recommendation-service:8200
       REDIS_URL: redis://redis:6379
       NATS_HOST: nats:4222
       JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-local-dev-signing-key-change-me}
@@ -62,7 +63,23 @@ services:
     depends_on:
       identity-service: { condition: service_started }
       tenant-service: { condition: service_started }
+      ai-recommendation-service: { condition: service_started }
       redis: { condition: service_healthy }
+      nats: { condition: service_healthy }
+    restart: unless-stopped
+
+  # ---- AI services ----------------------------------------------------------
+  ai-recommendation-service:
+    build:
+      context: ..
+      dockerfile: ./apps/ai-recommendation-service/Dockerfile
+    ports: ["8200:8200"]
+    environment:
+      AI_REC_DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/ai?sslmode=disable
+      AI_REC_NATS_HOST: nats:4222
+      AI_REC_PORT: 8200
+    depends_on:
+      postgres: { condition: service_healthy }
       nats: { condition: service_healthy }
     restart: unless-stopped
 

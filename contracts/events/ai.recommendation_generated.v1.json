@@ -18,7 +18,7 @@
       "const": "1.0"
     },
     "type": {
-      "const": "ai.recommendation_generated"
+      "const": "ai.recommendation_generated.v1"
     },
     "source": {
       "const": "ai-recommendation-service"
@@ -52,6 +52,10 @@
         },
         "recommendation_type": {
           "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "approved", "rejected", "overridden"]
         },
         "confidence": {
           "type": [

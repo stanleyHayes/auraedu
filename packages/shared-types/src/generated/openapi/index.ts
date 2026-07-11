@@ -1,4 +1,5 @@
 export * as academic_v1 from "./academic.v1.js";
+export * as ai_recommendation_v1 from "./ai-recommendation.v1.js";
 export * as analytics_v1 from "./analytics.v1.js";
 export * as assessment_v1 from "./assessment.v1.js";
 export * as attendance_v1 from "./attendance.v1.js";
