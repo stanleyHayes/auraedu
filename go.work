@@ -8,6 +8,7 @@ use (
 	./apps/assessment-service
 	./apps/attendance-service
 	./apps/audit-service
+	./apps/billing-service
 	./apps/fees-service
 	./apps/file-service
 	./apps/identity-service
