@@ -4,15 +4,23 @@ import { LayoutDashboard } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { ADMIN_NAV, fetchTenantBranding, getTenantCodeFromHeaders } from "@/lib/tenant";
 import { requireAuth, isAdmin } from "@/lib/auth";
+import { checkRouteFeature } from "@/lib/features";
+import { FeatureDisabled } from "@auraedu/flags";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const requestHeaders = await headers();
   const tenantCode = getTenantCodeFromHeaders(requestHeaders);
+  const pathname = requestHeaders.get("x-pathname") ?? "";
 
   const [tenant, session] = await Promise.all([
     fetchTenantBranding(tenantCode),
     requireAuth().catch(() => null),
   ]);
+
+  const routeFeature = checkRouteFeature(pathname, tenant.features);
+  const guardedChildren = routeFeature.enabled ? children : (
+    <FeatureDisabled feature={routeFeature.feature!} />
+  );
 
   if (!session) {
     redirect("/login");
@@ -42,7 +50,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <AdminShell
       tenant={tenant}
       navGroups={ADMIN_NAV}
-      featuresStub
       showMobileMenu
       user={user}
       page={{
@@ -51,7 +58,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         description: "Manage students, staff, academics, and school settings.",
       }}
     >
-      {children}
+      {guardedChildren}
     </AdminShell>
   );
 }

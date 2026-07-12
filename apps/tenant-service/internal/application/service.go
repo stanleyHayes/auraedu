@@ -155,7 +155,10 @@ func (s *Service) Features(ctx context.Context, actor auth.Actor, code string) (
 	if code == "" {
 		return nil, domain.ErrNoTenant
 	}
-	if !actor.CanAccessTenant(code) {
+	// Public feature snapshot: unauthenticated callers may read the snapshot for
+	// the resolved tenant (used by web/mobile at boot before login). Authenticated
+	// callers are still scoped to their own tenant.
+	if actor.Authenticated() && !actor.CanAccessTenant(code) {
 		return nil, domain.ErrForbidden
 	}
 	return s.repo.Features(withTenant(ctx, code), code)

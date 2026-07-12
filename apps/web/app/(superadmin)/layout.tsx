@@ -40,7 +40,6 @@ export default async function SuperAdminLayout({ children }: { children: React.R
     <SuperAdminShell
       tenant={tenant}
       navGroups={SUPERADMIN_NAV}
-      featuresStub
       showMobileMenu
       user={user}
       page={{

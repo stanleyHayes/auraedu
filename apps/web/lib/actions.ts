@@ -3,12 +3,39 @@
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { createGatewayClient } from "@auraedu/api-client";
+import { publicApiUrl, tenantHeaderName } from "@auraedu/config";
+import {
+  ACCESS_TOKEN_COOKIE,
+  REFRESH_TOKEN_COOKIE,
+  USER_COOKIE,
+} from "./auth";
 import { createServerClient } from "./api";
+
+const TENANT_COOKIE = "auraedu_tenant_code";
 
 export async function logoutAction() {
   const jar = await cookies();
-  jar.delete("auraedu_access_token");
-  jar.delete("auraedu_user");
+  const tenantCode = jar.get(TENANT_COOKIE)?.value ?? "";
+  const refreshToken = jar.get(REFRESH_TOKEN_COOKIE)?.value;
+
+  if (refreshToken) {
+    const client = createGatewayClient({
+      baseUrl: publicApiUrl,
+      tenantHeader: tenantHeaderName,
+      getToken: () => undefined,
+      getTenantCode: () => tenantCode,
+    });
+    try {
+      await client.post("/api/v1/auth/logout", { refresh_token: refreshToken });
+    } catch {
+      // Best-effort revocation; clear cookies regardless.
+    }
+  }
+
+  jar.delete(ACCESS_TOKEN_COOKIE);
+  jar.delete(REFRESH_TOKEN_COOKIE);
+  jar.delete(USER_COOKIE);
   redirect("/login");
 }
 

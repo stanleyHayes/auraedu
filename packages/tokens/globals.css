@@ -1,9 +1,8 @@
-/* AuraEDU global stylesheet — semantic (shadcn-style) binding, light/dark themes,
-   signature keyframes, and the reduced-motion kill-switch. Import once in the app root.
-   Components reference the SEMANTIC vars (--primary, --ring, --border, …), never brand hex. */
+/* AuraEDU global stylesheet — semantic binding, light/dark themes,
+   signature keyframes, and the reduced-motion kill-switch. Import once in the app root. */
 @import "./tokens.css";
 
-/* Dark mode is a class on <html>, not a media query (next-themes-compatible contract). */
+/* Dark mode is a class on <html>. */
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
@@ -16,12 +15,14 @@
   --color-border: var(--border);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
   --color-accent: var(--accent);
   --color-ring: var(--ring);
   --radius: var(--radius-md);
 }
 
-/* ---- LIGHT (chalk paper) ---- */
+/* ---- LIGHT (parchment) ---- */
 :root {
   --background: var(--color-paper-50);
   --surface: var(--color-paper-100);
@@ -31,22 +32,26 @@
   --border: var(--color-paper-300);
   --primary: var(--color-brand);
   --primary-foreground: var(--color-brand-contrast);
+  --secondary: var(--color-brand-secondary);
+  --secondary-foreground: var(--color-brand-contrast);
   --accent: var(--color-brand-tint);
   --ring: var(--color-brand);
 }
 
-/* ---- DARK (the chalkboard) — accent brightened for contrast on the board ---- */
+/* ---- DARK (ink) ---- */
 .dark {
   --background: var(--color-ink-950);
   --surface: var(--color-ink-900);
   --foreground: var(--color-paper-50);
-  --muted: #132019;
+  --muted: #1a1714;
   --muted-foreground: var(--color-ink-200);
-  --border: #2b3d34;
-  --primary: color-mix(in oklab, var(--color-brand) 60%, #eaede6);
+  --border: #2a2722;
+  --primary: color-mix(in oklab, var(--color-brand) 70%, #eaede6);
   --primary-foreground: var(--color-ink-950);
-  --accent: color-mix(in oklab, var(--color-brand) 26%, var(--color-ink-900));
-  --ring: color-mix(in oklab, var(--color-brand) 60%, #eaede6);
+  --secondary: color-mix(in oklab, var(--color-brand-secondary) 70%, #eaede6);
+  --secondary-foreground: var(--color-ink-950);
+  --accent: color-mix(in oklab, var(--color-brand) 22%, var(--color-ink-900));
+  --ring: color-mix(in oklab, var(--color-brand) 70%, #eaede6);
 }
 
 /* ---- base ---- */
@@ -56,12 +61,183 @@ body {
   font-family: var(--font-sans);
 }
 h1,
-h2 {
+h2,
+h3 {
   font-family: var(--font-heading);
 }
 :focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
+}
+
+/* ---- glass & surface helpers ---- */
+.glass {
+  background: color-mix(in oklab, var(--surface) 78%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.dark .glass {
+  background: color-mix(in oklab, var(--surface) 86%, transparent);
+}
+.topbar-glass {
+  background: color-mix(in oklab, var(--surface) 82%, transparent);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+}
+
+/* ---- card shapes ---- */
+.card {
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow:
+    0 1px 2px color-mix(in oklab, var(--color-ink-950) 4%, transparent),
+    0 6px 18px color-mix(in oklab, var(--color-ink-950) 3%, transparent);
+  transition: transform 180ms var(--ease-spring), box-shadow 180ms var(--ease-spring);
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 1px 2px color-mix(in oklab, var(--color-ink-950) 4%, transparent),
+    0 12px 28px color-mix(in oklab, var(--color-ink-950) 6%, transparent);
+}
+.card-accent-strip {
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-gold), color-mix(in oklab, var(--color-gold) 40%, transparent));
+}
+.card-asymmetric {
+  border-radius: var(--radius-lg) var(--radius-xl) var(--radius-md) var(--radius-2xl);
+}
+
+/* ---- pill nav rail ---- */
+.pill-nav {
+  display: inline-flex;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid color-mix(in oklab, var(--color-navy) 12%, transparent);
+  border-radius: var(--radius-full);
+  background: color-mix(in oklab, var(--surface) 80%, transparent);
+}
+.pill-nav__item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: var(--radius-full);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  transition: color 200ms var(--ease-out-quart);
+}
+.pill-nav__item:hover {
+  color: var(--foreground);
+}
+.pill-nav__item[data-active="true"] {
+  color: var(--primary-foreground);
+}
+.pill-nav__indicator {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-full);
+  background: var(--primary);
+  z-index: -1;
+  transition: transform 360ms var(--ease-spring), width 360ms var(--ease-spring);
+}
+
+/* ---- button shine sweep ---- */
+.btn-shine {
+  position: relative;
+  overflow: hidden;
+}
+.btn-shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 35%,
+    color-mix(in oklab, white 22%, transparent) 47%,
+    transparent 53%
+  );
+  transform: translateX(-120%);
+  transition: transform 520ms var(--ease-out-quart);
+}
+.btn-shine:hover::after {
+  transform: translateX(120%);
+}
+
+/* ---- watermarks ---- */
+.watermark {
+  pointer-events: none;
+  user-select: none;
+  position: absolute;
+  font-family: var(--font-heading);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: color-mix(in oklab, var(--color-brand) 8%, transparent);
+  text-transform: uppercase;
+  white-space: nowrap;
+  z-index: 0;
+}
+.dark .watermark {
+  color: color-mix(in oklab, var(--color-gold) 8%, transparent);
+}
+.watermark-grid {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(
+    circle at center,
+    color-mix(in oklab, var(--color-gold) 10%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: 28px 28px;
+  mask-image: radial-gradient(ellipse at center, black 0%, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse at center, black 0%, transparent 70%);
+  opacity: 0.35;
+}
+
+/* ---- scroll reveal ---- */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 0.55s var(--ease-out-quart),
+    transform 0.55s var(--ease-spring);
+}
+.reveal-visible {
+  opacity: 1;
+  transform: none;
+}
+.reveal-left {
+  opacity: 0;
+  transform: translateX(-24px);
+  transition:
+    opacity 0.55s var(--ease-out-quart),
+    transform 0.55s var(--ease-spring);
+}
+.reveal-right {
+  opacity: 0;
+  transform: translateX(24px);
+  transition:
+    opacity 0.55s var(--ease-out-quart),
+    transform 0.55s var(--ease-spring);
+}
+.reveal-scale {
+  opacity: 0;
+  transform: scale(0.96);
+  transition:
+    opacity 0.5s var(--ease-out-quart),
+    transform 0.5s var(--ease-spring);
+}
+.reveal-left.reveal-visible,
+.reveal-right.reveal-visible,
+.reveal-scale.reveal-visible {
+  opacity: 1;
+  transform: none;
 }
 
 /* ---- signature keyframes ---- */
@@ -105,11 +281,58 @@ h2 {
 @keyframes slide-up {
   from {
     opacity: 0;
-    transform: translateY(0.5rem);
+    transform: translateY(0.6rem);
   }
   to {
     opacity: 1;
     transform: none;
+  }
+}
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes reveal-3d {
+  from {
+    opacity: 0;
+    transform: perspective(1200px) rotateX(10deg) translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes float-mark {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-6deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(-4deg);
+  }
+}
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
   }
 }
 
@@ -129,7 +352,7 @@ html.theme-reveal::view-transition-old(root) {
   }
 }
 
-/* ---- reduced-motion kill-switch (four-layer strategy starts here) ---- */
+/* ---- reduced-motion kill-switch ---- */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -138,6 +361,13 @@ html.theme-reveal::view-transition-old(root) {
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
+  }
+  .reveal,
+  .reveal-left,
+  .reveal-right,
+  .reveal-scale {
+    opacity: 1;
+    transform: none;
   }
   html.theme-reveal::view-transition-new(root) {
     animation: none;

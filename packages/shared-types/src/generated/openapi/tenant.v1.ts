@@ -32,10 +32,12 @@ export type paths = {
         get: operations["getTenant"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Delete a tenant (platform super admin only) */
+        delete: operations["deleteTenant"];
         options?: never;
         head?: never;
-        patch?: never;
+        /** Update a tenant (platform super admin only) */
+        patch: operations["updateTenant"];
         trace?: never;
     };
     "/tenants/{code}/branding": {
@@ -55,6 +57,26 @@ export type paths = {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/tenants/{code}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: components["parameters"]["TenantCode"];
+            };
+            cookie?: never;
+        };
+        /** Tenant operational settings */
+        get: operations["getSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update tenant operational settings */
+        patch: operations["updateSettings"];
         trace?: never;
     };
     "/tenants/resolve": {
@@ -156,6 +178,16 @@ export type components = {
             plan?: "starter" | "growth" | "professional" | "ai_plus" | "enterprise";
             branding?: components["schemas"]["Branding"];
         };
+        TenantUpdate: {
+            name?: string;
+            short?: string | null;
+            /** @enum {string} */
+            status?: "active" | "suspended" | "onboarding";
+            domain?: string | null;
+            /** @enum {string} */
+            plan?: "starter" | "growth" | "professional" | "ai_plus" | "enterprise";
+            branding?: components["schemas"]["Branding"];
+        };
         Branding: {
             logo_url?: string | null;
             brand?: {
@@ -163,6 +195,17 @@ export type components = {
                 primary?: string;
                 secondary?: string | null;
             };
+        };
+        Settings: {
+            /** @example en-GH */
+            locale?: string;
+            /** @example Africa/Accra */
+            timezone?: string;
+            /** @example DD/MM/YYYY */
+            date_format?: string;
+            academic_year_start_month?: number;
+            /** Format: email */
+            primary_contact_email?: string | null;
         };
         FeatureFlag: {
             /** @example ai_recommendations */
@@ -304,6 +347,69 @@ export interface operations {
             };
         };
     };
+    deleteTenant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: components["parameters"]["TenantCode"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateTenant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: components["parameters"]["TenantCode"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TenantUpdate"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tenant"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: components["responses"]["ValidationError"];
+        };
+    };
     getBranding: {
         parameters: {
             query?: never;
@@ -331,6 +437,71 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    getSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: components["parameters"]["TenantCode"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Settings"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: components["parameters"]["TenantCode"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Settings"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Settings"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: components["responses"]["ValidationError"];
         };
     };
     resolveTenant: {

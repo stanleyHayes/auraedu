@@ -1,6 +1,5 @@
-/* AuraEDU design tokens — "Chalkboard & Register" (BRAND.md). Tailwind v4 @theme layer.
-   Values are hex for exactness across web + the mobile mirror (packages/tokens src/index.ts).
-   Fonts are wired by the app via next/font CSS variables. */
+/* AuraEDU design tokens — "Navy, Maroon & Parchment".
+   Tailwind v4 @theme layer. Hex values mirror packages/tokens/src/index.ts for mobile. */
 @import "tailwindcss";
 
 @theme {
@@ -22,36 +21,55 @@
   /* ---- radii ---- */
   --radius-sm: 5px;
   --radius-md: 8px;
-  --radius-lg: 11px;
+  --radius-lg: 12px;
   --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-full: 9999px;
 
-  /* ---- brand slots — DEFAULT = red marking pen; tenants override --color-brand ---- */
-  --color-brand: #c6402f;
-  --color-brand-deep: #9a2e20;
+  /* ---- brand slots — DEFAULT = deep maroon; tenants override --color-brand ---- */
+  --color-brand: #7b1113;
+  --color-brand-deep: #4a0a0c;
   --color-brand-tint: #f3ded9;
   --color-brand-contrast: #ffffff;
+  --color-brand-secondary: #001b50;
 
-  /* ---- chalkboard-green ink neutrals (text + dark surfaces) ---- */
-  --color-ink-950: #16241d;
-  --color-ink-900: #1d2f27;
-  --color-ink-800: #24382f;
-  --color-ink-600: #48594f;
-  --color-ink-400: #7c8b82;
-  --color-ink-200: #a6b2aa;
+  /* ---- accent palette borrowed from NADAA / UPOSA / xtiitch ---- */
+  --color-navy: #001b50;
+  --color-navy-soft: #002870;
+  --color-navy-muted: #1e3a66;
+  --color-gold: #c58b2c;
+  --color-gold-soft: #d4af37;
+  --color-gold-muted: #e8d5a3;
+  --color-cream: #fdfcf7;
+  --color-parchment: #f7f5ee;
+  --color-wine: #800020;
+  --color-burgundy: #6b0f1a;
+  --color-oxblood: #4a0404;
+  --color-forest: #1e7d52;
 
-  /* ---- cool chalk paper neutrals (light surfaces) ---- */
-  --color-paper-50: #f4f5f1;
-  --color-paper-100: #fbfcf9;
-  --color-paper-200: #eff1eb;
-  --color-paper-300: #dce0d8;
-  --color-paper-400: #cbd1c6;
+  /* ---- warm ink neutrals ---- */
+  --color-ink-950: #15111a;
+  --color-ink-900: #1f1c18;
+  --color-ink-800: #2a2722;
+  --color-ink-700: #3d3831;
+  --color-ink-600: #56514a;
+  --color-ink-400: #8a837a;
+  --color-ink-200: #bfb8ad;
 
-  /* ---- status (kept distinct from the brand accent) ---- */
-  --color-ok: #2f7d53;
-  --color-warn: #a9781f;
-  --color-crit: #c6402f;
-  --color-gold: #a9781f;
+  /* ---- parchment paper neutrals ---- */
+  --color-paper-50: #fdfcf7;
+  --color-paper-100: #ffffff;
+  --color-paper-200: #f5f3ec;
+  --color-paper-300: #e8e4da;
+  --color-paper-400: #d6d1c4;
+
+  /* ---- status ---- */
+  --color-ok: #1e7d52;
+  --color-warn: #b5740b;
+  --color-crit: #b42318;
 
   /* ---- motion ---- */
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-elastic: cubic-bezier(0.68, -0.55, 0.265, 1.55);
 }

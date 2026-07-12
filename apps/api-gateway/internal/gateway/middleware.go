@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -144,37 +143,38 @@ func (b *Builder) allowOrigin(origin string) bool {
 
 func (b *Builder) auth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token, hasToken := bearerToken(r)
 		if b.skipAuth(r) {
+			if hasToken {
+				next.ServeHTTP(w, r.WithContext(b.actorContext(r, token)))
+				return
+			}
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		token, ok := bearerToken(r)
-		if !ok {
+		if !hasToken {
 			writeJSONError(w, http.StatusUnauthorized, "unauthorized", "missing or invalid authorization header")
 			return
 		}
 
-		claims, err := auth.Verify(token, b.Config.SigningKey, time.Now())
-		if err != nil {
-			if errors.Is(err, auth.ErrExpiredToken) {
-				writeJSONError(w, http.StatusUnauthorized, "token_expired", "token expired")
-			} else {
-				writeJSONError(w, http.StatusUnauthorized, "unauthorized", "invalid token")
-			}
-			return
-		}
-
-		actor := claims.Actor()
-		actorCtx := WithActor(r.Context(), ActorContext{
-			UserID:      actor.UserID,
-			Role:        actor.Role,
-			Permissions: strings.Join(actor.Permissions, ", "),
-			Platform:    actor.PlatformAdmin,
-		})
-		actorCtx = auth.WithActor(actorCtx, actor)
-		next.ServeHTTP(w, r.WithContext(actorCtx))
+		next.ServeHTTP(w, r.WithContext(b.actorContext(r, token)))
 	})
+}
+
+func (b *Builder) actorContext(r *http.Request, token string) context.Context {
+	claims, err := auth.Verify(token, b.Config.SigningKey, time.Now())
+	if err != nil {
+		return r.Context()
+	}
+	actor := claims.Actor()
+	actorCtx := WithActor(r.Context(), ActorContext{
+		UserID:      actor.UserID,
+		Role:        actor.Role,
+		Permissions: strings.Join(actor.Permissions, ", "),
+		Platform:    actor.PlatformAdmin,
+	})
+	return auth.WithActor(actorCtx, actor)
 }
 
 func (b *Builder) permission(next http.Handler) http.Handler {

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { User, ChevronRight } from "lucide-react";
 import { cn } from "../lib/cn";
 
 export interface UserMenuItem {
@@ -29,7 +30,14 @@ function MenuRow({ item }: { item: UserMenuItem }) {
   const content = (
     <>
       {item.icon ? (
-        <span className="mt-0.5 size-4 shrink-0 text-muted-foreground">{item.icon}</span>
+        <span
+          className={cn(
+            "mt-0.5 size-4 shrink-0",
+            item.destructive ? "text-[var(--color-crit)]" : "text-[var(--color-gold)]",
+          )}
+        >
+          {item.icon}
+        </span>
       ) : null}
       <span className="flex min-w-0 flex-col">
         <span
@@ -46,11 +54,12 @@ function MenuRow({ item }: { item: UserMenuItem }) {
           </span>
         ) : null}
       </span>
+      <ChevronRight className="ml-auto size-4 shrink-0 text-[var(--muted-foreground)] opacity-0 transition-opacity group-hover:opacity-100" />
     </>
   );
 
   const classes = cn(
-    "flex w-full items-start gap-3 rounded-[var(--radius-sm)] p-3 text-left transition-colors",
+    "group flex w-full items-start gap-3 rounded-[var(--radius-sm)] p-3 text-left transition-colors",
     "hover:bg-[var(--muted)] focus-visible:bg-[var(--muted)] focus-visible:outline-none",
     item.destructive && "hover:bg-[color-mix(in_oklab,var(--color-crit)_8%,var(--muted))]",
   );
@@ -70,7 +79,7 @@ function MenuRow({ item }: { item: UserMenuItem }) {
   );
 }
 
-/** User avatar + dropdown with rich icon/title/description rows (DESIGN_SYSTEM §8). */
+/** User avatar + mega-menu dropdown with rich icon/title/description rows. */
 export function UserMenu({ user, items = [], align = "end", className }: UserMenuProps) {
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
@@ -110,7 +119,10 @@ export function UserMenu({ user, items = [], align = "end", className }: UserMen
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Account menu"
-        className="grid size-9 place-items-center rounded-full border border-[var(--border)] bg-[var(--accent)] font-sans text-sm font-extrabold text-[var(--primary)] transition-colors hover:brightness-95"
+        className={cn(
+          "grid size-10 place-items-center overflow-hidden rounded-full border-2 border-[var(--color-gold)]/30 bg-gradient-to-br from-[var(--color-brand)] to-[var(--color-burgundy)]",
+          "font-sans text-sm font-extrabold text-white shadow-sm transition-transform hover:scale-105",
+        )}
       >
         {initials}
       </button>
@@ -118,33 +130,45 @@ export function UserMenu({ user, items = [], align = "end", className }: UserMen
         <div
           role="menu"
           className={cn(
-            "absolute top-full z-[220] mt-2 w-72 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-2 shadow-lg",
+            "absolute top-full z-[220] mt-2 w-80 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] p-2 shadow-xl",
             "motion-safe:animate-[slide-up_180ms_var(--ease-out-quart)]",
             align === "end" ? "right-0" : "left-0",
           )}
         >
           {user ? (
-            <div className="px-3 py-2">
-              <p className="truncate text-sm font-semibold text-[var(--foreground)]">
-                {user.name ?? "Account"}
-              </p>
-              {user.email ? (
-                <p className="truncate text-xs text-[var(--muted-foreground)]">{user.email}</p>
-              ) : null}
-              {user.role ? (
-                <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
-                  {user.role}
+            <div className="flex items-start gap-3 px-3 py-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[var(--color-brand)] to-[var(--color-burgundy)] font-sans text-sm font-extrabold text-white">
+                {initials}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-[var(--foreground)]">
+                  {user.name ?? "Account"}
                 </p>
-              ) : null}
+                {user.email ? (
+                  <p className="truncate text-xs text-[var(--muted-foreground)]">{user.email}</p>
+                ) : null}
+                {user.role ? (
+                  <p className="mt-1 inline-block rounded-full bg-[var(--color-gold)]/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--color-gold)]">
+                    {user.role}
+                  </p>
+                ) : null}
+              </div>
             </div>
           ) : null}
           {user && items.length > 0 ? <div className="my-1 h-px bg-[var(--border)]" /> : null}
           <div className="space-y-0.5">
-            {items.map((item) => (
-              <div key={item.id} role="menuitem">
-                <MenuRow item={item} />
+            {items.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">
+                <User className="mb-1 size-4" />
+                Account options will appear here.
               </div>
-            ))}
+            ) : (
+              items.map((item) => (
+                <div key={item.id} role="menuitem">
+                  <MenuRow item={item} />
+                </div>
+              ))
+            )}
           </div>
         </div>
       ) : null}

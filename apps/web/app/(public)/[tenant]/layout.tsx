@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { TenantData } from "@/lib/tenant";
 import { fetchTenantBranding } from "@/lib/tenant";
 import { fetchWebsitePages, type WebsitePage } from "@/lib/website";
+import { PillNav, Watermark } from "@auraedu/ui";
 
 interface PublicLayoutProps {
   children: React.ReactNode;
@@ -47,10 +48,22 @@ function PublicShell({
     "--color-brand-secondary": secondary ?? primary,
   } as React.CSSProperties;
 
+  const homeHref = `/${tenantCode}`;
+  const navItems = navPages.map((page) => ({
+    id: page.id,
+    label: page.title,
+    href: page.slug === "home" ? homeHref : `/${tenantCode}/${page.slug}`,
+  }));
+
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground" style={themeStyle}>
-      <PublicHeader tenant={tenant} tenantCode={tenantCode} pages={navPages} />
-      <main className="flex-1">{children}</main>
+    <div className="relative flex min-h-screen flex-col bg-background text-foreground" style={themeStyle}>
+      <PublicHeader tenant={tenant} tenantCode={tenantCode} navItems={navItems} />
+      <main className="relative flex-1 overflow-hidden">
+        <Watermark className="pointer-events-none absolute left-1/2 top-24 -translate-x-1/2 text-[14rem] opacity-[0.025]">
+          {tenant.short}
+        </Watermark>
+        {children}
+      </main>
       <PublicFooter tenant={tenant} />
     </div>
   );
@@ -59,16 +72,16 @@ function PublicShell({
 function PublicHeader({
   tenant,
   tenantCode,
-  pages,
+  navItems,
 }: {
   tenant: TenantData;
   tenantCode: string;
-  pages: WebsitePage[];
+  navItems: { id: string; label: string; href: string }[];
 }) {
   const homeHref = `/${tenantCode}`;
 
   return (
-    <header className="sticky top-0 z-30 border-b border-[var(--border)] bg-background/95 backdrop-blur-sm">
+    <header className="sticky top-0 z-30 border-b border-[var(--border)] bg-background/90 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <Link href={homeHref} className="flex items-center gap-3">
           {tenant.branding.logo_url ? (
@@ -87,46 +100,33 @@ function PublicHeader({
           </span>
         </Link>
 
-        {pages.length > 0 ? (
-          <nav aria-label="School website">
-            <ul className="hidden items-center gap-1 md:flex">
-              {pages.map((page) => (
-                <li key={page.id}>
-                  <PublicNavLink tenantCode={tenantCode} page={page} />
-                </li>
-              ))}
-            </ul>
+        {navItems.length > 0 ? (
+          <nav aria-label="School website" className="hidden md:block">
+            <PillNav items={navItems} />
           </nav>
         ) : null}
       </div>
 
-      {pages.length > 0 ? (
+      {navItems.length > 0 ? (
         <nav
           aria-label="School website mobile"
           className="border-t border-[var(--border)] md:hidden"
         >
           <ul className="flex items-center gap-4 overflow-x-auto px-6 py-3">
-            {pages.map((page) => (
+            {navItems.map((page) => (
               <li key={page.id} className="shrink-0">
-                <PublicNavLink tenantCode={tenantCode} page={page} />
+                <a
+                  href={page.href}
+                  className="rounded-[var(--radius-sm)] px-3 py-2 text-sm font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+                >
+                  {page.label}
+                </a>
               </li>
             ))}
           </ul>
         </nav>
       ) : null}
     </header>
-  );
-}
-
-function PublicNavLink({ tenantCode, page }: { tenantCode: string; page: WebsitePage }) {
-  const href = page.slug === "home" ? `/${tenantCode}` : `/${tenantCode}/${page.slug}`;
-  return (
-    <Link
-      href={href}
-      className="rounded-[var(--radius-sm)] px-3 py-2 text-sm font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
-    >
-      {page.title}
-    </Link>
   );
 }
 

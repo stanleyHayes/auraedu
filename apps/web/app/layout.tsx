@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
 import { Fraunces, Outfit, Spline_Sans_Mono } from "next/font/google";
 import { headers } from "next/headers";
+import { notFound } from "next/navigation";
 import { FeatureFlagsProvider, type FeatureSnapshot } from "@auraedu/flags";
-import { getTenantCodeFromHeaders, fetchTenantBranding, toFeatureSnapshot } from "@/lib/tenant";
+import {
+  getTenantCodeFromHeaders,
+  isTenantNotFound,
+  fetchTenantBranding,
+  toFeatureSnapshot,
+} from "@/lib/tenant";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -35,7 +41,18 @@ const bootScript = `(function(){try{var r=document.documentElement;var m=localSt
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const requestHeaders = await headers();
   const tenantCode = getTenantCodeFromHeaders(requestHeaders);
-  const tenant = await fetchTenantBranding(tenantCode);
+
+  if (!tenantCode || isTenantNotFound(requestHeaders)) {
+    notFound();
+  }
+
+  let tenant;
+  try {
+    tenant = await fetchTenantBranding(tenantCode);
+  } catch {
+    notFound();
+  }
+
   const snapshot: FeatureSnapshot = toFeatureSnapshot(tenant);
 
   const brand = tenant.branding.brand.primary;

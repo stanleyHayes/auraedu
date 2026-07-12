@@ -4,11 +4,13 @@ import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cn } from "../lib/cn";
 
-export type ButtonVariant = "primary" | "secondary" | "ghost";
+export type ButtonVariant = "primary" | "secondary" | "ghost" | "gold" | "navy";
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
-  /** Shows the three-dot wave loader (DESIGN_SYSTEM §12) and sets aria-busy. */
+  /** Pill-shaped button. */
+  pill?: boolean;
+  /** Shows the three-dot wave loader and sets aria-busy. */
   loading?: boolean;
   /** Announced to assistive tech while loading. */
   loadingLabel?: string;
@@ -17,19 +19,27 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 }
 
 const base =
-  "relative inline-flex h-10 items-center justify-center gap-2 rounded-[var(--radius-sm)] px-4 " +
-  "text-sm font-bold transition-[transform,background-color,border-color] duration-150 " +
+  "relative inline-flex h-10 items-center justify-center gap-2 px-4 " +
+  "text-sm font-bold transition-[transform,background-color,border-color,box-shadow] duration-150 " +
   "hover:-translate-y-px disabled:pointer-events-none disabled:opacity-60 " +
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]";
 
 const variants: Record<ButtonVariant, string> = {
-  primary: "bg-[var(--primary)] text-[var(--primary-foreground)] hover:brightness-95",
+  primary:
+    "bg-gradient-to-r from-[var(--color-brand)] via-[color-mix(in_oklab,var(--color-brand)_85%,var(--color-gold))] to-[var(--color-brand)] " +
+    "text-[var(--primary-foreground)] shadow-md shadow-[color-mix(in_oklab,var(--color-brand)_18%,transparent)] hover:brightness-105",
   secondary:
-    "border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--muted)]",
+    "border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--muted)] hover:border-[var(--color-gold)]/50",
   ghost: "text-[var(--foreground)] hover:bg-[var(--muted)]",
+  gold:
+    "bg-gradient-to-r from-[var(--color-gold)] to-[color-mix(in_oklab,var(--color-gold)_80%,#fff)] " +
+    "text-[var(--color-navy)] shadow-md shadow-[color-mix(in_oklab,var(--color-gold)_18%,transparent)] hover:brightness-105",
+  navy:
+    "bg-gradient-to-r from-[var(--color-navy)] to-[var(--color-navy-soft)] " +
+    "text-[var(--color-cream)] shadow-md shadow-[color-mix(in_oklab,var(--color-navy)_18%,transparent)] hover:brightness-105",
 };
 
-/** Wave-dot loader — three dots rise in sequence; width stays stable (DESIGN_SYSTEM §12). */
+/** Wave-dot loader — three dots rise in sequence; width stays stable. */
 function Wave({ label }: { label: string }) {
   return (
     <span
@@ -54,6 +64,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
   {
     className,
     variant = "primary",
+    pill = false,
     loading = false,
     loadingLabel = "Working",
     asChild = false,
@@ -67,7 +78,16 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
   return (
     <Comp
       ref={ref}
-      className={cn(base, variants[variant], className)}
+      className={cn(
+        base,
+        variants[variant],
+        pill && "rounded-full",
+        !pill && "rounded-[var(--radius-sm)]",
+        variant === "primary" && "btn-shine",
+        variant === "gold" && "btn-shine",
+        variant === "navy" && "btn-shine",
+        className,
+      )}
       aria-busy={loading || undefined}
       disabled={asChild ? undefined : disabled ? true : loading}
       {...props}
@@ -84,4 +104,4 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
       )}
     </Comp>
   );
-});
+})

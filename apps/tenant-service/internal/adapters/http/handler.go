@@ -93,11 +93,7 @@ func (h *Handler) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"tenant_code": t.Code,
-		"name":        t.Name,
-		"status":      t.Status,
-	})
+	writeJSON(w, http.StatusOK, t)
 }
 
 func (h *Handler) getTenant(w http.ResponseWriter, r *http.Request) {

@@ -18,6 +18,11 @@ type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+// LogoutRequest generated from OpenAPI schema.
+type LogoutRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
 // TokenPair generated from OpenAPI schema.
 type TokenPair struct {
 	AccessToken  string  `json:"access_token"`
@@ -83,6 +88,7 @@ type RoleList struct {
 type ServerInterface interface {
 	login(w http.ResponseWriter, r *http.Request)
 	refreshToken(w http.ResponseWriter, r *http.Request)
+	logout(w http.ResponseWriter, r *http.Request)
 	revokeSession(w http.ResponseWriter, r *http.Request)
 	listUsers(w http.ResponseWriter, r *http.Request)
 	createUser(w http.ResponseWriter, r *http.Request)
@@ -96,6 +102,7 @@ type ServerInterface interface {
 type ClientInterface interface {
 	login(ctx context.Context) (*http.Response, error)
 	refreshToken(ctx context.Context) (*http.Response, error)
+	logout(ctx context.Context) (*http.Response, error)
 	revokeSession(ctx context.Context) (*http.Response, error)
 	listUsers(ctx context.Context) (*http.Response, error)
 	createUser(ctx context.Context) (*http.Response, error)

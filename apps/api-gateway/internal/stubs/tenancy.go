@@ -40,8 +40,12 @@ func (r *TenantResolver) Resolve(ctx context.Context, req *http.Request) (Tenant
 	}
 	host = strings.ToLower(host)
 
-	if header := strings.TrimSpace(req.Header.Get("X-Tenant-ID")); header != "" {
-		key := strings.ToLower(header)
+	tenantHeader := strings.TrimSpace(req.Header.Get("X-Tenant-ID"))
+	if tenantHeader == "" {
+		tenantHeader = strings.TrimSpace(req.Header.Get("X-Tenant-Code"))
+	}
+	if tenantHeader != "" {
+		key := strings.ToLower(tenantHeader)
 		if t := r.lookupStatic(key); t.ID != "" {
 			return t, nil
 		}

@@ -137,14 +137,14 @@ export const ADMIN_NAV: NavGroupDef[] = [
     heading: "Finance",
     items: [
       { label: "Fees", href: "/admin/fees", feature: "fees" },
-      { label: "Payments", href: "/admin/payments", feature: "payments" },
+      { label: "Payments", href: "/admin/payments", feature: "online_payments" },
     ],
   },
   {
     heading: "School",
     items: [
-      { label: "Communications", href: "/admin/communications", feature: "communications" },
-      { label: "Website", href: "/admin/website", feature: "website" },
+      { label: "Communications", href: "/admin/communications", feature: "announcements" },
+      { label: "Website", href: "/admin/website", feature: "public_website" },
       { label: "Settings", href: "/admin/settings", feature: "settings" },
     ],
   },
@@ -162,7 +162,7 @@ export const STUDENT_NAV: NavGroupDef[] = [
       { label: "Assignments", href: "/student/assignments", feature: "assignments" },
       { label: "Results", href: "/student/results", feature: "assessments" },
       { label: "Report Card", href: "/student/report-card", feature: "report_cards" },
-      { label: "CBT Exams", href: "/student/cbt-exams", feature: "cbt" },
+      { label: "CBT Exams", href: "/student/cbt-exams", feature: "cbt_exams" },
     ],
   },
   {
@@ -194,21 +194,23 @@ export const PARENT_NAV: NavGroupDef[] = [
     heading: "Finance",
     items: [
       { label: "Fees", href: "/parent/fees", feature: "fees" },
-      { label: "Payments", href: "/parent/payments", feature: "payments" },
+      { label: "Payments", href: "/parent/payments", feature: "online_payments" },
     ],
   },
   {
     heading: "School",
     items: [
-      { label: "Notifications", href: "/parent/notifications", feature: "communications" },
-      { label: "Guidance", href: "/parent/guidance", feature: "guidance" },
+      { label: "Notifications", href: "/parent/notifications", feature: "announcements" },
+      { label: "Guidance", href: "/parent/guidance", feature: "career_guidance" },
     ],
   },
 ];
 
+export const TENANT_NOT_FOUND_HEADER = "x-tenant-not-found";
+
 export function resolveTenantFromHost(host: string): string {
   const [name] = host.split(":");
-  if (!name) return DEFAULT_CODE;
+  if (!name) return "";
 
   const lower = name.toLowerCase();
   if (lower === "localhost" || lower === "auraedu.com" || lower === "www.auraedu.com") {
@@ -217,10 +219,10 @@ export function resolveTenantFromHost(host: string): string {
 
   if (lower.endsWith(".localhost") || lower.endsWith(".auraedu.com")) {
     const code = lower.split(".")[0] ?? "";
-    return code.length > 0 ? code : DEFAULT_CODE;
+    return code.length > 0 ? code : "";
   }
 
-  return DEFAULT_CODE;
+  return "";
 }
 
 export function getTenantCodeFromHeaders(headers: Headers): string {
@@ -229,53 +231,64 @@ export function getTenantCodeFromHeaders(headers: Headers): string {
   return headerCode ?? resolveTenantFromHost(host);
 }
 
-export async function fetchTenant(code: string): Promise<TenantData> {
-  const res = await fetch(`/api/tenant/${code}`, { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`tenant ${code} failed to load`);
-  }
-  const json = (await res.json()) as {
-    tenant: { tenant_code: string; name: string; short: string; plan: string; branding: Branding };
-    features: FeatureFlag[];
-  };
+export function isTenantNotFound(headers: Headers): boolean {
+  return headers.get(TENANT_NOT_FOUND_HEADER) === "1";
+}
+
+interface ResolvedTenant {
+  tenant_code: string;
+  name: string;
+  short: string;
+  status: string;
+  plan: string;
+  branding: Branding;
+}
+
+interface FeatureResponse {
+  tenant_code: string;
+  features: FeatureFlag[];
+}
+
+function tenantHeaders(code: string): HeadersInit {
   return {
-    code: json.tenant.tenant_code,
-    name: json.tenant.name,
-    short: json.tenant.short,
-    plan: json.tenant.plan,
-    branding: json.tenant.branding,
-    features: json.features,
+    [tenantHeaderName]: code,
+    "X-Tenant-ID": code,
   };
 }
 
 export async function fetchTenantBranding(code: string): Promise<TenantData> {
-  try {
-    const res = await fetch(
-      `${publicApiUrl}/api/v1/tenant/branding?tenant=${encodeURIComponent(code)}`,
-      {
-        headers: { [tenantHeaderName]: code },
-        next: { revalidate: 60 },
-      },
-    );
-    if (!res.ok) throw new Error(`branding fetch failed: ${res.status}`);
-    const data = (await res.json()) as TenantData;
-    return data;
-  } catch {
-    return makeFallbackTenant(code);
+  if (!code) {
+    throw new Error("tenant code is required");
   }
-}
 
-export function makeFallbackTenant(code: string): TenantData {
-  const known = SWITCHER.find((s) => s.code === code);
+  const headers = tenantHeaders(code);
+  const encoded = encodeURIComponent(code);
+
+  const [resolveRes, featuresRes] = await Promise.all([
+    fetch(`${publicApiUrl}/api/v1/tenants/resolve?subdomain=${encoded}`, {
+      headers,
+      next: { revalidate: 60 },
+    }),
+    fetch(`${publicApiUrl}/api/v1/features?tenant=${encoded}`, {
+      headers,
+      next: { revalidate: 60 },
+    }),
+  ]);
+
+  if (!resolveRes.ok) {
+    throw new Error(`tenant ${code} not found`);
+  }
+
+  const resolved = (await resolveRes.json()) as ResolvedTenant;
+  const featureBody = featuresRes.ok ? ((await featuresRes.json()) as FeatureResponse) : { features: [] as FeatureFlag[] };
+
   return {
-    code,
-    name: known?.short ?? code,
-    short: known?.short ?? code,
-    plan: "starter",
-    branding: {
-      brand: { primary: known?.swatch ?? DEFAULT_BRAND },
-    },
-    features: [],
+    code: resolved.tenant_code,
+    name: resolved.name,
+    short: resolved.short,
+    plan: resolved.plan,
+    branding: resolved.branding,
+    features: featureBody.features,
   };
 }
 

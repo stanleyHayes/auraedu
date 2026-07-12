@@ -10,10 +10,10 @@ import (
 	"testing"
 )
 
-func TestProxyStripsPrefixAndForwardsHeaders(t *testing.T) {
+func TestProxyPreservesPathAndForwardsHeaders(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/123" {
-			t.Errorf("upstream path: got %q, want %q", r.URL.Path, "/123")
+		if r.URL.Path != "/api/v1/students/123" {
+			t.Errorf("upstream path: got %q, want %q", r.URL.Path, "/api/v1/students/123")
 		}
 		w.Header().Set("X-Upstream", "ok")
 		w.WriteHeader(http.StatusOK)

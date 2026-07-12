@@ -4,15 +4,23 @@ import { GraduationCap } from "lucide-react";
 import { TeacherShell } from "@/components/teacher-shell";
 import { fetchTenantBranding, getTenantCodeFromHeaders, TEACHER_NAV } from "@/lib/tenant";
 import { requireAuth, isTeacher } from "@/lib/auth";
+import { checkRouteFeature } from "@/lib/features";
+import { FeatureDisabled } from "@auraedu/flags";
 
 export default async function TeacherLayout({ children }: { children: React.ReactNode }) {
   const requestHeaders = await headers();
   const tenantCode = getTenantCodeFromHeaders(requestHeaders);
+  const pathname = requestHeaders.get("x-pathname") ?? "";
 
   const [tenant, session] = await Promise.all([
     fetchTenantBranding(tenantCode),
     requireAuth().catch(() => null),
   ]);
+
+  const routeFeature = checkRouteFeature(pathname, tenant.features);
+  const guardedChildren = routeFeature.enabled ? children : (
+    <FeatureDisabled feature={routeFeature.feature!} />
+  );
 
   if (!session) {
     redirect("/login");
@@ -48,7 +56,7 @@ export default async function TeacherLayout({ children }: { children: React.Reac
         description: "Attendance, scores, assignments, and class insights.",
       }}
     >
-      {children}
+      {guardedChildren}
     </TeacherShell>
   );
 }

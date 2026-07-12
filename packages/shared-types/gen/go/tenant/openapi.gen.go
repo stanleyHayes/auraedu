@@ -29,6 +29,16 @@ type TenantCreate struct {
 	Branding   *Branding `json:"branding,omitempty"`
 }
 
+// TenantUpdate generated from OpenAPI schema.
+type TenantUpdate struct {
+	Name     *string   `json:"name,omitempty"`
+	Short    *string   `json:"short,omitempty"`
+	Status   *string   `json:"status,omitempty"`
+	Domain   *string   `json:"domain,omitempty"`
+	Plan     *string   `json:"plan,omitempty"`
+	Branding *Branding `json:"branding,omitempty"`
+}
+
 // Branding generated from OpenAPI schema.
 type Branding struct {
 	LogoUrl *string `json:"logo_url,omitempty"`
@@ -36,6 +46,15 @@ type Branding struct {
 		Primary   *string `json:"primary,omitempty"`
 		Secondary *string `json:"secondary,omitempty"`
 	} `json:"brand,omitempty"`
+}
+
+// Settings generated from OpenAPI schema.
+type Settings struct {
+	Locale                 *string `json:"locale,omitempty"`
+	Timezone               *string `json:"timezone,omitempty"`
+	DateFormat             *string `json:"date_format,omitempty"`
+	AcademicYearStartMonth *int    `json:"academic_year_start_month,omitempty"`
+	PrimaryContactEmail    *string `json:"primary_contact_email,omitempty"`
 }
 
 // FeatureFlag generated from OpenAPI schema.
@@ -59,7 +78,11 @@ type ServerInterface interface {
 	listTenants(w http.ResponseWriter, r *http.Request)
 	createTenant(w http.ResponseWriter, r *http.Request)
 	getTenant(w http.ResponseWriter, r *http.Request)
+	updateTenant(w http.ResponseWriter, r *http.Request)
+	deleteTenant(w http.ResponseWriter, r *http.Request)
 	getBranding(w http.ResponseWriter, r *http.Request)
+	getSettings(w http.ResponseWriter, r *http.Request)
+	updateSettings(w http.ResponseWriter, r *http.Request)
 	resolveTenant(w http.ResponseWriter, r *http.Request)
 	getFeatureSnapshot(w http.ResponseWriter, r *http.Request)
 	setFeature(w http.ResponseWriter, r *http.Request)
@@ -71,7 +94,11 @@ type ClientInterface interface {
 	listTenants(ctx context.Context) (*http.Response, error)
 	createTenant(ctx context.Context) (*http.Response, error)
 	getTenant(ctx context.Context) (*http.Response, error)
+	updateTenant(ctx context.Context) (*http.Response, error)
+	deleteTenant(ctx context.Context) (*http.Response, error)
 	getBranding(ctx context.Context) (*http.Response, error)
+	getSettings(ctx context.Context) (*http.Response, error)
+	updateSettings(ctx context.Context) (*http.Response, error)
 	resolveTenant(ctx context.Context) (*http.Response, error)
 	getFeatureSnapshot(ctx context.Context) (*http.Response, error)
 	setFeature(ctx context.Context) (*http.Response, error)

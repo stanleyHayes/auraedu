@@ -40,8 +40,8 @@ export function ThemeToggle({ className }: { className?: string }) {
       aria-pressed={dark}
       aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}
       className={cn(
-        "grid size-10 place-items-center rounded-[var(--radius-sm)] border border-[var(--border)]",
-        "bg-[var(--surface)] text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]",
+        "grid size-10 place-items-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)]",
+        "transition-all hover:bg-[var(--muted)] hover:rotate-12",
         className,
       )}
     >

@@ -163,7 +163,7 @@ async function generateIndexFiles(): Promise<void> {
 }
 
 async function writeGoMod(): Promise<void> {
-  const mod = `module github.com/stanleyHayes/auraedu/packages/shared-types/gen/go\n\ngo 1.25\n`;
+  const mod = `module github.com/stanleyHayes/auraedu/packages/shared-types/gen/go\n\ngo 1.26\n`;
   await fs.writeFile(path.join(GO_OUT, "go.mod"), mod, "utf8");
 }
 

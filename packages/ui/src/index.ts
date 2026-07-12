@@ -21,3 +21,8 @@ export { Sheet, type SheetProps } from "./components/sheet";
 export { Input, type InputProps } from "./components/input";
 export { Label, type LabelProps } from "./components/label";
 export { Select, type SelectProps } from "./components/select";
+export { Watermark, type WatermarkProps } from "./components/watermark";
+export { Reveal, type RevealProps, type RevealVariant } from "./components/reveal";
+export { PillNav, type PillNavProps, type PillNavItem } from "./components/pill-nav";
+export { AdminDropdown, type AdminDropdownProps, type AdminDropdownItem } from "./components/admin-dropdown";
+export { NotificationBell, type NotificationBellProps } from "./components/notification-bell";

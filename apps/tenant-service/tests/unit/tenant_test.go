@@ -59,6 +59,21 @@ func TestGetTenantTenantScope(t *testing.T) {
 	}
 }
 
+func TestFeaturesIsPublicForResolvedTenant(t *testing.T) {
+	svc := newSvc()
+	fs, err := svc.Features(ctx, anon, "upshs")
+	if err != nil {
+		t.Fatalf("public feature snapshot should succeed: %v", err)
+	}
+	if len(fs) == 0 {
+		t.Fatal("public feature snapshot should return flags")
+	}
+	// Unknown tenants still 404 even for public callers.
+	if _, err := svc.Features(ctx, anon, "no-such-school"); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("unknown tenant should be not found, got %v", err)
+	}
+}
+
 func TestFeaturesTenantScope(t *testing.T) {
 	svc := newSvc()
 	if _, err := svc.Features(ctx, upshsUser, ""); !errors.Is(err, domain.ErrNoTenant) {

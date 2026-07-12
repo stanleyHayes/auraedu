@@ -90,6 +90,7 @@ paths:
       operationId: getBranding
       tags: [tenants]
       summary: Public branding for a tenant
+      security: []
       responses:
         '200':
           description: OK
@@ -131,6 +132,7 @@ paths:
       operationId: resolveTenant
       tags: [tenants]
       summary: Resolve tenant by domain or subdomain
+      security: []
       parameters:
         - name: domain
           in: query
@@ -149,6 +151,7 @@ paths:
       operationId: getFeatureSnapshot
       tags: [features]
       summary: Feature-flag snapshot for the resolved tenant (loaded by web/mobile at startup)
+      security: []
       responses:
         '200':
           description: OK

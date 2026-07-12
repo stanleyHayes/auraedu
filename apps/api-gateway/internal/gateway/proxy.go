@@ -24,7 +24,7 @@ func NewReverseProxy(registry ServiceRegistry, log *slog.Logger) (*ReverseProxy,
 			return nil, err
 		}
 		proxy := &httputil.ReverseProxy{
-			Rewrite: rewriteForRoute(rt.Prefix, target),
+			Rewrite: rewriteForRoute(target),
 			Transport: &http.Transport{
 				MaxIdleConns:        100,
 				MaxIdleConnsPerHost: 10,
@@ -60,17 +60,15 @@ func (a ActorContext) HasPermission(permission string) bool {
 	return false
 }
 
-func rewriteForRoute(prefix string, target *url.URL) func(*httputil.ProxyRequest) {
+func rewriteForRoute(target *url.URL) func(*httputil.ProxyRequest) {
 	return func(pr *httputil.ProxyRequest) {
 		pr.SetURL(target)
 		pr.SetXForwarded()
 
-		path := strings.TrimPrefix(pr.In.URL.Path, prefix)
-		if path == "" {
-			path = "/"
-		}
-		pr.Out.URL.Path = path
-		pr.Out.URL.RawPath = ""
+		// Services register the full contract path (e.g., /api/v1/tenants/{code})
+		// and expect the gateway to preserve it, not strip the route prefix.
+		pr.Out.URL.Path = pr.In.URL.Path
+		pr.Out.URL.RawPath = pr.In.URL.RawPath
 		pr.Out.URL.RawQuery = pr.In.URL.RawQuery
 
 		pr.Out.Header.Set("X-Forwarded-Host", pr.In.Host)

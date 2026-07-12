@@ -2,16 +2,24 @@
 
 import * as React from "react";
 import { usePathname } from "next/navigation";
-import { AppSidebar, Sheet, type NavGroup, PageHeader, type PageHeaderProps } from "@auraedu/ui";
+import { AppSidebar, Sheet, type NavGroup, PageHeader, type PageHeaderProps, Watermark } from "@auraedu/ui";
 import { AppTopbar } from "@/components/app-topbar";
 import { NAV, type TenantData, type NavGroupDef } from "@/lib/tenant";
 import { useFeatureSnapshot } from "@auraedu/flags";
 
-function Brand({ tenant }: { tenant?: TenantData }) {
+function Brand({ tenant, className }: { tenant?: TenantData; className?: string }) {
   return (
-    <span className="flex items-center gap-2.5 font-sans text-base font-extrabold tracking-tight">
-      <span className="grid size-6 place-items-center rounded-md bg-foreground" aria-hidden="true">
-        <svg viewBox="0 0 16 12" className="w-3 text-[var(--primary)]">
+    <span
+      className={cn(
+        "flex items-center gap-2.5 font-sans text-base font-extrabold tracking-tight text-[var(--color-cream)]",
+        className,
+      )}
+    >
+      <span
+        className="grid size-7 place-items-center rounded-md bg-gradient-to-br from-[var(--color-gold)] to-[var(--color-gold-soft)] text-[var(--color-navy)] shadow-sm"
+        aria-hidden="true"
+      >
+        <svg viewBox="0 0 16 12" className="w-3">
           <path
             d="M1 6.5 5.2 10.5 15 1"
             fill="none"
@@ -82,7 +90,7 @@ export function PortalShell({
           className="h-full"
         />
       </div>
-      <Sheet open={mobileOpen} onClose={() => setMobileOpen(false)} side="left">
+      <Sheet open={mobileOpen} onClose={() => setMobileOpen(false)} side="left" className="w-60 bg-[var(--color-navy)] p-0" closeButtonClassName="text-[var(--color-cream)] hover:bg-white/10">
         <div className="flex h-full flex-col">
           <div className="px-4 pb-3 pt-4">
             <Brand tenant={tenant} />
@@ -96,7 +104,11 @@ export function PortalShell({
           />
         </div>
       </Sheet>
-      <div className="flex min-w-0 flex-col overflow-hidden">
+      <div className="relative flex min-w-0 flex-col overflow-hidden">
+        {/* ambient watermark behind scrollable content */}
+        <Watermark className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[18rem] opacity-[0.025]">
+          Aura
+        </Watermark>
         <AppTopbar
           currentCode={tenant?.code}
           user={user}
@@ -104,7 +116,7 @@ export function PortalShell({
           onMobileMenuToggle={() => setMobileOpen(true)}
           showMobileMenu={showMobileMenu}
         />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="relative z-10 flex-1 overflow-y-auto p-6">
           <div className="mx-auto max-w-5xl">
             {page ? (
               <div className="mb-6">
@@ -117,4 +129,8 @@ export function PortalShell({
       </div>
     </div>
   );
+}
+
+function cn(...inputs: (string | false | undefined)[]) {
+  return inputs.filter(Boolean).join(" ");
 }

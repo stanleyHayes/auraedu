@@ -43,7 +43,7 @@ function Tick({ className }: { className?: string }) {
   );
 }
 
-/** Curved file-tree connector from the group trunk into each item (DESIGN_SYSTEM §7.4). */
+/** Curved file-tree connector from the group trunk into each item. */
 function Connector({ last, active }: { last: boolean; active: boolean }) {
   return (
     <svg
@@ -52,7 +52,7 @@ function Connector({ last, active }: { last: boolean; active: boolean }) {
       aria-hidden="true"
       className={cn(
         "absolute left-[18px] top-0 h-full w-5 transition-colors",
-        active ? "text-[var(--primary)]" : "text-[var(--border)]",
+        active ? "text-[var(--color-gold)]" : "text-[var(--color-navy-muted)]",
       )}
     >
       <path
@@ -67,9 +67,8 @@ function Connector({ last, active }: { last: boolean; active: boolean }) {
 }
 
 /**
- * Grouped, collapsible sidebar with curved connectors and a red-tick active
- * marker (DESIGN_SYSTEM §7). Group open/closed state persists; the group
- * containing the active route is always open.
+ * Dark navy command-center sidebar with gold accents, curved connectors,
+ * and collapsible groups. Inspired by NADAA / UPOSA / xtiitch dashboard rails.
  */
 export function AppSidebar({ brand, groups, pathname, onNavigate, className }: AppSidebarProps) {
   const [openState, setOpenState] = React.useState<Record<string, boolean>>({});
@@ -98,13 +97,22 @@ export function AppSidebar({ brand, groups, pathname, onNavigate, className }: A
   return (
     <aside
       className={cn(
-        "flex w-60 flex-col overflow-y-auto border-r border-border bg-[var(--muted)]",
+        "relative flex w-60 flex-col overflow-y-auto border-r border-[var(--color-navy-soft)]",
+        "bg-[var(--color-navy)] text-[var(--color-cream)]",
         className,
       )}
       aria-label="Primary"
     >
-      <div className="px-4 pb-3 pt-4">{brand}</div>
-      <nav className="pb-4">
+      {/* subtle watermark */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-10 top-20 select-none font-heading text-[9rem] font-extrabold leading-none tracking-tighter text-white/[0.03]"
+      >
+        A
+      </span>
+
+      <div className="relative z-10 px-4 pb-3 pt-4">{brand}</div>
+      <nav className="relative z-10 pb-4">
         {groups.map((group) => {
           const hasActive = group.items.some((i) => isActive(pathname, i.href));
           const isOpen = hasActive || (openState[group.heading] ?? true);
@@ -116,7 +124,7 @@ export function AppSidebar({ brand, groups, pathname, onNavigate, className }: A
                 onClick={() => toggle(group.heading)}
                 aria-expanded={isOpen}
                 aria-controls={panelId}
-                className="flex w-full items-center justify-between px-[18px] py-1.5 font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
+                className="flex w-full items-center justify-between px-[18px] py-1.5 font-mono text-[10.5px] uppercase tracking-[0.14em] text-[var(--color-gold-muted)] transition-colors hover:text-[var(--color-gold-soft)]"
               >
                 {group.heading}
                 <svg
@@ -149,15 +157,15 @@ export function AppSidebar({ brand, groups, pathname, onNavigate, className }: A
                         className={cn(
                           "relative flex h-[38px] items-center gap-2 pl-10 pr-3.5 text-[13.5px] transition-colors",
                           active
-                            ? "font-semibold text-[var(--primary)]"
-                            : "text-muted-foreground hover:text-foreground",
+                            ? "font-semibold text-[var(--color-gold)]"
+                            : "text-[var(--color-cream)]/70 hover:text-[var(--color-cream)]",
                         )}
                       >
                         <Connector last={i === group.items.length - 1} active={active} />
                         {active ? (
                           <span
                             aria-hidden="true"
-                            className="absolute bottom-2 left-0 top-2 w-[3px] rounded-r bg-[var(--primary)]"
+                            className="absolute bottom-2 left-0 top-2 w-[3px] rounded-r bg-[var(--color-gold)]"
                           />
                         ) : null}
                         <span className="truncate">{item.label}</span>
@@ -166,7 +174,7 @@ export function AppSidebar({ brand, groups, pathname, onNavigate, className }: A
                             {item.badge}
                           </span>
                         ) : active ? (
-                          <Tick className="ml-auto w-3.5 text-[var(--primary)]" />
+                          <Tick className="ml-auto w-3.5 text-[var(--color-gold)]" />
                         ) : null}
                       </a>
                     );
