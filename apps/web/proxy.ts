@@ -20,7 +20,7 @@ interface TokenPair {
   };
 }
 
-export function proxy(request: NextRequest) {
+export default function proxy(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
   const tenantCode = resolveTenantFromHost(host);
 

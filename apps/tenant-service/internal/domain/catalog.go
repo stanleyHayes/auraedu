@@ -39,6 +39,7 @@ func FeatureCatalog() []FeatureCatalogEntry {
 		{"ai_predictions", "ai_plus"},
 		{"career_guidance", "ai_plus"},
 		{"billing", "core"},
+		{"file_management", "core"},
 		{"custom_domain", "professional"},
 	}
 }

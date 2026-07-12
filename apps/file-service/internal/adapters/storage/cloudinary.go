@@ -100,7 +100,6 @@ func (s *CloudinaryStorage) SignUpload(ctx context.Context, tenantID, fileID, fo
 	params := url.Values{}
 	params.Set("folder", folder)
 	params.Set("public_id", fileID)
-	params.Set("resource_type", resourceType)
 	params.Set("timestamp", strconv.FormatInt(timestamp, 10))
 
 	signature, err := api.SignParameters(params, s.cld.Config.Cloud.APISecret)

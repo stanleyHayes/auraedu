@@ -41,7 +41,7 @@ export function LogoUploader({ tenantCode, value, onChange, disabled }: LogoUplo
       formData.append("timestamp", String(signed.timestamp));
       formData.append("signature", signed.signature);
       formData.append("folder", signed.folder);
-      formData.append("public_id", signed.public_id);
+      formData.append("public_id", signed.file_id);
 
       const uploadRes = await fetch(signed.upload_url ?? `https://api.cloudinary.com/v1_1/${signed.cloud_name}/image/upload`, {
         method: "POST",
