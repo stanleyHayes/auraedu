@@ -37,6 +37,7 @@ export default function LoginPage() {
               name="email"
               type="email"
               autoComplete="email"
+              placeholder="you@school.edu"
               required
               className="h-11 w-full rounded-[var(--radius-md)] border border-border bg-[var(--color-parchment)] px-3.5 text-sm text-[var(--foreground)] shadow-sm placeholder:text-[var(--muted-foreground)] focus-visible:border-[var(--color-gold)] focus-visible:bg-[var(--surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]/40"
             />
@@ -50,6 +51,7 @@ export default function LoginPage() {
               name="password"
               type="password"
               autoComplete="current-password"
+              placeholder="••••••••"
               required
               className="h-11 w-full rounded-[var(--radius-md)] border border-border bg-[var(--color-parchment)] px-3.5 text-sm text-[var(--foreground)] shadow-sm placeholder:text-[var(--muted-foreground)] focus-visible:border-[var(--color-gold)] focus-visible:bg-[var(--surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]/40"
             />
