@@ -24,4 +24,5 @@ use (
 	./apps/tenant-service
 	./apps/website-service
 	./platform
+	./tools/seed
 )

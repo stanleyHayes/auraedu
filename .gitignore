@@ -30,6 +30,7 @@ coverage/
 !.env.example
 *.pem
 *.key
+credentials.txt
 
 # Local data
 .pgdata/

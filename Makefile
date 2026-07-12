@@ -126,7 +126,7 @@ migrate: ## Run all service DB migrations
 
 .PHONY: seed
 seed: ## Seed the two initial tenants (UPSHS, Aboom)
-	go run ./tools/seed || echo "seed: TODO (AURA-52.x)"
+	go run ./tools/seed
 
 # ---- Infra validation ------------------------------------------------------
 .PHONY: compose-validate
