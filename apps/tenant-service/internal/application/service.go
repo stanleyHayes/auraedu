@@ -46,6 +46,7 @@ func withTenant(ctx context.Context, code string) context.Context {
 
 // ListTenants is a platform-wide operation — platform super admins only (spec §8.1).
 func (s *Service) ListTenants(ctx context.Context, actor auth.Actor) ([]domain.Tenant, error) {
+	ctx = auth.WithActor(ctx, actor)
 	if !actor.PlatformAdmin {
 		return nil, domain.ErrForbidden
 	}
@@ -54,6 +55,7 @@ func (s *Service) ListTenants(ctx context.Context, actor auth.Actor) ([]domain.T
 
 // CreateTenant provisions a new school. Platform super admins only.
 func (s *Service) CreateTenant(ctx context.Context, actor auth.Actor, t domain.Tenant) (domain.Tenant, error) {
+	ctx = auth.WithActor(ctx, actor)
 	if !actor.PlatformAdmin {
 		return domain.Tenant{}, domain.ErrForbidden
 	}
@@ -77,6 +79,7 @@ func (s *Service) CreateTenant(ctx context.Context, actor auth.Actor, t domain.T
 
 // UpdateTenant applies a partial update to a school. Platform super admins only.
 func (s *Service) UpdateTenant(ctx context.Context, actor auth.Actor, code string, upd domain.TenantUpdate) (domain.Tenant, error) {
+	ctx = auth.WithActor(ctx, actor)
 	if !actor.PlatformAdmin {
 		return domain.Tenant{}, domain.ErrForbidden
 	}
@@ -104,6 +107,7 @@ func (s *Service) UpdateTenant(ctx context.Context, actor auth.Actor, code strin
 // DeleteTenant permanently removes a school and all of its feature flags.
 // Platform super admins only.
 func (s *Service) DeleteTenant(ctx context.Context, actor auth.Actor, code string) error {
+	ctx = auth.WithActor(ctx, actor)
 	if !actor.PlatformAdmin {
 		return domain.ErrForbidden
 	}
@@ -123,6 +127,7 @@ func (s *Service) DeleteTenant(ctx context.Context, actor auth.Actor, code strin
 
 // GetTenant returns a tenant record; the actor must belong to it (or be a platform admin).
 func (s *Service) GetTenant(ctx context.Context, actor auth.Actor, code string) (domain.Tenant, error) {
+	ctx = auth.WithActor(ctx, actor)
 	if !actor.CanAccessTenant(code) {
 		return domain.Tenant{}, domain.ErrForbidden
 	}
@@ -152,6 +157,7 @@ func (s *Service) Branding(ctx context.Context, code string) (domain.Branding, e
 // Features returns the feature snapshot for a tenant. Requires a resolved tenant and
 // that the actor belongs to it (or is a platform admin) — prevents cross-tenant reads.
 func (s *Service) Features(ctx context.Context, actor auth.Actor, code string) ([]domain.FeatureFlag, error) {
+	ctx = auth.WithActor(ctx, actor)
 	if code == "" {
 		return nil, domain.ErrNoTenant
 	}
@@ -167,6 +173,7 @@ func (s *Service) Features(ctx context.Context, actor auth.Actor, code string) (
 // Settings returns a tenant's operational settings; the actor must belong to the
 // tenant (or be a platform admin).
 func (s *Service) Settings(ctx context.Context, actor auth.Actor, code string) (domain.Settings, error) {
+	ctx = auth.WithActor(ctx, actor)
 	if !actor.CanAccessTenant(code) {
 		return domain.Settings{}, domain.ErrForbidden
 	}
@@ -177,6 +184,7 @@ func (s *Service) Settings(ctx context.Context, actor auth.Actor, code string) (
 // belonging to the tenant may update their own settings; platform super admins may
 // update any tenant.
 func (s *Service) UpdateSettings(ctx context.Context, actor auth.Actor, code string, settings domain.Settings) (domain.Settings, error) {
+	ctx = auth.WithActor(ctx, actor)
 	if !actor.CanAccessTenant(code) {
 		return domain.Settings{}, domain.ErrForbidden
 	}

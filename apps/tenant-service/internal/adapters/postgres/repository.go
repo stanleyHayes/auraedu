@@ -43,7 +43,7 @@ func tenantNotFound(err error, code string) error {
 // the pool because this is a platform-wide operation with no single tenant scope.
 func (r *Repository) ListTenants(ctx context.Context) ([]domain.Tenant, error) {
 	rows, err := r.db.Pool().Query(ctx, `
-		SELECT code, name, short, status, domain, plan, brand_primary, brand_secondary, logo_url
+		SELECT code, name, short, status, domain, plan, COALESCE(brand_primary, ''), COALESCE(brand_secondary, ''), COALESCE(logo_url, '')
 		FROM tenants
 		ORDER BY created_at
 	`)
@@ -74,7 +74,7 @@ func (r *Repository) GetTenant(ctx context.Context, code string) (domain.Tenant,
 	var t domain.Tenant
 	err := r.db.WithTx(withTenant(ctx, code), func(ctx context.Context, tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `
-			SELECT code, name, short, status, domain, plan, brand_primary, brand_secondary, logo_url
+			SELECT code, name, short, status, domain, plan, COALESCE(brand_primary, ''), COALESCE(brand_secondary, ''), COALESCE(logo_url, '')
 			FROM tenants
 			WHERE code = $1
 		`, code).Scan(
@@ -119,7 +119,7 @@ func (r *Repository) UpdateTenant(ctx context.Context, code string, upd domain.T
 	err := r.db.WithTx(withTenant(ctx, code), func(ctx context.Context, tx pgx.Tx) error {
 		var current domain.Tenant
 		if err := tx.QueryRow(ctx, `
-			SELECT code, name, short, status, domain, plan, brand_primary, brand_secondary, logo_url
+			SELECT code, name, short, status, domain, plan, COALESCE(brand_primary, ''), COALESCE(brand_secondary, ''), COALESCE(logo_url, '')
 			FROM tenants
 			WHERE code = $1
 		`, code).Scan(
@@ -171,7 +171,7 @@ func (r *Repository) DeleteTenant(ctx context.Context, code string) error {
 func (r *Repository) ResolveTenant(ctx context.Context, domainHost, subdomain string) (domain.Tenant, error) {
 	var t domain.Tenant
 	err := r.db.Pool().QueryRow(ctx, `
-		SELECT code, name, short, status, domain, plan, brand_primary, brand_secondary, logo_url
+		SELECT code, name, short, status, domain, plan, COALESCE(brand_primary, ''), COALESCE(brand_secondary, ''), COALESCE(logo_url, '')
 		FROM tenants
 		WHERE ($1 <> '' AND lower(domain) = lower($1))
 		   OR ($2 <> '' AND code = lower($2))

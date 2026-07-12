@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/auraedu/platform/auth"
 	"github.com/auraedu/platform/tenancy"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -158,6 +159,18 @@ func (d *DB) setTenantID(ctx context.Context) error {
 			return fmt.Errorf("db: set tenant_id: %w", err)
 		}
 	}
+	return d.setPlatformAdmin(ctx)
+}
+
+func (d *DB) setPlatformAdmin(ctx context.Context) error {
+	value := "false"
+	if actor, ok := auth.ActorFromContext(ctx); ok && actor.PlatformAdmin {
+		value = "true"
+	}
+	_, err := d.pool.Exec(ctx, "SELECT set_config('app.is_platform_admin', $1, false)", value)
+	if err != nil {
+		return fmt.Errorf("db: set is_platform_admin: %w", err)
+	}
 	return nil
 }
 
@@ -177,6 +190,20 @@ func SetTenantID(ctx context.Context, q Querier) error {
 	_, err := q.Exec(ctx, "SELECT set_config('app.tenant_id', $1, false)", id)
 	if err != nil {
 		return fmt.Errorf("db: set app.tenant_id: %w", err)
+	}
+	return SetPlatformAdmin(ctx, q)
+}
+
+// SetPlatformAdmin configures the PostgreSQL session variable app.is_platform_admin
+// based on the actor in context. Platform super admins may bypass tenant isolation.
+func SetPlatformAdmin(ctx context.Context, q Querier) error {
+	value := "false"
+	if actor, ok := auth.ActorFromContext(ctx); ok && actor.PlatformAdmin {
+		value = "true"
+	}
+	_, err := q.Exec(ctx, "SELECT set_config('app.is_platform_admin', $1, false)", value)
+	if err != nil {
+		return fmt.Errorf("db: set is_platform_admin: %w", err)
 	}
 	return nil
 }
