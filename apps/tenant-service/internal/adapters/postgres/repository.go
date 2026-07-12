@@ -271,12 +271,17 @@ func deref(s *string) string {
 	return *s
 }
 
-// Settings returns a tenant's operational settings.
+// Settings returns a tenant's operational settings, falling back to empty
+// defaults when the columns have not been seeded yet.
 func (r *Repository) Settings(ctx context.Context, code string) (domain.Settings, error) {
 	var s domain.Settings
 	err := r.db.WithTx(withTenant(ctx, code), func(ctx context.Context, tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `
-			SELECT locale, timezone, date_format, academic_year_start_month, primary_contact_email
+			SELECT COALESCE(locale, ''),
+			       COALESCE(timezone, ''),
+			       COALESCE(date_format, ''),
+			       COALESCE(academic_year_start_month, 0),
+			       COALESCE(primary_contact_email, '')
 			FROM tenants
 			WHERE code = $1
 		`, code).Scan(&s.Locale, &s.Timezone, &s.DateFormat, &s.AcademicYearStartMonth, &s.PrimaryContactEmail)
