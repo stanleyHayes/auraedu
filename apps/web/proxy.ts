@@ -20,7 +20,7 @@ interface TokenPair {
   };
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
   const tenantCode = resolveTenantFromHost(host);
 
@@ -67,7 +67,7 @@ export function middleware(request: NextRequest) {
     return redirectToLogin(request, tenantCode);
   }
 
-  // Synchronous middleware cannot await an external fetch, so perform the refresh
+  // Synchronous proxy cannot await an external fetch, so perform the refresh
   // asynchronously and let the next response carry the updated cookies. If the
   // refresh fails, redirect to login.
   return refreshTokens(request, tenantCode, refreshToken, response);
