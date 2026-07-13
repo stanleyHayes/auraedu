@@ -11,7 +11,9 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/argon2"
@@ -125,30 +127,58 @@ var defaultFeatures = []string{
 	"file_management",
 }
 
+// tenantUUID derives the legacy UUID previously stored in billing/student/staff
+// tenant_id columns (pre TEXT migration). Kept only to clean up old seed rows.
+func tenantUUID(code string) string {
+	return deterministicUUID("auraedu:tenant:" + code)
+}
+
+func deterministicUUID(seed string) string {
+	return uuid.NewSHA1(uuid.NameSpaceOID, []byte(seed)).String()
+}
+
 func main() {
 	ctx := context.Background()
 
-	identityDB, err := openPool(ctx, envOr("IDENTITY_DATABASE_URL", "postgres://auraedu:auraedu@localhost:5432/identity?sslmode=disable"))
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "identity db: %v\n", err)
-		os.Exit(1)
+	dbs := map[string]*pgxpool.Pool{}
+	for name, dsn := range map[string]string{
+		"identity": envOr("IDENTITY_DATABASE_URL", "postgres://auraedu:auraedu@localhost:5432/identity?sslmode=disable"),
+		"tenant":   envOr("TENANT_DATABASE_URL", "postgres://auraedu:auraedu@localhost:5432/tenant?sslmode=disable"),
+		"billing":  envOr("BILLING_DATABASE_URL", "postgres://auraedu:auraedu@localhost:5432/billing?sslmode=disable"),
+		"student":  envOr("STUDENT_DATABASE_URL", "postgres://auraedu:auraedu@localhost:5432/student?sslmode=disable"),
+		"staff":    envOr("STAFF_DATABASE_URL", "postgres://auraedu:auraedu@localhost:5432/staff?sslmode=disable"),
+	} {
+		pool, err := openPool(ctx, dsn)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%s db: %v\n", name, err)
+			os.Exit(1)
+		}
+		defer pool.Close()
+		dbs[name] = pool
 	}
-	defer identityDB.Close()
 
-	tenantDB, err := openPool(ctx, envOr("TENANT_DATABASE_URL", "postgres://auraedu:auraedu@localhost:5432/tenant?sslmode=disable"))
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "tenant db: %v\n", err)
-		os.Exit(1)
-	}
-	defer tenantDB.Close()
-
-	if err := seedIdentity(ctx, identityDB); err != nil {
+	if err := seedIdentity(ctx, dbs["identity"]); err != nil {
 		fmt.Fprintf(os.Stderr, "seed identity: %v\n", err)
 		os.Exit(1)
 	}
 
-	if err := seedTenants(ctx, tenantDB); err != nil {
+	if err := seedTenants(ctx, dbs["tenant"]); err != nil {
 		fmt.Fprintf(os.Stderr, "seed tenants: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := seedBilling(ctx, dbs["billing"]); err != nil {
+		fmt.Fprintf(os.Stderr, "seed billing: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := seedStudents(ctx, dbs["student"]); err != nil {
+		fmt.Fprintf(os.Stderr, "seed students: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := seedStaff(ctx, dbs["staff"]); err != nil {
+		fmt.Fprintf(os.Stderr, "seed staff: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -168,11 +198,6 @@ func seedIdentity(ctx context.Context, db *pgxpool.Pool) error {
 	defer tx.Rollback(ctx)
 
 	if _, err := tx.Exec(ctx, "SET LOCAL app.is_platform_admin = true"); err != nil {
-		return err
-	}
-
-	superCred, err := hashPassword(platformSuperAdmin.Password)
-	if err != nil {
 		return err
 	}
 
@@ -228,8 +253,6 @@ func seedIdentity(ctx context.Context, db *pgxpool.Pool) error {
 		`, u.ID, tenantID, cred.Algo, cred.Salt, cred.Hash, paramsJSON); err != nil {
 			return fmt.Errorf("upsert credentials %s: %w", u.Email, err)
 		}
-
-		_ = superCred
 	}
 
 	return tx.Commit(ctx)
@@ -271,6 +294,212 @@ func seedTenants(ctx context.Context, db *pgxpool.Pool) error {
 			`, t.Code, f); err != nil {
 				return fmt.Errorf("upsert feature %s for %s: %w", f, t.Code, err)
 			}
+		}
+	}
+
+	return tx.Commit(ctx)
+}
+
+func seedBilling(ctx context.Context, db *pgxpool.Pool) error {
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, "SET LOCAL app.is_platform_admin = true"); err != nil {
+		return err
+	}
+
+	plans := []struct {
+		id       string
+		name     string
+		code     string
+		price    int
+		interval string
+		features []string
+	}{
+		{deterministicUUID("auraedu:plan:starter"), "Starter", "starter", 29900, "monthly", []string{"public_website", "student_management", "staff_management", "attendance", "report_cards"}},
+		{deterministicUUID("auraedu:plan:growth"), "Growth", "growth", 59900, "monthly", []string{"public_website", "student_management", "staff_management", "attendance", "report_cards", "fees", "sms_notifications"}},
+		{deterministicUUID("auraedu:plan:professional"), "Professional", "professional", 99900, "monthly", []string{"public_website", "student_management", "staff_management", "attendance", "report_cards", "fees", "sms_notifications", "analytics", "custom_domain"}},
+	}
+
+	planIDs := make(map[string]string)
+	for _, p := range plans {
+		features := "{}"
+		if len(p.features) > 0 {
+			quoted := make([]string, len(p.features))
+			for i, f := range p.features {
+				quoted[i] = "'" + strings.ReplaceAll(f, "'", "''") + "'"
+			}
+			features = "ARRAY[" + strings.Join(quoted, ",") + "]"
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO billing_plans (id, name, code, description, price_cents, currency, billing_interval, features, status, created_at, updated_at)
+			VALUES ($1::uuid, $2, $3, $4, $5, 'GHS', $6, `+features+`, 'active', now(), now())
+			ON CONFLICT (code) DO UPDATE SET
+			  name = EXCLUDED.name,
+			  description = EXCLUDED.description,
+			  price_cents = EXCLUDED.price_cents,
+			  billing_interval = EXCLUDED.billing_interval,
+			  features = EXCLUDED.features,
+			  status = EXCLUDED.status,
+			  updated_at = now()
+		`, p.id, p.name, p.code, p.name+" plan", p.price, p.interval); err != nil {
+			return fmt.Errorf("upsert plan %s: %w", p.code, err)
+		}
+		// The stored id may differ from p.id when the plan already existed
+		// (ON CONFLICT keeps the original id), so read it back.
+		var storedID string
+		if err := tx.QueryRow(ctx, `SELECT id FROM billing_plans WHERE code = $1`, p.code).Scan(&storedID); err != nil {
+			return fmt.Errorf("load plan id %s: %w", p.code, err)
+		}
+		planIDs[p.code] = storedID
+	}
+
+	now := time.Now().UTC()
+	for _, t := range tenants {
+		// Tenant IDs are tenant *codes* (e.g. upshs) — see billing migration 0003_tenant_id_text.
+		subID := deterministicUUID("auraedu:subscription:" + t.Code)
+		invoiceID := deterministicUUID("auraedu:invoice:" + t.Code)
+		planID := planIDs[t.Plan]
+		if planID == "" {
+			planID = planIDs["starter"]
+		}
+
+		// Remove rows seeded by older versions of this tool, which stored a
+		// derived UUID instead of the tenant code.
+		legacyID := tenantUUID(t.Code)
+		if _, err := tx.Exec(ctx, `DELETE FROM billing_invoices WHERE tenant_id = $1`, legacyID); err != nil {
+			return fmt.Errorf("clean legacy invoices for %s: %w", t.Code, err)
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM billing_subscriptions WHERE tenant_id = $1`, legacyID); err != nil {
+			return fmt.Errorf("clean legacy subscriptions for %s: %w", t.Code, err)
+		}
+
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO billing_subscriptions (id, tenant_id, plan_id, status, current_period_start, current_period_end, created_at, updated_at)
+			VALUES ($1::uuid, $2, $3::uuid, 'active', $4, $5, now(), now())
+			ON CONFLICT (id) DO UPDATE SET
+			  plan_id = EXCLUDED.plan_id,
+			  status = EXCLUDED.status,
+			  current_period_start = EXCLUDED.current_period_start,
+			  current_period_end = EXCLUDED.current_period_end,
+			  updated_at = now()
+		`, subID, t.Code, planID, now, now.AddDate(0, 1, 0)); err != nil {
+			return fmt.Errorf("upsert subscription for %s: %w", t.Code, err)
+		}
+
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO billing_invoices (id, tenant_id, subscription_id, amount_cents, status, due_date, paid_at, created_at, updated_at)
+			VALUES ($1::uuid, $2, $3::uuid, $4, 'paid', $5, $6, now(), now())
+			ON CONFLICT (id) DO UPDATE SET
+			  amount_cents = EXCLUDED.amount_cents,
+			  status = EXCLUDED.status,
+			  due_date = EXCLUDED.due_date,
+			  paid_at = EXCLUDED.paid_at,
+			  updated_at = now()
+		`, invoiceID, t.Code, subID, 29900, now.AddDate(0, 0, 14), now); err != nil {
+			return fmt.Errorf("upsert invoice for %s: %w", t.Code, err)
+		}
+	}
+
+	return tx.Commit(ctx)
+}
+
+func seedStudents(ctx context.Context, db *pgxpool.Pool) error {
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, "SET LOCAL app.is_platform_admin = true"); err != nil {
+		return err
+	}
+
+	students := []struct {
+		code      string
+		firstName string
+		lastName  string
+		gender    string
+		dob       string
+		tenant    string
+	}{
+		{"UPS-001", "Kwame", "Asante", "male", "2008-03-15", "upshs"},
+		{"UPS-002", "Ama", "Owusu", "female", "2007-07-22", "upshs"},
+		{"UPS-003", "Kofi", "Mensah", "male", "2008-11-05", "upshs"},
+		{"ABM-001", "Yaa", "Darko", "female", "2007-05-10", "aboom"},
+		{"ABM-002", "Ebenezer", "Agyemang", "male", "2008-01-30", "aboom"},
+	}
+
+	for _, s := range students {
+		// Remove rows seeded by older versions of this tool, which stored a
+		// derived UUID instead of the tenant code (see student migration 0004_tenant_id_text).
+		if _, err := tx.Exec(ctx, `DELETE FROM students WHERE tenant_id = $1 AND student_code = $2`, tenantUUID(s.tenant), s.code); err != nil {
+			return fmt.Errorf("clean legacy student %s: %w", s.code, err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO students (id, tenant_id, first_name, last_name, student_code, date_of_birth, gender, status, created_at, updated_at)
+			VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'active', now(), now())
+			ON CONFLICT (tenant_id, student_code) DO UPDATE SET
+			  first_name = EXCLUDED.first_name,
+			  last_name = EXCLUDED.last_name,
+			  date_of_birth = EXCLUDED.date_of_birth,
+			  gender = EXCLUDED.gender,
+			  status = EXCLUDED.status,
+			  updated_at = now()
+		`, s.tenant, s.firstName, s.lastName, s.code, s.dob, s.gender); err != nil {
+			return fmt.Errorf("upsert student %s: %w", s.code, err)
+		}
+	}
+
+	return tx.Commit(ctx)
+}
+
+func seedStaff(ctx context.Context, db *pgxpool.Pool) error {
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, "SET LOCAL app.is_platform_admin = true"); err != nil {
+		return err
+	}
+
+	staff := []struct {
+		code      string
+		firstName string
+		lastName  string
+		staffType string
+		email     string
+		tenant    string
+	}{
+		{"UPS-T01", "John", "Doe", "teacher", "john.doe@upshs.edu", "upshs"},
+		{"UPS-N01", "Jane", "Smith", "non_teaching", "jane.smith@upshs.edu", "upshs"},
+		{"ABM-T01", "Peter", "Brown", "teacher", "peter.brown@aboom.edu", "aboom"},
+		{"ABM-N01", "Mary", "Johnson", "non_teaching", "mary.johnson@aboom.edu", "aboom"},
+	}
+
+	for _, s := range staff {
+		// Remove rows seeded by older versions of this tool, which stored a
+		// derived UUID instead of the tenant code (see staff migration 0003_tenant_id_text).
+		if _, err := tx.Exec(ctx, `DELETE FROM staff WHERE tenant_id = $1 AND staff_code = $2`, tenantUUID(s.tenant), s.code); err != nil {
+			return fmt.Errorf("clean legacy staff %s: %w", s.code, err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO staff (id, tenant_id, first_name, last_name, staff_type, email, staff_code, status, created_at, updated_at)
+			VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'active', now(), now())
+			ON CONFLICT (tenant_id, staff_code) DO UPDATE SET
+			  first_name = EXCLUDED.first_name,
+			  last_name = EXCLUDED.last_name,
+			  staff_type = EXCLUDED.staff_type,
+			  email = EXCLUDED.email,
+			  status = EXCLUDED.status,
+			  updated_at = now()
+		`, s.tenant, s.firstName, s.lastName, s.staffType, s.email, s.code); err != nil {
+			return fmt.Errorf("upsert staff %s: %w", s.code, err)
 		}
 	}
 

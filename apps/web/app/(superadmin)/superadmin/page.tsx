@@ -1,9 +1,86 @@
-"use client";
-
+import Link from "next/link";
 import { Building2, CreditCard, Receipt, ScrollText, HeartPulse } from "lucide-react";
 import { StatCard, Button, Reveal, Watermark } from "@auraedu/ui";
+import { createGatewayClient } from "@auraedu/api-client";
+import { publicApiUrl, tenantHeaderName } from "@auraedu/config";
+import type { OpenAPI } from "@auraedu/shared-types";
+import { createServerClient, getCurrentToken } from "@/lib/api";
+import { requireAuth } from "@/lib/auth";
 
-export default function SuperAdminDashboard() {
+type Tenant = OpenAPI.tenant_v1.components["schemas"]["Tenant"];
+
+interface PlatformStats {
+  activeTenants: number | null;
+  activeSubscriptions: number | null;
+  students: number | null;
+  staff: number | null;
+}
+
+async function loadPlatformStats(): Promise<PlatformStats> {
+  const stats: PlatformStats = {
+    activeTenants: null,
+    activeSubscriptions: null,
+    students: null,
+    staff: null,
+  };
+
+  let tenants: Tenant[] = [];
+  try {
+    const client = await createServerClient();
+    const res = await client.get<{ data?: Tenant[] }>("/api/v1/tenants?limit=50");
+    tenants = res.data ?? [];
+    stats.activeTenants = tenants.filter((t) => t.status === "active").length;
+  } catch {
+    return stats;
+  }
+
+  // Billing/student/staff endpoints are tenant-scoped, so aggregate per tenant.
+  const token = await getCurrentToken();
+  let subscriptions = 0;
+  let students = 0;
+  let staff = 0;
+  let sawSubscriptions = false;
+  let sawStudents = false;
+  let sawStaff = false;
+
+  await Promise.all(
+    tenants.map(async (t) => {
+      const client = createGatewayClient({
+        baseUrl: publicApiUrl,
+        tenantHeader: tenantHeaderName,
+        getToken: () => token,
+        getTenantCode: () => t.tenant_code,
+      });
+      const [subs, studs, staffRes] = await Promise.allSettled([
+        client.get<{ data?: { status?: string }[] }>("/api/v1/billing/subscriptions?limit=100"),
+        client.get<{ data?: unknown[] }>("/api/v1/students?limit=100"),
+        client.get<{ data?: unknown[] }>("/api/v1/staff?limit=100"),
+      ]);
+      if (subs.status === "fulfilled") {
+        sawSubscriptions = true;
+        subscriptions += (subs.value.data ?? []).filter((s) => s.status === "active").length;
+      }
+      if (studs.status === "fulfilled") {
+        sawStudents = true;
+        students += studs.value.data?.length ?? 0;
+      }
+      if (staffRes.status === "fulfilled") {
+        sawStaff = true;
+        staff += staffRes.value.data?.length ?? 0;
+      }
+    }),
+  );
+
+  if (sawSubscriptions) stats.activeSubscriptions = subscriptions;
+  if (sawStudents) stats.students = students;
+  if (sawStaff) stats.staff = staff;
+  return stats;
+}
+
+export default async function SuperAdminDashboard() {
+  await requireAuth();
+  const stats = await loadPlatformStats();
+
   return (
     <div className="relative space-y-8">
       <Watermark className="pointer-events-none absolute -right-8 -top-12 text-[10rem] opacity-[0.03]">
@@ -18,14 +95,11 @@ export default function SuperAdminDashboard() {
             Manage tenants, billing plans, subscriptions, and review platform activity.
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <Button onClick={() => (window.location.href = "/superadmin/tenants")}>
-              View tenants
+            <Button asChild>
+              <Link href="/superadmin/tenants">View tenants</Link>
             </Button>
-            <Button
-              variant="secondary"
-              onClick={() => (window.location.href = "/superadmin/audit-logs")}
-            >
-              View audit logs
+            <Button asChild variant="secondary">
+              <Link href="/superadmin/audit-logs">View audit logs</Link>
             </Button>
           </div>
         </section>
@@ -33,10 +107,27 @@ export default function SuperAdminDashboard() {
 
       <Reveal delay={80}>
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Tenants" value="—" unit="active" />
-          <StatCard label="Subscriptions" value="—" unit="paid" tone="ok" />
-          <StatCard label="Audit events" value="—" unit="24h" />
-          <StatCard label="System status" value="—" unit="healthy" tone="ok" />
+          <StatCard
+            label="Tenants"
+            value={stats.activeTenants ?? "—"}
+            unit="active"
+          />
+          <StatCard
+            label="Subscriptions"
+            value={stats.activeSubscriptions ?? "—"}
+            unit="active"
+            tone="ok"
+          />
+          <StatCard
+            label="Students"
+            value={stats.students ?? "—"}
+            unit="enrolled"
+          />
+          <StatCard
+            label="Staff"
+            value={stats.staff ?? "—"}
+            unit="members"
+          />
         </section>
       </Reveal>
 
@@ -89,13 +180,13 @@ export default function SuperAdminDashboard() {
 function QuickLink({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
   return (
     <li>
-      <a
+      <Link
         href={href}
         className="flex items-center gap-3 rounded-[var(--radius-sm)] p-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]"
       >
         <span className="text-[var(--primary)]">{icon}</span>
         {label}
-      </a>
+      </Link>
     </li>
   );
 }

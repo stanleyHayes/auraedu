@@ -55,3 +55,4 @@ apps/mobile/android/
 playwright-report/
 test-results/
 ai_rec_test.db
+/seed

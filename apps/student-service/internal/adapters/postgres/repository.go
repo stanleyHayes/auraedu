@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/auraedu/platform/db"
 	"github.com/auraedu/student-service/internal/domain"
@@ -139,11 +140,16 @@ type scanner interface {
 
 func scanStudent(row scanner) (*domain.Student, error) {
 	var s domain.Student
+	var dob *time.Time
 	if err := row.Scan(
 		&s.ID, &s.TenantID, &s.FirstName, &s.LastName, &s.StudentCode,
-		&s.DateOfBirth, &s.Gender, &s.Status, &s.CreatedAt, &s.UpdatedAt,
+		&dob, &s.Gender, &s.Status, &s.CreatedAt, &s.UpdatedAt,
 	); err != nil {
 		return nil, err
+	}
+	if dob != nil {
+		v := dob.Format(time.DateOnly)
+		s.DateOfBirth = &v
 	}
 	return &s, nil
 }
