@@ -30,6 +30,7 @@ func FeatureCatalog() []FeatureCatalogEntry {
 		{"library", "professional"},
 		{"hostel", "professional"},
 		{"transport", "professional"},
+		{"academic_management", "core"},
 		{"announcements", "starter"},
 		{"notifications", "starter"},
 		{"email_notifications", "starter"},
