@@ -13,7 +13,7 @@ type PlanList = BillingComponents["schemas"]["PlanList"];
 type TenantCreate = TenantComponents["schemas"]["TenantCreate"];
 type Tenant = TenantComponents["schemas"]["Tenant"];
 
-const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 const client = createGatewayClient({ baseUrl: `${apiBase}/api/v1` });
 
 const defaultPlans: Plan[] = [
@@ -141,14 +141,9 @@ export function SignupForm() {
         },
       };
 
-      const tenant = await client.post<Tenant & { id?: string }>("/tenants", payload);
-      const tenantId = tenant.id ?? generateUuid();
-
-      await client.post("/billing/subscriptions", {
-        tenant_id: tenantId,
-        plan_key: planKey,
-        billing_email: email,
-      });
+      // The billing worker auto-creates a trial subscription from tenant.created.v1,
+      // so no follow-up call is needed — /api/v1/billing/* requires auth and would 401 here.
+      const tenant = await client.post<Tenant>("/tenants", payload);
 
       setResult({
         ok: true,

@@ -27,11 +27,42 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
   );
 }
 
+const CONTACT_EMAIL = "hello@auraedu.com";
+
+const interestLabels: Record<string, string> = {
+  demo: "Book a demo",
+  pricing: "Pricing question",
+  support: "Support",
+  other: "Other",
+};
+
+function field(data: FormData, key: string) {
+  const value = data.get(key);
+  return typeof value === "string" ? value : "";
+}
+
 export default function ContactPage() {
   const [submitted, setSubmitted] = useState(false);
 
+  // No backend contact endpoint exists yet, so the form opens the visitor's
+  // mail client with the message pre-filled instead of pretending to send.
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const name = field(data, "name");
+    const school = field(data, "school");
+    const email = field(data, "email");
+    const phone = field(data, "phone");
+    const interest = field(data, "interest");
+    const message = field(data, "message");
+
+    const subject = encodeURIComponent(
+      `[${interestLabels[interest] ?? "Contact"}] ${school} — ${name}`,
+    );
+    const body = encodeURIComponent(
+      `${message}\n\n—\nName: ${name}\nSchool: ${school}\nEmail: ${email}\nPhone: ${phone || "—"}`,
+    );
+    window.location.href = `mailto:${CONTACT_EMAIL}?subject=${subject}&body=${body}`;
     setSubmitted(true);
   }
 
@@ -53,9 +84,16 @@ export default function ContactPage() {
             <div className="mx-auto grid size-12 place-items-center rounded-full bg-[var(--color-brand-tint)] text-primary">
               <Tick className="w-6" />
             </div>
-            <h2 className="mt-4 font-heading text-xl font-extrabold">Message sent</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Thank you for reaching out. We will get back to you shortly.
+            <h2 className="mt-4 font-heading text-xl font-extrabold">Your email is ready to send</h2>
+            <p className="mx-auto mt-2 max-w-[46ch] text-sm text-muted-foreground">
+              Your mail app should have opened with your message pre-filled to{" "}
+              <a
+                href={`mailto:${CONTACT_EMAIL}`}
+                className="underline underline-offset-2"
+              >
+                {CONTACT_EMAIL}
+              </a>
+              . If it did not, email us there directly — we reply within one working day.
             </p>
           </div>
         ) : (
@@ -118,6 +156,14 @@ export default function ContactPage() {
             <Button type="submit" className="h-11 w-full sm:w-auto sm:px-8">
               Send message
             </Button>
+            <p className="text-xs text-muted-foreground">
+              Sending opens your mail app with everything pre-filled — nothing is sent until you
+              confirm it there. Prefer to write directly? Email us at{" "}
+              <a href={`mailto:${CONTACT_EMAIL}`} className="underline underline-offset-2">
+                {CONTACT_EMAIL}
+              </a>
+              .
+            </p>
           </form>
         )}
       </div>

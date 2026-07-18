@@ -9,7 +9,7 @@ import type { components } from "@auraedu/shared-types/openapi/billing.v1";
 type Plan = components["schemas"]["Plan"];
 type PlanList = components["schemas"]["PlanList"];
 
-const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 const client = createGatewayClient({ baseUrl: `${apiBase}/api/v1` });
 
 const placeholderPlans: Plan[] = [
