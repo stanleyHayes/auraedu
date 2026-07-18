@@ -89,6 +89,7 @@ export const SUPERADMIN_NAV: NavGroupDef[] = [
     heading: "Platform",
     items: [
       { label: "Tenants", href: "/superadmin/tenants" },
+      { label: "Feature flags", href: "/superadmin/flags" },
       { label: "System Health", href: "/superadmin/system-health" },
     ],
   },
