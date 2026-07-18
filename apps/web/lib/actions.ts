@@ -44,34 +44,6 @@ export interface ActionResult {
   error?: string;
 }
 
-export async function recordAttendance(
-  _prev: ActionResult | undefined,
-  formData: FormData,
-): Promise<ActionResult> {
-  const studentId = String((formData.get("student_id") as string | null) ?? "").trim();
-  const academicYearId = String((formData.get("academic_year_id") as string | null) ?? "").trim();
-  const date = String((formData.get("date") as string | null) ?? "").trim();
-  const status = String((formData.get("status") as string | null) ?? "").trim();
-
-  if (!studentId || !academicYearId || !date || !status) {
-    return { error: "All fields are required." };
-  }
-
-  const client = await createServerClient();
-  try {
-    await client.post("/api/v1/attendance", {
-      student_id: studentId,
-      academic_year_id: academicYearId,
-      date,
-      status,
-    });
-    revalidatePath("/teacher/attendance");
-    return { success: true };
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : "Failed to record attendance." };
-  }
-}
-
 export async function recordScore(
   _prev: ActionResult | undefined,
   formData: FormData,
