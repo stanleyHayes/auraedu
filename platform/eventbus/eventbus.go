@@ -24,11 +24,14 @@ func NewPublisher(js JetStreamContext) *Publisher {
 }
 
 func (p *Publisher) Publish(ctx context.Context, event tenancy.CloudEvent) error {
-	if err := event.Validate(); err != nil {
-		return fmt.Errorf("eventbus: invalid event: %w", err)
-	}
+	// Assign the event ID before validating: Validate rejects empty IDs, so
+	// generating afterwards would make this fallback unreachable and silently
+	// fail every caller that lets the bus assign IDs.
 	if event.ID == "" {
 		event.ID = uuid.Must(uuid.NewV7()).String()
+	}
+	if err := event.Validate(); err != nil {
+		return fmt.Errorf("eventbus: invalid event: %w", err)
 	}
 	data, err := json.Marshal(event)
 	if err != nil {
