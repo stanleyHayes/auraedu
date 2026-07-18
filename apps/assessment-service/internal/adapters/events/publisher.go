@@ -54,6 +54,35 @@ func (p *Publisher) PublishAssessment(ctx context.Context, eventType string, a *
 	return p.bus.Publish(ctx, event)
 }
 
+// PublishAssignment emits a CloudEvent for the given assignment domain event.
+// The payload conforms to contracts/events/assignment.published.v1.json.
+func (p *Publisher) PublishAssignment(ctx context.Context, eventType string, a *domain.Assessment, meta map[string]any) error {
+	if p == nil || p.bus == nil {
+		return nil
+	}
+	data := map[string]any{
+		"assignment_id": a.ID,
+		"subject_id":    a.SubjectID,
+		"title":         a.Title,
+	}
+	if len(a.ClassIDs) > 0 {
+		data["class_ids"] = a.ClassIDs
+	}
+	if a.DueDate != nil {
+		data["due_date"] = a.DueDate.UTC().Format(time.RFC3339)
+	}
+	for k, v := range meta {
+		data[k] = v
+	}
+	event, err := tenancy.NewCloudEvent(eventType, "assessment-service", "", a.TenantID, data)
+	if err != nil {
+		return fmt.Errorf("assessment: build assignment event: %w", err)
+	}
+	event.Subject = a.ID
+	event.Time = time.Now().UTC().Format(time.RFC3339)
+	return p.bus.Publish(ctx, event)
+}
+
 // PublishScore emits a CloudEvent for the given score domain event.
 func (p *Publisher) PublishScore(ctx context.Context, eventType string, s *domain.Score, meta map[string]any) error {
 	if p == nil || p.bus == nil {

@@ -39,6 +39,15 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/assessments/{assessment_id}/scores/{score_id}", h.getScore)
 	mux.HandleFunc("PATCH /api/v1/assessments/{assessment_id}/scores/{score_id}", h.updateScore)
 	mux.HandleFunc("DELETE /api/v1/assessments/{assessment_id}/scores/{score_id}", h.deleteScore)
+
+	mux.HandleFunc("GET /api/v1/assignments", h.listAssignments)
+	mux.HandleFunc("POST /api/v1/assignments", h.createAssignment)
+	mux.HandleFunc("GET /api/v1/assignments/{assignment_id}", h.getAssignment)
+	mux.HandleFunc("PATCH /api/v1/assignments/{assignment_id}", h.updateAssignment)
+	mux.HandleFunc("DELETE /api/v1/assignments/{assignment_id}", h.deleteAssignment)
+	mux.HandleFunc("POST /api/v1/assignments/{assignment_id}/publish", h.publishAssignment)
+
+	mux.HandleFunc("GET /api/v1/gradebook", h.getGradebook)
 }
 
 // --- Assessments. ---
@@ -283,6 +292,213 @@ func (h *Handler) deleteScore(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// --- Assignments. ---
+
+// assignmentResponse is the contract shape for the assignments API
+// (contracts/openapi/assessment.v1.yaml Assignment). instructions maps to the
+// assessment description.
+type assignmentResponse struct {
+	ID             string     `json:"id"`
+	TenantID       string     `json:"tenant_id"`
+	Title          string     `json:"title"`
+	Instructions   *string    `json:"instructions"`
+	SubjectID      string     `json:"subject_id"`
+	AcademicYearID string     `json:"academic_year_id"`
+	ClassIDs       []string   `json:"class_ids"`
+	DueDate        *time.Time `json:"due_date"`
+	MaxScore       int        `json:"max_score"`
+	Status         string     `json:"status"`
+	PublishedAt    *time.Time `json:"published_at"`
+}
+
+func toAssignmentResponse(a *domain.Assessment) assignmentResponse {
+	classIDs := a.ClassIDs
+	if classIDs == nil {
+		classIDs = []string{}
+	}
+	return assignmentResponse{
+		ID:             a.ID,
+		TenantID:       a.TenantID,
+		Title:          a.Title,
+		Instructions:   a.Description,
+		SubjectID:      a.SubjectID,
+		AcademicYearID: a.AcademicYearID,
+		ClassIDs:       classIDs,
+		DueDate:        a.DueDate,
+		MaxScore:       a.MaxScore,
+		Status:         a.Status,
+		PublishedAt:    a.PublishedAt,
+	}
+}
+
+func (h *Handler) listAssignments(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	limit := 25
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if parsed, err := strconv.Atoi(limitStr); err == nil {
+			limit = parsed
+		}
+	}
+	filter := ports.AssignmentListFilter{
+		Limit:     limit,
+		Cursor:    r.URL.Query().Get("cursor"),
+		SubjectID: r.URL.Query().Get("subject_id"),
+		ClassID:   r.URL.Query().Get("class_id"),
+		StudentID: r.URL.Query().Get("student_id"),
+		Status:    r.URL.Query().Get("status"),
+	}
+	records, nextCursor, err := h.svc.ListAssignments(ctx, actor, filter)
+	if err != nil {
+		h.writeErrFeature(w, r, err, application.FeatureAssignments)
+		return
+	}
+	out := make([]assignmentResponse, 0, len(records))
+	for _, rec := range records {
+		out = append(out, toAssignmentResponse(rec))
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, map[string]any{"data": out, "next_cursor": nullIfEmpty(nextCursor)})
+}
+
+type createAssignmentBody struct {
+	AcademicYearID string   `json:"academic_year_id"`
+	SubjectID      string   `json:"subject_id"`
+	Title          string   `json:"title"`
+	Instructions   string   `json:"instructions"`
+	MaxScore       int      `json:"max_score"`
+	DueDate        *string  `json:"due_date"`
+	ClassIDs       []string `json:"class_ids"`
+}
+
+func (h *Handler) createAssignment(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	var body createAssignmentBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		httpx.ValidationError(w, r, map[string]any{"body": "invalid JSON"})
+		return
+	}
+	dueDate, err := parseOptionalTime(body.DueDate)
+	if err != nil {
+		httpx.ValidationError(w, r, map[string]any{"due_date": "must be a valid RFC3339 timestamp"})
+		return
+	}
+	assignment, err := h.svc.CreateAssignment(ctx, actor, application.CreateAssignmentRequest{
+		AcademicYearID: body.AcademicYearID,
+		SubjectID:      body.SubjectID,
+		Title:          body.Title,
+		Instructions:   body.Instructions,
+		MaxScore:       body.MaxScore,
+		DueDate:        dueDate,
+		ClassIDs:       body.ClassIDs,
+	})
+	if err != nil {
+		h.writeErrFeature(w, r, err, application.FeatureAssignments)
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusCreated, toAssignmentResponse(assignment))
+}
+
+func (h *Handler) getAssignment(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	assignment, err := h.svc.GetAssignment(ctx, actor, r.PathValue("assignment_id"))
+	if err != nil {
+		h.writeErrFeature(w, r, err, application.FeatureAssignments)
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, toAssignmentResponse(assignment))
+}
+
+type updateAssignmentBody struct {
+	Title        *string  `json:"title"`
+	Instructions *string  `json:"instructions"`
+	MaxScore     *int     `json:"max_score"`
+	DueDate      *string  `json:"due_date"`
+	ClassIDs     []string `json:"class_ids"`
+}
+
+func (h *Handler) updateAssignment(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	var body updateAssignmentBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		httpx.ValidationError(w, r, map[string]any{"body": "invalid JSON"})
+		return
+	}
+	dueDate, err := parseOptionalTime(body.DueDate)
+	if err != nil {
+		httpx.ValidationError(w, r, map[string]any{"due_date": "must be a valid RFC3339 timestamp"})
+		return
+	}
+	assignment, err := h.svc.UpdateAssignment(ctx, actor, r.PathValue("assignment_id"), application.UpdateAssignmentRequest{
+		Title:        body.Title,
+		Instructions: body.Instructions,
+		MaxScore:     body.MaxScore,
+		DueDate:      dueDate,
+		ClassIDs:     body.ClassIDs,
+	})
+	if err != nil {
+		h.writeErrFeature(w, r, err, application.FeatureAssignments)
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, toAssignmentResponse(assignment))
+}
+
+func (h *Handler) deleteAssignment(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	if err := h.svc.DeleteAssignment(ctx, actor, r.PathValue("assignment_id")); err != nil {
+		h.writeErrFeature(w, r, err, application.FeatureAssignments)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) publishAssignment(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	assignment, err := h.svc.PublishAssignment(ctx, actor, r.PathValue("assignment_id"))
+	if err != nil {
+		h.writeErrFeature(w, r, err, application.FeatureAssignments)
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, toAssignmentResponse(assignment))
+}
+
+// --- Gradebook. ---
+
+func (h *Handler) getGradebook(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	filter := ports.GradebookFilter{
+		StudentID:      r.URL.Query().Get("student_id"),
+		ClassID:        r.URL.Query().Get("class_id"),
+		AcademicYearID: r.URL.Query().Get("academic_year_id"),
+		SubjectID:      r.URL.Query().Get("subject_id"),
+	}
+	book, err := h.svc.GetGradebook(ctx, actor, filter)
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, book)
+}
+
 // --- Helpers. ---
 
 func (h *Handler) context(r *http.Request) (context.Context, auth.Actor, bool) {
@@ -301,13 +517,17 @@ func (h *Handler) context(r *http.Request) (context.Context, auth.Actor, bool) {
 }
 
 func (h *Handler) writeErr(w http.ResponseWriter, r *http.Request, err error) {
+	h.writeErrFeature(w, r, err, application.FeatureAssessments)
+}
+
+func (h *Handler) writeErrFeature(w http.ResponseWriter, r *http.Request, err error, feature string) {
 	switch {
 	case errors.Is(err, domain.ErrValidation):
 		httpx.ValidationError(w, r, map[string]any{"detail": err.Error()})
 	case errors.Is(err, domain.ErrNotFound):
 		httpx.NotFound(w, r, "assessment or score")
 	case errors.Is(err, flags.ErrFeatureDisabled):
-		httpx.FeatureDisabled(w, r, application.FeatureAssessments)
+		httpx.FeatureDisabled(w, r, feature)
 	case errors.Is(err, domain.ErrForbidden):
 		httpx.Forbidden(w, r, "not permitted for this actor or tenant")
 	case errors.Is(err, domain.ErrMissingTenant):

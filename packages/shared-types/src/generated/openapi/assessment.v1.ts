@@ -72,6 +72,59 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/assignments/{assignment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get an assignment */
+        get: operations["getAssignment"];
+        put?: never;
+        post?: never;
+        /** Delete an assignment */
+        delete: operations["deleteAssignment"];
+        options?: never;
+        head?: never;
+        /** Update an assignment */
+        patch: operations["updateAssignment"];
+        trace?: never;
+    };
+    "/assignments/{assignment_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish an assignment (emits assignment.published.v1) */
+        post: operations["publishAssignment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gradebook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Per-student or per-class gradebook summary (per-subject averages + overall) */
+        get: operations["getGradebook"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 };
 export type webhooks = Record<string, never>;
 export type components = {
@@ -89,7 +142,7 @@ export type components = {
             tenant_id: string;
             name: string;
             /** @enum {string} */
-            type: "test" | "exam" | "quiz";
+            type: "test" | "exam" | "quiz" | "assignment";
             /** Format: uuid */
             subject_id: string;
             /** Format: uuid */
@@ -103,7 +156,7 @@ export type components = {
         CreateAssessment: {
             name: string;
             /** @enum {string} */
-            type: "test" | "exam" | "quiz";
+            type: "test" | "exam" | "quiz" | "assignment";
             /** Format: uuid */
             subject_id: string;
             /** Format: uuid */
@@ -138,21 +191,62 @@ export type components = {
             /** Format: uuid */
             tenant_id: string;
             title: string;
+            instructions?: string | null;
             /** Format: uuid */
             subject_id: string;
+            /** Format: uuid */
+            academic_year_id?: string;
             class_ids?: string[];
             /** Format: date-time */
             due_date?: string | null;
+            max_score?: number;
+            /** @enum {string} */
+            status?: "draft" | "published" | "archived";
             /** Format: date-time */
             published_at?: string | null;
         };
         CreateAssignment: {
             title: string;
+            instructions?: string | null;
             /** Format: uuid */
             subject_id: string;
+            /** Format: uuid */
+            academic_year_id: string;
             class_ids?: string[];
             /** Format: date-time */
             due_date?: string | null;
+            max_score: number;
+        };
+        UpdateAssignment: {
+            title?: string;
+            instructions?: string | null;
+            class_ids?: string[];
+            /** Format: date-time */
+            due_date?: string | null;
+            max_score?: number;
+        };
+        GradeAggregate: {
+            assessment_count: number;
+            total_score: number;
+            total_max_score: number;
+            /** @description Arithmetic mean of per-assessment percentages (score / max_score * 100); null when no scores. */
+            average: number | null;
+            /** @description Max-score-weighted percentage (total_score / total_max_score * 100); null when no scores. */
+            weighted_average: number | null;
+        };
+        SubjectGrade: components["schemas"]["GradeAggregate"] & {
+            /** Format: uuid */
+            subject_id: string;
+        };
+        GradebookSummary: {
+            /** Format: uuid */
+            student_id?: string | null;
+            /** Format: uuid */
+            class_id?: string | null;
+            /** Format: uuid */
+            academic_year_id?: string | null;
+            subjects: components["schemas"]["SubjectGrade"][];
+            overall: components["schemas"]["GradeAggregate"];
         };
         AssessmentList: {
             data?: components["schemas"]["Assessment"][];
@@ -221,6 +315,7 @@ export type components = {
     };
     parameters: {
         TenantId: string;
+        AssignmentId: string;
         /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
         TenantHeader: string;
         Limit: number;
@@ -360,6 +455,12 @@ export interface operations {
             query?: {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
+                subject_id?: string;
+                /** @description Filter to assignments tagged with this class. */
+                class_id?: string;
+                /** @description Filter to assignments that have a recorded score for this student. */
+                student_id?: string;
+                status?: "draft" | "published" | "archived";
             };
             header?: {
                 /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
@@ -408,6 +509,160 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Assignment"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getAssignment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                assignment_id: components["parameters"]["AssignmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Assignment"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    deleteAssignment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                assignment_id: components["parameters"]["AssignmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    updateAssignment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                assignment_id: components["parameters"]["AssignmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAssignment"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Assignment"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    publishAssignment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                assignment_id: components["parameters"]["AssignmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Assignment"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getGradebook: {
+        parameters: {
+            query?: {
+                /** @description Student to summarise. Required when class_id is absent. */
+                student_id?: string;
+                /** @description Restrict to assessments tagged with this class. Required when student_id is absent. */
+                class_id?: string;
+                /** @description Restrict to assessments in this academic period (term/year). */
+                academic_year_id?: string;
+                /** @description Restrict to a single subject. */
+                subject_id?: string;
+            };
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GradebookSummary"];
                 };
             };
             401: components["responses"]["Unauthorized"];

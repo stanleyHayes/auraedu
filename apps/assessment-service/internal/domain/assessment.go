@@ -41,6 +41,8 @@ type Assessment struct {
 	MaxScore       int        `json:"max_score"`
 	DueDate        *time.Time `json:"due_date,omitempty"`
 	Status         string     `json:"status"`
+	ClassIDs       []string   `json:"class_ids,omitempty"`
+	PublishedAt    *time.Time `json:"published_at,omitempty"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
 	DeletedAt      *time.Time `json:"-"`

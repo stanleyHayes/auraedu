@@ -31,9 +31,9 @@ func NewRepository(database *db.DB) *Repository { return &Repository{db: databas
 func (r *Repository) CreateAssessment(ctx context.Context, tenantID string, a *domain.Assessment) error {
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `
-			INSERT INTO assessments (id, tenant_id, academic_year_id, subject_id, type, title, description, max_score, due_date, status, created_at, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-		`, a.ID, tenantID, a.AcademicYearID, a.SubjectID, a.Type, a.Title, a.Description, a.MaxScore, a.DueDate, a.Status, a.CreatedAt, a.UpdatedAt)
+			INSERT INTO assessments (id, tenant_id, academic_year_id, subject_id, type, title, description, max_score, due_date, status, class_ids, published_at, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::uuid[], $12, $13, $14)
+		`, a.ID, tenantID, a.AcademicYearID, a.SubjectID, a.Type, a.Title, a.Description, a.MaxScore, a.DueDate, a.Status, classIDsOrEmpty(a.ClassIDs), a.PublishedAt, a.CreatedAt, a.UpdatedAt)
 		if err != nil {
 			return fmt.Errorf("assessment: create assessment: %w", err)
 		}
@@ -45,7 +45,7 @@ func (r *Repository) GetAssessmentByID(ctx context.Context, tenantID, id string)
 	var a *domain.Assessment
 	err := r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		row := tx.QueryRow(ctx, `
-			SELECT id, tenant_id, academic_year_id, subject_id, type, title, description, max_score, due_date, status, created_at, updated_at
+			SELECT id, tenant_id, academic_year_id, subject_id, type, title, description, max_score, due_date, status, class_ids, published_at, created_at, updated_at
 			FROM assessments
 			WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
 		`, id, tenantID)
@@ -118,7 +118,7 @@ func listAssessmentsQuery(ctx context.Context, tx pgx.Tx, tenantID string, filte
 
 	args = append(args, filter.Limit)
 	sql := fmt.Sprintf(`
-		SELECT id, tenant_id, academic_year_id, subject_id, type, title, description, max_score, due_date, status, created_at, updated_at
+		SELECT id, tenant_id, academic_year_id, subject_id, type, title, description, max_score, due_date, status, class_ids, published_at, created_at, updated_at
 		FROM assessments
 		WHERE %s
 		ORDER BY created_at ASC, id ASC
@@ -131,9 +131,9 @@ func (r *Repository) UpdateAssessment(ctx context.Context, tenantID string, a *d
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `
 			UPDATE assessments
-			SET academic_year_id = $3, subject_id = $4, type = $5, title = $6, description = $7, max_score = $8, due_date = $9, status = $10, updated_at = $11
+			SET academic_year_id = $3, subject_id = $4, type = $5, title = $6, description = $7, max_score = $8, due_date = $9, status = $10, class_ids = $11::uuid[], published_at = $12, updated_at = $13
 			WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
-		`, a.ID, tenantID, a.AcademicYearID, a.SubjectID, a.Type, a.Title, a.Description, a.MaxScore, a.DueDate, a.Status, a.UpdatedAt)
+		`, a.ID, tenantID, a.AcademicYearID, a.SubjectID, a.Type, a.Title, a.Description, a.MaxScore, a.DueDate, a.Status, classIDsOrEmpty(a.ClassIDs), a.PublishedAt, a.UpdatedAt)
 		if err != nil {
 			return fmt.Errorf("assessment: update assessment: %w", err)
 		}
@@ -274,6 +274,124 @@ func (r *Repository) DeleteScore(ctx context.Context, tenantID, assessmentID, sc
 	})
 }
 
+// --- Assignments. ---
+
+func (r *Repository) ListAssignments(ctx context.Context, tenantID string, filter ports.AssignmentListFilter) ([]*domain.Assessment, string, error) {
+	var out []*domain.Assessment
+	var nextCursor string
+	err := r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		args := []any{tenantID, string(domain.TypeAssignment)}
+		where := "tenant_id = $1 AND type = $2 AND deleted_at IS NULL"
+
+		if filter.SubjectID != "" {
+			args = append(args, filter.SubjectID)
+			where += fmt.Sprintf(" AND subject_id = $%d", len(args))
+		}
+		if filter.ClassID != "" {
+			args = append(args, filter.ClassID)
+			where += fmt.Sprintf(" AND class_ids @> ARRAY[$%d]::uuid[]", len(args))
+		}
+		if filter.StudentID != "" {
+			args = append(args, filter.StudentID)
+			where += fmt.Sprintf(` AND EXISTS (
+				SELECT 1 FROM scores s
+				WHERE s.tenant_id = $1 AND s.assessment_id = assessments.id AND s.student_id = $%d AND s.deleted_at IS NULL
+			)`, len(args))
+		}
+		if filter.Status != "" {
+			args = append(args, filter.Status)
+			where += fmt.Sprintf(" AND status = $%d", len(args))
+		}
+		if filter.Cursor != "" {
+			args = append(args, filter.Cursor)
+			where += fmt.Sprintf(" AND (created_at, id) > (SELECT created_at, id FROM assessments WHERE id = $%d AND tenant_id = $1)", len(args))
+		}
+
+		args = append(args, filter.Limit)
+		sql := fmt.Sprintf(`
+			SELECT id, tenant_id, academic_year_id, subject_id, type, title, description, max_score, due_date, status, class_ids, published_at, created_at, updated_at
+			FROM assessments
+			WHERE %s
+			ORDER BY created_at ASC, id ASC
+			LIMIT $%d
+		`, where, len(args))
+		rows, err := tx.Query(ctx, sql, args...)
+		if err != nil {
+			return fmt.Errorf("assessment: list assignments: %w", err)
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			rec, err := scanAssessment(rows)
+			if err != nil {
+				return err
+			}
+			out = append(out, rec)
+		}
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("assessment: list assignments rows: %w", err)
+		}
+		if len(out) == filter.Limit && len(out) > 0 {
+			nextCursor = out[len(out)-1].ID
+		}
+		return nil
+	})
+	return out, nextCursor, err
+}
+
+// --- Gradebook. ---
+
+func (r *Repository) GradebookScores(ctx context.Context, tenantID string, filter ports.GradebookFilter) ([]domain.GradeRow, error) {
+	var out []domain.GradeRow
+	err := r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		args := []any{tenantID}
+		where := "s.tenant_id = $1 AND s.deleted_at IS NULL AND a.deleted_at IS NULL"
+
+		if filter.StudentID != "" {
+			args = append(args, filter.StudentID)
+			where += fmt.Sprintf(" AND s.student_id = $%d", len(args))
+		}
+		if filter.ClassID != "" {
+			args = append(args, filter.ClassID)
+			where += fmt.Sprintf(" AND a.class_ids @> ARRAY[$%d]::uuid[]", len(args))
+		}
+		if filter.AcademicYearID != "" {
+			args = append(args, filter.AcademicYearID)
+			where += fmt.Sprintf(" AND a.academic_year_id = $%d", len(args))
+		}
+		if filter.SubjectID != "" {
+			args = append(args, filter.SubjectID)
+			where += fmt.Sprintf(" AND a.subject_id = $%d", len(args))
+		}
+
+		sql := fmt.Sprintf(`
+			SELECT a.subject_id, s.score, a.max_score
+			FROM scores s
+			JOIN assessments a ON a.tenant_id = s.tenant_id AND a.id = s.assessment_id
+			WHERE %s
+			ORDER BY a.subject_id ASC, s.created_at ASC
+		`, where)
+		rows, err := tx.Query(ctx, sql, args...)
+		if err != nil {
+			return fmt.Errorf("assessment: gradebook scores: %w", err)
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var row domain.GradeRow
+			if err := rows.Scan(&row.SubjectID, &row.Score, &row.MaxScore); err != nil {
+				return err
+			}
+			out = append(out, row)
+		}
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("assessment: gradebook scores rows: %w", err)
+		}
+		return nil
+	})
+	return out, err
+}
+
 type scanner interface {
 	Scan(dest ...any) error
 }
@@ -282,11 +400,20 @@ func scanAssessment(row scanner) (*domain.Assessment, error) {
 	var a domain.Assessment
 	if err := row.Scan(
 		&a.ID, &a.TenantID, &a.AcademicYearID, &a.SubjectID, &a.Type, &a.Title,
-		&a.Description, &a.MaxScore, &a.DueDate, &a.Status, &a.CreatedAt, &a.UpdatedAt,
+		&a.Description, &a.MaxScore, &a.DueDate, &a.Status, &a.ClassIDs, &a.PublishedAt, &a.CreatedAt, &a.UpdatedAt,
 	); err != nil {
 		return nil, err
 	}
 	return &a, nil
+}
+
+// classIDsOrEmpty maps a nil slice to an empty one so the NOT NULL class_ids
+// column never receives NULL.
+func classIDsOrEmpty(ids []string) []string {
+	if ids == nil {
+		return []string{}
+	}
+	return ids
 }
 
 func scanScore(row scanner) (*domain.Score, error) {

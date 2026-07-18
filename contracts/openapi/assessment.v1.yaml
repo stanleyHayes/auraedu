@@ -10,6 +10,7 @@ tags:
   - name: assessments
   - name: scores
   - name: assignments
+  - name: gradebook
 
 paths:
     /assessments:
@@ -93,6 +94,7 @@ paths:
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
+
     /assignments:
       get:
             operationId: listAssignments
@@ -102,6 +104,20 @@ paths:
               - $ref: '#/components/parameters/TenantHeader'
               - $ref: '#/components/parameters/Limit'
               - $ref: '#/components/parameters/Cursor'
+              - name: subject_id
+                in: query
+                schema: { type: string, format: uuid }
+              - name: class_id
+                in: query
+                description: Filter to assignments tagged with this class.
+                schema: { type: string, format: uuid }
+              - name: student_id
+                in: query
+                description: Filter to assignments that have a recorded score for this student.
+                schema: { type: string, format: uuid }
+              - name: status
+                in: query
+                schema: { type: string, enum: [draft, published, archived] }
             responses:
               '200':
                 description: OK
@@ -133,11 +149,120 @@ paths:
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
+    /assignments/{assignment_id}:
+      get:
+            operationId: getAssignment
+            tags: ['assignments']
+            summary: Get an assignment
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/AssignmentId'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Assignment' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      patch:
+            operationId: updateAssignment
+            tags: ['assignments']
+            summary: Update an assignment
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/AssignmentId'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/UpdateAssignment' }
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Assignment' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      delete:
+            operationId: deleteAssignment
+            tags: ['assignments']
+            summary: Delete an assignment
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/AssignmentId'
+            responses:
+              '204': { description: Deleted }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /assignments/{assignment_id}/publish:
+      post:
+            operationId: publishAssignment
+            tags: ['assignments']
+            summary: Publish an assignment (emits assignment.published.v1)
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/AssignmentId'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Assignment' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /gradebook:
+      get:
+            operationId: getGradebook
+            tags: ['gradebook']
+            summary: Per-student or per-class gradebook summary (per-subject averages + overall)
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - name: student_id
+                in: query
+                description: Student to summarise. Required when class_id is absent.
+                schema: { type: string, format: uuid }
+              - name: class_id
+                in: query
+                description: Restrict to assessments tagged with this class. Required when student_id is absent.
+                schema: { type: string, format: uuid }
+              - name: academic_year_id
+                in: query
+                description: Restrict to assessments in this academic period (term/year).
+                schema: { type: string, format: uuid }
+              - name: subject_id
+                in: query
+                description: Restrict to a single subject.
+                schema: { type: string, format: uuid }
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/GradebookSummary' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
 
 components:
   parameters:
     TenantId:
       name: tenant_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    AssignmentId:
+      name: assignment_id
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -171,7 +296,7 @@ components:
           id: { type: string, format: uuid }
           tenant_id: { type: string, format: uuid }
           name: { type: string }
-          type: { type: string, enum: [test, exam, quiz] }
+          type: { type: string, enum: [test, exam, quiz, assignment] }
           subject_id: { type: string, format: uuid }
           class_id: { type: [string, 'null'], format: uuid }
           term_id: { type: [string, 'null'], format: uuid }
@@ -182,7 +307,7 @@ components:
         required: [name, type, subject_id]
         properties:
           name: { type: string }
-          type: { type: string, enum: [test, exam, quiz] }
+          type: { type: string, enum: [test, exam, quiz, assignment] }
           subject_id: { type: string, format: uuid }
           class_id: { type: [string, 'null'], format: uuid }
           term_id: { type: [string, 'null'], format: uuid }
@@ -212,18 +337,62 @@ components:
           id: { type: string, format: uuid }
           tenant_id: { type: string, format: uuid }
           title: { type: string }
+          instructions: { type: [string, 'null'] }
           subject_id: { type: string, format: uuid }
+          academic_year_id: { type: string, format: uuid }
           class_ids: { type: array, items: { type: string, format: uuid } }
           due_date: { type: [string, 'null'], format: date-time }
+          max_score: { type: number, minimum: 0 }
+          status: { type: string, enum: [draft, published, archived] }
           published_at: { type: [string, 'null'], format: date-time }
     CreateAssignment:
         type: object
-        required: [title, subject_id]
+        required: [title, subject_id, academic_year_id, max_score]
         properties:
           title: { type: string }
+          instructions: { type: [string, 'null'] }
           subject_id: { type: string, format: uuid }
+          academic_year_id: { type: string, format: uuid }
           class_ids: { type: array, items: { type: string, format: uuid } }
           due_date: { type: [string, 'null'], format: date-time }
+          max_score: { type: number, exclusiveMinimum: 0 }
+    UpdateAssignment:
+        type: object
+        properties:
+          title: { type: string }
+          instructions: { type: [string, 'null'] }
+          class_ids: { type: array, items: { type: string, format: uuid } }
+          due_date: { type: [string, 'null'], format: date-time }
+          max_score: { type: number, exclusiveMinimum: 0 }
+    GradeAggregate:
+        type: object
+        required: [assessment_count, total_score, total_max_score, average, weighted_average]
+        properties:
+          assessment_count: { type: integer, minimum: 0 }
+          total_score: { type: number, minimum: 0 }
+          total_max_score: { type: number, minimum: 0 }
+          average:
+            type: [number, 'null']
+            description: Arithmetic mean of per-assessment percentages (score / max_score * 100); null when no scores.
+          weighted_average:
+            type: [number, 'null']
+            description: Max-score-weighted percentage (total_score / total_max_score * 100); null when no scores.
+    SubjectGrade:
+        allOf:
+          - $ref: '#/components/schemas/GradeAggregate'
+          - type: object
+            required: [subject_id]
+            properties:
+              subject_id: { type: string, format: uuid }
+    GradebookSummary:
+        type: object
+        required: [subjects, overall]
+        properties:
+          student_id: { type: [string, 'null'], format: uuid }
+          class_id: { type: [string, 'null'], format: uuid }
+          academic_year_id: { type: [string, 'null'], format: uuid }
+          subjects: { type: array, items: { $ref: '#/components/schemas/SubjectGrade' } }
+          overall: { $ref: '#/components/schemas/GradeAggregate' }
     AssessmentList:
         type: object
         properties:

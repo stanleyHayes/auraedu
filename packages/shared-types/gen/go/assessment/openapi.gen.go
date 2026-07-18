@@ -50,21 +50,59 @@ type CreateScore struct {
 
 // Assignment generated from OpenAPI schema.
 type Assignment struct {
-	Id          string    `json:"id"`
-	TenantId    string    `json:"tenant_id"`
-	Title       string    `json:"title"`
-	SubjectId   string    `json:"subject_id"`
-	ClassIds    *[]string `json:"class_ids,omitempty"`
-	DueDate     *string   `json:"due_date,omitempty"`
-	PublishedAt *string   `json:"published_at,omitempty"`
+	Id             string    `json:"id"`
+	TenantId       string    `json:"tenant_id"`
+	Title          string    `json:"title"`
+	Instructions   *string   `json:"instructions,omitempty"`
+	SubjectId      string    `json:"subject_id"`
+	AcademicYearId *string   `json:"academic_year_id,omitempty"`
+	ClassIds       *[]string `json:"class_ids,omitempty"`
+	DueDate        *string   `json:"due_date,omitempty"`
+	MaxScore       *float64  `json:"max_score,omitempty"`
+	Status         *string   `json:"status,omitempty"`
+	PublishedAt    *string   `json:"published_at,omitempty"`
 }
 
 // CreateAssignment generated from OpenAPI schema.
 type CreateAssignment struct {
-	Title     string    `json:"title"`
-	SubjectId string    `json:"subject_id"`
-	ClassIds  *[]string `json:"class_ids,omitempty"`
-	DueDate   *string   `json:"due_date,omitempty"`
+	Title          string    `json:"title"`
+	Instructions   *string   `json:"instructions,omitempty"`
+	SubjectId      string    `json:"subject_id"`
+	AcademicYearId string    `json:"academic_year_id"`
+	ClassIds       *[]string `json:"class_ids,omitempty"`
+	DueDate        *string   `json:"due_date,omitempty"`
+	MaxScore       float64   `json:"max_score"`
+}
+
+// UpdateAssignment generated from OpenAPI schema.
+type UpdateAssignment struct {
+	Title        *string   `json:"title,omitempty"`
+	Instructions *string   `json:"instructions,omitempty"`
+	ClassIds     *[]string `json:"class_ids,omitempty"`
+	DueDate      *string   `json:"due_date,omitempty"`
+	MaxScore     *float64  `json:"max_score,omitempty"`
+}
+
+// GradeAggregate generated from OpenAPI schema.
+type GradeAggregate struct {
+	AssessmentCount int      `json:"assessment_count"`
+	TotalScore      float64  `json:"total_score"`
+	TotalMaxScore   float64  `json:"total_max_score"`
+	Average         *float64 `json:"average"`
+	WeightedAverage *float64 `json:"weighted_average"`
+}
+
+// SubjectGrade generated from OpenAPI schema.
+type SubjectGrade struct {
+}
+
+// GradebookSummary generated from OpenAPI schema.
+type GradebookSummary struct {
+	StudentId      *string        `json:"student_id,omitempty"`
+	ClassId        *string        `json:"class_id,omitempty"`
+	AcademicYearId *string        `json:"academic_year_id,omitempty"`
+	Subjects       []SubjectGrade `json:"subjects"`
+	Overall        GradeAggregate `json:"overall"`
 }
 
 // AssessmentList generated from OpenAPI schema.
@@ -87,6 +125,11 @@ type ServerInterface interface {
 	recordScore(w http.ResponseWriter, r *http.Request)
 	listAssignments(w http.ResponseWriter, r *http.Request)
 	createAssignment(w http.ResponseWriter, r *http.Request)
+	getAssignment(w http.ResponseWriter, r *http.Request)
+	updateAssignment(w http.ResponseWriter, r *http.Request)
+	deleteAssignment(w http.ResponseWriter, r *http.Request)
+	publishAssignment(w http.ResponseWriter, r *http.Request)
+	getGradebook(w http.ResponseWriter, r *http.Request)
 }
 
 // ClientInterface is the generated consumer stub for this service.
@@ -97,4 +140,9 @@ type ClientInterface interface {
 	recordScore(ctx context.Context) (*http.Response, error)
 	listAssignments(ctx context.Context) (*http.Response, error)
 	createAssignment(ctx context.Context) (*http.Response, error)
+	getAssignment(ctx context.Context) (*http.Response, error)
+	updateAssignment(ctx context.Context) (*http.Response, error)
+	deleteAssignment(ctx context.Context) (*http.Response, error)
+	publishAssignment(ctx context.Context) (*http.Response, error)
+	getGradebook(ctx context.Context) (*http.Response, error)
 }

@@ -22,6 +22,12 @@ type Repository interface {
 	ListScores(ctx context.Context, tenantID, assessmentID string, filter ScoreListFilter) ([]*domain.Score, string, error)
 	UpdateScore(ctx context.Context, tenantID string, s *domain.Score) error
 	DeleteScore(ctx context.Context, tenantID, assessmentID, scoreID string) error
+
+	// Assignments (assessments with type='assignment').
+	ListAssignments(ctx context.Context, tenantID string, filter AssignmentListFilter) ([]*domain.Assessment, string, error)
+
+	// Gradebook.
+	GradebookScores(ctx context.Context, tenantID string, filter GradebookFilter) ([]domain.GradeRow, error)
 }
 
 // AssessmentListFilter carries cursor pagination and optional equality filters.
@@ -39,4 +45,24 @@ type ScoreListFilter struct {
 	Limit     int
 	Cursor    string
 	StudentID string
+}
+
+// AssignmentListFilter carries cursor pagination and optional equality filters.
+// StudentID restricts to assignments that have a recorded score for that student.
+type AssignmentListFilter struct {
+	Limit     int
+	Cursor    string
+	SubjectID string
+	ClassID   string
+	StudentID string
+	Status    string
+}
+
+// GradebookFilter scopes a gradebook query. At least one of StudentID or
+// ClassID must be set.
+type GradebookFilter struct {
+	StudentID      string
+	ClassID        string
+	AcademicYearID string
+	SubjectID      string
 }

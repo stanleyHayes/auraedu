@@ -22,8 +22,11 @@ const (
 	PermRecordScores = "assessments.record_scores"
 )
 
-// FeatureAssessments is the feature flag key for assessments.
-const FeatureAssessments = "assessments"
+// Feature flag keys.
+const (
+	FeatureAssessments = "assessments"
+	FeatureAssignments = "assignments"
+)
 
 // Service holds the assessment use cases. Tenant scope + RBAC + feature-flag checks
 // belong here (agent_plan §5), never in HTTP handlers.
@@ -45,6 +48,9 @@ func WithFeatureGate(g flags.Gate) Option { return func(s *Service) { s.gates = 
 type noopPublisher struct{}
 
 func (noopPublisher) PublishAssessment(context.Context, string, *domain.Assessment, map[string]any) error {
+	return nil
+}
+func (noopPublisher) PublishAssignment(context.Context, string, *domain.Assessment, map[string]any) error {
 	return nil
 }
 func (noopPublisher) PublishScore(context.Context, string, *domain.Score, map[string]any) error {
@@ -280,6 +286,12 @@ func (s *Service) DeleteScore(ctx context.Context, actor auth.Actor, assessmentI
 }
 
 func (s *Service) requireAccess(ctx context.Context, actor auth.Actor, perm string) (string, error) {
+	return s.requireFeature(ctx, actor, perm, FeatureAssessments)
+}
+
+// requireFeature enforces authentication, tenant scope, RBAC and the given
+// feature flag for the actor's tenant.
+func (s *Service) requireFeature(ctx context.Context, actor auth.Actor, perm, feature string) (string, error) {
 	if !actor.Authenticated() {
 		return "", domain.ErrForbidden
 	}
@@ -293,8 +305,8 @@ func (s *Service) requireAccess(ctx context.Context, actor auth.Actor, perm stri
 	if !actor.Has(perm) {
 		return "", domain.ErrForbidden
 	}
-	if s.gates != nil && !s.gates.IsEnabled(ctx, tenantID, FeatureAssessments) {
-		return "", fmt.Errorf("%w: %s", flags.ErrFeatureDisabled, FeatureAssessments)
+	if s.gates != nil && !s.gates.IsEnabled(ctx, tenantID, feature) {
+		return "", fmt.Errorf("%w: %s", flags.ErrFeatureDisabled, feature)
 	}
 	return tenantID, nil
 }
