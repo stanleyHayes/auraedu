@@ -68,8 +68,43 @@ func DefaultRegistry() ServiceRegistry {
 			Target:     envURL("SERVICE_ACADEMIC_URL", "http://localhost:8092"),
 			FeatureKey: "academic_management",
 			Permissions: map[string]string{
-				http.MethodGet:  "academic.read",
-				http.MethodPost: "academic.manage",
+				http.MethodGet:    "academic.read",
+				http.MethodPost:   "academic.manage",
+				http.MethodPatch:  "academic.manage",
+				http.MethodDelete: "academic.manage",
+			},
+		},
+		{
+			Prefix:     "/api/v1/terms",
+			Target:     envURL("SERVICE_ACADEMIC_URL", "http://localhost:8092"),
+			FeatureKey: "academic_management",
+			Permissions: map[string]string{
+				http.MethodGet:    "academic.read",
+				http.MethodPost:   "academic.manage",
+				http.MethodPatch:  "academic.manage",
+				http.MethodDelete: "academic.manage",
+			},
+		},
+		{
+			Prefix:     "/api/v1/classes",
+			Target:     envURL("SERVICE_ACADEMIC_URL", "http://localhost:8092"),
+			FeatureKey: "academic_management",
+			Permissions: map[string]string{
+				http.MethodGet:    "academic.read",
+				http.MethodPost:   "academic.manage",
+				http.MethodPatch:  "academic.manage",
+				http.MethodDelete: "academic.manage",
+			},
+		},
+		{
+			Prefix:     "/api/v1/subjects",
+			Target:     envURL("SERVICE_ACADEMIC_URL", "http://localhost:8092"),
+			FeatureKey: "academic_management",
+			Permissions: map[string]string{
+				http.MethodGet:    "academic.read",
+				http.MethodPost:   "academic.manage",
+				http.MethodPatch:  "academic.manage",
+				http.MethodDelete: "academic.manage",
 			},
 		},
 		{
@@ -186,7 +221,14 @@ func DefaultRegistry() ServiceRegistry {
 		{Prefix: "/api/v1/analytics", Target: envURL("SERVICE_ANALYTICS_URL", "http://localhost:8102"), FeatureKey: "analytics"},
 		{Prefix: "/api/v1/billing", Target: envURL("SERVICE_BILLING_URL", "http://localhost:8100"), FeatureKey: "billing"},
 		{Prefix: "/api/v1/cbt", Target: envURL("SERVICE_CBT_URL", "http://localhost:8103"), FeatureKey: "cbt_exams"},
-		{Prefix: "/api/v1/audit", Target: envURL("SERVICE_AUDIT_URL", "http://localhost:8104"), FeatureKey: ""},
+		{
+			Prefix:     "/api/v1/audit",
+			Target:     envURL("SERVICE_AUDIT_URL", "http://localhost:8104"),
+			FeatureKey: "",
+			Permissions: map[string]string{
+				http.MethodGet: "audit.read",
+			},
+		},
 		{
 			Prefix:     "/api/v1/ai/recommendations",
 			Target:     envURL("SERVICE_AI_RECOMMENDATION_URL", "http://localhost:8200"),
