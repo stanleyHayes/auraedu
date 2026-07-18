@@ -8,6 +8,7 @@ import (
 	"github.com/auraedu/audit-service/internal/adapters/postgres"
 	"github.com/auraedu/audit-service/internal/domain"
 	"github.com/auraedu/audit-service/internal/ports"
+	"github.com/auraedu/platform/auth"
 	"github.com/auraedu/platform/tenancy"
 	"github.com/auraedu/platform/testkit"
 	"github.com/google/uuid"
@@ -113,5 +114,42 @@ func TestRepository_ListPagination(t *testing.T) {
 	}
 	if page2[0].ID != log1.ID {
 		t.Fatalf("expected oldest log on second page, got %s, want %s", page2[0].ID, log1.ID)
+	}
+}
+
+func TestRepository_ListAllCrossTenant(t *testing.T) {
+	ctx := context.Background()
+	repo := newRepo(t)
+
+	mustInsert(withTenant(ctx, tenantA), t, repo, "student.created.v1", "stu-a")
+
+	logB, err := domain.NewAuditLogBuilder().
+		TenantID(uuid.MustParse(tenantB)).
+		EventID(uuid.NewString()).
+		EventType("invoice.created.v1").
+		SourceService("test-service").
+		Timestamp(time.Now().UTC()).
+		ReceivedAt(time.Now().UTC()).
+		Action("invoice.created.v1").
+		Build()
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	if err := repo.Insert(withTenant(ctx, tenantB), logB); err != nil {
+		t.Fatalf("insert tenant B: %v", err)
+	}
+
+	// A platform super admin reads across tenants (app.is_platform_admin RLS bypass).
+	adminCtx := auth.WithActor(ctx, auth.Actor{
+		UserID:        "admin-1",
+		Role:          auth.RolePlatformSuperAdmin,
+		PlatformAdmin: true,
+	})
+	list, _, err := repo.ListAll(adminCtx, 10, "")
+	if err != nil {
+		t.Fatalf("list all: %v", err)
+	}
+	if len(list) != 2 {
+		t.Fatalf("expected 2 logs across tenants, got %d", len(list))
 	}
 }

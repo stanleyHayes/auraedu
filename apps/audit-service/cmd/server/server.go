@@ -13,6 +13,8 @@ import (
 	"time"
 
 	svchttp "github.com/auraedu/audit-service/internal/adapters/http"
+	"github.com/auraedu/audit-service/internal/adapters/postgres"
+	"github.com/auraedu/audit-service/internal/application"
 	"github.com/auraedu/platform/config"
 	"github.com/auraedu/platform/db"
 	"github.com/auraedu/platform/httpx"
@@ -44,8 +46,11 @@ func main() {
 	health := httpx.NewHealth(service, version).WithLogger(log)
 	health.AddReadinessCheck("postgres", func() error { return database.Ping(ctx) })
 
+	repo := postgres.NewRepository(database)
+	query := application.NewQuery(repo)
+
 	mux := http.NewServeMux()
-	svchttp.NewHandler(health).Register(mux)
+	svchttp.NewHandler(health, query).Register(mux)
 
 	addr := ":" + strconv.Itoa(config.Port(8080))
 	srv := &http.Server{
