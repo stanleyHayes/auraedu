@@ -2,9 +2,9 @@
 
 Hexagonal Go service (agent_plan §5). Scaffolded by `make new-service NAME=academic`.
 
-**Status:** skeleton — health + wiring compile. Implement the 8-story spine (agent_plan §16):
-domain+migrations, repository, CRUD+HTTP, events published/consumed, feature-flag gating,
-tenant-isolation tests, observability+audit.
+**Status:** academic years, terms, classes, and subjects implemented (AURA-12.2/12.3/12.4):
+domain+migrations, repositories, CRUD+HTTP, events, feature-flag gating, tenant-isolation
+tests. Curriculum and grading scales are later stories (AURA-12.9).
 
 ## Run
 ```bash

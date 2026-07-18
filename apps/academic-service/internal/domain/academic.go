@@ -274,6 +274,230 @@ func (t Term) Validate() error {
 	return nil
 }
 
+// ApplyUpdate mutates the term with non-empty patch fields. The academic year a term
+// belongs to is immutable. It returns the names of fields that changed, or
+// ErrValidation if a supplied value is invalid.
+func (t *Term) ApplyUpdate(name, startDate, endDate *string) ([]string, error) {
+	var changed []string
+
+	if name != nil {
+		if strings.TrimSpace(*name) == "" {
+			return nil, fmt.Errorf("%w: name cannot be empty", ErrValidation)
+		}
+		t.Name = strings.TrimSpace(*name)
+		changed = append(changed, "name")
+	}
+	if startDate != nil {
+		start, err := NewDate(*startDate)
+		if err != nil {
+			return nil, fmt.Errorf("%w: start_date must be a valid date", ErrValidation)
+		}
+		t.StartDate = start
+		changed = append(changed, "start_date")
+	}
+	if endDate != nil {
+		end, err := NewDate(*endDate)
+		if err != nil {
+			return nil, fmt.Errorf("%w: end_date must be a valid date", ErrValidation)
+		}
+		t.EndDate = end
+		changed = append(changed, "end_date")
+	}
+
+	if t.EndDate.Before(t.StartDate.Time) || t.EndDate.Equal(t.StartDate.Time) {
+		return nil, fmt.Errorf("%w: end_date must be after start_date", ErrValidation)
+	}
+
+	if len(changed) > 0 {
+		t.UpdatedAt = time.Now().UTC()
+	}
+	return changed, nil
+}
+
+// Class is the aggregate root for a school class (e.g. "Class 1", "Form 2") within
+// an academic year (spec §7). Every record is tenant-scoped.
+type Class struct {
+	ID             string    `json:"id"`
+	TenantID       string    `json:"tenant_id"`
+	Name           string    `json:"name"`
+	AcademicYearID string    `json:"academic_year_id"`
+	ClassTeacherID *string   `json:"class_teacher_id"`
+	Capacity       *int      `json:"capacity"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+// NewClass constructs a Class, enforcing invariants.
+func NewClass(tenantID, academicYearID, name string, classTeacherID *string, capacity *int) (*Class, error) {
+	if tenantID == "" {
+		return nil, ErrMissingTenant
+	}
+	if academicYearID == "" {
+		return nil, fmt.Errorf("%w: academic_year_id is required", ErrValidation)
+	}
+	if strings.TrimSpace(name) == "" {
+		return nil, fmt.Errorf("%w: name is required", ErrValidation)
+	}
+	if capacity != nil && *capacity <= 0 {
+		return nil, fmt.Errorf("%w: capacity must be greater than zero", ErrValidation)
+	}
+
+	id, err := uuid.NewV7()
+	if err != nil {
+		return nil, fmt.Errorf("academic: generate id: %w", err)
+	}
+	now := time.Now().UTC()
+	return &Class{
+		ID:             id.String(),
+		TenantID:       tenantID,
+		Name:           strings.TrimSpace(name),
+		AcademicYearID: academicYearID,
+		ClassTeacherID: normalizeOptionalID(classTeacherID),
+		Capacity:       capacity,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}, nil
+}
+
+// Validate checks that the class aggregate is well-formed.
+func (c Class) Validate() error {
+	if c.TenantID == "" {
+		return ErrMissingTenant
+	}
+	if c.AcademicYearID == "" {
+		return fmt.Errorf("%w: academic_year_id is required", ErrValidation)
+	}
+	if strings.TrimSpace(c.Name) == "" {
+		return fmt.Errorf("%w: name is required", ErrValidation)
+	}
+	if c.Capacity != nil && *c.Capacity <= 0 {
+		return fmt.Errorf("%w: capacity must be greater than zero", ErrValidation)
+	}
+	return nil
+}
+
+// ApplyUpdate mutates the class with non-empty patch fields. The academic year a class
+// belongs to is immutable. An empty class_teacher_id clears the assigned teacher.
+// It returns the names of fields that changed, or ErrValidation if a supplied value is invalid.
+func (c *Class) ApplyUpdate(name, classTeacherID *string, capacity *int) ([]string, error) {
+	var changed []string
+
+	if name != nil {
+		if strings.TrimSpace(*name) == "" {
+			return nil, fmt.Errorf("%w: name cannot be empty", ErrValidation)
+		}
+		c.Name = strings.TrimSpace(*name)
+		changed = append(changed, "name")
+	}
+	if classTeacherID != nil {
+		c.ClassTeacherID = normalizeOptionalID(classTeacherID)
+		changed = append(changed, "class_teacher_id")
+	}
+	if capacity != nil {
+		if *capacity <= 0 {
+			return nil, fmt.Errorf("%w: capacity must be greater than zero", ErrValidation)
+		}
+		c.Capacity = capacity
+		changed = append(changed, "capacity")
+	}
+
+	if len(changed) > 0 {
+		c.UpdatedAt = time.Now().UTC()
+	}
+	return changed, nil
+}
+
+// Subject is the aggregate root for a tenant-level subject (e.g. "Mathematics").
+// Every record is tenant-scoped.
+type Subject struct {
+	ID          string    `json:"id"`
+	TenantID    string    `json:"tenant_id"`
+	Name        string    `json:"name"`
+	Code        *string   `json:"code"`
+	Description *string   `json:"description"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// NewSubject constructs a Subject, enforcing invariants.
+func NewSubject(tenantID, name string, code, description *string) (*Subject, error) {
+	if tenantID == "" {
+		return nil, ErrMissingTenant
+	}
+	if strings.TrimSpace(name) == "" {
+		return nil, fmt.Errorf("%w: name is required", ErrValidation)
+	}
+
+	id, err := uuid.NewV7()
+	if err != nil {
+		return nil, fmt.Errorf("academic: generate id: %w", err)
+	}
+	now := time.Now().UTC()
+	return &Subject{
+		ID:          id.String(),
+		TenantID:    tenantID,
+		Name:        strings.TrimSpace(name),
+		Code:        normalizeOptionalText(code),
+		Description: normalizeOptionalText(description),
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}, nil
+}
+
+// Validate checks that the subject aggregate is well-formed.
+func (s Subject) Validate() error {
+	if s.TenantID == "" {
+		return ErrMissingTenant
+	}
+	if strings.TrimSpace(s.Name) == "" {
+		return fmt.Errorf("%w: name is required", ErrValidation)
+	}
+	return nil
+}
+
+// ApplyUpdate mutates the subject with non-empty patch fields. Empty code or
+// description values clear the field. It returns the names of fields that changed,
+// or ErrValidation if a supplied value is invalid.
+func (s *Subject) ApplyUpdate(name, code, description *string) ([]string, error) {
+	var changed []string
+
+	if name != nil {
+		if strings.TrimSpace(*name) == "" {
+			return nil, fmt.Errorf("%w: name cannot be empty", ErrValidation)
+		}
+		s.Name = strings.TrimSpace(*name)
+		changed = append(changed, "name")
+	}
+	if code != nil {
+		s.Code = normalizeOptionalText(code)
+		changed = append(changed, "code")
+	}
+	if description != nil {
+		s.Description = normalizeOptionalText(description)
+		changed = append(changed, "description")
+	}
+
+	if len(changed) > 0 {
+		s.UpdatedAt = time.Now().UTC()
+	}
+	return changed, nil
+}
+
+// normalizeOptionalID trims an optional identifier, mapping empty to nil.
+func normalizeOptionalID(v *string) *string {
+	if v == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*v)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
+// normalizeOptionalText trims optional free text, mapping empty to nil.
+func normalizeOptionalText(v *string) *string { return normalizeOptionalID(v) }
+
 func isValidYearStatus(v string) bool {
 	switch AcademicYearStatus(v) {
 	case StatusActive, StatusArchived:

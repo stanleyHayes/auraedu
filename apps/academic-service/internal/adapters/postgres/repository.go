@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// Repository is the Postgres implementation of ports.Repository.
+// Repository is the Postgres implementation of ports.AcademicYearRepository.
 // It uses platform/db.WithTx so that app.tenant_id is set on the same connection
 // that executes the query, which makes the Row-Level Security policy effective.
 // Every query also filters by tenant_id explicitly as defense-in-depth.
@@ -21,7 +21,7 @@ type Repository struct {
 	db *db.DB
 }
 
-var _ ports.Repository = (*Repository)(nil)
+var _ ports.AcademicYearRepository = (*Repository)(nil)
 
 // NewRepository creates a Postgres-backed academic year repository.
 func NewRepository(database *db.DB) *Repository { return &Repository{db: database} }

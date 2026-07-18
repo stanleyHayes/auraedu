@@ -51,8 +51,11 @@ func main() {
 	pub := publisher(ctx, log)
 	gates := featureGates(log)
 
-	repo := postgres.NewRepository(database)
-	svc := application.NewService(repo,
+	yearRepo := postgres.NewRepository(database)
+	termRepo := postgres.NewTermRepository(database)
+	classRepo := postgres.NewClassRepository(database)
+	subjectRepo := postgres.NewSubjectRepository(database)
+	svc := application.NewService(yearRepo, termRepo, classRepo, subjectRepo,
 		application.WithPublisher(pub),
 		application.WithFeatureGate(gates),
 	)
