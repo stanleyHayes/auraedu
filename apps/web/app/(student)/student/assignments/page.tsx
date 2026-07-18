@@ -1,9 +1,9 @@
 import { ClipboardList } from "lucide-react";
 import { EmptyState } from "@auraedu/ui";
+import type { OpenAPI } from "@auraedu/shared-types";
 import { createServerClient } from "@/lib/api";
-import type { components as AssessmentComponents } from "@auraedu/shared-types/openapi/assessment.v1";
 
-type Assignment = AssessmentComponents["schemas"]["Assignment"];
+type Assignment = OpenAPI.assessment_v1.components["schemas"]["Assignment"];
 
 export default async function StudentAssignmentsPage() {
   let assignments: Assignment[] = [];
@@ -11,8 +11,8 @@ export default async function StudentAssignmentsPage() {
 
   try {
     const client = await createServerClient();
-    const list = await client.get<{ data?: Assignment[]; next_cursor?: string | null }>(
-      "/api/v1/assignments",
+    const list = await client.get<OpenAPI.assessment_v1.components["schemas"]["AssignmentList"]>(
+      "/api/v1/assignments?status=published",
     );
     assignments = list.data ?? [];
   } catch {
