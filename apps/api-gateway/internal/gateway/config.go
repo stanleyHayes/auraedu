@@ -64,6 +64,25 @@ func DefaultRegistry() ServiceRegistry {
 		{Prefix: "/api/v1/attendance", Target: envURL("SERVICE_ATTENDANCE_URL", "http://localhost:8094"), FeatureKey: "attendance"},
 		{Prefix: "/api/v1/assessments", Target: envURL("SERVICE_ASSESSMENT_URL", "http://localhost:8095"), FeatureKey: "assessments"},
 		{
+			Prefix:     "/api/v1/assignments",
+			Target:     envURL("SERVICE_ASSESSMENT_URL", "http://localhost:8095"),
+			FeatureKey: "assignments",
+			Permissions: map[string]string{
+				http.MethodGet:    "assessments.read",
+				http.MethodPost:   "assessments.manage",
+				http.MethodPatch:  "assessments.manage",
+				http.MethodDelete: "assessments.manage",
+			},
+		},
+		{
+			Prefix:     "/api/v1/gradebook",
+			Target:     envURL("SERVICE_ASSESSMENT_URL", "http://localhost:8095"),
+			FeatureKey: "assessments",
+			Permissions: map[string]string{
+				http.MethodGet: "assessments.read",
+			},
+		},
+		{
 			Prefix:     "/api/v1/academic",
 			Target:     envURL("SERVICE_ACADEMIC_URL", "http://localhost:8092"),
 			FeatureKey: "academic_management",
