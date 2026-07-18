@@ -36,6 +36,32 @@ type SubscriptionRepository interface {
 	Delete(ctx context.Context, tenantID, id string) error
 }
 
+// AnnouncementRepository persists Announcement aggregates. Implementations MUST
+// scope every query by tenantID (defense-in-depth with Postgres RLS).
+type AnnouncementRepository interface {
+	Create(ctx context.Context, tenantID string, a *domain.Announcement) error
+	GetByID(ctx context.Context, tenantID, id string) (*domain.Announcement, error)
+	List(ctx context.Context, tenantID string, filter AnnouncementFilter) ([]*domain.Announcement, string, error)
+	Delete(ctx context.Context, tenantID, id string) error
+}
+
+// ProcessedEventRepository is the worker idempotency ledger for consumed
+// CloudEvents, deduplicated by (tenantID, eventID).
+type ProcessedEventRepository interface {
+	// Claim records eventID as processed for the tenant. It reports false when
+	// the event was already claimed (idempotent redelivery).
+	Claim(ctx context.Context, tenantID, eventID, eventType string) (bool, error)
+	// Release removes a claim so a failed event can be retried on redelivery.
+	Release(ctx context.Context, tenantID, eventID string) error
+}
+
+// AnnouncementFilter carries cursor pagination and optional equality filters.
+type AnnouncementFilter struct {
+	Limit    int
+	Cursor   string
+	Audience string
+}
+
 // MessageFilter carries cursor pagination and optional equality filters.
 type MessageFilter struct {
 	Limit       int

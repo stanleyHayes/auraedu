@@ -10,6 +10,7 @@ tags:
   - name: messages
   - name: templates
   - name: subscriptions
+  - name: announcements
 
 paths:
     /messages:
@@ -133,11 +134,91 @@ paths:
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
+    /announcements:
+      get:
+            operationId: listAnnouncements
+            tags: ['announcements']
+            summary: List announcements
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/Limit'
+              - $ref: '#/components/parameters/Cursor'
+              - name: audience
+                in: query
+                schema: { type: string, enum: [all, students, guardians, staff] }
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/AnnouncementList' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      post:
+            operationId: createAnnouncement
+            tags: ['announcements']
+            summary: Create an announcement and publish it to the in-app inbox
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/CreateAnnouncement' }
+            responses:
+              '201':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Announcement' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+    /announcements/{announcement_id}:
+      get:
+            operationId: getAnnouncement
+            tags: ['announcements']
+            summary: Get an announcement
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/AnnouncementId'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Announcement' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+      delete:
+            operationId: deleteAnnouncement
+            tags: ['announcements']
+            summary: Delete an announcement
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/AnnouncementId'
+            responses:
+              '204':
+                description: Deleted
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
 
 components:
   parameters:
     TenantId:
       name: tenant_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    AnnouncementId:
+      name: announcement_id
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -233,6 +314,29 @@ components:
         type: object
         properties:
           data: { type: array, items: { $ref: '#/components/schemas/Subscription' } }
+          next_cursor: { type: [string, 'null'] }
+    Announcement:
+        type: object
+        required: [id, tenant_id, title, body, audience]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string, format: uuid }
+          title: { type: string }
+          body: { type: string }
+          audience: { type: string, enum: [all, students, guardians, staff] }
+          created_at: { type: string, format: date-time }
+          updated_at: { type: string, format: date-time }
+    CreateAnnouncement:
+        type: object
+        required: [title, body]
+        properties:
+          title: { type: string }
+          body: { type: string }
+          audience: { type: string, enum: [all, students, guardians, staff], default: all }
+    AnnouncementList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/Announcement' } }
           next_cursor: { type: [string, 'null'] }
 
   responses:

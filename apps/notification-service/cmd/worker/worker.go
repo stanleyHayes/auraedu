@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	svcevents "github.com/auraedu/notification-service/internal/adapters/events"
 	"github.com/auraedu/notification-service/internal/adapters/notifier"
 	"github.com/auraedu/notification-service/internal/adapters/postgres"
 	"github.com/auraedu/notification-service/internal/application"
@@ -65,9 +66,13 @@ func run(log *slog.Logger) error {
 	messageRepo := postgres.NewMessageRepository(database)
 	templateRepo := postgres.NewTemplateRepository(database)
 	subscriptionRepo := postgres.NewSubscriptionRepository(database)
+	processedRepo := postgres.NewProcessedEventRepository(database)
+	pub := svcevents.NewPublisher(eventbus.NewPublisher(js))
 	svc := application.NewService(messageRepo, templateRepo, subscriptionRepo,
+		application.WithPublisher(pub),
 		application.WithNotifiers(notifier.Registry()),
 		application.WithFeatureGate(gates),
+		application.WithProcessedEventRepository(processedRepo),
 	)
 
 	consumer := newConsumer(js, log, svc)
@@ -190,8 +195,13 @@ func (c *consumer) handleMsg(msg *nats.Msg) {
 		"tenant_id", event.TenantID,
 		"subject", event.Subject,
 	)
-	_ = c.svc
-	_ = ctx
+	if err := c.svc.HandleCloudEvent(ctx, event); err != nil {
+		// Nak so JetStream redelivers after AckWait; the processed-event claim
+		// was released by the service so the retry can re-attempt the side effect.
+		c.log.Error("event side effect failed", "type", event.Type, "event_id", event.ID, "err", err)
+		_ = msg.Nak()
+		return
+	}
 	_ = msg.Ack()
 }
 

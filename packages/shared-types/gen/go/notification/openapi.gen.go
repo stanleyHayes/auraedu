@@ -80,6 +80,30 @@ type SubscriptionList struct {
 	NextCursor *string         `json:"next_cursor,omitempty"`
 }
 
+// Announcement generated from OpenAPI schema.
+type Announcement struct {
+	Id        string  `json:"id"`
+	TenantId  string  `json:"tenant_id"`
+	Title     string  `json:"title"`
+	Body      string  `json:"body"`
+	Audience  string  `json:"audience"`
+	CreatedAt *string `json:"created_at,omitempty"`
+	UpdatedAt *string `json:"updated_at,omitempty"`
+}
+
+// CreateAnnouncement generated from OpenAPI schema.
+type CreateAnnouncement struct {
+	Title    string  `json:"title"`
+	Body     string  `json:"body"`
+	Audience *string `json:"audience,omitempty"`
+}
+
+// AnnouncementList generated from OpenAPI schema.
+type AnnouncementList struct {
+	Data       *[]Announcement `json:"data,omitempty"`
+	NextCursor *string         `json:"next_cursor,omitempty"`
+}
+
 // ServerInterface is implemented by the service HTTP adapter.
 type ServerInterface interface {
 	listMessages(w http.ResponseWriter, r *http.Request)
@@ -88,6 +112,10 @@ type ServerInterface interface {
 	createTemplate(w http.ResponseWriter, r *http.Request)
 	listSubscriptions(w http.ResponseWriter, r *http.Request)
 	createSubscription(w http.ResponseWriter, r *http.Request)
+	listAnnouncements(w http.ResponseWriter, r *http.Request)
+	createAnnouncement(w http.ResponseWriter, r *http.Request)
+	getAnnouncement(w http.ResponseWriter, r *http.Request)
+	deleteAnnouncement(w http.ResponseWriter, r *http.Request)
 }
 
 // ClientInterface is the generated consumer stub for this service.
@@ -98,4 +126,8 @@ type ClientInterface interface {
 	createTemplate(ctx context.Context) (*http.Response, error)
 	listSubscriptions(ctx context.Context) (*http.Response, error)
 	createSubscription(ctx context.Context) (*http.Response, error)
+	listAnnouncements(ctx context.Context) (*http.Response, error)
+	createAnnouncement(ctx context.Context) (*http.Response, error)
+	getAnnouncement(ctx context.Context) (*http.Response, error)
+	deleteAnnouncement(ctx context.Context) (*http.Response, error)
 }

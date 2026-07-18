@@ -3,7 +3,6 @@ package application
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -26,12 +25,24 @@ const (
 // FeatureNotifications is the feature flag key for the notification service.
 const FeatureNotifications = "notifications"
 
+// FeatureAnnouncements is the feature flag key gating the announcements API.
+const FeatureAnnouncements = "announcements"
+
+// Channel feature flag keys used by the worker when consuming domain events.
+const (
+	FeatureEmailNotifications    = "email_notifications"
+	FeatureSMSNotifications      = "sms_notifications"
+	FeatureWhatsAppNotifications = "whatsapp_notifications"
+)
+
 // Service holds the notification use cases. Tenant scope + RBAC + feature-flag checks
 // belong here (agent_plan §5), never in HTTP handlers.
 type Service struct {
 	messageRepo      ports.MessageRepository
 	templateRepo     ports.TemplateRepository
 	subscriptionRepo ports.SubscriptionRepository
+	announcementRepo ports.AnnouncementRepository
+	processedRepo    ports.ProcessedEventRepository
 	pub              ports.EventPublisher
 	notifiers        map[string]ports.Notifier
 	gates            flags.Gate
@@ -48,6 +59,16 @@ func WithNotifiers(n map[string]ports.Notifier) Option { return func(s *Service)
 
 // WithFeatureGate sets the feature-flag gate.
 func WithFeatureGate(g flags.Gate) Option { return func(s *Service) { s.gates = g } }
+
+// WithAnnouncementRepository sets the announcement repository.
+func WithAnnouncementRepository(r ports.AnnouncementRepository) Option {
+	return func(s *Service) { s.announcementRepo = r }
+}
+
+// WithProcessedEventRepository sets the worker idempotency ledger.
+func WithProcessedEventRepository(r ports.ProcessedEventRepository) Option {
+	return func(s *Service) { s.processedRepo = r }
+}
 
 type noopPublisher struct{}
 
@@ -229,6 +250,15 @@ func (s *Service) SendMessage(ctx context.Context, actor auth.Actor, id string) 
 		return m, fmt.Errorf("%w: %s", domain.ErrValidation, reason)
 	}
 
+	return s.deliver(ctx, tenantID, m)
+}
+
+// deliver dispatches a pending message through its channel notifier and records
+// the outcome. It is shared by the HTTP send path (after RBAC + subscription
+// checks) and internal flows (worker side effects, announcements) which perform
+// their own gating. Delivery failures mark the message failed and publish
+// notification.failed.v1; success publishes notification.sent.v1.
+func (s *Service) deliver(ctx context.Context, tenantID string, m *domain.Message) (*domain.Message, error) {
 	notifier, ok := s.notifiers[m.Channel]
 	if !ok {
 		reason := "no notifier configured for channel " + m.Channel
@@ -262,18 +292,6 @@ func (s *Service) SendMessage(ctx context.Context, actor auth.Actor, id string) 
 		slog.Default().ErrorContext(ctx, "failed to publish message sent event", "message_id", m.ID, "err", err)
 	}
 	return m, nil
-}
-
-// DispatchEvent creates pending messages for interested subscriptions.
-// This is a minimal optional use case; it is not required for the story.
-func (s *Service) DispatchEvent(ctx context.Context, actor auth.Actor, eventType, tenantID string, payload json.RawMessage) error {
-	if _, err := s.requireAccess(ctx, actor, PermManage); err != nil {
-		return err
-	}
-	_ = eventType
-	_ = payload
-	_ = tenantID
-	return nil
 }
 
 // --- Template use cases ---

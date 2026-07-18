@@ -109,6 +109,11 @@ features:
     description: Announcements
     defaults: { upshs: on, aboom: on }
 
+  - key: notifications
+    plan_required: starter
+    description: Notification service (messages, templates, subscriptions)
+    defaults: { upshs: on, aboom: on }
+
   - key: email_notifications
     plan_required: starter
     description: Email notifications

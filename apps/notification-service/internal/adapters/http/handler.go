@@ -45,6 +45,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/notification-subscriptions/{subscription_id}", h.getSubscription)
 	mux.HandleFunc("PATCH /api/v1/notification-subscriptions/{subscription_id}", h.updateSubscription)
 	mux.HandleFunc("DELETE /api/v1/notification-subscriptions/{subscription_id}", h.deleteSubscription)
+
+	h.registerAnnouncements(mux)
 }
 
 // --- Message handlers ---
