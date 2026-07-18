@@ -1,69 +1,38 @@
-// Package events is a minimal local stub for platform/eventbus (AURA-2.6).
+// Package events adapts the platform eventbus to the tenant service EventPublisher port.
 package events
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"log/slog"
 
-	"github.com/auraedu/platform/config"
+	"github.com/auraedu/platform/eventbus"
+	"github.com/auraedu/platform/tenancy"
 	"github.com/auraedu/tenant-service/internal/ports"
-	"github.com/nats-io/nats.go"
+	"github.com/google/uuid"
 )
 
+// Publisher adapts the platform eventbus to the tenant service EventPublisher port.
 type Publisher struct {
-	nc     *nats.Conn
-	topic  string
-	logger *slog.Logger
+	bus *eventbus.Publisher
 }
 
-func NewPublisher(_ context.Context, logger *slog.Logger) (ports.EventPublisher, error) {
-	if natsURL := config.Getenv("NATS_URL", ""); natsURL != "" {
-		nc, err := nats.Connect(natsURL)
-		if err != nil {
-			return nil, fmt.Errorf("nats connect: %w", err)
-		}
-		return &Publisher{nc: nc, topic: "auraedu.events", logger: logger}, nil
+var _ ports.EventPublisher = (*Publisher)(nil)
+
+// NewPublisher wraps a platform eventbus publisher. A nil bus disables publishing.
+func NewPublisher(bus *eventbus.Publisher) *Publisher { return &Publisher{bus: bus} }
+
+// Publish emits a CloudEvent for the given tenant domain event on the JetStream AURA stream.
+func (p *Publisher) Publish(ctx context.Context, eventType, tenantCode string, payload map[string]any) error {
+	if p == nil || p.bus == nil {
+		return nil
 	}
-	return &Publisher{logger: logger}, nil
-}
-
-func (p *Publisher) Publish(_ context.Context, eventType, tenantCode string, payload map[string]any) error {
-	body, err := json.Marshal(map[string]any{
-		"specversion": "1.0",
-		"type":        eventType,
-		"source":      "tenant-service",
-		"tenant_id":   tenantCode,
-		"data":        payload,
-	})
+	event, err := tenancy.NewCloudEvent(eventType, "tenant-service", newEventID(), tenantCode, payload)
 	if err != nil {
-		return err
+		return fmt.Errorf("tenant: build event %q: %w", eventType, err)
 	}
-	if p.nc != nil {
-		return p.nc.Publish(p.topic, body)
-	}
-	if p.logger != nil {
-		p.logger.Info("event published", "type", eventType, "tenant_code", tenantCode)
-	}
-	return nil
+	return p.bus.Publish(ctx, event)
 }
 
-type RecordingPublisher struct {
-	Events []struct {
-		Type       string
-		TenantCode string
-		Payload    map[string]any
-	}
-}
-
-func NewRecordingPublisher() *RecordingPublisher { return &RecordingPublisher{} }
-
-func (r *RecordingPublisher) Publish(_ context.Context, eventType, tenantCode string, payload map[string]any) error {
-	r.Events = append(r.Events, struct {
-		Type       string
-		TenantCode string
-		Payload    map[string]any
-	}{eventType, tenantCode, payload})
-	return nil
-}
+// newEventID generates the CloudEvent id. The platform eventbus validates the
+// event before it can auto-assign an id, so callers must supply one.
+func newEventID() string { return uuid.Must(uuid.NewV7()).String() }

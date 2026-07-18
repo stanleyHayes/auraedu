@@ -275,11 +275,12 @@ func (s *Service) OverrideFeature(ctx context.Context, actor auth.Actor, code, k
 	if enabled {
 		eventType = "tenant.feature_enabled.v1"
 	}
+	// The payload must match contracts/events/tenant.feature_{enabled,disabled}.v1.json
+	// (additionalProperties: false) — the override reason stays on the flag row only.
 	if err := s.pub.Publish(ctx, eventType, code, map[string]any{
 		"feature_key": key,
 		"is_enabled":  enabled,
 		"plan":        flag.PlanRequired,
-		"reason":      reason,
 	}); err != nil {
 		slog.Default().ErrorContext(ctx, "failed to publish tenant.feature event", "err", err)
 	}

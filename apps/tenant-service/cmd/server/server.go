@@ -15,12 +15,14 @@ import (
 
 	"github.com/auraedu/platform/config"
 	"github.com/auraedu/platform/db"
+	"github.com/auraedu/platform/eventbus"
 	"github.com/auraedu/tenant-service/internal/adapters/events"
 	svchttp "github.com/auraedu/tenant-service/internal/adapters/http"
 	"github.com/auraedu/tenant-service/internal/adapters/memory"
 	"github.com/auraedu/tenant-service/internal/adapters/postgres"
 	"github.com/auraedu/tenant-service/internal/application"
 	"github.com/auraedu/tenant-service/internal/ports"
+	"github.com/nats-io/nats.go"
 )
 
 const service = "tenant-service"
@@ -95,13 +97,31 @@ func mustInitRepository(ctx context.Context, log *slog.Logger) (ports.Repository
 	return memory.New(), nil
 }
 
+// mustInitPublisher wires the platform/eventbus JetStream publisher. When
+// NATS_URL is unset or the connection fails, publishing is disabled (noop),
+// mirroring the other Go services (see student-service).
 func mustInitPublisher(_ context.Context, log *slog.Logger) application.Option {
-	pub, err := events.NewPublisher(context.Background(), log)
-	if err != nil {
-		log.Error("event publisher init failed", "err", err)
-		os.Exit(1)
+	natsURL := config.Getenv("NATS_URL", "")
+	if natsURL == "" {
+		log.Info("NATS_URL not set; event publishing disabled")
+		return application.WithPublisher(events.NewPublisher(nil))
 	}
-	return application.WithPublisher(pub)
+	nc, err := nats.Connect(natsURL)
+	if err != nil {
+		log.Error("failed to connect to NATS; event publishing disabled", "err", err)
+		return application.WithPublisher(events.NewPublisher(nil))
+	}
+	js, err := nc.JetStream()
+	if err != nil {
+		log.Error("failed to create JetStream context; event publishing disabled", "err", err)
+		return application.WithPublisher(events.NewPublisher(nil))
+	}
+	if _, err := eventbus.EnsureStream(js, "AURA"); err != nil {
+		log.Error("failed to ensure NATS stream; event publishing disabled", "err", err)
+		return application.WithPublisher(events.NewPublisher(nil))
+	}
+	log.Info("event publishing enabled", "nats_url", natsURL)
+	return application.WithPublisher(events.NewPublisher(eventbus.NewPublisher(js)))
 }
 
 func writeJSON(w http.ResponseWriter, code int, body any) {
