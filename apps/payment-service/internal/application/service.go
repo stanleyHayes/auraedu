@@ -3,6 +3,10 @@ package application
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha512"
+	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,13 +35,14 @@ const FeaturePayments = "online_payments"
 // Service holds the payment use cases. Tenant scope + RBAC + feature-flag checks
 // belong here (agent_plan §5), never in HTTP handlers.
 type Service struct {
-	paymentRepo     ports.PaymentRepository
-	transactionRepo ports.TransactionRepository
-	webhookRepo     ports.WebhookEventRepository
-	pub             ports.EventPublisher
-	provider        ports.PaymentProvider
-	gates           flags.Gate
-	signatureSecret string
+	paymentRepo              ports.PaymentRepository
+	transactionRepo          ports.TransactionRepository
+	webhookRepo              ports.WebhookEventRepository
+	pub                      ports.EventPublisher
+	provider                 ports.PaymentProvider
+	gates                    flags.Gate
+	paystackWebhookSecret    string
+	flutterwaveWebhookSecret string
 }
 
 // Option configures the service.
@@ -52,8 +57,14 @@ func WithPaymentProvider(p ports.PaymentProvider) Option { return func(s *Servic
 // WithFeatureGate sets the feature-flag gate.
 func WithFeatureGate(g flags.Gate) Option { return func(s *Service) { s.gates = g } }
 
-// WithWebhookSecret sets the webhook signature secret.
-func WithWebhookSecret(secret string) Option { return func(s *Service) { s.signatureSecret = secret } }
+// WithWebhookSecrets sets the per-provider webhook signature secrets. An empty secret
+// keeps dev-mode behavior: webhooks for that provider are accepted with a warning log.
+func WithWebhookSecrets(paystackSecret, flutterwaveSecret string) Option {
+	return func(s *Service) {
+		s.paystackWebhookSecret = paystackSecret
+		s.flutterwaveWebhookSecret = flutterwaveSecret
+	}
+}
 
 type noopPublisher struct{}
 
@@ -341,9 +352,16 @@ type ProcessWebhookRequest struct {
 	Signature string
 }
 
-// ProcessWebhook validates a webhook signature, persists the event, updates the payment/transaction and emits an event.
+// ProcessWebhook verifies the webhook signature, persists the event, reconciles the
+// payment/transaction state and emits a domain event. Processing is idempotent per
+// (tenant, provider, reference): a redelivered webhook is recorded for audit but never
+// re-applied.
 func (s *Service) ProcessWebhook(ctx context.Context, req ProcessWebhookRequest) (*domain.Payment, error) {
 	if err := s.validateWebhook(req); err != nil {
+		return nil, err
+	}
+	req.Provider = strings.ToLower(strings.TrimSpace(req.Provider))
+	if err := s.verifyWebhookSignature(ctx, req); err != nil {
 		return nil, err
 	}
 
@@ -351,6 +369,10 @@ func (s *Service) ProcessWebhook(ctx context.Context, req ProcessWebhookRequest)
 	if err != nil {
 		return nil, err
 	}
+
+	// Webhooks are unauthenticated: the tenant comes from the (now signature-verified)
+	// payload, and Postgres RLS requires it on the session. Scope the ctx accordingly.
+	ctx = tenancy.WithContext(ctx, tenancy.TenantContext{TenantID: tenantID})
 
 	webhook, err := s.buildWebhookEvent(req.Provider, eventType, req.Payload, req.Signature, tenantID)
 	if err != nil {
@@ -360,6 +382,23 @@ func (s *Service) ProcessWebhook(ctx context.Context, req ProcessWebhookRequest)
 	payment, err := s.resolvePaymentByReference(ctx, tenantID, req.Provider, providerReference)
 	if err != nil {
 		return nil, err
+	}
+
+	// Idempotency guard: a processed event for this reference means the outcome was
+	// already applied. Record the redelivery for audit and return current state.
+	processed, err := s.webhookRepo.HasProcessedReference(ctx, tenantID, req.Provider, providerReference)
+	if err != nil {
+		return nil, err
+	}
+	if processed {
+		webhook.MarkProcessed()
+		if err := s.webhookRepo.Create(ctx, tenantID, webhook); err != nil {
+			slog.Default().ErrorContext(ctx, "failed to record duplicate webhook delivery", "err", err)
+		}
+		if payment == nil {
+			return nil, fmt.Errorf("%w: no matching payment for reference %q", domain.ErrNotFound, providerReference)
+		}
+		return payment, nil
 	}
 
 	if err := s.webhookRepo.Create(ctx, tenantID, webhook); err != nil {
@@ -379,7 +418,7 @@ func (s *Service) ProcessWebhook(ctx context.Context, req ProcessWebhookRequest)
 		return nil, err
 	}
 
-	if err := s.applyWebhookOutcome(ctx, tenantID, payment, providerReference, status); err != nil {
+	if err := s.reconcilePayment(ctx, tenantID, payment, providerReference, status); err != nil {
 		return nil, err
 	}
 
@@ -390,6 +429,31 @@ func (s *Service) ProcessWebhook(ctx context.Context, req ProcessWebhookRequest)
 	return payment, nil
 }
 
+// VerifyPayment reconciles a payment against the provider's current status (operator
+// action: GET /payments/{id}/verify). It is idempotent and emits the same transition
+// events as webhook processing.
+func (s *Service) VerifyPayment(ctx context.Context, actor auth.Actor, id string) (*domain.Payment, error) {
+	tenantID, err := s.requireAccess(ctx, actor, PermInitiate)
+	if err != nil {
+		return nil, err
+	}
+	p, err := s.paymentRepo.GetByID(ctx, tenantID, id)
+	if err != nil {
+		return nil, err
+	}
+	if p.ProviderReference == nil || strings.TrimSpace(*p.ProviderReference) == "" {
+		return nil, fmt.Errorf("%w: payment has no provider reference; initiate it first", domain.ErrValidation)
+	}
+	status, err := s.provider.Verify(ctx, *p.ProviderReference)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.reconcilePayment(ctx, tenantID, p, *p.ProviderReference, status); err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
 func (s *Service) validateWebhook(req ProcessWebhookRequest) error {
 	if strings.TrimSpace(req.Provider) == "" {
 		return fmt.Errorf("%w: provider is required", domain.ErrValidation)
@@ -397,12 +461,52 @@ func (s *Service) validateWebhook(req ProcessWebhookRequest) error {
 	if len(req.Payload) == 0 {
 		return fmt.Errorf("%w: payload is required", domain.ErrValidation)
 	}
-	// Signature placeholder: if a secret is configured, the signature must be non-empty.
-	if s.signatureSecret != "" && strings.TrimSpace(req.Signature) == "" {
-		return fmt.Errorf("%w: webhook signature required", domain.ErrForbidden)
-	}
 	if !json.Valid(req.Payload) {
 		return fmt.Errorf("%w: payload must be valid JSON", domain.ErrValidation)
+	}
+	return nil
+}
+
+// verifyWebhookSignature authenticates the raw webhook payload per provider:
+//   - paystack:    hex HMAC-SHA512 of the raw body with the secret, compared to X-Paystack-Signature
+//   - flutterwave: the verif-hash header must equal the configured secret hash
+//
+// When no secret is configured for the provider, dev-mode behavior is kept (accept,
+// log a warning). Invalid signatures are rejected with 401 via domain.ErrUnauthorized.
+func (s *Service) verifyWebhookSignature(ctx context.Context, req ProcessWebhookRequest) error {
+	provider := strings.ToLower(strings.TrimSpace(req.Provider))
+	signature := strings.TrimSpace(req.Signature)
+
+	var secret string
+	switch provider {
+	case string(domain.ProviderPaystack):
+		secret = s.paystackWebhookSecret
+	case string(domain.ProviderFlutterwave):
+		secret = s.flutterwaveWebhookSecret
+	}
+	if secret == "" {
+		slog.Default().WarnContext(ctx, "webhook secret not configured; accepting unverified webhook (dev mode)",
+			"provider", provider)
+		return nil
+	}
+
+	switch provider {
+	case string(domain.ProviderPaystack):
+		mac := hmac.New(sha512.New, []byte(secret))
+		mac.Write(req.Payload)
+		expected := hex.EncodeToString(mac.Sum(nil))
+		if !hmac.Equal([]byte(expected), []byte(signature)) {
+			return fmt.Errorf("%w: invalid paystack webhook signature", domain.ErrUnauthorized)
+		}
+	case string(domain.ProviderFlutterwave):
+		if subtle.ConstantTimeCompare([]byte(signature), []byte(secret)) != 1 {
+			return fmt.Errorf("%w: invalid flutterwave webhook verif-hash", domain.ErrUnauthorized)
+		}
+	default:
+		// Unknown/mock provider with a secret configured: require a non-empty signature.
+		if signature == "" {
+			return fmt.Errorf("%w: webhook signature required", domain.ErrUnauthorized)
+		}
 	}
 	return nil
 }
@@ -436,10 +540,33 @@ func (s *Service) resolvePaymentByReference(ctx context.Context, tenantID, provi
 	return payment, nil
 }
 
-func (s *Service) applyWebhookOutcome(ctx context.Context, tenantID string, payment *domain.Payment, providerReference, status string) error {
-	if status == string(domain.PaymentStatusSuccess) {
+// reconcilePayment applies a provider-reported outcome to a payment, recording a
+// transaction and emitting payment.received.v1 / payment.failed.v1 on the transition.
+// It is the shared reconciliation path for webhooks and VerifyPayment, and is
+// idempotent: already-applied outcomes are no-ops, and a successful payment is never
+// regressed. A failed payment MAY be corrected to success (reconciliation fix-up).
+func (s *Service) reconcilePayment(ctx context.Context, tenantID string, payment *domain.Payment, providerReference, status string) error {
+	success := status == string(domain.PaymentStatusSuccess)
+
+	target := string(domain.PaymentStatusFailed)
+	if success {
+		target = string(domain.PaymentStatusSuccess)
+	}
+
+	// Already in the target state: redelivery or repeated verify — do not re-apply.
+	if payment.Status == target {
+		return nil
+	}
+	// Success is absorbing: a late/stale failure must not regress a received payment.
+	if payment.Status == string(domain.PaymentStatusSuccess) && !success {
+		slog.Default().WarnContext(ctx, "ignoring failure outcome for already successful payment",
+			"payment_id", payment.ID, "provider_reference", providerReference)
+		return nil
+	}
+
+	if success {
 		now := nowUTC()
-		if _, err := payment.ApplyUpdate(domain.PaymentPatch{Status: &status, CompletedAt: &now}); err != nil {
+		if _, err := payment.ApplyUpdate(domain.PaymentPatch{Status: &target, CompletedAt: &now}); err != nil {
 			return err
 		}
 		if err := s.paymentRepo.Update(ctx, tenantID, payment); err != nil {
@@ -458,8 +585,7 @@ func (s *Service) applyWebhookOutcome(ctx context.Context, tenantID string, paym
 		return nil
 	}
 
-	failed := string(domain.PaymentStatusFailed)
-	if _, err := payment.ApplyUpdate(domain.PaymentPatch{Status: &failed}); err != nil {
+	if _, err := payment.ApplyUpdate(domain.PaymentPatch{Status: &target}); err != nil {
 		return err
 	}
 	if err := s.paymentRepo.Update(ctx, tenantID, payment); err != nil {
@@ -472,7 +598,10 @@ func (s *Service) applyWebhookOutcome(ctx context.Context, tenantID string, paym
 	); err != nil {
 		return err
 	}
-	if err := s.pub.PublishPayment(ctx, "payment.failed.v1", payment, map[string]any{"provider_reference": providerReference}); err != nil {
+	if err := s.pub.PublishPayment(ctx, "payment.failed.v1", payment, map[string]any{
+		"provider_reference": providerReference,
+		"reason":             "provider reported status " + status,
+	}); err != nil {
 		slog.Default().ErrorContext(ctx, "failed to publish payment.failed event", "err", err)
 	}
 	return nil
@@ -520,6 +649,10 @@ func parseTime(v string) (time.Time, error) {
 	return time.Parse(time.RFC3339, v)
 }
 
+// parseWebhookPayload extracts the event type, provider reference and tenant from a
+// provider webhook body. It understands the generic shape ({reference, tenant_id}),
+// the Paystack shape ({event, data: {reference, metadata: {tenant_id}}}) and the
+// Flutterwave charge shape ({event, data: {tx_ref}}).
 func parseWebhookPayload(payload json.RawMessage) (eventType, providerReference, tenantID string, err error) {
 	var data map[string]any
 	if err := json.Unmarshal(payload, &data); err != nil {
@@ -533,8 +666,10 @@ func parseWebhookPayload(payload json.RawMessage) (eventType, providerReference,
 		providerReference = ref
 	} else if ref, ok := data["provider_reference"].(string); ok && ref != "" {
 		providerReference = ref
-	} else if data, ok := data["data"].(map[string]any); ok {
-		if ref, ok := data["reference"].(string); ok && ref != "" {
+	} else if nested, ok := data["data"].(map[string]any); ok {
+		if ref, ok := nested["reference"].(string); ok && ref != "" {
+			providerReference = ref
+		} else if ref, ok := nested["tx_ref"].(string); ok && ref != "" {
 			providerReference = ref
 		}
 	}
@@ -542,6 +677,20 @@ func parseWebhookPayload(payload json.RawMessage) (eventType, providerReference,
 		tenantID = tenant
 	} else if tenant, ok := data["tenant"].(string); ok && tenant != "" {
 		tenantID = tenant
+	} else if nested, ok := data["data"].(map[string]any); ok {
+		// Paystack carries our metadata bag on data.metadata.
+		if meta, ok := nested["metadata"].(map[string]any); ok {
+			if tenant, ok := meta["tenant_id"].(string); ok && tenant != "" {
+				tenantID = tenant
+			}
+		}
+	}
+	if tenantID == "" {
+		if meta, ok := data["metadata"].(map[string]any); ok {
+			if tenant, ok := meta["tenant_id"].(string); ok && tenant != "" {
+				tenantID = tenant
+			}
+		}
 	}
 	if eventType == "" {
 		eventType = "charge.success"

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -16,6 +17,10 @@ import (
 	"github.com/auraedu/platform/httpx"
 	"github.com/auraedu/platform/tenancy"
 )
+
+// maxWebhookBodyBytes caps provider webhook payloads (1 MiB is far above any
+// legitimate Paystack/Flutterwave event).
+const maxWebhookBodyBytes = 1 << 20
 
 // Handler adapts HTTP to the payment use cases. No business logic here (agent_plan §5).
 type Handler struct {
@@ -33,6 +38,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/v1/payments/{payment_id}", h.updatePayment)
 	mux.HandleFunc("DELETE /api/v1/payments/{payment_id}", h.deletePayment)
 	mux.HandleFunc("POST /api/v1/payments/{payment_id}/initiate", h.initiatePayment)
+	mux.HandleFunc("GET /api/v1/payments/{payment_id}/verify", h.verifyPayment)
 
 	mux.HandleFunc("GET /api/v1/payments/{payment_id}/transactions", h.listTransactionsByPayment)
 	mux.HandleFunc("GET /api/v1/transactions/{transaction_id}", h.getTransaction)
@@ -172,6 +178,20 @@ func (h *Handler) initiatePayment(w http.ResponseWriter, r *http.Request) {
 	httpx.RespondJSON(w, r, http.StatusOK, record)
 }
 
+// verifyPayment reconciles a payment against the provider's current status.
+func (h *Handler) verifyPayment(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	record, err := h.svc.VerifyPayment(ctx, actor, r.PathValue("payment_id"))
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, record)
+}
+
 // --- Transaction handlers ---
 
 func (h *Handler) listTransactionsByPayment(w http.ResponseWriter, r *http.Request) {
@@ -270,12 +290,15 @@ func (h *Handler) getWebhookEvent(w http.ResponseWriter, r *http.Request) {
 	httpx.RespondJSON(w, r, http.StatusOK, record)
 }
 
+// processWebhook ingests a provider webhook. The raw body is forwarded untouched so
+// the HMAC signature (computed over the exact bytes) can be verified by the service.
 func (h *Handler) processWebhook(w http.ResponseWriter, r *http.Request) {
-	var payload json.RawMessage
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		httpx.ValidationError(w, r, map[string]any{"body": "invalid JSON"})
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxWebhookBodyBytes))
+	if err != nil {
+		httpx.ValidationError(w, r, map[string]any{"body": "unreadable or too large"})
 		return
 	}
+
 	sig := r.Header.Get("X-Webhook-Signature")
 	if sig == "" {
 		sig = r.Header.Get("X-Paystack-Signature")
@@ -283,10 +306,13 @@ func (h *Handler) processWebhook(w http.ResponseWriter, r *http.Request) {
 	if sig == "" {
 		sig = r.Header.Get("X-Flutterwave-Signature")
 	}
+	if sig == "" {
+		sig = r.Header.Get("verif-hash")
+	}
 
-	_, err := h.svc.ProcessWebhook(r.Context(), application.ProcessWebhookRequest{
+	_, err = h.svc.ProcessWebhook(r.Context(), application.ProcessWebhookRequest{
 		Provider:  r.PathValue("provider"),
-		Payload:   payload,
+		Payload:   json.RawMessage(body),
 		Signature: sig,
 	})
 	if err != nil {
@@ -323,6 +349,8 @@ func (h *Handler) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 		httpx.Forbidden(w, r, "not permitted for this actor or tenant")
 	case errors.Is(err, domain.ErrMissingTenant):
 		httpx.TenantMismatch(w, r)
+	case errors.Is(err, domain.ErrUnauthorized):
+		httpx.Unauthorized(w, r, "invalid webhook signature")
 	default:
 		httpx.RespondError(w, r, httpx.ErrorFrom(err))
 	}

@@ -4,11 +4,13 @@ package servercmd
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -57,13 +59,17 @@ func main() {
 	transactionRepo := postgres.NewTransactionRepository(database)
 	webhookRepo := postgres.NewWebhookEventRepository(database)
 
-	prov := paymentProvider()
+	prov, err := paymentProvider()
+	if err != nil {
+		log.Error("failed to configure payment provider", "err", err)
+		os.Exit(1)
+	}
 
 	svc := application.NewService(paymentRepo, transactionRepo, webhookRepo,
 		application.WithPublisher(pub),
 		application.WithPaymentProvider(prov),
 		application.WithFeatureGate(gates),
-		application.WithWebhookSecret(config.Getenv("WEBHOOK_SECRET", "")),
+		application.WithWebhookSecrets(paystackWebhookSecret(), config.Getenv("FLUTTERWAVE_WEBHOOK_SECRET", "")),
 	)
 	handler := svchttp.NewHandler(svc)
 
@@ -147,8 +153,34 @@ func featureGates(log *slog.Logger) flags.Gate {
 	return reg.SnapshotFromRegistry()
 }
 
-func paymentProvider() ports.PaymentProvider {
-	return provideradapter.NewMockProvider()
+// paymentProvider selects the gateway adapter via PAYMENTS_PROVIDER (mock|paystack,
+// default mock). The mock keeps local/dev deterministic; paystack requires
+// PAYSTACK_SECRET_KEY and optionally overrides PAYSTACK_BASE_URL.
+func paymentProvider() (ports.PaymentProvider, error) {
+	switch strings.ToLower(config.Getenv("PAYMENTS_PROVIDER", "mock")) {
+	case "mock":
+		return provideradapter.NewMockProvider(), nil
+	case "paystack":
+		secretKey, err := config.MustGetenv("PAYSTACK_SECRET_KEY")
+		if err != nil {
+			return nil, err
+		}
+		return provideradapter.NewPaystackProvider(provideradapter.PaystackConfig{
+			SecretKey: secretKey,
+			BaseURL:   config.Getenv("PAYSTACK_BASE_URL", provideradapter.DefaultPaystackBaseURL),
+		})
+	default:
+		return nil, fmt.Errorf("unsupported PAYMENTS_PROVIDER %q (want mock|paystack)", config.Getenv("PAYMENTS_PROVIDER", "mock"))
+	}
+}
+
+// paystackWebhookSecret resolves the webhook HMAC secret. Paystack signs webhooks
+// with the API secret key, so PAYSTACK_WEBHOOK_SECRET falls back to it.
+func paystackWebhookSecret() string {
+	if v := config.Getenv("PAYSTACK_WEBHOOK_SECRET", ""); v != "" {
+		return v
+	}
+	return config.Getenv("PAYSTACK_SECRET_KEY", "")
 }
 
 // Run starts the payment-service HTTP server. It is invoked by the service CLI.

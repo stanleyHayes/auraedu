@@ -395,6 +395,34 @@ func (r *WebhookEventRepository) List(ctx context.Context, tenantID string, filt
 	return out, nextCursor, err
 }
 
+// HasProcessedReference reports whether a processed webhook event already exists for
+// (tenant, provider, reference). The reference is extracted from the JSONB payload at
+// the same locations parseWebhookPayload reads (reference, provider_reference, data.reference).
+func (r *WebhookEventRepository) HasProcessedReference(ctx context.Context, tenantID, provider, reference string) (bool, error) {
+	var exists bool
+	err := r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		row := tx.QueryRow(ctx, `
+			SELECT EXISTS (
+				SELECT 1
+				FROM webhook_events
+				WHERE tenant_id = $1
+				  AND provider = $2
+				  AND processed
+				  AND COALESCE(
+						payload->>'reference',
+						payload->>'provider_reference',
+						payload->'data'->>'reference'
+				  ) = $3
+			)
+		`, tenantID, provider, reference)
+		if err := row.Scan(&exists); err != nil {
+			return fmt.Errorf("payments: check processed webhook reference: %w", err)
+		}
+		return nil
+	})
+	return exists, err
+}
+
 type scanner interface {
 	Scan(dest ...any) error
 }

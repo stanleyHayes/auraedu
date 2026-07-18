@@ -27,12 +27,27 @@ func (p *Publisher) PublishPayment(ctx context.Context, eventType string, paymen
 	if p == nil || p.bus == nil {
 		return nil
 	}
+	event, err := tenancy.NewCloudEvent(eventType, "payment-service", "", payment.TenantID, PaymentEventData(payment, meta))
+	if err != nil {
+		return fmt.Errorf("payments: build payment event: %w", err)
+	}
+	event.Subject = payment.ID
+	event.Time = time.Now().UTC().Format(time.RFC3339)
+	return p.bus.Publish(ctx, event)
+}
+
+// PaymentEventData builds the event data payload. It carries the fields required by
+// contracts/events/payment.received.v1.json (payment_id, invoice_id, amount) and
+// payment.failed.v1.json (payment_id), plus gateway and operational extras.
+func PaymentEventData(payment *domain.Payment, meta map[string]any) map[string]any {
 	data := map[string]any{
 		"payment_id":   payment.ID,
 		"invoice_id":   payment.InvoiceID,
+		"amount":       payment.AmountCents,
 		"amount_cents": payment.AmountCents,
 		"currency":     payment.Currency,
 		"provider":     payment.Provider,
+		"gateway":      payment.Provider,
 		"status":       payment.Status,
 		"initiated_at": payment.InitiatedAt.Format(time.RFC3339),
 	}
@@ -45,11 +60,5 @@ func (p *Publisher) PublishPayment(ctx context.Context, eventType string, paymen
 	for k, v := range meta {
 		data[k] = v
 	}
-	event, err := tenancy.NewCloudEvent(eventType, "payment-service", "", payment.TenantID, data)
-	if err != nil {
-		return fmt.Errorf("payments: build payment event: %w", err)
-	}
-	event.Subject = payment.ID
-	event.Time = time.Now().UTC().Format(time.RFC3339)
-	return p.bus.Publish(ctx, event)
+	return data
 }

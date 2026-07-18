@@ -33,6 +33,9 @@ type WebhookEventRepository interface {
 	GetByID(ctx context.Context, tenantID, id string) (*domain.WebhookEvent, error)
 	Update(ctx context.Context, tenantID string, w *domain.WebhookEvent) error
 	List(ctx context.Context, tenantID string, filter WebhookEventFilter) ([]*domain.WebhookEvent, string, error)
+	// HasProcessedReference reports whether a webhook for (provider, reference) was
+	// already processed. It backs the idempotency guard against redelivered webhooks.
+	HasProcessedReference(ctx context.Context, tenantID, provider, reference string) (bool, error)
 }
 
 // PaymentFilter carries cursor pagination and optional equality filters.
