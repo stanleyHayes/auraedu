@@ -31,6 +31,7 @@ func FeatureCatalog() []FeatureCatalogEntry {
 		{"hostel", "professional"},
 		{"transport", "professional"},
 		{"announcements", "starter"},
+		{"notifications", "starter"},
 		{"email_notifications", "starter"},
 		{"sms_notifications", "growth"},
 		{"whatsapp_notifications", "professional"},
