@@ -204,6 +204,7 @@ func (h *Handler) context(r *http.Request) (context.Context, auth.Actor, bool) {
 		ActorID:   actor.UserID,
 		ActorRole: actor.Role,
 	})
+	ctx = auth.WithActor(ctx, actor)
 	return ctx, actor, true
 }
 

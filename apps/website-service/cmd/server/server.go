@@ -129,13 +129,23 @@ func publisher(_ context.Context, log *slog.Logger) *svcevents.Publisher {
 }
 
 func featureGates(log *slog.Logger) flags.Gate {
+	// Static registry snapshot: plan defaults baked into the deploy. It stays
+	// the fallback when tenant-service is unreachable.
+	fallback := flags.NewStaticSnapshot()
 	path := config.Getenv("FEATURES_REGISTRY", "../../contracts/features/features.yaml")
 	reg, err := flags.LoadYAML(path)
 	if err != nil {
 		log.Warn("failed to load feature registry; all features disabled", "path", path, "err", err)
-		return flags.NewStaticSnapshot()
+	} else {
+		fallback = reg.SnapshotFromRegistry()
 	}
-	return reg.SnapshotFromRegistry()
+
+	// Live per-tenant overrides come from tenant-service (same wiring as the
+	// api-gateway); without SERVICE_TENANT_URL the static snapshot rules.
+	if tenantURL := config.Getenv("SERVICE_TENANT_URL", ""); tenantURL != "" {
+		return flags.NewTenantServiceClient(tenantURL, flags.WarnOnceFallback(fallback, log))
+	}
+	return fallback
 }
 
 // Run starts the website-service HTTP server. It is invoked by the service CLI.

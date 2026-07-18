@@ -20,7 +20,8 @@ The service supports two storage adapters selected at runtime:
 | `DATABASE_URL`             | yes      | —                               | Postgres connection string.                |
 | `NATS_URL` / `NATS_HOST`   | no       | —                               | NATS URL for event publishing.             |
 | `JWT_SIGNING_KEY`          | yes*     | —                               | Used by upstream/gateway; service reads actor headers. |
-| `FEATURES_REGISTRY`        | no       | `../../contracts/features/features.yaml` | Feature-flag registry path. |
+| `FEATURES_REGISTRY`        | no       | `../../contracts/features/features.yaml` | Feature-flag registry path (static snapshot, also the fallback). |
+| `SERVICE_TENANT_URL`       | no       | —                               | Tenant-service base URL (e.g. `http://localhost:8082`); enables live per-tenant flag overrides with the static registry as fallback. Unset = static snapshot only. |
 | `FILE_STORAGE_DIR`         | no       | `/tmp/auraedu-files`            | Local storage directory.                   |
 | `CLOUDINARY_URL`           | no       | —                               | Enables Cloudinary storage.                |
 | `CLOUDINARY_RESOURCE_TYPE` | no       | `raw`                           | Cloudinary resource type (`raw`, `image`, `auto`, ...). |
