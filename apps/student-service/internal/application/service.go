@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/auraedu/platform/auth"
 	"github.com/auraedu/platform/flags"
@@ -64,6 +65,11 @@ type CreateStudentRequest struct {
 	LastName    string
 	DateOfBirth *string
 	Gender      *string
+	// ClassID and AcademicYearID are optional enrollment details. When present they are
+	// carried on the student.enrolled.v1 event (contracts/events/student.enrolled.v1.json);
+	// they are not persisted on the student record.
+	ClassID        *string
+	AcademicYearID *string
 }
 
 // UpdateStudentRequest is the input for patching a student.
@@ -147,10 +153,26 @@ func (s *Service) Create(ctx context.Context, actor auth.Actor, req CreateStuden
 	if err := s.repo.Create(ctx, tenantID, student); err != nil {
 		return nil, err
 	}
-	if err := s.pub.Publish(ctx, "student.created.v1", student, nil); err != nil {
-		slog.Default().ErrorContext(ctx, "failed to publish student.created event", "err", err)
+	if err := s.pub.Publish(ctx, "student.enrolled.v1", student, enrolledMeta(student, req.ClassID, req.AcademicYearID)); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish student.enrolled event", "err", err)
 	}
 	return student, nil
+}
+
+// enrolledMeta builds the data payload for student.enrolled.v1
+// (contracts/events/student.enrolled.v1.json). student_id is added by the publisher;
+// enrollment_date is always known; class_id/academic_year_id are included only when the
+// create flow actually has them (the schema marks them required, but enrollment records
+// are not persisted yet — see contracts/openapi student.v1.yaml CreateEnrollment).
+func enrolledMeta(student *domain.Student, classID, academicYearID *string) map[string]any {
+	meta := map[string]any{"enrollment_date": student.CreatedAt.UTC().Format(time.DateOnly)}
+	if classID != nil && *classID != "" {
+		meta["class_id"] = *classID
+	}
+	if academicYearID != nil && *academicYearID != "" {
+		meta["academic_year_id"] = *academicYearID
+	}
+	return meta
 }
 
 // List returns a tenant-scoped page of students.
@@ -432,8 +454,8 @@ func (s *Service) importRow(
 		return err
 	}
 	result.StudentsCreated++
-	if err := s.pub.Publish(ctx, "student.created.v1", student, nil); err != nil {
-		slog.Default().ErrorContext(ctx, "failed to publish student.created event", "err", err)
+	if err := s.pub.Publish(ctx, "student.enrolled.v1", student, enrolledMeta(student, nil, nil)); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish student.enrolled event", "err", err)
 	}
 
 	if !hasGuardianData(row) {

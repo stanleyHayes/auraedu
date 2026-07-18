@@ -66,11 +66,12 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 type createBody struct {
-	FirstName   string  `json:"first_name"`
-	LastName    string  `json:"last_name"`
-	DateOfBirth *string `json:"date_of_birth"`
-	Gender      *string `json:"gender"`
-	ClassID     *string `json:"class_id"`
+	FirstName      string  `json:"first_name"`
+	LastName       string  `json:"last_name"`
+	DateOfBirth    *string `json:"date_of_birth"`
+	Gender         *string `json:"gender"`
+	ClassID        *string `json:"class_id"`
+	AcademicYearID *string `json:"academic_year_id"`
 }
 
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
@@ -84,16 +85,17 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	student, err := h.svc.Create(ctx, actor, application.CreateStudentRequest{
-		FirstName:   body.FirstName,
-		LastName:    body.LastName,
-		DateOfBirth: body.DateOfBirth,
-		Gender:      body.Gender,
+		FirstName:      body.FirstName,
+		LastName:       body.LastName,
+		DateOfBirth:    body.DateOfBirth,
+		Gender:         body.Gender,
+		ClassID:        body.ClassID,
+		AcademicYearID: body.AcademicYearID,
 	})
 	if err != nil {
 		h.writeErr(w, r, err)
 		return
 	}
-	_ = body.ClassID
 	httpx.RespondJSON(w, r, http.StatusCreated, student)
 }
 

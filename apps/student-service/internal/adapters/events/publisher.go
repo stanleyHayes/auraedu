@@ -10,6 +10,7 @@ import (
 	"github.com/auraedu/platform/tenancy"
 	"github.com/auraedu/student-service/internal/domain"
 	"github.com/auraedu/student-service/internal/ports"
+	"github.com/google/uuid"
 )
 
 // Publisher adapts the platform eventbus to the student service EventPublisher port.
@@ -48,7 +49,9 @@ func (p *Publisher) Publish(ctx context.Context, eventType string, student *doma
 		return fmt.Errorf("student: cannot build event %q without tenant_id", eventType)
 	}
 
-	event, err := tenancy.NewCloudEvent(eventType, "student-service", "", tenantID, data)
+	// Generate the event id up front: eventbus.Publish validates the CloudEvent
+	// (id required) before it can deliver, so an empty id would silently drop the event.
+	event, err := tenancy.NewCloudEvent(eventType, "student-service", uuid.Must(uuid.NewV7()).String(), tenantID, data)
 	if err != nil {
 		return fmt.Errorf("student: build event: %w", err)
 	}
