@@ -22,10 +22,11 @@ type AttendanceRecord struct {
 
 // BulkAttendanceRequest generated from OpenAPI schema.
 type BulkAttendanceRequest struct {
-	Date      string  `json:"date"`
-	ClassId   *string `json:"class_id,omitempty"`
-	SubjectId *string `json:"subject_id,omitempty"`
-	Records   []struct {
+	Date           string  `json:"date"`
+	AcademicYearId string  `json:"academic_year_id"`
+	ClassId        *string `json:"class_id,omitempty"`
+	SubjectId      *string `json:"subject_id,omitempty"`
+	Records        []struct {
 		StudentId string  `json:"student_id"`
 		Status    string  `json:"status"`
 		Remark    *string `json:"remark,omitempty"`

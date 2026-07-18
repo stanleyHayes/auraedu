@@ -6,12 +6,15 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
+	"strings"
 
 	"github.com/auraedu/attendance-service/internal/domain"
 	"github.com/auraedu/attendance-service/internal/ports"
 	"github.com/auraedu/platform/auth"
 	"github.com/auraedu/platform/flags"
 	"github.com/auraedu/platform/tenancy"
+	"github.com/google/uuid"
 )
 
 // RBAC permission keys.
@@ -89,6 +92,139 @@ func (s *Service) Create(ctx context.Context, actor auth.Actor, req CreateAttend
 		slog.Default().ErrorContext(ctx, "failed to publish attendance marked event", "err", err)
 	}
 	return record, nil
+}
+
+// BulkMarkRow is one student's mark within a BulkMarkRequest.
+type BulkMarkRow struct {
+	StudentID string
+	Status    string
+	Remark    *string
+}
+
+// BulkMarkRequest is the input for marking a whole class at once (AURA-13.9;
+// markAttendanceBulk in contracts/openapi/attendance.v1.yaml).
+type BulkMarkRequest struct {
+	AcademicYearID string
+	Date           string
+	ClassID        *string
+	SubjectID      *string
+	Records        []BulkMarkRow
+}
+
+// RowValidationError reports every invalid row of a bulk request at once. It unwraps to
+// domain.ErrValidation so the HTTP adapter maps it to a 422 validation_error.
+type RowValidationError struct {
+	Rows map[string]string
+}
+
+func (e *RowValidationError) Error() string {
+	keys := make([]string, 0, len(e.Rows))
+	for k := range e.Rows {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, k+": "+e.Rows[k])
+	}
+	return fmt.Sprintf("%s: %s", domain.ErrValidation, strings.Join(parts, "; "))
+}
+
+// Unwrap supports errors.Is(err, domain.ErrValidation).
+func (e *RowValidationError) Unwrap() error { return domain.ErrValidation }
+
+// BulkMark validates and persists one attendance mark per student for a class+date.
+// Following the contract (201 AttendanceRecordList or 422 ValidationError) the request
+// is all-or-nothing: every row is validated up front with all failures reported together,
+// and nothing is persisted when any row is invalid. Persistence is an idempotent upsert
+// on (tenant_id, student_id, academic_year_id, date) — the uniqueness rule enforced by
+// the migrations — so retrying a bulk mark converges instead of duplicating. The actor is
+// recorded as marked_by and one attendance.marked.v1 event is emitted per student.
+func (s *Service) BulkMark(ctx context.Context, actor auth.Actor, req BulkMarkRequest) ([]*domain.AttendanceRecord, error) {
+	tenantID, err := s.requireAccess(ctx, actor, PermMark)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateBulkMark(req); err != nil {
+		return nil, err
+	}
+	classID := nilIfBlank(req.ClassID)
+	subjectID := nilIfBlank(req.SubjectID)
+	records := make([]*domain.AttendanceRecord, 0, len(req.Records))
+	for _, row := range req.Records {
+		record, err := domain.NewAttendanceRecord(tenantID, row.StudentID, req.AcademicYearID, req.Date, row.Status, actor.UserID, row.Remark)
+		if err != nil {
+			return nil, err
+		}
+		record.ClassID = classID
+		record.SubjectID = subjectID
+		records = append(records, record)
+	}
+	if err := s.repo.UpsertMany(ctx, tenantID, records); err != nil {
+		return nil, err
+	}
+	for _, record := range records {
+		if err := s.pub.Publish(ctx, "attendance.marked.v1", record, nil); err != nil {
+			slog.Default().ErrorContext(ctx, "failed to publish attendance marked event", "err", err, "attendance_id", record.ID)
+		}
+	}
+	return records, nil
+}
+
+func validateBulkMark(req BulkMarkRequest) error {
+	rows := map[string]string{}
+	if strings.TrimSpace(req.AcademicYearID) == "" {
+		rows["academic_year_id"] = "academic_year_id is required"
+	} else if _, err := uuid.Parse(req.AcademicYearID); err != nil {
+		rows["academic_year_id"] = "academic_year_id must be a valid UUID"
+	}
+	date, err := domain.NewDate(req.Date)
+	if err != nil || date.IsEmpty() {
+		rows["date"] = "date must be a valid date (YYYY-MM-DD)"
+	}
+	if classID := nilIfBlank(req.ClassID); classID != nil {
+		if _, err := uuid.Parse(*classID); err != nil {
+			rows["class_id"] = "class_id must be a valid UUID"
+		}
+	}
+	if subjectID := nilIfBlank(req.SubjectID); subjectID != nil {
+		if _, err := uuid.Parse(*subjectID); err != nil {
+			rows["subject_id"] = "subject_id must be a valid UUID"
+		}
+	}
+	if len(req.Records) == 0 {
+		rows["records"] = "records must contain at least one entry"
+	}
+	seen := make(map[string]int, len(req.Records))
+	for i, row := range req.Records {
+		prefix := fmt.Sprintf("records[%d]", i)
+		studentID := strings.TrimSpace(row.StudentID)
+		if studentID == "" {
+			rows[prefix+".student_id"] = "student_id is required"
+		} else if _, err := uuid.Parse(studentID); err != nil {
+			rows[prefix+".student_id"] = "student_id must be a valid UUID"
+		} else if prev, dup := seen[studentID]; dup {
+			rows[prefix+".student_id"] = fmt.Sprintf("duplicate of records[%d]", prev)
+		} else {
+			seen[studentID] = i
+		}
+		switch domain.Status(strings.TrimSpace(row.Status)) {
+		case domain.StatusPresent, domain.StatusAbsent, domain.StatusLate, domain.StatusExcused:
+		default:
+			rows[prefix+".status"] = "status must be present, absent, late or excused"
+		}
+	}
+	if len(rows) > 0 {
+		return &RowValidationError{Rows: rows}
+	}
+	return nil
+}
+
+func nilIfBlank(v *string) *string {
+	if v == nil || strings.TrimSpace(*v) == "" {
+		return nil
+	}
+	return v
 }
 
 // List returns a tenant-scoped page of attendance records, optionally filtered.

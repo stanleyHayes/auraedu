@@ -10,6 +10,7 @@ import (
 // query by tenantID (defense-in-depth with Postgres RLS, agent_plan §7).
 type Repository interface {
 	Create(ctx context.Context, tenantID string, r *domain.AttendanceRecord) error
+	UpsertMany(ctx context.Context, tenantID string, records []*domain.AttendanceRecord) error
 	GetByID(ctx context.Context, tenantID, id string) (*domain.AttendanceRecord, error)
 	List(ctx context.Context, tenantID string, filter ListFilter) ([]*domain.AttendanceRecord, string, error)
 	Update(ctx context.Context, tenantID string, r *domain.AttendanceRecord) error

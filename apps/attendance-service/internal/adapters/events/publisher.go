@@ -35,6 +35,12 @@ func (p *Publisher) Publish(ctx context.Context, eventType string, record *domai
 		"status":           record.Status,
 		"marked_by":        record.MarkedBy,
 	}
+	if record.ClassID != nil {
+		data["class_id"] = *record.ClassID
+	}
+	if record.SubjectID != nil {
+		data["subject_id"] = *record.SubjectID
+	}
 	if record.Reason != nil {
 		data["reason"] = *record.Reason
 	}

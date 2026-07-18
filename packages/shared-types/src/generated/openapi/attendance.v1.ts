@@ -87,6 +87,8 @@ export type components = {
             /** Format: date */
             date: string;
             /** Format: uuid */
+            academic_year_id: string;
+            /** Format: uuid */
             class_id?: string | null;
             /** Format: uuid */
             subject_id?: string | null;

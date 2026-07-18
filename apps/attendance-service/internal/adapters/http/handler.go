@@ -29,6 +29,7 @@ func NewHandler(svc *application.Service) *Handler { return &Handler{svc: svc} }
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/attendance", h.list)
 	mux.HandleFunc("POST /api/v1/attendance", h.create)
+	mux.HandleFunc("POST /api/v1/attendance/bulk", h.bulkMark)
 	mux.HandleFunc("GET /api/v1/attendance/{attendance_id}", h.get)
 	mux.HandleFunc("PATCH /api/v1/attendance/{attendance_id}", h.update)
 	mux.HandleFunc("DELETE /api/v1/attendance/{attendance_id}", h.delete)
@@ -106,6 +107,51 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 	httpx.RespondJSON(w, r, http.StatusOK, record)
 }
 
+// bulkBody mirrors BulkAttendanceRequest in contracts/openapi/attendance.v1.yaml.
+type bulkBody struct {
+	Date           string  `json:"date"`
+	AcademicYearID string  `json:"academic_year_id"`
+	ClassID        *string `json:"class_id"`
+	SubjectID      *string `json:"subject_id"`
+	Records        []struct {
+		StudentID string  `json:"student_id"`
+		Status    string  `json:"status"`
+		Remark    *string `json:"remark"`
+	} `json:"records"`
+}
+
+func (h *Handler) bulkMark(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	var body bulkBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		httpx.ValidationError(w, r, map[string]any{"body": "invalid JSON"})
+		return
+	}
+	req := application.BulkMarkRequest{
+		AcademicYearID: body.AcademicYearID,
+		Date:           body.Date,
+		ClassID:        body.ClassID,
+		SubjectID:      body.SubjectID,
+		Records:        make([]application.BulkMarkRow, 0, len(body.Records)),
+	}
+	for _, row := range body.Records {
+		req.Records = append(req.Records, application.BulkMarkRow{
+			StudentID: row.StudentID,
+			Status:    row.Status,
+			Remark:    row.Remark,
+		})
+	}
+	records, err := h.svc.BulkMark(ctx, actor, req)
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusCreated, map[string]any{"data": records, "next_cursor": nil})
+}
+
 type updateBody struct {
 	Status   *string `json:"status"`
 	Reason   *string `json:"reason"`
@@ -162,7 +208,10 @@ func (h *Handler) context(r *http.Request) (context.Context, auth.Actor, bool) {
 }
 
 func (h *Handler) writeErr(w http.ResponseWriter, r *http.Request, err error) {
+	var rowErr *application.RowValidationError
 	switch {
+	case errors.As(err, &rowErr):
+		httpx.ValidationError(w, r, map[string]any{"rows": rowErr.Rows})
 	case errors.Is(err, domain.ErrValidation):
 		httpx.ValidationError(w, r, map[string]any{"detail": err.Error()})
 	case errors.Is(err, domain.ErrNotFound):

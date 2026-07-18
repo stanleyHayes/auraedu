@@ -77,6 +77,8 @@ type AttendanceRecord struct {
 	TenantID       string     `json:"tenant_id"`
 	StudentID      string     `json:"student_id"`
 	AcademicYearID string     `json:"academic_year_id"`
+	ClassID        *string    `json:"class_id,omitempty"`
+	SubjectID      *string    `json:"subject_id,omitempty"`
 	Date           Date       `json:"date"`
 	Status         string     `json:"status"`
 	Reason         *string    `json:"reason,omitempty"`

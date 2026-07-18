@@ -39,11 +39,39 @@ func (r *Repository) Create(ctx context.Context, tenantID string, rec *domain.At
 	})
 }
 
+// UpsertMany inserts records in a single transaction, updating the mutable fields when a
+// live row already exists for (tenant_id, student_id, academic_year_id, date) — the
+// uniqueness rule enforced by idx_attendance_records_unique_attendance in
+// migrations/0001_init.sql. Bulk marks are therefore idempotent: retrying the same
+// request converges to the same rows. Each record is rewritten in place with the
+// persisted row (on conflict the pre-existing id and created_at are kept).
+func (r *Repository) UpsertMany(ctx context.Context, tenantID string, records []*domain.AttendanceRecord) error {
+	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		for _, rec := range records {
+			row := tx.QueryRow(ctx, `
+				INSERT INTO attendance_records (id, tenant_id, student_id, academic_year_id, class_id, subject_id, date, status, reason, marked_by, created_at, updated_at)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+				ON CONFLICT (tenant_id, student_id, academic_year_id, date) WHERE deleted_at IS NULL
+				DO UPDATE SET status = EXCLUDED.status, reason = EXCLUDED.reason, marked_by = EXCLUDED.marked_by,
+					class_id = EXCLUDED.class_id, subject_id = EXCLUDED.subject_id, updated_at = EXCLUDED.updated_at
+				RETURNING id, tenant_id, student_id, academic_year_id, date, status, reason, marked_by, class_id, subject_id, created_at, updated_at
+			`, rec.ID, tenantID, rec.StudentID, rec.AcademicYearID, rec.ClassID, rec.SubjectID,
+				rec.Date, rec.Status, rec.Reason, rec.MarkedBy, rec.CreatedAt, rec.UpdatedAt)
+			got, err := scanRecord(row)
+			if err != nil {
+				return fmt.Errorf("attendance: upsert record for student %s: %w", rec.StudentID, err)
+			}
+			*rec = *got
+		}
+		return nil
+	})
+}
+
 func (r *Repository) GetByID(ctx context.Context, tenantID, id string) (*domain.AttendanceRecord, error) {
 	var rec *domain.AttendanceRecord
 	err := r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		row := tx.QueryRow(ctx, `
-			SELECT id, tenant_id, student_id, academic_year_id, date, status, reason, marked_by, created_at, updated_at
+			SELECT id, tenant_id, student_id, academic_year_id, date, status, reason, marked_by, class_id, subject_id, created_at, updated_at
 			FROM attendance_records
 			WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
 		`, id, tenantID)
@@ -116,7 +144,7 @@ func listQuery(ctx context.Context, tx pgx.Tx, tenantID string, filter ports.Lis
 
 	args = append(args, filter.Limit)
 	sql := fmt.Sprintf(`
-		SELECT id, tenant_id, student_id, academic_year_id, date, status, reason, marked_by, created_at, updated_at
+		SELECT id, tenant_id, student_id, academic_year_id, date, status, reason, marked_by, class_id, subject_id, created_at, updated_at
 		FROM attendance_records
 		WHERE %s
 		ORDER BY created_at ASC, id ASC
@@ -163,7 +191,7 @@ func scanRecord(row scanner) (*domain.AttendanceRecord, error) {
 	var date time.Time
 	if err := row.Scan(
 		&rec.ID, &rec.TenantID, &rec.StudentID, &rec.AcademicYearID, &date,
-		&rec.Status, &rec.Reason, &rec.MarkedBy, &rec.CreatedAt, &rec.UpdatedAt,
+		&rec.Status, &rec.Reason, &rec.MarkedBy, &rec.ClassID, &rec.SubjectID, &rec.CreatedAt, &rec.UpdatedAt,
 	); err != nil {
 		return nil, err
 	}
