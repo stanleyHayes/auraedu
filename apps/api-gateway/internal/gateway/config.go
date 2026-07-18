@@ -226,6 +226,16 @@ func DefaultRegistry() ServiceRegistry {
 				http.MethodDelete: "notifications.manage",
 			},
 		},
+		{
+			Prefix:     "/api/v1/announcements",
+			Target:     envURL("SERVICE_NOTIFICATION_URL", "http://localhost:8099"),
+			FeatureKey: "announcements",
+			Permissions: map[string]string{
+				http.MethodGet:    "notifications.read",
+				http.MethodPost:   "notifications.manage",
+				http.MethodDelete: "notifications.manage",
+			},
+		},
 		{Prefix: "/api/v1/files/webhook", Target: envURL("SERVICE_FILE_URL", "http://localhost:8093"), Public: true},
 		{Prefix: "/api/v1/files", Target: envURL("SERVICE_FILE_URL", "http://localhost:8093"), FeatureKey: "file_management", Permissions: map[string]string{
 			http.MethodGet:    "files.read",
