@@ -1,14 +1,15 @@
 import { ClipboardList } from "lucide-react";
 import { PageHeader, DataTable, EmptyState, type DataTableColumn } from "@auraedu/ui";
+import type { OpenAPI } from "@auraedu/shared-types";
 import { createServerClient } from "@/lib/api";
 
-interface Assignment {
-  id: string;
-  name: string;
+// The assessment-service treats `type` as a free-form string (the contract enum
+// has no "assignment" value); subject_name/date are display-only legacy fields.
+type Assignment = Omit<OpenAPI.assessment_v1.components["schemas"]["Assessment"], "type"> & {
   type: string;
   subject_name?: string;
   date?: string;
-}
+};
 
 const columns: DataTableColumn<Assignment>[] = [
   { key: "name", header: "Assignment", cell: (a) => a.name },
@@ -20,8 +21,11 @@ export default async function TeacherAssignmentsPage() {
   const client = await createServerClient();
   let assignments: Assignment[];
   try {
-    const assessments = await client.get<Assignment[]>("/api/v1/assessments");
-    assignments = assessments.filter((a) => a.type === "assignment");
+    const res = await client.get<OpenAPI.assessment_v1.components["schemas"]["AssessmentList"]>(
+      "/api/v1/assessments",
+    );
+    const data: Assignment[] = res.data ?? [];
+    assignments = data.filter((a) => a.type === "assignment");
   } catch {
     assignments = [];
   }

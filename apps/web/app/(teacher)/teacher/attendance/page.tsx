@@ -1,20 +1,19 @@
 import { CalendarCheck } from "lucide-react";
 import { PageHeader } from "@auraedu/ui";
+import type { OpenAPI } from "@auraedu/shared-types";
 import { createServerClient } from "@/lib/api";
 import { TeacherAttendanceClient } from "@/components/teacher-attendance-client";
 
-export interface AttendanceRecord {
-  id: string;
-  student_id: string;
-  date: string;
-  status: string;
-}
+export type AttendanceRecord = OpenAPI.attendance_v1.components["schemas"]["AttendanceRecord"];
 
 export default async function TeacherAttendancePage() {
   const client = await createServerClient();
   let records: AttendanceRecord[];
   try {
-    records = await client.get<AttendanceRecord[]>("/api/v1/attendance");
+    const res = await client.get<
+      OpenAPI.attendance_v1.components["schemas"]["AttendanceRecordList"]
+    >("/api/v1/attendance");
+    records = res.data ?? [];
   } catch {
     records = [];
   }
