@@ -22,6 +22,8 @@ import (
 	"github.com/auraedu/identity-service/internal/ports"
 
 	"github.com/auraedu/platform/config"
+	"github.com/auraedu/platform/eventbus"
+	"github.com/nats-io/nats.go"
 )
 
 const service = "identity-service"
@@ -115,13 +117,31 @@ func mustInitSessions(ctx context.Context, log *slog.Logger) ports.SessionStore 
 	return store
 }
 
-func mustInitPublisher(ctx context.Context, log *slog.Logger) ports.EventPublisher {
-	pub, err := events.NewPublisher(ctx, log)
-	if err != nil {
-		log.Error("event publisher init failed", "err", err)
-		os.Exit(1)
+// mustInitPublisher wires the platform/eventbus JetStream publisher. When
+// NATS_URL is unset or the connection fails, publishing is disabled (noop),
+// mirroring the other Go services (see student-service).
+func mustInitPublisher(_ context.Context, log *slog.Logger) ports.EventPublisher {
+	natsURL := config.Getenv("NATS_URL", "")
+	if natsURL == "" {
+		log.Info("NATS_URL not set; event publishing disabled")
+		return events.NewPublisher(nil)
 	}
-	return pub
+	nc, err := nats.Connect(natsURL)
+	if err != nil {
+		log.Error("failed to connect to NATS; event publishing disabled", "err", err)
+		return events.NewPublisher(nil)
+	}
+	js, err := nc.JetStream()
+	if err != nil {
+		log.Error("failed to create JetStream context; event publishing disabled", "err", err)
+		return events.NewPublisher(nil)
+	}
+	if _, err := eventbus.EnsureStream(js, "AURA"); err != nil {
+		log.Error("failed to ensure NATS stream; event publishing disabled", "err", err)
+		return events.NewPublisher(nil)
+	}
+	log.Info("event publishing enabled", "nats_url", natsURL)
+	return events.NewPublisher(eventbus.NewPublisher(js))
 }
 
 func envDuration(key string, fallback time.Duration) time.Duration {

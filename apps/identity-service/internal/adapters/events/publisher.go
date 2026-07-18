@@ -1,54 +1,48 @@
-// Package events is a minimal local stub for platform/eventbus (AURA-2.6).
+// Package events adapts the platform eventbus to the identity service EventPublisher port.
 package events
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"log/slog"
 
 	"github.com/auraedu/identity-service/internal/ports"
-	"github.com/auraedu/platform/config"
-	"github.com/nats-io/nats.go"
+	"github.com/auraedu/platform/eventbus"
+	"github.com/auraedu/platform/tenancy"
 )
 
+// Publisher adapts the platform eventbus to the identity service EventPublisher port.
 type Publisher struct {
-	nc     *nats.Conn
-	topic  string
-	logger *slog.Logger
+	bus *eventbus.Publisher
 }
 
-func NewPublisher(_ context.Context, logger *slog.Logger) (ports.EventPublisher, error) {
-	if natsURL := config.Getenv("NATS_URL", ""); natsURL != "" {
-		nc, err := nats.Connect(natsURL)
-		if err != nil {
-			return nil, fmt.Errorf("nats connect: %w", err)
-		}
-		return &Publisher{nc: nc, topic: "auraedu.events", logger: logger}, nil
+var _ ports.EventPublisher = (*Publisher)(nil)
+
+// NewPublisher wraps a platform eventbus publisher. A nil bus disables publishing.
+func NewPublisher(bus *eventbus.Publisher) *Publisher { return &Publisher{bus: bus} }
+
+// Publish emits the given event as a CloudEvent on the JetStream AURA stream.
+func (p *Publisher) Publish(ctx context.Context, e ports.Event) error {
+	if p == nil || p.bus == nil {
+		return nil
 	}
-	return &Publisher{logger: logger}, nil
-}
-
-func (p *Publisher) Publish(_ context.Context, e ports.Event) error {
-	body, err := json.Marshal(e)
+	event, err := tenancy.NewCloudEvent(e.Type, e.Source, e.ID, e.TenantID, e.Data)
 	if err != nil {
-		return err
+		return fmt.Errorf("identity: build event %q: %w", e.Type, err)
 	}
-	if p.nc != nil {
-		return p.nc.Publish(p.topic, body)
-	}
-	if p.logger != nil {
-		p.logger.Info("event published", "type", e.Type, "tenant_id", e.TenantID, "id", e.ID)
-	}
-	return nil
+	return p.bus.Publish(ctx, event)
 }
 
+// RecordingPublisher records events for tests.
 type RecordingPublisher struct {
 	Events []ports.Event
 }
 
+var _ ports.EventPublisher = (*RecordingPublisher)(nil)
+
+// NewRecordingPublisher creates a new recording publisher.
 func NewRecordingPublisher() *RecordingPublisher { return &RecordingPublisher{} }
 
+// Publish records the event without emitting it.
 func (r *RecordingPublisher) Publish(_ context.Context, e ports.Event) error {
 	r.Events = append(r.Events, e)
 	return nil
