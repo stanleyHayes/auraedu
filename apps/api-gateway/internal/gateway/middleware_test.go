@@ -36,6 +36,13 @@ func testBuilder() *Builder {
 		{Prefix: "/api/v1/uploads", Target: "http://localhost:8098", FeatureKey: "file_management", Permissions: map[string]string{
 			http.MethodPost: "files.upload",
 		}},
+		{Prefix: "/api/v1/webhooks", Target: "http://localhost:8098", Public: true},
+		{Prefix: "/api/v1/invoices", Target: "http://localhost:8097", FeatureKey: "fees", Permissions: map[string]string{
+			http.MethodGet: "fees.read", http.MethodPost: "fees.manage",
+		}},
+		{Prefix: "/api/v1/messages", Target: "http://localhost:8099", FeatureKey: "email_notifications", Permissions: map[string]string{
+			http.MethodGet: "notifications.read", http.MethodPost: "notifications.send",
+		}},
 	}
 	proxy, err := NewReverseProxy(cfg.Registry, slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 	if err != nil {
@@ -51,10 +58,10 @@ func testBuilder() *Builder {
 			BySubdomain: map[string]string{"upshs": "upshs", "aboom": "aboom"},
 		},
 		Flags: &stubs.FeatureFlagClient{
-			Defaults: map[string]bool{"student_management": true, "ai_predictions": true, "file_management": true},
+			Defaults: map[string]bool{"student_management": true, "ai_predictions": true, "file_management": true, "fees": true, "email_notifications": true},
 			TenantOverrides: map[string]map[string]bool{
 				"upshs": {"cbt_exams": true},
-				"aboom": {"cbt_exams": false},
+				"aboom": {"cbt_exams": false, "email_notifications": false},
 			},
 		},
 	}
@@ -449,5 +456,129 @@ func TestPermissionMethodMapDeniesMissingPermission(t *testing.T) {
 	}
 	if !strings.Contains(rr.Body.String(), "permission_denied") {
 		t.Fatalf("expected permission_denied error, got %q", rr.Body.String())
+	}
+}
+
+func TestAuthAllowsPublicWebhookRoute(t *testing.T) {
+	b := testBuilder()
+	called := false
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+
+	// Payment provider webhooks carry no user JWT (same pattern as /api/v1/files/webhook).
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/webhooks/paystack", nil)
+	req.Header.Set("X-Tenant-ID", "upshs")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if !called {
+		t.Fatal("public webhook route should reach handler without a token")
+	}
+}
+
+func TestInvoicesPermissionAllowsReadActor(t *testing.T) {
+	b := testBuilder()
+	token := signTestToken(b, auth.Claims{
+		Subject:     "u1",
+		TenantID:    "upshs",
+		Role:        "accountant",
+		Permissions: []string{"fees.read"},
+	})
+	called := false
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/invoices/inv1", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("X-Tenant-ID", "upshs")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if !called {
+		t.Fatal("GET /invoices should be allowed with fees.read")
+	}
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", rr.Code, http.StatusOK)
+	}
+}
+
+func TestInvoicesPermissionDeniesWriteWithoutManage(t *testing.T) {
+	b := testBuilder()
+	token := signTestToken(b, auth.Claims{
+		Subject:     "u1",
+		TenantID:    "upshs",
+		Role:        "accountant",
+		Permissions: []string{"fees.read"},
+	})
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("POST /invoices should be denied without fees.manage")
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/invoices", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("X-Tenant-ID", "upshs")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("status: got %d, want %d", rr.Code, http.StatusForbidden)
+	}
+	if !strings.Contains(rr.Body.String(), "permission_denied") {
+		t.Fatalf("expected permission_denied error, got %q", rr.Body.String())
+	}
+}
+
+func TestMessagesRouteAllowedWithPermissionAndFlag(t *testing.T) {
+	b := testBuilder()
+	token := signTestToken(b, auth.Claims{
+		Subject:     "u1",
+		TenantID:    "upshs",
+		Role:        "teacher",
+		Permissions: []string{"notifications.read"},
+	})
+	called := false
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/messages/m1", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("X-Tenant-ID", "upshs")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if !called {
+		t.Fatal("GET /messages should be allowed with notifications.read and email_notifications enabled")
+	}
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", rr.Code, http.StatusOK)
+	}
+}
+
+func TestMessagesFeatureFlagDisabled(t *testing.T) {
+	b := testBuilder()
+	token := signTestToken(b, auth.Claims{
+		Subject:     "u1",
+		TenantID:    "aboom",
+		Role:        "teacher",
+		Permissions: []string{"notifications.read"},
+	})
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("should not reach handler when email_notifications disabled")
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/messages/m1", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("X-Tenant-ID", "aboom")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("status: got %d, want %d", rr.Code, http.StatusForbidden)
+	}
+	if !strings.Contains(rr.Body.String(), "feature_disabled") {
+		t.Fatalf("expected feature_disabled error, got %q", rr.Body.String())
 	}
 }

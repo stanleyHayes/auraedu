@@ -24,6 +24,7 @@ type Route struct {
 }
 
 func DefaultRegistry() ServiceRegistry {
+	// Default targets follow the service port registry in agent_plan.md Appendix D.
 	return ServiceRegistry{
 		{Prefix: "/api/v1/auth", Target: envURL("SERVICE_IDENTITY_URL", "http://localhost:8081"), FeatureKey: "", Public: true},
 		{Prefix: "/api/v1/users", Target: envURL("SERVICE_IDENTITY_URL", "http://localhost:8081"), FeatureKey: "", Permissions: map[string]string{
@@ -32,6 +33,12 @@ func DefaultRegistry() ServiceRegistry {
 			http.MethodPut:    "users.update",
 			http.MethodPatch:  "users.update",
 			http.MethodDelete: "users.delete",
+		}},
+		{Prefix: "/api/v1/roles", Target: envURL("SERVICE_IDENTITY_URL", "http://localhost:8081"), Permissions: map[string]string{
+			http.MethodGet: "users.read",
+		}},
+		{Prefix: "/api/v1/permissions", Target: envURL("SERVICE_IDENTITY_URL", "http://localhost:8081"), Permissions: map[string]string{
+			http.MethodGet: "users.read",
 		}},
 		{Prefix: "/api/v1/tenants", Target: envURL("SERVICE_TENANT_URL", "http://localhost:8082"), Public: true},
 		{Prefix: "/api/v1/super-admin", Target: envURL("SERVICE_TENANT_URL", "http://localhost:8082"), FeatureKey: "billing", Public: false},
@@ -54,8 +61,8 @@ func DefaultRegistry() ServiceRegistry {
 			},
 		},
 		{Prefix: "/api/v1/staff", Target: envURL("SERVICE_STAFF_URL", "http://localhost:8091"), FeatureKey: "staff_management"},
-		{Prefix: "/api/v1/attendance", Target: envURL("SERVICE_ATTENDANCE_URL", "http://localhost:8092"), FeatureKey: "attendance"},
-		{Prefix: "/api/v1/assessments", Target: envURL("SERVICE_ASSESSMENT_URL", "http://localhost:8093"), FeatureKey: "assessments"},
+		{Prefix: "/api/v1/attendance", Target: envURL("SERVICE_ATTENDANCE_URL", "http://localhost:8094"), FeatureKey: "attendance"},
+		{Prefix: "/api/v1/assessments", Target: envURL("SERVICE_ASSESSMENT_URL", "http://localhost:8095"), FeatureKey: "assessments"},
 		{
 			Prefix:     "/api/v1/academic",
 			Target:     envURL("SERVICE_ACADEMIC_URL", "http://localhost:8092"),
@@ -65,24 +72,121 @@ func DefaultRegistry() ServiceRegistry {
 				http.MethodPost: "academic.manage",
 			},
 		},
-		{Prefix: "/api/v1/fees", Target: envURL("SERVICE_FEES_URL", "http://localhost:8095"), FeatureKey: "fees"},
-		{Prefix: "/api/v1/payments", Target: envURL("SERVICE_PAYMENT_URL", "http://localhost:8096"), FeatureKey: "online_payments"},
-		{Prefix: "/api/v1/notifications", Target: envURL("SERVICE_NOTIFICATION_URL", "http://localhost:8097"), FeatureKey: "email_notifications"},
-		{Prefix: "/api/v1/files/webhook", Target: envURL("SERVICE_FILE_URL", "http://localhost:8098"), Public: true},
-		{Prefix: "/api/v1/files", Target: envURL("SERVICE_FILE_URL", "http://localhost:8098"), FeatureKey: "file_management", Permissions: map[string]string{
+		{
+			Prefix:     "/api/v1/report-cards",
+			Target:     envURL("SERVICE_REPORT_URL", "http://localhost:8096"),
+			FeatureKey: "report_cards",
+			Permissions: map[string]string{
+				http.MethodGet:    "reports.read",
+				http.MethodPost:   "reports.publish",
+				http.MethodPatch:  "reports.publish",
+				http.MethodDelete: "reports.publish",
+			},
+		},
+		{
+			Prefix:     "/api/v1/report-templates",
+			Target:     envURL("SERVICE_REPORT_URL", "http://localhost:8096"),
+			FeatureKey: "report_cards",
+			Permissions: map[string]string{
+				http.MethodGet:    "reports.read",
+				http.MethodPost:   "reports.publish",
+				http.MethodPatch:  "reports.publish",
+				http.MethodDelete: "reports.publish",
+			},
+		},
+		{Prefix: "/api/v1/fees", Target: envURL("SERVICE_FEES_URL", "http://localhost:8097"), FeatureKey: "fees"},
+		{
+			Prefix:     "/api/v1/fee-structures",
+			Target:     envURL("SERVICE_FEES_URL", "http://localhost:8097"),
+			FeatureKey: "fees",
+			Permissions: map[string]string{
+				http.MethodGet:    "fees.read",
+				http.MethodPost:   "fees.manage",
+				http.MethodPatch:  "fees.manage",
+				http.MethodDelete: "fees.manage",
+			},
+		},
+		{
+			Prefix:     "/api/v1/invoices",
+			Target:     envURL("SERVICE_FEES_URL", "http://localhost:8097"),
+			FeatureKey: "fees",
+			Permissions: map[string]string{
+				http.MethodGet:    "fees.read",
+				http.MethodPost:   "fees.manage",
+				http.MethodPatch:  "fees.manage",
+				http.MethodDelete: "fees.manage",
+			},
+		},
+		{Prefix: "/api/v1/payments", Target: envURL("SERVICE_PAYMENT_URL", "http://localhost:8098"), FeatureKey: "online_payments"},
+		{
+			Prefix:     "/api/v1/transactions",
+			Target:     envURL("SERVICE_PAYMENT_URL", "http://localhost:8098"),
+			FeatureKey: "online_payments",
+			Permissions: map[string]string{
+				http.MethodGet: "payments.read",
+			},
+		},
+		{
+			Prefix:     "/api/v1/webhook-events",
+			Target:     envURL("SERVICE_PAYMENT_URL", "http://localhost:8098"),
+			FeatureKey: "online_payments",
+			Permissions: map[string]string{
+				http.MethodGet:  "payments.read",
+				http.MethodPost: "payments.initiate",
+			},
+		},
+		// Payment provider webhooks carry no user JWT; the provider signature is
+		// verified downstream by payment-service (same pattern as /api/v1/files/webhook).
+		{Prefix: "/api/v1/webhooks", Target: envURL("SERVICE_PAYMENT_URL", "http://localhost:8098"), Public: true},
+		{Prefix: "/api/v1/notifications", Target: envURL("SERVICE_NOTIFICATION_URL", "http://localhost:8099"), FeatureKey: "email_notifications"},
+		{
+			Prefix:     "/api/v1/messages",
+			Target:     envURL("SERVICE_NOTIFICATION_URL", "http://localhost:8099"),
+			FeatureKey: "email_notifications",
+			Permissions: map[string]string{
+				http.MethodGet:    "notifications.read",
+				http.MethodPost:   "notifications.send",
+				http.MethodPatch:  "notifications.manage",
+				http.MethodDelete: "notifications.manage",
+			},
+		},
+		{
+			Prefix:     "/api/v1/notification-templates",
+			Target:     envURL("SERVICE_NOTIFICATION_URL", "http://localhost:8099"),
+			FeatureKey: "email_notifications",
+			Permissions: map[string]string{
+				http.MethodGet:    "notifications.read",
+				http.MethodPost:   "notifications.manage",
+				http.MethodPatch:  "notifications.manage",
+				http.MethodDelete: "notifications.manage",
+			},
+		},
+		{
+			Prefix:     "/api/v1/notification-subscriptions",
+			Target:     envURL("SERVICE_NOTIFICATION_URL", "http://localhost:8099"),
+			FeatureKey: "email_notifications",
+			Permissions: map[string]string{
+				http.MethodGet:    "notifications.read",
+				http.MethodPost:   "notifications.manage",
+				http.MethodPatch:  "notifications.manage",
+				http.MethodDelete: "notifications.manage",
+			},
+		},
+		{Prefix: "/api/v1/files/webhook", Target: envURL("SERVICE_FILE_URL", "http://localhost:8093"), Public: true},
+		{Prefix: "/api/v1/files", Target: envURL("SERVICE_FILE_URL", "http://localhost:8093"), FeatureKey: "file_management", Permissions: map[string]string{
 			http.MethodGet:    "files.read",
 			http.MethodPost:   "files.upload",
 			http.MethodPatch:  "files.update",
 			http.MethodDelete: "files.delete",
 		}},
-		{Prefix: "/api/v1/uploads", Target: envURL("SERVICE_FILE_URL", "http://localhost:8098"), FeatureKey: "file_management", Permissions: map[string]string{
+		{Prefix: "/api/v1/uploads", Target: envURL("SERVICE_FILE_URL", "http://localhost:8093"), FeatureKey: "file_management", Permissions: map[string]string{
 			http.MethodPost: "files.upload",
 		}},
-		{Prefix: "/api/v1/website", Target: envURL("SERVICE_WEBSITE_URL", "http://localhost:8099"), FeatureKey: "public_website"},
-		{Prefix: "/api/v1/analytics", Target: envURL("SERVICE_ANALYTICS_URL", "http://localhost:8100"), FeatureKey: "analytics"},
-		{Prefix: "/api/v1/billing", Target: envURL("SERVICE_BILLING_URL", "http://localhost:8101"), FeatureKey: "billing"},
-		{Prefix: "/api/v1/cbt", Target: envURL("SERVICE_CBT_URL", "http://localhost:8102"), FeatureKey: "cbt_exams"},
-		{Prefix: "/api/v1/audit", Target: envURL("SERVICE_AUDIT_URL", "http://localhost:8103"), FeatureKey: ""},
+		{Prefix: "/api/v1/website", Target: envURL("SERVICE_WEBSITE_URL", "http://localhost:8101"), FeatureKey: "public_website"},
+		{Prefix: "/api/v1/analytics", Target: envURL("SERVICE_ANALYTICS_URL", "http://localhost:8102"), FeatureKey: "analytics"},
+		{Prefix: "/api/v1/billing", Target: envURL("SERVICE_BILLING_URL", "http://localhost:8100"), FeatureKey: "billing"},
+		{Prefix: "/api/v1/cbt", Target: envURL("SERVICE_CBT_URL", "http://localhost:8103"), FeatureKey: "cbt_exams"},
+		{Prefix: "/api/v1/audit", Target: envURL("SERVICE_AUDIT_URL", "http://localhost:8104"), FeatureKey: ""},
 		{
 			Prefix:     "/api/v1/ai/recommendations",
 			Target:     envURL("SERVICE_AI_RECOMMENDATION_URL", "http://localhost:8200"),
