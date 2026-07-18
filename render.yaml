@@ -184,6 +184,14 @@ services:
         fromService:
           name: tenant-service
           property: hostport
+      - key: SERVICE_IDENTITY_URL
+        fromService:
+          name: identity-service
+          property: hostport
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
+          property: hostport
       - key: SERVICE_AI_RECOMMENDATION_URL
         fromService:
           name: ai-recommendation-service
@@ -207,6 +215,54 @@ services:
       - key: SERVICE_ACADEMIC_URL
         fromService:
           name: academic-service
+          property: hostport
+      - key: SERVICE_STAFF_URL
+        fromService:
+          name: staff-service
+          property: hostport
+      - key: SERVICE_ATTENDANCE_URL
+        fromService:
+          name: attendance-service
+          property: hostport
+      - key: SERVICE_ASSESSMENT_URL
+        fromService:
+          name: assessment-service
+          property: hostport
+      - key: SERVICE_REPORT_URL
+        fromService:
+          name: report-service
+          property: hostport
+      - key: SERVICE_FEES_URL
+        fromService:
+          name: fees-service
+          property: hostport
+      - key: SERVICE_PAYMENT_URL
+        fromService:
+          name: payment-service
+          property: hostport
+      - key: SERVICE_NOTIFICATION_URL
+        fromService:
+          name: notification-service
+          property: hostport
+      - key: SERVICE_BILLING_URL
+        fromService:
+          name: billing-service
+          property: hostport
+      - key: SERVICE_WEBSITE_URL
+        fromService:
+          name: website-service
+          property: hostport
+      - key: SERVICE_ANALYTICS_URL
+        fromService:
+          name: analytics-service
+          property: hostport
+      - key: SERVICE_CBT_URL
+        fromService:
+          name: cbt-service
+          property: hostport
+      - key: SERVICE_AUDIT_URL
+        fromService:
+          name: audit-service
           property: hostport
       - key: JWT_SIGNING_KEY
         fromGroup: auraedu-secrets
@@ -235,10 +291,10 @@ services:
         fromService:
           name: auraedu-cache
           property: connectionString
-      - key: NATS_HOST
+      - key: NATS_URL
         fromService:
           name: nats
-          property: host
+          property: hostport
       - key: JWT_SIGNING_KEY
         fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
@@ -262,10 +318,10 @@ services:
         fromDatabase:
           name: tenant-db
           property: connectionString
-      - key: NATS_HOST
+      - key: NATS_URL
         fromService:
           name: nats
-          property: host
+          property: hostport
       - fromGroup: auraedu-shared-config
 
   # ---- Student Service (private) — scaffolded via `make new-service` --------
@@ -287,10 +343,10 @@ services:
         fromDatabase:
           name: student-db
           property: connectionString
-      - key: NATS_HOST
+      - key: NATS_URL
         fromService:
           name: nats
-          property: host
+          property: hostport
       - fromGroup: auraedu-shared-config
 
   # ---- Academic Service (private) — years, terms, classes, subjects ---------
@@ -312,10 +368,408 @@ services:
         fromDatabase:
           name: academic-db
           property: connectionString
-      - key: NATS_HOST
+      - key: NATS_URL
         fromService:
           name: nats
-          property: host
+          property: hostport
+      - fromGroup: auraedu-shared-config
+
+  # ---- Staff Service (private) — teaching & non-teaching staff --------------
+  - name: staff-service
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/staff-service/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/staff-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: staff-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - fromGroup: auraedu-shared-config
+
+  # ---- Attendance Service (private) -----------------------------------------
+  - name: attendance-service
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/attendance-service/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/attendance-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: attendance-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - fromGroup: auraedu-shared-config
+
+  # ---- Assessment Service (private) — assessments, assignments, gradebook ---
+  - name: assessment-service
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/assessment-service/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/assessment-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: assessment-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - fromGroup: auraedu-shared-config
+
+  # ---- Report Service (private) — report cards & templates (+ worker) -------
+  - name: report-service
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/report-service/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/report-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: report-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - fromGroup: auraedu-shared-config
+
+  - name: report-worker
+    type: worker
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/report-service/Dockerfile
+    dockerContext: .
+    autoDeployTrigger: checksPass
+    startCommand: /app worker
+    buildFilter:
+      paths:
+        - apps/report-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: report-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - fromGroup: auraedu-shared-config
+
+  # ---- Fees Service (private) — fee structures & invoices --------------------
+  - name: fees-service
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/fees-service/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/fees-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fees-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - fromGroup: auraedu-shared-config
+
+  # ---- Payment Service (private) — online payments (Paystack/mock) ----------
+  - name: payment-service
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/payment-service/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/payment-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: payment-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      # PAYMENTS_PROVIDER defaults to mock; set paystack + PAYSTACK_SECRET_KEY
+      # (auraedu-secrets) in the dashboard for real charges.
+      - fromGroup: auraedu-shared-config
+
+  # ---- Notification Service (private) — email/SMS/in-app (+ worker) ---------
+  - name: notification-service
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/notification-service/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/notification-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: notification-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - fromGroup: auraedu-shared-config
+
+  - name: notification-worker
+    type: worker
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/notification-service/Dockerfile
+    dockerContext: .
+    autoDeployTrigger: checksPass
+    startCommand: /app worker
+    buildFilter:
+      paths:
+        - apps/notification-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: notification-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - fromGroup: auraedu-shared-config
+
+  # ---- Billing Service (private) — subscriptions & plan gating (+ worker) ---
+  - name: billing-service
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/billing-service/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/billing-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: billing-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - fromGroup: auraedu-shared-config
+
+  - name: billing-worker
+    type: worker
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/billing-service/Dockerfile
+    dockerContext: .
+    autoDeployTrigger: checksPass
+    startCommand: /app worker
+    buildFilter:
+      paths:
+        - apps/billing-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: billing-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - fromGroup: auraedu-shared-config
+
+  # ---- Website Service (private) — public school websites (+ worker) --------
+  - name: website-service
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/website-service/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/website-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: website-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - fromGroup: auraedu-shared-config
+
+  - name: website-worker
+    type: worker
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/website-service/Dockerfile
+    dockerContext: .
+    autoDeployTrigger: checksPass
+    startCommand: /app worker
+    buildFilter:
+      paths:
+        - apps/website-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: website-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - fromGroup: auraedu-shared-config
+
+  # ---- Analytics Service (private) — dashboards & projections (+ worker) ----
+  - name: analytics-service
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/analytics-service/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/analytics-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: analytics-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - fromGroup: auraedu-shared-config
+
+  - name: analytics-worker
+    type: worker
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/analytics-service/Dockerfile
+    dockerContext: .
+    autoDeployTrigger: checksPass
+    startCommand: /app worker
+    buildFilter:
+      paths:
+        - apps/analytics-service/**
+        - platform/**
+    envVars:
+      # analytics-worker is the only worker that hard-requires NATS_URL (MustGetenv).
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - key: DATABASE_URL
+        fromDatabase:
+          name: analytics-db
+          property: connectionString
+      - fromGroup: auraedu-shared-config
+
+  # ---- CBT Service (private) — computer-based tests/exams -------------------
+  - name: cbt-service
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/cbt-service/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/cbt-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cbt-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
       - fromGroup: auraedu-shared-config
 
   # ---- Web app: portals + per-school public sites (public) -----------------
@@ -362,6 +816,10 @@ services:
         - turbo.json
         - pnpm-workspace.yaml
     envVars:
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          name: api-gateway
+          property: url
       - fromGroup: auraedu-shared-config
 
   # ---- Worker / Cron patterns ----------------------------------------------
@@ -414,51 +872,8 @@ services:
   #     - fromGroup: auraedu-shared-config
 
   # ---- Remaining services (agent_plan Appendix D) --------------------------
-  # Uncomment and deploy as each service gets a Dockerfile and migrations.
-  # See infrastructure/render/30-service-pattern.yaml for a reusable template.
-  #
-  # - name: staff-service
-  #   type: pserv
-  #   ...
-  # - name: academic-service
-  #   type: pserv
-  #   ...
-  # - name: attendance-service
-  #   type: pserv
-  #   ...
-  # - name: assessment-service
-  #   type: pserv
-  #   ...
-  # - name: report-service
-  #   type: pserv
-  #   ...
-  # - name: fees-service
-  #   type: pserv
-  #   ...
-  # - name: payment-service
-  #   type: pserv
-  #   ...
-  # - name: notification-service
-  #   type: pserv
-  #   ...
-  # - name: website-service
-  #   type: pserv
-  #   ...
-  # - name: file-service
-  #   type: pserv
-  #   ...
-  # - name: analytics-service
-  #   type: pserv
-  #   ...
-  # - name: billing-service
-  #   type: pserv
-  #   ...
-  # - name: cbt-service
-  #   type: pserv
-  #   ...
-  # - name: audit-service
-  #   type: pserv
-  #   ...
+  # All Appendix D services are now deployed above. To add a new service, copy
+  # infrastructure/render/30-service-pattern.yaml and add a database (databases:).
   - name: ai-recommendation-service
     type: pserv
     runtime: docker
@@ -553,10 +968,10 @@ services:
         fromDatabase:
           name: file-db
           property: connectionString
-      - key: NATS_HOST
+      - key: NATS_URL
         fromService:
           name: nats
-          property: host
+          property: hostport
       - key: CLOUDINARY_URL
         fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
@@ -579,10 +994,10 @@ services:
         fromDatabase:
           name: audit-db
           property: connectionString
-      - key: NATS_HOST
+      - key: NATS_URL
         fromService:
           name: nats
-          property: host
+          property: hostport
       - fromGroup: auraedu-shared-config
 
   - name: audit-worker
@@ -603,8 +1018,8 @@ services:
         fromDatabase:
           name: audit-db
           property: connectionString
-      - key: NATS_HOST
+      - key: NATS_URL
         fromService:
           name: nats
-          property: host
+          property: hostport
       - fromGroup: auraedu-shared-config

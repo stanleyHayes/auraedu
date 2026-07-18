@@ -1,6 +1,16 @@
-# AuraEDU — full local stack (agent_plan §4, AURA-7.2).
-# Boots all backend services + web + marketing on top of the infra compose.
+# AuraEDU — full local stack (agent_plan §4, AURA-7.2/AURA-9.2).
+# Boots all backend services + workers + web + marketing on top of the infra compose.
 # Usage: `make dev` or `docker compose -f deploy/docker-compose.yml up --build`.
+#
+# Conventions:
+#   - Go services run migrations on boot (goose, dir "migrations" relative to CWD).
+#     The images don't ship migration files, so each service mounts
+#     ../apps/<svc>/migrations at /migrations and runs with working_dir /.
+#   - Feature flags load from contracts/features/features.yaml (mounted at
+#     /contracts) for services whose image doesn't bake the contracts in.
+#   - Container port == host port == agent_plan.md Appendix D port (via PORT env).
+#   - Event workers are the same image with `command: ["worker"]` (cobra subcommand);
+#     audit-worker is the exception (dedicated /worker binary in its image).
 
 name: auraedu
 
@@ -20,7 +30,7 @@ services:
     environment:
       DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/identity?sslmode=disable
       REDIS_URL: redis://redis:6379
-      NATS_HOST: nats:4222
+      NATS_URL: nats://nats:4222
       JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-local-dev-signing-key-change-me}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     depends_on:
@@ -35,28 +45,59 @@ services:
       dockerfile: ./apps/tenant-service/Dockerfile
       args:
         GIT_SHA: local
+    working_dir: /
     ports: ["8082:8082"]
     environment:
       DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/tenant?sslmode=disable
-      NATS_HOST: nats:4222
+      NATS_URL: nats://nats:4222
       LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ../apps/tenant-service/migrations:/migrations:ro
     depends_on:
       postgres: { condition: service_healthy }
       nats: { condition: service_healthy }
     restart: unless-stopped
 
+  # ---- Domain services (agent_plan Appendix D ports) -------------------------
   student-service:
     build:
       context: ..
       dockerfile: ./apps/student-service/Dockerfile
       args:
         GIT_SHA: local
-    ports: ["8090:8080"]
+    working_dir: /
+    ports: ["8090:8090"]
     environment:
+      PORT: 8090
       DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/student?sslmode=disable
-      NATS_HOST: nats:4222
+      NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
       LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ../apps/student-service/migrations:/migrations:ro
+      - ../contracts/features/features.yaml:/contracts/features/features.yaml:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      nats: { condition: service_healthy }
+    restart: unless-stopped
+
+  staff-service:
+    build:
+      context: ..
+      dockerfile: ./apps/staff-service/Dockerfile
+      args:
+        GIT_SHA: local
+    working_dir: /
+    ports: ["8091:8091"]
+    environment:
+      PORT: 8091
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/staff?sslmode=disable
+      NATS_URL: nats://nats:4222
+      FEATURES_REGISTRY: /contracts/features/features.yaml
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ../apps/staff-service/migrations:/migrations:ro
+      - ../contracts/features/features.yaml:/contracts/features/features.yaml:ro
     depends_on:
       postgres: { condition: service_healthy }
       nats: { condition: service_healthy }
@@ -68,17 +109,354 @@ services:
       dockerfile: ./apps/academic-service/Dockerfile
       args:
         GIT_SHA: local
-    ports: ["8092:8080"]
+    working_dir: /
+    ports: ["8092:8092"]
     environment:
+      PORT: 8092
       DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/academic?sslmode=disable
-      NATS_HOST: nats:4222
+      NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
       LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ../apps/academic-service/migrations:/migrations:ro
+      - ../contracts/features/features.yaml:/contracts/features/features.yaml:ro
     depends_on:
       postgres: { condition: service_healthy }
       nats: { condition: service_healthy }
     restart: unless-stopped
 
+  attendance-service:
+    build:
+      context: ..
+      dockerfile: ./apps/attendance-service/Dockerfile
+      args:
+        GIT_SHA: local
+    working_dir: /
+    ports: ["8094:8094"]
+    environment:
+      PORT: 8094
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/attendance?sslmode=disable
+      NATS_URL: nats://nats:4222
+      FEATURES_REGISTRY: /contracts/features/features.yaml
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ../apps/attendance-service/migrations:/migrations:ro
+      - ../contracts/features/features.yaml:/contracts/features/features.yaml:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      nats: { condition: service_healthy }
+    restart: unless-stopped
+
+  assessment-service:
+    build:
+      context: ..
+      dockerfile: ./apps/assessment-service/Dockerfile
+      args:
+        GIT_SHA: local
+    working_dir: /
+    ports: ["8095:8095"]
+    environment:
+      PORT: 8095
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/assessment?sslmode=disable
+      NATS_URL: nats://nats:4222
+      FEATURES_REGISTRY: /contracts/features/features.yaml
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ../apps/assessment-service/migrations:/migrations:ro
+      - ../contracts/features/features.yaml:/contracts/features/features.yaml:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      nats: { condition: service_healthy }
+    restart: unless-stopped
+
+  report-service:
+    build:
+      context: ..
+      dockerfile: ./apps/report-service/Dockerfile
+      args:
+        GIT_SHA: local
+    working_dir: /
+    ports: ["8096:8096"]
+    environment:
+      PORT: 8096
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/report?sslmode=disable
+      NATS_URL: nats://nats:4222
+      FEATURES_REGISTRY: /contracts/features/features.yaml
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ../apps/report-service/migrations:/migrations:ro
+      - ../contracts/features/features.yaml:/contracts/features/features.yaml:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      nats: { condition: service_healthy }
+    restart: unless-stopped
+
+  report-worker:
+    build:
+      context: ..
+      dockerfile: ./apps/report-service/Dockerfile
+      args:
+        GIT_SHA: local
+    working_dir: /
+    command: ["worker"]
+    environment:
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/report?sslmode=disable
+      NATS_URL: nats://nats:4222
+      FEATURES_REGISTRY: /contracts/features/features.yaml
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ../apps/report-service/migrations:/migrations:ro
+      - ../contracts/features/features.yaml:/contracts/features/features.yaml:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      nats: { condition: service_healthy }
+      report-service: { condition: service_started }
+    restart: unless-stopped
+
+  fees-service:
+    build:
+      context: ..
+      dockerfile: ./apps/fees-service/Dockerfile
+      args:
+        GIT_SHA: local
+    working_dir: /
+    ports: ["8097:8097"]
+    environment:
+      PORT: 8097
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/fees?sslmode=disable
+      NATS_URL: nats://nats:4222
+      FEATURES_REGISTRY: /contracts/features/features.yaml
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ../apps/fees-service/migrations:/migrations:ro
+      - ../contracts/features/features.yaml:/contracts/features/features.yaml:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      nats: { condition: service_healthy }
+    restart: unless-stopped
+
+  payment-service:
+    build:
+      context: ..
+      dockerfile: ./apps/payment-service/Dockerfile
+      args:
+        GIT_SHA: local
+    working_dir: /
+    ports: ["8098:8098"]
+    environment:
+      PORT: 8098
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/payment?sslmode=disable
+      NATS_URL: nats://nats:4222
+      FEATURES_REGISTRY: /contracts/features/features.yaml
+      # PAYMENTS_PROVIDER defaults to mock; set paystack + PAYSTACK_SECRET_KEY for real charges.
+      PAYMENTS_PROVIDER: ${PAYMENTS_PROVIDER:-mock}
+      PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:-}
+      PAYSTACK_WEBHOOK_SECRET: ${PAYSTACK_WEBHOOK_SECRET:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ../apps/payment-service/migrations:/migrations:ro
+      - ../contracts/features/features.yaml:/contracts/features/features.yaml:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      nats: { condition: service_healthy }
+    restart: unless-stopped
+
+  notification-service:
+    build:
+      context: ..
+      dockerfile: ./apps/notification-service/Dockerfile
+      args:
+        GIT_SHA: local
+    working_dir: /
+    ports: ["8099:8099"]
+    environment:
+      PORT: 8099
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/notification?sslmode=disable
+      NATS_URL: nats://nats:4222
+      FEATURES_REGISTRY: /contracts/features/features.yaml
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ../apps/notification-service/migrations:/migrations:ro
+      - ../contracts/features/features.yaml:/contracts/features/features.yaml:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      nats: { condition: service_healthy }
+    restart: unless-stopped
+
+  notification-worker:
+    build:
+      context: ..
+      dockerfile: ./apps/notification-service/Dockerfile
+      args:
+        GIT_SHA: local
+    working_dir: /
+    command: ["worker"]
+    environment:
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/notification?sslmode=disable
+      NATS_URL: nats://nats:4222
+      FEATURES_REGISTRY: /contracts/features/features.yaml
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ../apps/notification-service/migrations:/migrations:ro
+      - ../contracts/features/features.yaml:/contracts/features/features.yaml:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      nats: { condition: service_healthy }
+      notification-service: { condition: service_started }
+    restart: unless-stopped
+
+  billing-service:
+    build:
+      context: ..
+      dockerfile: ./apps/billing-service/Dockerfile
+      args:
+        GIT_SHA: local
+    working_dir: /
+    ports: ["8100:8100"]
+    environment:
+      PORT: 8100
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/billing?sslmode=disable
+      NATS_URL: nats://nats:4222
+      FEATURES_REGISTRY: /contracts/features/features.yaml
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ../apps/billing-service/migrations:/migrations:ro
+      - ../contracts/features/features.yaml:/contracts/features/features.yaml:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      nats: { condition: service_healthy }
+    restart: unless-stopped
+
+  billing-worker:
+    build:
+      context: ..
+      dockerfile: ./apps/billing-service/Dockerfile
+      args:
+        GIT_SHA: local
+    working_dir: /
+    command: ["worker"]
+    environment:
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/billing?sslmode=disable
+      NATS_URL: nats://nats:4222
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ../apps/billing-service/migrations:/migrations:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      nats: { condition: service_healthy }
+      billing-service: { condition: service_started }
+    restart: unless-stopped
+
+  website-service:
+    build:
+      context: ..
+      dockerfile: ./apps/website-service/Dockerfile
+      args:
+        GIT_SHA: local
+    working_dir: /
+    ports: ["8101:8101"]
+    environment:
+      PORT: 8101
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/website?sslmode=disable
+      NATS_URL: nats://nats:4222
+      FEATURES_REGISTRY: /contracts/features/features.yaml
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ../apps/website-service/migrations:/migrations:ro
+      - ../contracts/features/features.yaml:/contracts/features/features.yaml:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      nats: { condition: service_healthy }
+    restart: unless-stopped
+
+  website-worker:
+    build:
+      context: ..
+      dockerfile: ./apps/website-service/Dockerfile
+      args:
+        GIT_SHA: local
+    working_dir: /
+    command: ["worker"]
+    environment:
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/website?sslmode=disable
+      NATS_URL: nats://nats:4222
+      FEATURES_REGISTRY: /contracts/features/features.yaml
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ../apps/website-service/migrations:/migrations:ro
+      - ../contracts/features/features.yaml:/contracts/features/features.yaml:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      nats: { condition: service_healthy }
+      website-service: { condition: service_started }
+    restart: unless-stopped
+
+  analytics-service:
+    build:
+      context: ..
+      dockerfile: ./apps/analytics-service/Dockerfile
+      args:
+        GIT_SHA: local
+    working_dir: /
+    ports: ["8102:8102"]
+    environment:
+      PORT: 8102
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/analytics?sslmode=disable
+      NATS_URL: nats://nats:4222
+      FEATURES_REGISTRY: /contracts/features/features.yaml
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ../apps/analytics-service/migrations:/migrations:ro
+      - ../contracts/features/features.yaml:/contracts/features/features.yaml:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      nats: { condition: service_healthy }
+    restart: unless-stopped
+
+  analytics-worker:
+    build:
+      context: ..
+      dockerfile: ./apps/analytics-service/Dockerfile
+      args:
+        GIT_SHA: local
+    working_dir: /
+    command: ["worker"]
+    environment:
+      # analytics-worker is the only worker that hard-requires NATS_URL (MustGetenv).
+      NATS_URL: nats://nats:4222
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/analytics?sslmode=disable
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ../apps/analytics-service/migrations:/migrations:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      nats: { condition: service_healthy }
+      analytics-service: { condition: service_started }
+    restart: unless-stopped
+
+  cbt-service:
+    build:
+      context: ..
+      dockerfile: ./apps/cbt-service/Dockerfile
+      args:
+        GIT_SHA: local
+    working_dir: /
+    ports: ["8103:8103"]
+    environment:
+      PORT: 8103
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/cbt?sslmode=disable
+      NATS_URL: nats://nats:4222
+      FEATURES_REGISTRY: /contracts/features/features.yaml
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ../apps/cbt-service/migrations:/migrations:ro
+      - ../contracts/features/features.yaml:/contracts/features/features.yaml:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      nats: { condition: service_healthy }
+    restart: unless-stopped
+
+  # ---- API Gateway (only public backend; proxies /api/v1/* per Appendix D) ---
   api-gateway:
     build:
       context: ..
@@ -89,12 +467,26 @@ services:
     environment:
       IDENTITY_HOSTPORT: identity-service:8081
       TENANT_HOSTPORT: tenant-service:8082
+      SERVICE_IDENTITY_URL: http://identity-service:8081
+      SERVICE_TENANT_URL: http://tenant-service:8082
+      SERVICE_STUDENT_URL: http://student-service:8090
+      SERVICE_STAFF_URL: http://staff-service:8091
+      SERVICE_ACADEMIC_URL: http://academic-service:8092
+      SERVICE_FILE_URL: http://file-service:8093
+      SERVICE_ATTENDANCE_URL: http://attendance-service:8094
+      SERVICE_ASSESSMENT_URL: http://assessment-service:8095
+      SERVICE_REPORT_URL: http://report-service:8096
+      SERVICE_FEES_URL: http://fees-service:8097
+      SERVICE_PAYMENT_URL: http://payment-service:8098
+      SERVICE_NOTIFICATION_URL: http://notification-service:8099
+      SERVICE_BILLING_URL: http://billing-service:8100
+      SERVICE_WEBSITE_URL: http://website-service:8101
+      SERVICE_ANALYTICS_URL: http://analytics-service:8102
+      SERVICE_CBT_URL: http://cbt-service:8103
+      SERVICE_AUDIT_URL: http://audit-service:8104
       SERVICE_AI_RECOMMENDATION_URL: http://ai-recommendation-service:8200
       SERVICE_AI_PREDICTION_URL: http://ai-prediction-service:8201
       SERVICE_CAREER_GUIDANCE_URL: http://career-guidance-service:8112
-      SERVICE_FILE_URL: http://file-service:8098
-      SERVICE_STUDENT_URL: http://student-service:8090
-      SERVICE_ACADEMIC_URL: http://academic-service:8092
       REDIS_URL: redis://redis:6379
       NATS_HOST: nats:4222
       JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-local-dev-signing-key-change-me}
@@ -102,12 +494,24 @@ services:
     depends_on:
       identity-service: { condition: service_started }
       tenant-service: { condition: service_started }
+      student-service: { condition: service_started }
+      staff-service: { condition: service_started }
+      academic-service: { condition: service_started }
+      file-service: { condition: service_started }
+      attendance-service: { condition: service_started }
+      assessment-service: { condition: service_started }
+      report-service: { condition: service_started }
+      fees-service: { condition: service_started }
+      payment-service: { condition: service_started }
+      notification-service: { condition: service_started }
+      billing-service: { condition: service_started }
+      website-service: { condition: service_started }
+      analytics-service: { condition: service_started }
+      cbt-service: { condition: service_started }
+      audit-service: { condition: service_started }
       ai-recommendation-service: { condition: service_started }
       ai-prediction-service: { condition: service_started }
       career-guidance-service: { condition: service_started }
-      file-service: { condition: service_started }
-      student-service: { condition: service_started }
-      academic-service: { condition: service_started }
       redis: { condition: service_healthy }
       nats: { condition: service_healthy }
     restart: unless-stopped
@@ -119,14 +523,20 @@ services:
       dockerfile: ./apps/file-service/Dockerfile
       args:
         GIT_SHA: local
-    ports: ["8098:8098"]
+    working_dir: /
+    ports: ["8093:8093"]
     environment:
+      PORT: 8093
       DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/file?sslmode=disable
-      NATS_HOST: nats:4222
+      NATS_URL: nats://nats:4222
+      FEATURES_REGISTRY: /contracts/features/features.yaml
       FILE_STORAGE_DIR: /tmp/auraedu-files
       CLOUDINARY_URL: ${CLOUDINARY_URL:-}
       CLOUDINARY_RESOURCE_TYPE: ${CLOUDINARY_RESOURCE_TYPE:-raw}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ../apps/file-service/migrations:/migrations:ro
+      - ../contracts/features/features.yaml:/contracts/features/features.yaml:ro
     depends_on:
       postgres: { condition: service_healthy }
       nats: { condition: service_healthy }
@@ -183,11 +593,15 @@ services:
       dockerfile: ./apps/audit-service/Dockerfile
       args:
         GIT_SHA: local
-    ports: ["8103:8080"]
+    working_dir: /
+    ports: ["8104:8104"]
     environment:
+      PORT: 8104
       DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/audit?sslmode=disable
       NATS_URL: nats://nats:4222
       LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ../apps/audit-service/migrations:/migrations:ro
     depends_on:
       postgres: { condition: service_healthy }
       nats: { condition: service_healthy }
@@ -198,14 +612,18 @@ services:
       dockerfile: ./apps/audit-service/Dockerfile
       args:
         GIT_SHA: local
+    working_dir: /
     environment:
       DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/audit?sslmode=disable
       NATS_URL: nats://nats:4222
       LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ../apps/audit-service/migrations:/migrations:ro
     entrypoint: ["/worker"]
     depends_on:
       postgres: { condition: service_healthy }
       nats: { condition: service_healthy }
+      audit-service: { condition: service_started }
     restart: unless-stopped
   # ---- Frontends ------------------------------------------------------------
   web:
@@ -229,6 +647,8 @@ services:
     ports: ["3001:3001"]
     environment:
       PORT: 3001
+      # Server components (pricing/signup) call the API at request time.
+      NEXT_PUBLIC_API_URL: http://localhost:8080
     depends_on:
       api-gateway: { condition: service_started }
     restart: unless-stopped
