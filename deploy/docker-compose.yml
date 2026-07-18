@@ -72,6 +72,7 @@ services:
       DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/student?sslmode=disable
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
+      SERVICE_TENANT_URL: http://tenant-service:8082
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ../apps/student-service/migrations:/migrations:ro
@@ -94,6 +95,7 @@ services:
       DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/staff?sslmode=disable
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
+      SERVICE_TENANT_URL: http://tenant-service:8082
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ../apps/staff-service/migrations:/migrations:ro
@@ -116,6 +118,7 @@ services:
       DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/academic?sslmode=disable
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
+      SERVICE_TENANT_URL: http://tenant-service:8082
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ../apps/academic-service/migrations:/migrations:ro
@@ -138,6 +141,7 @@ services:
       DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/attendance?sslmode=disable
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
+      SERVICE_TENANT_URL: http://tenant-service:8082
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ../apps/attendance-service/migrations:/migrations:ro
@@ -160,6 +164,7 @@ services:
       DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/assessment?sslmode=disable
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
+      SERVICE_TENANT_URL: http://tenant-service:8082
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ../apps/assessment-service/migrations:/migrations:ro
@@ -182,6 +187,7 @@ services:
       DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/report?sslmode=disable
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
+      SERVICE_TENANT_URL: http://tenant-service:8082
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ../apps/report-service/migrations:/migrations:ro
@@ -203,6 +209,7 @@ services:
       DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/report?sslmode=disable
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
+      SERVICE_TENANT_URL: http://tenant-service:8082
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ../apps/report-service/migrations:/migrations:ro
@@ -226,6 +233,7 @@ services:
       DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/fees?sslmode=disable
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
+      SERVICE_TENANT_URL: http://tenant-service:8082
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ../apps/fees-service/migrations:/migrations:ro
@@ -248,6 +256,7 @@ services:
       DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/payment?sslmode=disable
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
+      SERVICE_TENANT_URL: http://tenant-service:8082
       # PAYMENTS_PROVIDER defaults to mock; set paystack + PAYSTACK_SECRET_KEY for real charges.
       PAYMENTS_PROVIDER: ${PAYMENTS_PROVIDER:-mock}
       PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:-}
@@ -274,6 +283,7 @@ services:
       DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/notification?sslmode=disable
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
+      SERVICE_TENANT_URL: http://tenant-service:8082
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ../apps/notification-service/migrations:/migrations:ro
@@ -295,6 +305,7 @@ services:
       DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/notification?sslmode=disable
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
+      SERVICE_TENANT_URL: http://tenant-service:8082
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ../apps/notification-service/migrations:/migrations:ro
@@ -318,6 +329,7 @@ services:
       DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/billing?sslmode=disable
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
+      SERVICE_TENANT_URL: http://tenant-service:8082
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ../apps/billing-service/migrations:/migrations:ro
@@ -360,6 +372,7 @@ services:
       DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/website?sslmode=disable
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
+      SERVICE_TENANT_URL: http://tenant-service:8082
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ../apps/website-service/migrations:/migrations:ro
@@ -381,6 +394,7 @@ services:
       DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/website?sslmode=disable
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
+      SERVICE_TENANT_URL: http://tenant-service:8082
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ../apps/website-service/migrations:/migrations:ro
@@ -404,6 +418,7 @@ services:
       DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/analytics?sslmode=disable
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
+      SERVICE_TENANT_URL: http://tenant-service:8082
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ../apps/analytics-service/migrations:/migrations:ro
@@ -447,6 +462,7 @@ services:
       DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/cbt?sslmode=disable
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
+      SERVICE_TENANT_URL: http://tenant-service:8082
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ../apps/cbt-service/migrations:/migrations:ro
@@ -530,6 +546,7 @@ services:
       DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/file?sslmode=disable
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
+      SERVICE_TENANT_URL: http://tenant-service:8082
       FILE_STORAGE_DIR: /tmp/auraedu-files
       CLOUDINARY_URL: ${CLOUDINARY_URL:-}
       CLOUDINARY_RESOURCE_TYPE: ${CLOUDINARY_RESOURCE_TYPE:-raw}
