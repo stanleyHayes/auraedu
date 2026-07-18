@@ -24,7 +24,7 @@ async function loadPlatformStats(): Promise<PlatformStats> {
     staff: null,
   };
 
-  let tenants: Tenant[] = [];
+  let tenants: Tenant[];
   try {
     const client = await createServerClient();
     const res = await client.get<{ data?: Tenant[] }>("/api/v1/tenants?limit=50");
