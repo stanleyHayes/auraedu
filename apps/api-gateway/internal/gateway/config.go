@@ -281,9 +281,19 @@ func DefaultRegistry() ServiceRegistry {
 
 func envURL(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
-		return v
+		return withScheme(v)
 	}
 	return fallback
+}
+
+// withScheme defaults scheme-less targets (e.g. Render hostport values like
+// "identity-service:8081") to http so url.Parse in the proxy doesn't reject
+// them at runtime.
+func withScheme(target string) string {
+	if strings.Contains(target, "://") {
+		return target
+	}
+	return "http://" + target
 }
 
 type Config struct {
