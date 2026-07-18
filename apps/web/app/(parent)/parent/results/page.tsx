@@ -1,19 +1,14 @@
 import { Trophy, ClipboardList } from "lucide-react";
 import { PageHeader, DataTable, EmptyState } from "@auraedu/ui";
+import type { OpenAPI } from "@auraedu/shared-types";
 import { createServerClient } from "@/lib/api";
 
-export interface Assessment {
-  id: string;
-  name: string;
-  type: string;
+// subject_name is a display-only legacy field not present in the contract.
+type Assessment = OpenAPI.assessment_v1.components["schemas"]["Assessment"] & {
   subject_name?: string;
-  date?: string;
-}
+};
 
-export interface Score {
-  student_id: string;
-  score: number;
-}
+type Score = OpenAPI.assessment_v1.components["schemas"]["Score"];
 
 export interface ResultRow {
   id: string;
@@ -27,7 +22,10 @@ export default async function ParentResultsPage() {
   const client = await createServerClient();
   let assessments: Assessment[];
   try {
-    assessments = await client.get<Assessment[]>("/api/v1/assessments");
+    const res = await client.get<OpenAPI.assessment_v1.components["schemas"]["AssessmentList"]>(
+      "/api/v1/assessments",
+    );
+    assessments = res.data ?? [];
   } catch {
     assessments = [];
   }
@@ -37,8 +35,11 @@ export default async function ParentResultsPage() {
     const scoresByAssessment = await Promise.all(
       assessments.map(async (a) => {
         try {
-          const scores = await client.get<Score[]>(`/api/v1/assessments/${a.id}/scores`);
-          return { assessment: a, scores };
+          // The contract declares no ScoreList schema, so type the envelope inline.
+          const res = await client.get<{ data?: Score[]; next_cursor?: string | null }>(
+            `/api/v1/assessments/${a.id}/scores`,
+          );
+          return { assessment: a, scores: res.data ?? [] };
         } catch {
           return { assessment: a, scores: [] as Score[] };
         }

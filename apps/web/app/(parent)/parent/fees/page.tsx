@@ -1,20 +1,21 @@
 import { CreditCard, ClipboardList } from "lucide-react";
 import { PageHeader, DataTable, EmptyState } from "@auraedu/ui";
+import type { OpenAPI } from "@auraedu/shared-types";
 import { createServerClient } from "@/lib/api";
 
-export interface Invoice {
-  id: string;
-  student_id: string;
-  amount: number;
-  due_date: string;
-  status: string;
-}
+// amount is a display-only legacy field; the contract Invoice carries amount_due/amount_paid.
+type Invoice = OpenAPI.fees_v1.components["schemas"]["Invoice"] & {
+  amount?: number;
+};
 
 export default async function ParentFeesPage() {
   const client = await createServerClient();
   let invoices: Invoice[];
   try {
-    invoices = await client.get<Invoice[]>("/api/v1/invoices");
+    const res = await client.get<OpenAPI.fees_v1.components["schemas"]["InvoiceList"]>(
+      "/api/v1/invoices",
+    );
+    invoices = res.data ?? [];
   } catch {
     invoices = [];
   }

@@ -1,20 +1,23 @@
 import { Banknote, ClipboardList } from "lucide-react";
 import { PageHeader, DataTable, EmptyState } from "@auraedu/ui";
+import type { OpenAPI } from "@auraedu/shared-types";
 import { createServerClient } from "@/lib/api";
 
-export interface Payment {
-  id: string;
-  amount: number;
-  paid_at: string;
-  method: string;
-  status: string;
-}
+// paid_at/method are display-only legacy fields not present in the contract Payment.
+type Payment = OpenAPI.payment_v1.components["schemas"]["Payment"] & {
+  paid_at?: string;
+  method?: string;
+};
 
 export default async function ParentPaymentsPage() {
   const client = await createServerClient();
   let payments: Payment[];
   try {
-    payments = await client.get<Payment[]>("/api/v1/payments");
+    // The contract declares no PaymentList schema, so type the envelope inline.
+    const res = await client.get<{ data?: Payment[]; next_cursor?: string | null }>(
+      "/api/v1/payments",
+    );
+    payments = res.data ?? [];
   } catch {
     payments = [];
   }
