@@ -19,6 +19,7 @@ paths:
             summary: List students
             parameters:
               - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/ClassIdFilter'
               - $ref: '#/components/parameters/Limit'
               - $ref: '#/components/parameters/Cursor'
             responses:
@@ -329,6 +330,12 @@ components:
       name: cursor
       in: query
       schema: { type: string }
+    ClassIdFilter:
+      name: class_id
+      in: query
+      required: false
+      description: Filter students by class (roster view). Tenant-scoped like the rest of the list.
+      schema: { type: string, format: uuid }
 
   schemas:
     Error:
@@ -350,6 +357,8 @@ components:
           date_of_birth: { type: [string, 'null'], format: date }
           gender: { type: [string, 'null'], enum: [male, female, other] }
           status: { type: string, enum: [active, withdrawn, graduated] }
+          class_id: { type: [string, 'null'], format: uuid }
+          academic_year_id: { type: [string, 'null'], format: uuid }
           created_at: { type: string, format: date-time }
           updated_at: { type: string, format: date-time }
     CreateStudent:
@@ -361,6 +370,7 @@ components:
           date_of_birth: { type: [string, 'null'], format: date }
           gender: { type: [string, 'null'], enum: [male, female, other] }
           class_id: { type: [string, 'null'], format: uuid }
+          academic_year_id: { type: [string, 'null'], format: uuid }
     UpdateStudent:
         type: object
         properties:

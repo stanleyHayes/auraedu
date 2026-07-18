@@ -59,14 +59,18 @@ func (r *fakeRepo) GetByID(_ context.Context, tenantID, id string) (*domain.Stud
 	return s, nil
 }
 
-func (r *fakeRepo) List(_ context.Context, tenantID string, limit int, cursor string) ([]*domain.Student, string, error) {
+func (r *fakeRepo) List(_ context.Context, tenantID string, classID *string, limit int, cursor string) ([]*domain.Student, string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var out []*domain.Student
 	for _, s := range r.students {
-		if s.TenantID == tenantID {
-			out = append(out, s)
+		if s.TenantID != tenantID {
+			continue
 		}
+		if classID != nil && (s.ClassID == nil || *s.ClassID != *classID) {
+			continue
+		}
+		out = append(out, s)
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].CreatedAt.Equal(out[j].CreatedAt) {

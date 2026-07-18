@@ -14,6 +14,7 @@ import (
 	"github.com/auraedu/platform/tenancy"
 	"github.com/auraedu/student-service/internal/domain"
 	"github.com/auraedu/student-service/internal/ports"
+	"github.com/google/uuid"
 )
 
 // RBAC permission keys (contracts/permissions/permissions.yaml).
@@ -65,9 +66,9 @@ type CreateStudentRequest struct {
 	LastName    string
 	DateOfBirth *string
 	Gender      *string
-	// ClassID and AcademicYearID are optional enrollment details. When present they are
-	// carried on the student.enrolled.v1 event (contracts/events/student.enrolled.v1.json);
-	// they are not persisted on the student record.
+	// ClassID and AcademicYearID are the optional class assignment. They are persisted
+	// on the student record (since AURA-10.11) and also carried on the
+	// student.enrolled.v1 event (contracts/events/student.enrolled.v1.json).
 	ClassID        *string
 	AcademicYearID *string
 }
@@ -147,6 +148,8 @@ func (s *Service) Create(ctx context.Context, actor auth.Actor, req CreateStuden
 	if req.Gender != nil {
 		student.Gender = req.Gender
 	}
+	student.ClassID = normalizeOptionalUUID(req.ClassID)
+	student.AcademicYearID = normalizeOptionalUUID(req.AcademicYearID)
 	if err := student.Validate(); err != nil {
 		return nil, err
 	}
@@ -175,13 +178,21 @@ func enrolledMeta(student *domain.Student, classID, academicYearID *string) map[
 	return meta
 }
 
-// List returns a tenant-scoped page of students.
-func (s *Service) List(ctx context.Context, actor auth.Actor, limit int, cursor string) ([]*domain.Student, string, error) {
+// List returns a tenant-scoped page of students. When classID is non-nil the page is
+// restricted to students assigned to that class (roster view, AURA-10.11); an empty
+// string is treated as unset. A non-UUID classID is a validation error.
+func (s *Service) List(ctx context.Context, actor auth.Actor, classID *string, limit int, cursor string) ([]*domain.Student, string, error) {
 	tenantID, err := s.requireAccess(ctx, actor, PermRead)
 	if err != nil {
 		return nil, "", err
 	}
-	return s.repo.List(ctx, tenantID, normalizeLimit(limit), cursor)
+	classID = normalizeOptionalUUID(classID)
+	if classID != nil {
+		if _, err := uuid.Parse(*classID); err != nil {
+			return nil, "", domain.ErrValidation
+		}
+	}
+	return s.repo.List(ctx, tenantID, classID, normalizeLimit(limit), cursor)
 }
 
 // Get returns a single student if the actor may read the tenant's data.
@@ -269,6 +280,15 @@ func normalizeLimit(n int) int {
 		return 100
 	}
 	return n
+}
+
+// normalizeOptionalUUID maps a nil or empty optional UUID pointer to nil so empty
+// values are never persisted or passed to the database as "".
+func normalizeOptionalUUID(v *string) *string {
+	if v == nil || *v == "" {
+		return nil
+	}
+	return v
 }
 
 // --- Guardians ---

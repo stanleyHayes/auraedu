@@ -29,9 +29,9 @@ func NewRepository(database *db.DB) *Repository { return &Repository{db: databas
 func (r *Repository) Create(ctx context.Context, tenantID string, s *domain.Student) error {
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `
-			INSERT INTO students (id, tenant_id, first_name, last_name, student_code, date_of_birth, gender, status, created_at, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-		`, s.ID, tenantID, s.FirstName, s.LastName, s.StudentCode, s.DateOfBirth, s.Gender, s.Status, s.CreatedAt, s.UpdatedAt)
+			INSERT INTO students (id, tenant_id, first_name, last_name, student_code, date_of_birth, gender, status, class_id, academic_year_id, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		`, s.ID, tenantID, s.FirstName, s.LastName, s.StudentCode, s.DateOfBirth, s.Gender, s.Status, s.ClassID, s.AcademicYearID, s.CreatedAt, s.UpdatedAt)
 		if err != nil {
 			return fmt.Errorf("student: create: %w", err)
 		}
@@ -43,7 +43,7 @@ func (r *Repository) GetByID(ctx context.Context, tenantID, id string) (*domain.
 	var s *domain.Student
 	err := r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		row := tx.QueryRow(ctx, `
-			SELECT id, tenant_id, first_name, last_name, student_code, date_of_birth, gender, status, created_at, updated_at
+			SELECT id, tenant_id, first_name, last_name, student_code, date_of_birth, gender, status, class_id, academic_year_id, created_at, updated_at
 			FROM students
 			WHERE id = $1 AND tenant_id = $2
 		`, id, tenantID)
@@ -60,11 +60,11 @@ func (r *Repository) GetByID(ctx context.Context, tenantID, id string) (*domain.
 	return s, err
 }
 
-func (r *Repository) List(ctx context.Context, tenantID string, limit int, cursor string) ([]*domain.Student, string, error) {
+func (r *Repository) List(ctx context.Context, tenantID string, classID *string, limit int, cursor string) ([]*domain.Student, string, error) {
 	var out []*domain.Student
 	var nextCursor string
 	err := r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		rows, err := listQuery(ctx, tx, tenantID, limit, cursor)
+		rows, err := listQuery(ctx, tx, tenantID, classID, limit, cursor)
 		if err != nil {
 			return err
 		}
@@ -88,25 +88,27 @@ func (r *Repository) List(ctx context.Context, tenantID string, limit int, curso
 	return out, nextCursor, err
 }
 
-func listQuery(ctx context.Context, tx pgx.Tx, tenantID string, limit int, cursor string) (pgx.Rows, error) {
+func listQuery(ctx context.Context, tx pgx.Tx, tenantID string, classID *string, limit int, cursor string) (pgx.Rows, error) {
+	// ($n::uuid IS NULL OR class_id = $n) keeps one plan for the filtered (roster) and
+	// unfiltered cases: a NULL filter parameter disables the class predicate.
 	if cursor != "" {
 		return tx.Query(ctx, `
-			SELECT id, tenant_id, first_name, last_name, student_code, date_of_birth, gender, status, created_at, updated_at
+			SELECT id, tenant_id, first_name, last_name, student_code, date_of_birth, gender, status, class_id, academic_year_id, created_at, updated_at
 			FROM students
-			WHERE tenant_id = $1 AND (created_at, id) > (
+			WHERE tenant_id = $1 AND ($4::uuid IS NULL OR class_id = $4::uuid) AND (created_at, id) > (
 				SELECT created_at, id FROM students WHERE id = $2 AND tenant_id = $1
 			)
 			ORDER BY created_at ASC, id ASC
 			LIMIT $3
-		`, tenantID, cursor, limit)
+		`, tenantID, cursor, limit, classID)
 	}
 	return tx.Query(ctx, `
-		SELECT id, tenant_id, first_name, last_name, student_code, date_of_birth, gender, status, created_at, updated_at
+		SELECT id, tenant_id, first_name, last_name, student_code, date_of_birth, gender, status, class_id, academic_year_id, created_at, updated_at
 		FROM students
-		WHERE tenant_id = $1
+		WHERE tenant_id = $1 AND ($3::uuid IS NULL OR class_id = $3::uuid)
 		ORDER BY created_at ASC, id ASC
 		LIMIT $2
-	`, tenantID, limit)
+	`, tenantID, limit, classID)
 }
 
 func (r *Repository) Update(ctx context.Context, tenantID string, s *domain.Student) error {
@@ -143,7 +145,7 @@ func scanStudent(row scanner) (*domain.Student, error) {
 	var dob *time.Time
 	if err := row.Scan(
 		&s.ID, &s.TenantID, &s.FirstName, &s.LastName, &s.StudentCode,
-		&dob, &s.Gender, &s.Status, &s.CreatedAt, &s.UpdatedAt,
+		&dob, &s.Gender, &s.Status, &s.ClassID, &s.AcademicYearID, &s.CreatedAt, &s.UpdatedAt,
 	); err != nil {
 		return nil, err
 	}

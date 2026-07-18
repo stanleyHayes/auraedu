@@ -67,7 +67,7 @@ func TestService_ListPagination(t *testing.T) {
 		t.Fatalf("create second: %v", err)
 	}
 
-	page, next, err := svc.List(ctx, actor, 1, "")
+	page, next, err := svc.List(ctx, actor, nil, 1, "")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestService_ListPagination(t *testing.T) {
 		t.Fatal("expected next cursor")
 	}
 
-	page2, _, err := svc.List(ctx, actor, 1, next)
+	page2, _, err := svc.List(ctx, actor, nil, 1, next)
 	if err != nil {
 		t.Fatalf("list cursor: %v", err)
 	}
@@ -155,5 +155,66 @@ func TestService_MissingPermission(t *testing.T) {
 	_, err := svc.Create(ctx, actor, application.CreateStudentRequest{FirstName: "X", LastName: "Y"})
 	if err == nil {
 		t.Fatal("expected error when actor lacks permission")
+	}
+}
+
+func TestService_ListFilterByClass(t *testing.T) {
+	ctx := withTenant(context.Background(), tenantA)
+	svc := newService(t)
+
+	classX := "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+	classY := "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+	yearY := "cccccccc-cccc-cccc-cccc-cccccccccccc"
+
+	actor := actorWith(application.PermCreate, application.PermRead)
+	s1, err := svc.Create(ctx, actor, application.CreateStudentRequest{
+		FirstName: "Ama", LastName: "One", ClassID: &classX, AcademicYearID: &yearY,
+	})
+	if err != nil {
+		t.Fatalf("create s1: %v", err)
+	}
+	// The use-case result already carries the persisted assignment.
+	if s1.ClassID == nil || *s1.ClassID != classX || s1.AcademicYearID == nil || *s1.AcademicYearID != yearY {
+		t.Fatalf("create result missing class fields: %+v", s1)
+	}
+	if _, err := svc.Create(ctx, actor, application.CreateStudentRequest{FirstName: "Kojo", LastName: "Two", ClassID: &classY}); err != nil {
+		t.Fatalf("create s2: %v", err)
+	}
+	if _, err := svc.Create(ctx, actor, application.CreateStudentRequest{FirstName: "Esi", LastName: "Three"}); err != nil {
+		t.Fatalf("create s3: %v", err)
+	}
+
+	// Filter set: only the classX roster.
+	roster, _, err := svc.List(ctx, actor, &classX, 10, "")
+	if err != nil {
+		t.Fatalf("list filtered: %v", err)
+	}
+	if len(roster) != 1 || roster[0].ID != s1.ID {
+		t.Fatalf("expected only student %s, got %+v", s1.ID, roster)
+	}
+
+	// Filter unset: all three.
+	all, _, err := svc.List(ctx, actor, nil, 10, "")
+	if err != nil {
+		t.Fatalf("list unfiltered: %v", err)
+	}
+	if len(all) != 3 {
+		t.Fatalf("expected 3 students without filter, got %d", len(all))
+	}
+
+	// Non-UUID class_id is rejected before hitting the database.
+	if _, _, err := svc.List(ctx, actor, strPtr("not-a-uuid"), 10, ""); err == nil {
+		t.Fatal("expected validation error for non-UUID class_id")
+	}
+
+	// Cross-tenant: tenant B's roster for the same class_id is empty.
+	actorB := auth.Actor{UserID: "user-2", TenantID: tenantB, Permissions: []string{application.PermRead}}
+	bCtx := tenancy.WithContext(context.Background(), tenancy.TenantContext{TenantID: tenantB})
+	bRoster, _, err := svc.List(bCtx, actorB, &classX, 10, "")
+	if err != nil {
+		t.Fatalf("list tenant B filtered: %v", err)
+	}
+	if len(bRoster) != 0 {
+		t.Fatalf("tenant B should see an empty roster, got %+v", bRoster)
 	}
 }

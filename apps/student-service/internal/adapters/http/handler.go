@@ -57,7 +57,12 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	}
 	limit := parseLimit(r.URL.Query().Get("limit"))
 	cursor := r.URL.Query().Get("cursor")
-	students, nextCursor, err := h.svc.List(ctx, actor, limit, cursor)
+	// Optional roster filter (?class_id=<uuid>); the use case validates its format.
+	var classID *string
+	if v := strings.TrimSpace(r.URL.Query().Get("class_id")); v != "" {
+		classID = &v
+	}
+	students, nextCursor, err := h.svc.List(ctx, actor, classID, limit, cursor)
 	if err != nil {
 		h.writeErr(w, r, err)
 		return

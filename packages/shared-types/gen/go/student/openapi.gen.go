@@ -9,25 +9,28 @@ import (
 
 // Student generated from OpenAPI schema.
 type Student struct {
-	Id          string  `json:"id"`
-	TenantId    string  `json:"tenant_id"`
-	FirstName   string  `json:"first_name"`
-	LastName    string  `json:"last_name"`
-	StudentCode string  `json:"student_code"`
-	DateOfBirth *string `json:"date_of_birth,omitempty"`
-	Gender      *string `json:"gender,omitempty"`
-	Status      *string `json:"status,omitempty"`
-	CreatedAt   *string `json:"created_at,omitempty"`
-	UpdatedAt   *string `json:"updated_at,omitempty"`
+	Id             string  `json:"id"`
+	TenantId       string  `json:"tenant_id"`
+	FirstName      string  `json:"first_name"`
+	LastName       string  `json:"last_name"`
+	StudentCode    string  `json:"student_code"`
+	DateOfBirth    *string `json:"date_of_birth,omitempty"`
+	Gender         *string `json:"gender,omitempty"`
+	Status         *string `json:"status,omitempty"`
+	ClassId        *string `json:"class_id,omitempty"`
+	AcademicYearId *string `json:"academic_year_id,omitempty"`
+	CreatedAt      *string `json:"created_at,omitempty"`
+	UpdatedAt      *string `json:"updated_at,omitempty"`
 }
 
 // CreateStudent generated from OpenAPI schema.
 type CreateStudent struct {
-	FirstName   string  `json:"first_name"`
-	LastName    string  `json:"last_name"`
-	DateOfBirth *string `json:"date_of_birth,omitempty"`
-	Gender      *string `json:"gender,omitempty"`
-	ClassId     *string `json:"class_id,omitempty"`
+	FirstName      string  `json:"first_name"`
+	LastName       string  `json:"last_name"`
+	DateOfBirth    *string `json:"date_of_birth,omitempty"`
+	Gender         *string `json:"gender,omitempty"`
+	ClassId        *string `json:"class_id,omitempty"`
+	AcademicYearId *string `json:"academic_year_id,omitempty"`
 }
 
 // UpdateStudent generated from OpenAPI schema.

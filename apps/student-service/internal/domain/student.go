@@ -36,8 +36,12 @@ type Student struct {
 	DateOfBirth *string   `json:"date_of_birth,omitempty"`
 	Gender      *string   `json:"gender,omitempty"`
 	Status      string    `json:"status"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	// ClassID and AcademicYearID are the student's current class assignment
+	// (soft references to academic-service aggregates; no cross-service FK).
+	ClassID        *string   `json:"class_id,omitempty"`
+	AcademicYearID *string   `json:"academic_year_id,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 // FullName returns the student's display name.
@@ -83,6 +87,12 @@ func (s Student) Validate() error {
 		return ErrValidation
 	}
 	if s.DateOfBirth != nil && !isValidDate(*s.DateOfBirth) {
+		return ErrValidation
+	}
+	if s.ClassID != nil && !isValidUUID(*s.ClassID) {
+		return ErrValidation
+	}
+	if s.AcademicYearID != nil && !isValidUUID(*s.AcademicYearID) {
 		return ErrValidation
 	}
 	return nil
@@ -145,5 +155,10 @@ func isValidGender(v string) bool {
 
 func isValidDate(v string) bool {
 	_, err := time.Parse(time.DateOnly, v)
+	return err == nil
+}
+
+func isValidUUID(v string) bool {
+	_, err := uuid.Parse(v)
 	return err == nil
 }

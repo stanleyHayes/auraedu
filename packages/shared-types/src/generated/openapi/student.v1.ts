@@ -169,6 +169,10 @@ export type components = {
             gender?: "male" | "female" | "other" | null;
             /** @enum {string} */
             status?: "active" | "withdrawn" | "graduated";
+            /** Format: uuid */
+            class_id?: string | null;
+            /** Format: uuid */
+            academic_year_id?: string | null;
             /** Format: date-time */
             created_at?: string;
             /** Format: date-time */
@@ -183,6 +187,8 @@ export type components = {
             gender?: "male" | "female" | "other" | null;
             /** Format: uuid */
             class_id?: string | null;
+            /** Format: uuid */
+            academic_year_id?: string | null;
         };
         UpdateStudent: {
             first_name?: string;
@@ -341,6 +347,8 @@ export type components = {
         TenantHeader: string;
         Limit: number;
         Cursor: string;
+        /** @description Filter students by class (roster view). Tenant-scoped like the rest of the list. */
+        ClassIdFilter: string;
     };
     requestBodies: never;
     headers: never;
@@ -351,6 +359,8 @@ export interface operations {
     listStudents: {
         parameters: {
             query?: {
+                /** @description Filter students by class (roster view). Tenant-scoped like the rest of the list. */
+                class_id?: components["parameters"]["ClassIdFilter"];
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
             };

@@ -13,7 +13,9 @@ type Repository interface {
 	// Students
 	Create(ctx context.Context, tenantID string, s *domain.Student) error
 	GetByID(ctx context.Context, tenantID, id string) (*domain.Student, error)
-	List(ctx context.Context, tenantID string, limit int, cursor string) ([]*domain.Student, string, error)
+	// List returns a page of students. When classID is non-nil, only students
+	// assigned to that class are returned (roster view, AURA-10.11).
+	List(ctx context.Context, tenantID string, classID *string, limit int, cursor string) ([]*domain.Student, string, error)
 	Update(ctx context.Context, tenantID string, s *domain.Student) error
 	Delete(ctx context.Context, tenantID, id string) error
 
