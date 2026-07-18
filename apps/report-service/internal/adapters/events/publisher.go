@@ -54,11 +54,15 @@ func (p *Publisher) PublishReportCard(ctx context.Context, eventType string, c *
 		"report_card_id":   c.ID,
 		"student_id":       c.StudentID,
 		"academic_year_id": c.AcademicYearID,
+		"term_id":          c.TermID,
 		"template_id":      c.TemplateID,
 		"status":           c.Status,
 	}
 	if c.PDFPath != nil {
 		data["pdf_path"] = *c.PDFPath
+		// Consumers never see local disk paths; file_url is the download route
+		// (contracts/events/report.published.v1.json).
+		data["file_url"] = "/api/v1/report-cards/" + c.ID + "/download"
 	}
 	if c.GeneratedAt != nil {
 		data["generated_at"] = c.GeneratedAt.Format(time.RFC3339)

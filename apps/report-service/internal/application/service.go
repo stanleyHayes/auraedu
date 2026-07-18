@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/auraedu/platform/auth"
 	"github.com/auraedu/platform/flags"
@@ -71,7 +72,7 @@ func (noopPublisher) PublishReportCard(context.Context, string, *domain.ReportCa
 
 type noopPDFGenerator struct{}
 
-func (noopPDFGenerator) GenerateReportCard(context.Context, *domain.ReportCard) ([]byte, error) {
+func (noopPDFGenerator) GenerateReportCard(context.Context, *domain.ReportCardDocument) ([]byte, error) {
 	return nil, errors.New("pdf generator not configured")
 }
 
@@ -199,6 +200,7 @@ func (s *Service) DeleteReportTemplate(ctx context.Context, actor auth.Actor, id
 type CreateReportCardRequest struct {
 	StudentID      string
 	AcademicYearID string
+	TermID         string
 	TemplateID     string
 }
 
@@ -220,6 +222,7 @@ func (s *Service) CreateReportCard(ctx context.Context, actor auth.Actor, req Cr
 	if err != nil {
 		return nil, err
 	}
+	c.TermID = strings.TrimSpace(req.TermID)
 	if err := s.repo.CreateReportCard(ctx, tenantID, c); err != nil {
 		return nil, err
 	}
@@ -315,7 +318,13 @@ func (s *Service) GenerateReportCard(ctx context.Context, actor auth.Actor, id s
 		return nil, err
 	}
 
-	pdfBytes, err := s.pdfGen.GenerateReportCard(ctx, c)
+	doc, err := s.buildReportCardDocument(ctx, tenantID, c)
+	if err != nil {
+		s.rollbackToDraft(ctx, tenantID, c)
+		return nil, err
+	}
+
+	pdfBytes, err := s.pdfGen.GenerateReportCard(ctx, doc)
 	if err != nil {
 		s.rollbackToDraft(ctx, tenantID, c)
 		return nil, fmt.Errorf("report: generate pdf: %w", err)
@@ -355,6 +364,40 @@ func (s *Service) rollbackToDraft(ctx context.Context, tenantID string, c *domai
 
 func (s *Service) reportCardPath(c *domain.ReportCard) string {
 	return filepath.Join(s.reportOutputDir, c.TenantID, c.ID+".pdf")
+}
+
+// buildReportCardDocument assembles the render model for the PDF generator:
+// the card, its template (when assigned), the materialized score entries
+// aggregated per subject and the attendance summary.
+func (s *Service) buildReportCardDocument(ctx context.Context, tenantID string, c *domain.ReportCard) (*domain.ReportCardDocument, error) {
+	doc := &domain.ReportCardDocument{Card: c, GeneratedAt: time.Now().UTC()}
+
+	if c.TemplateID != "" {
+		tmpl, err := s.repo.GetReportTemplateByID(ctx, tenantID, c.TemplateID)
+		switch {
+		case err == nil:
+			doc.Template = tmpl
+		case errors.Is(err, domain.ErrNotFound):
+			// The template was deleted after assignment; render without it.
+			slog.Default().WarnContext(ctx, "report card template not found; rendering without template",
+				"report_card_id", c.ID, "template_id", c.TemplateID)
+		default:
+			return nil, fmt.Errorf("report: load template: %w", err)
+		}
+	}
+
+	scores, err := s.repo.ListScoreEntries(ctx, tenantID, c.ID)
+	if err != nil {
+		return nil, err
+	}
+	doc.Scores = domain.AggregateScores(scores)
+
+	attendance, err := s.repo.ListAttendanceEntries(ctx, tenantID, c.ID)
+	if err != nil {
+		return nil, err
+	}
+	doc.Attendance = domain.SummarizeAttendance(attendance)
+	return doc, nil
 }
 
 // DownloadReportCardPath returns the absolute path to a published report card PDF.

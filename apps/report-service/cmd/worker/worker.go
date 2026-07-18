@@ -4,6 +4,7 @@ package workercmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -14,11 +15,16 @@ import (
 	"github.com/auraedu/platform/config"
 	"github.com/auraedu/platform/db"
 	"github.com/auraedu/platform/eventbus"
+	"github.com/auraedu/platform/flags"
 	"github.com/auraedu/platform/tenancy"
 
 	// Register pgx SQL driver for database/sql based migrations.
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/nats-io/nats.go"
+
+	"github.com/auraedu/report-service/internal/adapters/postgres"
+	"github.com/auraedu/report-service/internal/application"
+	"github.com/auraedu/report-service/internal/domain"
 )
 
 const service = "report-service-worker"
@@ -54,7 +60,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	consumer := newConsumer(js, log)
+	repo := postgres.NewRepository(database)
+	svc := application.NewService(repo, application.WithFeatureGate(featureGates(log)))
+
+	consumer := newConsumer(js, svc, log)
 	if err := consumer.Start(ctx); err != nil {
 		log.Error("failed to start consumer", "err", err)
 		nc.Close()
@@ -106,14 +115,27 @@ func connectNATS(log *slog.Logger) (*nats.Conn, eventbus.JetStreamContext, error
 	return nc, js, nil
 }
 
+// featureGates loads the feature registry so the worker can skip tenants whose
+// report_cards feature is disabled (same pattern as website-service).
+func featureGates(log *slog.Logger) flags.Gate {
+	path := config.Getenv("FEATURES_REGISTRY", "../../contracts/features/features.yaml")
+	reg, err := flags.LoadYAML(path)
+	if err != nil {
+		log.Warn("failed to load feature registry; all features disabled", "path", path, "err", err)
+		return flags.NewStaticSnapshot()
+	}
+	return reg.SnapshotFromRegistry()
+}
+
 type consumer struct {
 	js   eventbus.JetStreamContext
+	svc  *application.Service
 	subs []*nats.Subscription
 	log  *slog.Logger
 }
 
-func newConsumer(js eventbus.JetStreamContext, log *slog.Logger) *consumer {
-	return &consumer{js: js, log: log}
+func newConsumer(js eventbus.JetStreamContext, svc *application.Service, log *slog.Logger) *consumer {
+	return &consumer{js: js, svc: svc, log: log}
 }
 
 func (c *consumer) Start(ctx context.Context) error {
@@ -162,14 +184,77 @@ func (c *consumer) handleMsg(msg *nats.Msg) {
 		}
 		return
 	}
-	c.log.Info("received event",
-		"type", event.Type,
-		"tenant_id", event.TenantID,
-		"subject", event.Subject,
-	)
-	// Placeholder consumption: no side effects for this story.
+
+	// Tenant context is required for Postgres RLS (app.tenant_id).
+	ctx := tenancy.WithContext(context.Background(), event.TenantContext())
+	err := c.materialize(ctx, event)
+	switch {
+	case err == nil:
+		c.ack(msg)
+	case errors.Is(err, domain.ErrValidation) || errors.Is(err, domain.ErrMissingTenant):
+		// Poison message: retrying cannot fix a malformed event. Ack to drop it.
+		c.log.Error("dropping invalid event", "type", event.Type, "id", event.ID, "err", err)
+		c.ack(msg)
+	default:
+		c.log.Error("materialization failed; will redeliver", "type", event.Type, "id", event.ID, "err", err)
+		if nerr := msg.Nak(); nerr != nil {
+			c.log.Error("failed to nak message", "err", nerr)
+		}
+	}
+}
+
+func (c *consumer) ack(msg *nats.Msg) {
 	if err := msg.Ack(); err != nil {
 		c.log.Error("failed to ack message", "err", err)
+	}
+}
+
+// materialize dispatches one event to the matching use case. The report_cards
+// feature gate is enforced inside the service (disabled tenants are skipped).
+func (c *consumer) materialize(ctx context.Context, event tenancy.CloudEvent) error {
+	switch event.Type {
+	case "assessment.score_recorded.v1":
+		var data struct {
+			StudentID    string   `json:"student_id"`
+			SubjectID    string   `json:"subject_id"`
+			AssessmentID string   `json:"assessment_id"`
+			ScoreID      string   `json:"score_id"`
+			TermID       string   `json:"term_id"`
+			Score        float64  `json:"score"`
+			MaxScore     *float64 `json:"max_score"`
+		}
+		if err := json.Unmarshal(event.Data, &data); err != nil {
+			return fmt.Errorf("%w: score_recorded data: %v", domain.ErrValidation, err)
+		}
+		return c.svc.MaterializeScore(ctx, application.ScoreRecordedInput{
+			EventID:      event.ID,
+			TenantID:     event.TenantID,
+			StudentID:    data.StudentID,
+			SubjectID:    data.SubjectID,
+			AssessmentID: data.AssessmentID,
+			ScoreID:      data.ScoreID,
+			TermID:       data.TermID,
+			Score:        data.Score,
+			MaxScore:     data.MaxScore,
+		})
+	case "attendance.marked.v1":
+		var data struct {
+			StudentID string `json:"student_id"`
+			Date      string `json:"date"`
+			Status    string `json:"status"`
+		}
+		if err := json.Unmarshal(event.Data, &data); err != nil {
+			return fmt.Errorf("%w: attendance.marked data: %v", domain.ErrValidation, err)
+		}
+		return c.svc.MaterializeAttendance(ctx, application.AttendanceMarkedInput{
+			EventID:   event.ID,
+			TenantID:  event.TenantID,
+			StudentID: data.StudentID,
+			Date:      data.Date,
+			Status:    data.Status,
+		})
+	default:
+		return fmt.Errorf("%w: unsupported event type %q", domain.ErrValidation, event.Type)
 	}
 }
 

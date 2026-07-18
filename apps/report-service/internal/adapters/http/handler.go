@@ -174,6 +174,7 @@ func (h *Handler) listReportCards(w http.ResponseWriter, r *http.Request) {
 type createReportCardBody struct {
 	StudentID      string `json:"student_id"`
 	AcademicYearID string `json:"academic_year_id"`
+	TermID         string `json:"term_id"`
 	TemplateID     string `json:"template_id"`
 }
 
@@ -190,6 +191,7 @@ func (h *Handler) createReportCard(w http.ResponseWriter, r *http.Request) {
 	c, err := h.svc.CreateReportCard(ctx, actor, application.CreateReportCardRequest{
 		StudentID:      body.StudentID,
 		AcademicYearID: body.AcademicYearID,
+		TermID:         body.TermID,
 		TemplateID:     body.TemplateID,
 	})
 	if err != nil {

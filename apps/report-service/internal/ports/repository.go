@@ -23,6 +23,22 @@ type Repository interface {
 	ListReportCards(ctx context.Context, tenantID string, filter ReportCardListFilter) ([]*domain.ReportCard, string, error)
 	UpdateReportCard(ctx context.Context, tenantID string, c *domain.ReportCard) error
 	DeleteReportCard(ctx context.Context, tenantID, id string) error
+
+	// FindDraftReportCard returns the DRAFT report card for a student and period
+	// (term). With a non-empty termID, cards whose term is NULL (period not yet
+	// assigned) also match and an exact term match wins. With an empty termID
+	// (events that carry no term, e.g. attendance.marked) every draft for the
+	// student matches and the most recently created wins. It returns
+	// domain.ErrNotFound when no draft exists.
+	FindDraftReportCard(ctx context.Context, tenantID, studentID, termID string) (*domain.ReportCard, error)
+
+	// Materialized entries (fed by assessment/attendance events). Upserts are
+	// idempotent on their natural keys: (report_card_id, source_key) for scores
+	// and (report_card_id, date) for attendance.
+	UpsertScoreEntry(ctx context.Context, tenantID string, e *domain.ScoreEntry) error
+	UpsertAttendanceEntry(ctx context.Context, tenantID string, e *domain.AttendanceEntry) error
+	ListScoreEntries(ctx context.Context, tenantID, reportCardID string) ([]*domain.ScoreEntry, error)
+	ListAttendanceEntries(ctx context.Context, tenantID, reportCardID string) ([]*domain.AttendanceEntry, error)
 }
 
 // ReportTemplateListFilter carries cursor pagination and optional equality filters.

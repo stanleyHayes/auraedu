@@ -19,14 +19,17 @@ const (
 )
 
 // ReportCard is the aggregate root for a student report card.
-// student_id, academic_year_id and template_id are kept as opaque UUIDs to
-// avoid coupling this service to student/academic-year/template lifecycles.
+// student_id, academic_year_id, term_id and template_id are kept as opaque UUIDs
+// to avoid coupling this service to student/academic-year/template lifecycles.
+// AcademicYearID, TermID and TemplateID may be empty on DRAFT cards auto-created
+// by the event worker before a year/template is assigned through the API.
 type ReportCard struct {
 	ID             string     `json:"id"`
 	TenantID       string     `json:"tenant_id"`
 	StudentID      string     `json:"student_id"`
-	AcademicYearID string     `json:"academic_year_id"`
-	TemplateID     string     `json:"template_id"`
+	AcademicYearID string     `json:"academic_year_id,omitempty"`
+	TermID         string     `json:"term_id,omitempty"`
+	TemplateID     string     `json:"template_id,omitempty"`
 	Status         string     `json:"status"`
 	PDFPath        *string    `json:"pdf_path,omitempty"`
 	GeneratedAt    *time.Time `json:"generated_at,omitempty"`
@@ -67,19 +70,43 @@ func NewReportCard(tenantID, studentID, academicYearID, templateID string) (*Rep
 	}, nil
 }
 
-// Validate checks that the aggregate is well-formed.
+// NewEventDraftReportCard constructs a DRAFT report card from event data, where
+// the academic year and template may not be known yet. Used by the event worker
+// when a score/attendance event arrives for a student with no draft card.
+func NewEventDraftReportCard(tenantID, studentID, academicYearID, termID string) (*ReportCard, error) {
+	if tenantID == "" {
+		return nil, ErrMissingTenant
+	}
+	if strings.TrimSpace(studentID) == "" {
+		return nil, fmt.Errorf("%w: student_id is required", ErrValidation)
+	}
+
+	id, err := uuid.NewV7()
+	if err != nil {
+		return nil, fmt.Errorf("report: generate report card id: %w", err)
+	}
+	now := time.Now().UTC()
+	return &ReportCard{
+		ID:             id.String(),
+		TenantID:       tenantID,
+		StudentID:      strings.TrimSpace(studentID),
+		AcademicYearID: strings.TrimSpace(academicYearID),
+		TermID:         strings.TrimSpace(termID),
+		Status:         string(ReportCardStatusDraft),
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}, nil
+}
+
+// Validate checks that the aggregate is well-formed. academic_year_id and
+// template_id are optional: event-created drafts legitimately lack them until
+// they are assigned through the API.
 func (c ReportCard) Validate() error {
 	if c.TenantID == "" {
 		return ErrMissingTenant
 	}
 	if strings.TrimSpace(c.StudentID) == "" {
 		return fmt.Errorf("%w: student_id is required", ErrValidation)
-	}
-	if strings.TrimSpace(c.AcademicYearID) == "" {
-		return fmt.Errorf("%w: academic_year_id is required", ErrValidation)
-	}
-	if strings.TrimSpace(c.TemplateID) == "" {
-		return fmt.Errorf("%w: template_id is required", ErrValidation)
 	}
 	if !isValidReportCardStatus(ReportCardStatus(c.Status)) {
 		return fmt.Errorf("%w: status must be draft, generating, published or archived", ErrValidation)
