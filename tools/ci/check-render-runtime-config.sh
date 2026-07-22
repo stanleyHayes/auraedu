@@ -91,10 +91,6 @@ identity_retention.each do |key, expected|
 end
 
 %w[ai-recommendation-service ai-prediction-service career-guidance-service].each do |name|
-  unless services.fetch(name)["healthCheckPath"] == "/ready"
-    failures << "#{name}: Render traffic health must use the database-backed /ready endpoint"
-  end
-
   compose_service = compose_services.fetch(name)
   probe = compose_service.dig("healthcheck", "test")
   unless probe.is_a?(Array) && probe.join(" ").include?("/ready")
@@ -144,7 +140,7 @@ runtime_gate_deployments.each do |name|
     failures << "#{name}: live feature gate requires exactly one Render SERVICE_TENANT_URL"
   else
     source = tenant_variables.first["fromService"]
-    unless source == { "name" => "tenant-service", "property" => "hostport" }
+    unless source == { "name" => "tenant-service", "type" => "pserv", "property" => "hostport" }
       failures << "#{name}: Render SERVICE_TENANT_URL must use tenant-service hostport"
     end
   end

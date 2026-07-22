@@ -37,7 +37,7 @@ else
   group_names = env.map { |entry| entry['fromGroup'] }.compact
   errors << 'nats-backup: recovery secrets must come from auraedu-dr-secrets' unless group_names.include?('auraedu-dr-secrets')
   nats_url = env.find { |entry| entry['key'] == 'NATS_URL' }
-  unless nats_url&.dig('fromService', 'name') == 'nats' && nats_url&.dig('fromService', 'property') == 'hostport'
+  unless nats_url&.dig('fromService', 'name') == 'nats' && nats_url&.dig('fromService', 'type') == 'pserv' && nats_url&.dig('fromService', 'property') == 'hostport'
     errors << 'nats-backup: NATS_URL must use the private nats hostport'
   end
 end

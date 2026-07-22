@@ -142,9 +142,21 @@ Current provider facts:
   completed TypeScript, and generated all 69 Portal and 24 Marketing routes.
 - The production API Gateway URL is still missing. The only local `NEXT_PUBLIC_API_URL` is a
   loopback development URL. Production builds intentionally fail closed on that value.
-- Render CLI `2.17.0` is installed at `/opt/homebrew/bin/render`, but it is not authenticated and
-  has no active workspace. The Gateway URL cannot be discovered or deployed through Render until
-  a human completes `render login` and selects the AuraEDU workspace.
+- Render CLI `2.17.0` is authenticated as `hayfordstanley@gmail.com`, and the only available
+  workspace is selected. There are no existing AuraEDU services, databases, projects, or Blueprint
+  instances in that workspace.
+- Render's live Blueprint validator initially exposed provider-schema defects that the local gates
+  missed: private services cannot declare `healthCheckPath`, Docker processes use
+  `dockerCommand`, and `fromService` references require the target service `type`. The Blueprint,
+  new-service scaffold, DR checks, runtime checks, and deploy-safety gate were corrected together.
+- The repaired `render.yaml` now passes Render's live validator with `valid: true`. Its plan has 90
+  actions: 25 PostgreSQL databases, 7 environment groups, 1 Key Value instance, and 57
+  services/jobs.
+- Creating that plan is a material paid action. At Render's published July 2026 rates, the baseline
+  is approximately USD 886.50/month before PostgreSQL storage, bandwidth, build overages, or other
+  variable charges: 53 always-on Starter instances, 25 Basic-1gb databases, one Starter Key Value,
+  three cron minimums, a 10 GB NATS disk, and the Pro workspace required to exceed 25 services.
+  Deployment requires explicit spend approval and the missing `sync: false` provider secrets.
 - Because the deployed Gateway origin is missing, do not weaken
   `tools/vercel/validate-environment.mjs` just to get a green deployment.
 
@@ -164,16 +176,18 @@ API_GATEWAY_URL=https://<deployed-render-gateway-origin>
 
 Next Vercel steps after the backend Gateway is live:
 
-1. Authenticate Render CLI, select the correct workspace, apply/verify the committed Blueprint,
-   and capture the public `api-gateway` HTTPS origin.
-2. Add `NEXT_PUBLIC_API_URL` and `AURAEDU_API_URL` to both Vercel Production targets without
+1. Obtain explicit approval for the approximately USD 886.50/month baseline Render footprint and
+   any required Pro workspace change.
+2. Create a Blueprint instance from `stanleyHayes/auraedu`, enter the required provider secrets,
+   apply the already validated plan, and capture the public `api-gateway` HTTPS origin.
+3. Add `NEXT_PUBLIC_API_URL` and `AURAEDU_API_URL` to both Vercel Production targets without
    printing secrets; keep both values identical to the public Gateway origin.
-3. Apply the updated two-origin `GATEWAY_CORS_ORIGINS` value when deploying the Render Blueprint.
-4. Deploy both Vercel projects from the exact published release commit.
-5. Confirm both deployments are `READY`, return expected branded content, and expose the required
+4. Apply the updated two-origin `GATEWAY_CORS_ORIGINS` value when deploying the Render Blueprint.
+5. Deploy both Vercel projects from the exact published release commit.
+6. Confirm both deployments are `READY`, return expected branded content, and expose the required
    security headers.
-6. Confirm the Gateway permits exact-origin CORS preflights from both distinct Vercel origins.
-7. Populate `release/scenarios/production-vercel-frontends.json` with the non-secret project and
+7. Confirm the Gateway permits exact-origin CORS preflights from both distinct Vercel origins.
+8. Populate `release/scenarios/production-vercel-frontends.json` with the non-secret project and
    URL metadata, run `tools/vercelprobe`, and retain immutable AURA-9.8 evidence.
 
 ## 6. Resend and provider state
@@ -233,10 +247,10 @@ Do not manually mark these Done. Add bounded, secret-free evidence artifacts and
 
 ## 9. Immediate continuation order
 
-1. Have a human run `render login`, select the AuraEDU workspace, and confirm the intended Render
-   account can create the Blueprint resources and paid Starter Gateway.
-2. Apply/verify `render.yaml`, wait for the Gateway and its private dependencies to become ready,
-   and capture the public Gateway HTTPS origin.
+1. Obtain explicit approval for the validated 90-action Render plan and its approximately USD
+   886.50/month baseline before creating paid resources.
+2. Create the Blueprint instance, provide required `sync: false` secrets, wait for the Gateway and
+   its private dependencies to become ready, and capture the public Gateway HTTPS origin.
 3. Complete the two missing Vercel Gateway environment keys, apply the committed exact-origin
    CORS configuration, and deploy both already linked projects.
 4. Run `tools/vercelprobe` against the exact deployed Git SHA and retain AURA-9.8 evidence.

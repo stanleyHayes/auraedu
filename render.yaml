@@ -281,7 +281,6 @@ services:
     plan: starter
     dockerfilePath: ./infrastructure/docker/nats.Dockerfile
     dockerContext: .
-    healthCheckPath: /healthz
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -313,6 +312,7 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: DR_BACKUP_JOB_TIMEOUT
         value: 4h
@@ -417,10 +417,12 @@ services:
       - key: NATS_HOST
         fromService:
           name: nats
+          type: pserv
           property: host
       - key: REDIS_URL
         fromService:
           name: auraedu-cache
+          type: keyvalue
           property: connectionString
       - key: GATEWAY_CORS_ORIGINS
         value: https://auraedugh.vercel.app,https://auraedugh-marketing.vercel.app
@@ -429,118 +431,147 @@ services:
       - key: IDENTITY_HOSTPORT
         fromService:
           name: identity-service
+          type: pserv
           property: hostport
       - key: TENANT_HOSTPORT
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - key: SERVICE_IDENTITY_URL
         fromService:
           name: identity-service
+          type: pserv
           property: hostport
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - key: SERVICE_AI_RECOMMENDATION_URL
         fromService:
           name: ai-recommendation-service
+          type: pserv
           property: hostport
       - key: SERVICE_AI_PREDICTION_URL
         fromService:
           name: ai-prediction-service
+          type: pserv
           property: hostport
       - key: SERVICE_CAREER_GUIDANCE_URL
         fromService:
           name: career-guidance-service
+          type: pserv
           property: hostport
       - key: SERVICE_FILE_URL
         fromService:
           name: file-service
+          type: pserv
           property: hostport
       - key: SERVICE_STUDENT_URL
         fromService:
           name: student-service
+          type: pserv
           property: hostport
       - key: SERVICE_ACADEMIC_URL
         fromService:
           name: academic-service
+          type: pserv
           property: hostport
       - key: SERVICE_STAFF_URL
         fromService:
           name: staff-service
+          type: pserv
           property: hostport
       - key: SERVICE_ATTENDANCE_URL
         fromService:
           name: attendance-service
+          type: pserv
           property: hostport
       - key: SERVICE_ASSESSMENT_URL
         fromService:
           name: assessment-service
+          type: pserv
           property: hostport
       - key: SERVICE_REPORT_URL
         fromService:
           name: report-service
+          type: pserv
           property: hostport
       - key: SERVICE_FEES_URL
         fromService:
           name: fees-service
+          type: pserv
           property: hostport
       - key: SERVICE_PAYMENT_URL
         fromService:
           name: payment-service
+          type: pserv
           property: hostport
       - key: SERVICE_NOTIFICATION_URL
         fromService:
           name: notification-service
+          type: pserv
           property: hostport
       - key: SERVICE_BILLING_URL
         fromService:
           name: billing-service
+          type: pserv
           property: hostport
       - key: SERVICE_WEBSITE_URL
         fromService:
           name: website-service
+          type: pserv
           property: hostport
       - key: SERVICE_ANALYTICS_URL
         fromService:
           name: analytics-service
+          type: pserv
           property: hostport
       - key: SERVICE_CBT_URL
         fromService:
           name: cbt-service
+          type: pserv
           property: hostport
       - key: SERVICE_AUDIT_URL
         fromService:
           name: audit-service
+          type: pserv
           property: hostport
       - key: SERVICE_CRM_URL
         fromService:
           name: crm-service
+          type: pserv
           property: hostport
       - key: SERVICE_KNOWLEDGE_URL
         fromService:
           name: knowledge-service
+          type: pserv
           property: hostport
       - key: SERVICE_AI_ORCHESTRATOR_URL
         fromService:
           name: ai-orchestrator-service
+          type: pserv
           property: hostport
       - key: SERVICE_CAMPAIGN_URL
         fromService:
           name: campaign-service
+          type: pserv
           property: hostport
       - key: SERVICE_CONTENT_URL
         fromService:
           name: content-service
+          type: pserv
           property: hostport
       - key: SERVICE_ADMISSIONS_URL
         fromService:
           name: admissions-service
+          type: pserv
           property: hostport
       - key: SERVICE_MARKET_INTELLIGENCE_URL
         fromService:
           name: market-intelligence-service
+          type: pserv
           property: hostport
       - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
@@ -552,7 +583,7 @@ services:
     plan: starter
     dockerfilePath: ./apps/identity-service/Dockerfile
     dockerContext: .
-    startCommand: /app worker
+    dockerCommand: /app worker
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -566,14 +597,17 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - key: SERVICE_NOTIFICATION_URL
         fromService:
           name: notification-service
+          type: pserv
           property: hostport
       - key: AUTH_CLEANUP_INTERVAL
         value: 1h
@@ -598,7 +632,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/identity-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -612,18 +645,22 @@ services:
       - key: REDIS_URL
         fromService:
           name: auraedu-cache
+          type: keyvalue
           property: connectionString
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: SERVICE_NOTIFICATION_URL
         fromService:
           name: notification-service
+          type: pserv
           property: hostport
       - fromGroup: auraedu-secrets
       - fromGroup: auraedu-identity-secrets
@@ -637,7 +674,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/tenant-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -651,6 +687,7 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
@@ -662,7 +699,7 @@ services:
     plan: starter
     dockerfilePath: ./apps/tenant-service/Dockerfile
     dockerContext: .
-    startCommand: /app worker
+    dockerCommand: /app worker
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -676,6 +713,7 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - fromGroup: auraedu-shared-config
 
@@ -687,7 +725,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/student-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -701,14 +738,17 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: SERVICE_ACADEMIC_URL
         fromService:
           name: academic-service
+          type: pserv
           property: hostport
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
@@ -720,7 +760,7 @@ services:
     plan: starter
     dockerfilePath: ./apps/student-service/Dockerfile
     dockerContext: .
-    startCommand: /app worker
+    dockerCommand: /app worker
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -734,6 +774,7 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - fromGroup: auraedu-shared-config
 
@@ -745,7 +786,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/academic-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -759,18 +799,22 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: SERVICE_STAFF_URL
         fromService:
           name: staff-service
+          type: pserv
           property: hostport
       - key: SERVICE_STUDENT_URL
         fromService:
           name: student-service
+          type: pserv
           property: hostport
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
@@ -782,7 +826,7 @@ services:
     plan: starter
     dockerfilePath: ./apps/academic-service/Dockerfile
     dockerContext: .
-    startCommand: /app worker
+    dockerCommand: /app worker
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -792,7 +836,7 @@ services:
       - key: DATABASE_URL
         fromDatabase: { name: academic-db, property: connectionString }
       - key: NATS_URL
-        fromService: { name: nats, property: hostport }
+        fromService: { name: nats, type: pserv, property: hostport }
       - fromGroup: auraedu-shared-config
 
   # ---- Staff Service (private) — teaching & non-teaching staff --------------
@@ -803,7 +847,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/staff-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -817,10 +860,12 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
@@ -832,7 +877,7 @@ services:
     plan: starter
     dockerfilePath: ./apps/staff-service/Dockerfile
     dockerContext: .
-    startCommand: /app worker
+    dockerCommand: /app worker
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -846,6 +891,7 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - fromGroup: auraedu-shared-config
 
@@ -857,7 +903,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/attendance-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -871,14 +916,17 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: SERVICE_STUDENT_URL
         fromService:
           name: student-service
+          type: pserv
           property: hostport
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
@@ -890,7 +938,7 @@ services:
     plan: starter
     dockerfilePath: ./apps/attendance-service/Dockerfile
     dockerContext: .
-    startCommand: /app worker
+    dockerCommand: /app worker
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -904,6 +952,7 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - fromGroup: auraedu-shared-config
 
@@ -915,7 +964,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/assessment-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -929,14 +977,17 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: SERVICE_STUDENT_URL
         fromService:
           name: student-service
+          type: pserv
           property: hostport
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
@@ -948,7 +999,7 @@ services:
     plan: starter
     dockerfilePath: ./apps/assessment-service/Dockerfile
     dockerContext: .
-    startCommand: /app worker
+    dockerCommand: /app worker
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -958,7 +1009,7 @@ services:
       - key: DATABASE_URL
         fromDatabase: { name: assessment-db, property: connectionString }
       - key: NATS_URL
-        fromService: { name: nats, property: hostport }
+        fromService: { name: nats, type: pserv, property: hostport }
       - fromGroup: auraedu-shared-config
 
   # ---- Report Service (private) — report cards & templates (+ worker) -------
@@ -969,7 +1020,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/report-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -985,14 +1035,17 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: SERVICE_STUDENT_URL
         fromService:
           name: student-service
+          type: pserv
           property: hostport
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
@@ -1005,7 +1058,7 @@ services:
     dockerfilePath: ./apps/report-service/Dockerfile
     dockerContext: .
     autoDeployTrigger: checksPass
-    startCommand: /app worker
+    dockerCommand: /app worker
     buildFilter:
       paths:
         - apps/report-service/**
@@ -1020,14 +1073,17 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: SERVICE_STUDENT_URL
         fromService:
           name: student-service
+          type: pserv
           property: hostport
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
@@ -1040,7 +1096,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/fees-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -1054,14 +1109,17 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: SERVICE_STUDENT_URL
         fromService:
           name: student-service
+          type: pserv
           property: hostport
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
@@ -1074,7 +1132,7 @@ services:
     dockerfilePath: ./apps/fees-service/Dockerfile
     dockerContext: .
     autoDeployTrigger: checksPass
-    startCommand: /app worker
+    dockerCommand: /app worker
     buildFilter:
       paths:
         - apps/fees-service/**
@@ -1087,10 +1145,12 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
@@ -1103,7 +1163,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/payment-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -1123,6 +1182,7 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: SERVICE_FEES_URL
         fromService:
@@ -1132,6 +1192,7 @@ services:
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
@@ -1143,7 +1204,7 @@ services:
     plan: starter
     dockerfilePath: ./apps/payment-service/Dockerfile
     dockerContext: .
-    startCommand: /app worker
+    dockerCommand: /app worker
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -1157,6 +1218,7 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - fromGroup: auraedu-shared-config
 
@@ -1168,7 +1230,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/notification-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -1194,10 +1255,12 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - fromGroup: auraedu-secrets
       - fromGroup: auraedu-notification-secrets
@@ -1212,7 +1275,7 @@ services:
     dockerfilePath: ./apps/notification-service/Dockerfile
     dockerContext: .
     autoDeployTrigger: checksPass
-    startCommand: /app worker
+    dockerCommand: /app worker
     buildFilter:
       paths:
         - apps/notification-service/**
@@ -1237,14 +1300,17 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: SERVICE_CRM_URL
         fromService:
           name: crm-service
+          type: pserv
           property: hostport
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - fromGroup: auraedu-secrets
       - fromGroup: auraedu-notification-secrets
@@ -1258,7 +1324,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/billing-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -1272,10 +1337,12 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - fromGroup: auraedu-shared-config
 
@@ -1287,7 +1354,7 @@ services:
     dockerfilePath: ./apps/billing-service/Dockerfile
     dockerContext: .
     autoDeployTrigger: checksPass
-    startCommand: /app worker
+    dockerCommand: /app worker
     buildFilter:
       paths:
         - apps/billing-service/**
@@ -1300,6 +1367,7 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - fromGroup: auraedu-shared-config
 
@@ -1311,7 +1379,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/website-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -1325,10 +1392,12 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - fromGroup: auraedu-shared-config
 
@@ -1340,7 +1409,7 @@ services:
     dockerfilePath: ./apps/website-service/Dockerfile
     dockerContext: .
     autoDeployTrigger: checksPass
-    startCommand: /app worker
+    dockerCommand: /app worker
     buildFilter:
       paths:
         - apps/website-service/**
@@ -1353,10 +1422,12 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - fromGroup: auraedu-shared-config
 
@@ -1368,7 +1439,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/analytics-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -1382,14 +1452,17 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: SERVICE_STUDENT_URL
         fromService:
           name: student-service
+          type: pserv
           property: hostport
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
@@ -1402,7 +1475,7 @@ services:
     dockerfilePath: ./apps/analytics-service/Dockerfile
     dockerContext: .
     autoDeployTrigger: checksPass
-    startCommand: /app worker
+    dockerCommand: /app worker
     buildFilter:
       paths:
         - apps/analytics-service/**
@@ -1412,6 +1485,7 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: DATABASE_URL
         fromDatabase:
@@ -1427,7 +1501,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/cbt-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -1441,14 +1514,17 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: SERVICE_STUDENT_URL
         fromService:
           name: student-service
+          type: pserv
           property: hostport
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
@@ -1460,7 +1536,7 @@ services:
     plan: starter
     dockerfilePath: ./apps/cbt-service/Dockerfile
     dockerContext: .
-    startCommand: /app worker
+    dockerCommand: /app worker
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -1474,6 +1550,7 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - fromGroup: auraedu-shared-config
 
@@ -1536,7 +1613,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/ai-recommendation-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /ready
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -1552,14 +1628,17 @@ services:
       - key: AI_REC_NATS_HOST
         fromService:
           name: nats
+          type: pserv
           property: host
       - key: AI_REC_STUDENT_SERVICE_URL
         fromService:
           name: student-service
+          type: pserv
           property: hostport
       - key: AI_REC_TENANT_SERVICE_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
@@ -1571,7 +1650,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/ai-prediction-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /ready
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -1587,14 +1665,17 @@ services:
       - key: AI_PRED_NATS_HOST
         fromService:
           name: nats
+          type: pserv
           property: host
       - key: AI_PRED_STUDENT_SERVICE_URL
         fromService:
           name: student-service
+          type: pserv
           property: hostport
       - key: AI_PRED_TENANT_SERVICE_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
@@ -1606,7 +1687,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/career-guidance-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /ready
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -1622,14 +1702,17 @@ services:
       - key: AI_GUIDANCE_NATS_HOST
         fromService:
           name: nats
+          type: pserv
           property: host
       - key: AI_GUIDANCE_STUDENT_SERVICE_URL
         fromService:
           name: student-service
+          type: pserv
           property: hostport
       - key: AI_GUIDANCE_TENANT_SERVICE_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
@@ -1642,7 +1725,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/file-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -1656,12 +1738,14 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: CLOUDINARY_URL
         sync: false
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
@@ -1674,7 +1758,7 @@ services:
     dockerfilePath: ./apps/file-service/Dockerfile
     dockerContext: .
     autoDeployTrigger: checksPass
-    startCommand: /app worker
+    dockerCommand: /app worker
     buildFilter:
       paths:
         - apps/file-service/**
@@ -1687,6 +1771,7 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: CLOUDINARY_URL
         sync: false
@@ -1700,7 +1785,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/audit-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -1714,6 +1798,7 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - fromGroup: auraedu-shared-config
 
@@ -1725,7 +1810,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/crm-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -1740,10 +1824,12 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - key: FEATURES_REGISTRY
         value: /contracts/features.yaml
@@ -1757,7 +1843,7 @@ services:
     plan: starter
     dockerfilePath: ./apps/crm-service/Dockerfile
     dockerContext: .
-    startCommand: /app worker
+    dockerCommand: /app worker
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -1771,6 +1857,7 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - fromGroup: auraedu-shared-config
 
@@ -1782,7 +1869,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/knowledge-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -1797,10 +1883,12 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - key: FEATURES_REGISTRY
         value: /contracts/features.yaml
@@ -1814,7 +1902,7 @@ services:
     plan: starter
     dockerfilePath: ./apps/knowledge-service/Dockerfile
     dockerContext: .
-    startCommand: /app worker
+    dockerCommand: /app worker
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -1828,6 +1916,7 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - fromGroup: auraedu-shared-config
 
@@ -1839,7 +1928,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/ai-orchestrator-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -1854,18 +1942,22 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - key: SERVICE_KNOWLEDGE_URL
         fromService:
           name: knowledge-service
+          type: pserv
           property: hostport
       - key: SERVICE_CRM_URL
         fromService:
           name: crm-service
+          type: pserv
           property: hostport
       - key: FEATURES_REGISTRY
         value: /contracts/features.yaml
@@ -1879,7 +1971,7 @@ services:
     plan: starter
     dockerfilePath: ./apps/ai-orchestrator-service/Dockerfile
     dockerContext: .
-    startCommand: /app worker
+    dockerCommand: /app worker
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -1893,6 +1985,7 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - fromGroup: auraedu-shared-config
 
@@ -1904,7 +1997,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/campaign-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -1919,14 +2011,17 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - key: SERVICE_FILE_URL
         fromService:
           name: file-service
+          type: pserv
           property: hostport
       - key: FEATURES_REGISTRY
         value: /contracts/features.yaml
@@ -1940,7 +2035,7 @@ services:
     plan: starter
     dockerfilePath: ./apps/campaign-service/Dockerfile
     dockerContext: .
-    startCommand: /app worker
+    dockerCommand: /app worker
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -1954,6 +2049,7 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - fromGroup: auraedu-shared-config
 
@@ -1965,7 +2061,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/content-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -1980,10 +2075,12 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - key: FEATURES_REGISTRY
         value: /contracts/features.yaml
@@ -2002,7 +2099,7 @@ services:
     plan: starter
     dockerfilePath: ./apps/content-service/Dockerfile
     dockerContext: .
-    startCommand: /app worker
+    dockerCommand: /app worker
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -2016,6 +2113,7 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - fromGroup: auraedu-shared-config
 
@@ -2027,7 +2125,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/admissions-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -2042,14 +2139,17 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - key: SERVICE_FILE_URL
         fromService:
           name: file-service
+          type: pserv
           property: hostport
       - key: FEATURES_REGISTRY
         value: /contracts/features.yaml
@@ -2063,7 +2163,7 @@ services:
     plan: starter
     dockerfilePath: ./apps/admissions-service/Dockerfile
     dockerContext: .
-    startCommand: /app worker
+    dockerCommand: /app worker
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -2077,6 +2177,7 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - fromGroup: auraedu-shared-config
 
@@ -2088,7 +2189,6 @@ services:
     plan: starter
     dockerfilePath: ./apps/market-intelligence-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -2103,10 +2203,12 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - key: SERVICE_TENANT_URL
         fromService:
           name: tenant-service
+          type: pserv
           property: hostport
       - key: FEATURES_REGISTRY
         value: /contracts/features.yaml
@@ -2120,7 +2222,7 @@ services:
     plan: starter
     dockerfilePath: ./apps/market-intelligence-service/Dockerfile
     dockerContext: .
-    startCommand: /app worker
+    dockerCommand: /app worker
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -2134,6 +2236,7 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - fromGroup: auraedu-shared-config
 
@@ -2145,7 +2248,7 @@ services:
     schedule: "0 3 * * *"
     dockerfilePath: ./apps/ai-orchestrator-service/Dockerfile
     dockerContext: .
-    startCommand: /app cleanup
+    dockerCommand: /app cleanup
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -2166,7 +2269,7 @@ services:
     dockerfilePath: ./apps/audit-service/Dockerfile
     dockerContext: .
     autoDeployTrigger: checksPass
-    startCommand: /app worker
+    dockerCommand: /app worker
     buildFilter:
       paths:
         - apps/audit-service/**
@@ -2179,5 +2282,6 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          type: pserv
           property: hostport
       - fromGroup: auraedu-shared-config

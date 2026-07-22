@@ -433,6 +433,6 @@ cat <<EOF
       - key: DATABASE_URL
         fromDatabase: { name: ${SVCNAME}-db, property: connectionString }
       - key: NATS_HOST
-        fromService: { name: nats, property: host }
+        fromService: { name: nats, type: pserv, property: host }
       - { fromGroup: auraedu-shared-config }
 EOF

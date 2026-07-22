@@ -50,7 +50,7 @@ For safe workstation/CI rehearsal with generated fixtures only, run `bash tools/
 ### Verify scheduled PostgreSQL export evidence
 
 1. Confirm the `postgres-backup` Render cron started at minute 17 and its dedicated heartbeat completed within the 75-minute missed-run deadline.
-2. Require exactly 24 result objects. Match each database name, object key, SHA-256 digest, byte count and completion timestamp to the heartbeat payload; a partial set is a failed run.
+2. Require exactly 25 result objects. Match each database name, object key, SHA-256 digest, byte count and completion timestamp to the heartbeat payload; a partial set is a failed run.
 3. In the recovery account, verify every object has AES-256 server-side encryption, checksum metadata, PostgreSQL major `18` metadata and `COMPLIANCE` Object Lock through the recorded retain-until date.
 4. If the heartbeat is late or missing, use the dedicated PostgreSQL alert path. Do not accept a NATS heartbeat, Render process exit or partially written object set as evidence of database backup success.
 5. During the scheduled quarterly drill, select one retained export, independently recompute its SHA-256, inspect it with `pg_restore --list`, restore into a new isolated PostgreSQL 18 database and complete the migration/RLS/tenant/business validations above.

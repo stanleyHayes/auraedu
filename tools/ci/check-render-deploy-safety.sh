@@ -7,6 +7,7 @@ cd "$repo_root"
 ruby -ryaml <<'RUBY'
 render = YAML.load_file('render.yaml')
 services = render.fetch('services', [])
+service_types = services.to_h { |service| [service.fetch('name'), service.fetch('type')] }
 failures = []
 
 gateway = services.find { |service| service['name'] == 'api-gateway' }
@@ -27,6 +28,11 @@ services.each do |service|
   end
 
   if service['runtime'] == 'docker'
+    failures << "#{name}: Docker services must use dockerCommand, not startCommand" if service.key?('startCommand')
+    if type == 'worker' && service['dockerCommand'].to_s.empty?
+      failures << "#{name}: Docker worker must define its process with dockerCommand"
+    end
+
     paths = service.dig('buildFilter', 'paths')
     failures << "#{name}: Docker service must have a non-empty monorepo buildFilter.paths" unless paths.is_a?(Array) && !paths.empty?
 
@@ -43,9 +49,23 @@ services.each do |service|
   duplicate_keys = env_keys.group_by(&:itself).select { |_key, values| values.length > 1 }.keys
   failures << "#{name}: duplicate environment keys: #{duplicate_keys.sort.join(', ')}" unless duplicate_keys.empty?
 
-  if %w[web pserv].include?(type)
+  service.fetch('envVars', []).each do |variable|
+    reference = variable['fromService']
+    next unless reference
+
+    target = reference['name']
+    expected_type = service_types[target]
+    failures << "#{name}/#{variable['key']}: fromService target #{target} does not exist" if expected_type.nil?
+    unless reference['type'] == expected_type
+      failures << "#{name}/#{variable['key']}: fromService type must be #{expected_type || 'the target service type'}"
+    end
+  end
+
+  if type == 'web'
     health_path = service['healthCheckPath'].to_s
-    failures << "#{name}: HTTP/private service must define an absolute healthCheckPath" unless health_path.start_with?('/') && health_path.length > 1
+    failures << "#{name}: public web service must define an absolute healthCheckPath" unless health_path.start_with?('/') && health_path.length > 1
+  elsif type == 'pserv' && service.key?('healthCheckPath')
+    failures << "#{name}: Render private services do not accept healthCheckPath"
   end
 
   plan = service['plan'].to_s
@@ -59,5 +79,5 @@ unless failures.empty?
   exit 1
 end
 
-puts "Render deploy safety passed for #{services.length - services.count { |service| %w[keyvalue redis].include?(service['type']) }} deployable services: CI-gated deploys, health checks, scoped builds, paid plans and one production region."
+puts "Render deploy safety passed for #{services.length - services.count { |service| %w[keyvalue redis].include?(service['type']) }} deployable services: provider-valid commands/references, CI-gated deploys, public health checks, scoped builds, paid plans and one production region."
 RUBY

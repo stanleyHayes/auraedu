@@ -8,7 +8,7 @@ Restore AuraEDU's authoritative education records after infrastructure loss, ope
 
 ## Scope
 
-This policy covers the 24 service-owned Render PostgreSQL databases, NATS JetStream delivery state, Valkey cache state, generated files and the configuration required to rebuild the production deployment. It covers recovery governance and evidence; service continuity and routine alert response remain in Chapters 26 and 31.
+This policy covers the 25 service-owned Render PostgreSQL databases, NATS JetStream delivery state, Valkey cache state, generated files and the configuration required to rebuild the production deployment. It covers recovery governance and evidence; service continuity and routine alert response remain in Chapters 26 and 31.
 
 ---
 
@@ -44,7 +44,7 @@ The Incident Commander owns safety, priority and communication. The Recovery Lea
 - Production PostgreSQL must use paid managed plans with point-in-time recovery capability; the blueprint pins PostgreSQL 18 for every service database.
 - Tier 0 requires provider PITR plus a logically independent custom-format export. Tier 1 and Tier 2 require provider recovery plus scheduled logical exports according to their RPO.
 - Logical exports use `pg_dump --format=custom --no-owner --no-privileges`; validation requires `pg_restore --list` and an isolated restore with `--exit-on-error`.
-- The `postgres-backup` cron starts hourly at minute 17, exports all 24 service databases through private connection strings and must finish within 55 minutes. Validated connection URLs are translated into libpq environment variables; database credentials never enter process arguments or logs.
+- The `postgres-backup` cron starts hourly at minute 17, exports all 25 service databases through private connection strings and must finish within 55 minutes. Validated connection URLs are translated into libpq environment variables; database credentials never enter process arguments or logs.
 - Backup objects must be encrypted, immutable during retention, stored outside the application runtime and inaccessible to application credentials.
 - NATS runs on a persistent `/data` disk. Account/stream backup artifacts must be copied to independent encrypted object storage; the JetStream disk alone is not a backup.
 - The `nats-backup` cron runs daily at 02:15 UTC and must complete an account-level backup with consumers, integrity checks, SHA-256 evidence, AES-256 server-side encryption and compliance retention in the dedicated recovery bucket.
@@ -107,7 +107,7 @@ The successful final line is machine-readable and includes the restored fingerpr
 ## Anti-patterns
 
 - Calling a persistent disk, read replica or untested snapshot a backup.
-- Restoring directly over production or changing all 24 database URLs at once.
+- Restoring directly over production or changing all 25 database URLs at once.
 - Treating a successful command exit as data validation.
 - Keeping exports beside the database or under the same runtime credential.
 - Letting a backup job report success before off-site retention and the heartbeat acknowledgement complete.
