@@ -53,9 +53,29 @@ function normalizeBase(url: string): string {
   return url.replace(/\/$/, "");
 }
 
+// Producers emit three error shapes, all accepted here:
+//   gateway middleware:  { "error": { "code": "...", "message": "..." } }
+//   domain httpx.Error:  { "error": "<code>", "message": "...", "details": {...} }
+//   flat legacy:         { "code": "...", "message": "...", "details": ... }
 async function parseErrorBody(response: Response): Promise<ApiErrorBody> {
   try {
     const json = (await response.json()) as Record<string, unknown>;
+    const nested = json.error;
+    if (typeof nested === "string") {
+      return {
+        code: nested,
+        message: typeof json.message === "string" ? json.message : response.statusText,
+        details: json.details,
+      };
+    }
+    if (nested && typeof nested === "object") {
+      const inner = nested as Record<string, unknown>;
+      return {
+        code: typeof inner.code === "string" ? inner.code : "unknown_error",
+        message: typeof inner.message === "string" ? inner.message : response.statusText,
+        details: inner.details,
+      };
+    }
     return {
       code: typeof json.code === "string" ? json.code : "unknown_error",
       message: typeof json.message === "string" ? json.message : response.statusText,
@@ -64,6 +84,15 @@ async function parseErrorBody(response: Response): Promise<ApiErrorBody> {
   } catch {
     return { code: "unknown_error", message: response.statusText };
   }
+}
+
+function featureFromDetails(details: unknown): string {
+  if (typeof details === "string") return details;
+  if (details && typeof details === "object") {
+    const feature = (details as Record<string, unknown>).feature;
+    if (typeof feature === "string") return feature;
+  }
+  return "unknown";
 }
 
 export interface GatewayClient {
@@ -110,8 +139,7 @@ export function createGatewayClient(options: GatewayClientOptions): GatewayClien
     if (!response.ok) {
       const error = await parseErrorBody(response);
       if (response.status === 403 && error.code === "feature_disabled") {
-        const feature = typeof error.details === "string" ? error.details : "unknown";
-        throw new FeatureDisabledError(feature, error.message);
+        throw new FeatureDisabledError(featureFromDetails(error.details), error.message);
       }
       if (response.status === 401) throw new UnauthorizedError(error.message);
       throw new ApiError(response.status, error.code, error.message, error.details);

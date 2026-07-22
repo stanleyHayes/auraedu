@@ -315,10 +315,12 @@ func (h *Handler) processWebhook(w http.ResponseWriter, r *http.Request) {
 		Payload:   json.RawMessage(body),
 		Signature: sig,
 	})
-	if err != nil {
+	if err != nil && !errors.Is(err, flags.ErrFeatureDisabled) {
 		h.writeErr(w, r, err)
 		return
 	}
+	// A disabled feature is a skip, not a delivery failure: ack with 2xx so the
+	// provider does not retry (the service logs the skip and mutates nothing).
 	w.WriteHeader(http.StatusNoContent)
 }
 

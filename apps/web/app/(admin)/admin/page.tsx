@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import {
   ArrowRight,
   CalendarDays,
@@ -11,6 +12,8 @@ import { Reveal, StatCard, Watermark } from "@auraedu/ui";
 import type { OpenAPI } from "@auraedu/shared-types";
 import { createServerClient } from "@/lib/api";
 import { getSession, requireAuth } from "@/lib/auth";
+import { fetchTenantBranding, getTenantCodeFromHeaders } from "@/lib/tenant";
+import { enabledFeatureKeys, getRouteFeature, isNavigationFeatureVisible } from "@/lib/features";
 
 type StudentList = OpenAPI.student_v1.components["schemas"]["StudentList"];
 type StaffList = OpenAPI.staff_v1.components["schemas"]["StaffList"];
@@ -32,7 +35,41 @@ function eventLabel(eventType: string) {
 
 export default async function AdminOverview() {
   await requireAuth();
-  const [session, client] = await Promise.all([getSession(), createServerClient()]);
+  const requestHeaders = await headers();
+  const [session, client, tenant] = await Promise.all([
+    getSession(),
+    createServerClient(),
+    fetchTenantBranding(getTenantCodeFromHeaders(requestHeaders)),
+  ]);
+  const enabled = enabledFeatureKeys(tenant.features);
+  const quickLinks = [
+    {
+      href: "/admin/students",
+      icon: <Users className="size-4" />,
+      label: "Student records",
+      detail: "Identity and enrolment",
+    },
+    {
+      href: "/admin/staff",
+      icon: <GraduationCap className="size-4" />,
+      label: "Staff directory",
+      detail: "People and assignments",
+    },
+    {
+      href: "/admin/academic-years",
+      icon: <CalendarDays className="size-4" />,
+      label: "Academic calendar",
+      detail: "Years and terms",
+    },
+    {
+      href: "/admin/admissions",
+      icon: <ClipboardList className="size-4" />,
+      label: "Admissions review",
+      detail: "Applications and decisions",
+    },
+    // Feature-gated destinations stay hidden while the feature is disabled
+    // (agent_plan §2 rule 6), so the dashboard never links into a gated page.
+  ].filter((link) => isNavigationFeatureVisible(getRouteFeature(link.href) ?? undefined, enabled));
   const today = new Date().toISOString().slice(0, 10);
   const [students, staff, attendance, pending, partial, overdue, audit] = await Promise.allSettled([
     client.get<StudentList>("/api/v1/students?limit=100"),
@@ -89,12 +126,14 @@ export default async function AdminOverview() {
                 A live view of the people, records and activity shaping today.
               </p>
             </div>
-            <Link
-              href="/admin/students"
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-sm)] bg-[var(--primary)] px-4 text-sm font-bold text-[var(--primary-foreground)] transition-transform hover:-translate-y-0.5"
-            >
-              Open student records <ArrowRight className="size-4" aria-hidden="true" />
-            </Link>
+            {isNavigationFeatureVisible("student_management", enabled) && (
+              <Link
+                href="/admin/students"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-sm)] bg-[var(--primary)] px-4 text-sm font-bold text-[var(--primary-foreground)] transition-transform hover:-translate-y-0.5"
+              >
+                Open student records <ArrowRight className="size-4" aria-hidden="true" />
+              </Link>
+            )}
           </div>
         </section>
       </Reveal>
@@ -130,30 +169,15 @@ export default async function AdminOverview() {
               The most common school administration paths.
             </p>
             <ul className="mt-4 space-y-2">
-              <QuickLink
-                href="/admin/students"
-                icon={<Users className="size-4" />}
-                label="Student records"
-                detail="Identity and enrolment"
-              />
-              <QuickLink
-                href="/admin/staff"
-                icon={<GraduationCap className="size-4" />}
-                label="Staff directory"
-                detail="People and assignments"
-              />
-              <QuickLink
-                href="/admin/academic-years"
-                icon={<CalendarDays className="size-4" />}
-                label="Academic calendar"
-                detail="Years and terms"
-              />
-              <QuickLink
-                href="/admin/admissions"
-                icon={<ClipboardList className="size-4" />}
-                label="Admissions review"
-                detail="Applications and decisions"
-              />
+              {quickLinks.map((link) => (
+                <QuickLink
+                  key={link.href}
+                  href={link.href}
+                  icon={link.icon}
+                  label={link.label}
+                  detail={link.detail}
+                />
+              ))}
             </ul>
           </div>
         </Reveal>

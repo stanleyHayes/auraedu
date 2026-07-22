@@ -52,6 +52,7 @@ func DefaultRegistry() ServiceRegistry {
 		{Prefix: "/api/v1/public/billing/plans", Target: envURL("SERVICE_BILLING_URL", "http://localhost:8100"), Public: true, TenantOptional: true},
 		{Prefix: "/api/v1/super-admin/onboarding-requests", Target: envURL("SERVICE_TENANT_URL", "http://localhost:8082"), TenantOptional: true},
 		{Prefix: "/api/v1/super-admin/tenants", Target: envURL("SERVICE_TENANT_URL", "http://localhost:8082"), TenantOptional: true},
+		{Prefix: "/api/v1/super-admin/features", Target: envURL("SERVICE_TENANT_URL", "http://localhost:8082"), TenantOptional: true},
 		{Prefix: "/api/v1/tenants", Target: envURL("SERVICE_TENANT_URL", "http://localhost:8082"), Public: true},
 		{Prefix: "/api/v1/super-admin", Target: envURL("SERVICE_TENANT_URL", "http://localhost:8082"), FeatureKey: "billing", Public: false},
 		{Prefix: "/api/v1/features", Target: envURL("SERVICE_TENANT_URL", "http://localhost:8082"), Public: true},
@@ -205,6 +206,22 @@ func DefaultRegistry() ServiceRegistry {
 				http.MethodDelete: "fees.manage",
 			},
 		},
+		{
+			Prefix:     "/api/v1/balances",
+			Target:     envURL("SERVICE_FEES_URL", "http://localhost:8097"),
+			FeatureKey: "fees",
+			Permissions: map[string]string{
+				http.MethodGet: "fees.read",
+			},
+		},
+		{
+			Prefix:     "/api/v1/receipts",
+			Target:     envURL("SERVICE_FEES_URL", "http://localhost:8097"),
+			FeatureKey: "fees",
+			Permissions: map[string]string{
+				http.MethodGet: "fees.read",
+			},
+		},
 		{Prefix: "/api/v1/payments", Target: envURL("SERVICE_PAYMENT_URL", "http://localhost:8098"), FeatureKey: "online_payments"},
 		{
 			Prefix:     "/api/v1/transactions",
@@ -227,7 +244,7 @@ func DefaultRegistry() ServiceRegistry {
 		// the owning service before any state change.
 		{Prefix: "/api/v1/webhooks/twilio", Target: envURL("SERVICE_NOTIFICATION_URL", "http://localhost:8099"), Public: true, TenantOptional: true},
 		{Prefix: "/api/v1/webhooks/resend", Target: envURL("SERVICE_NOTIFICATION_URL", "http://localhost:8099"), Public: true, TenantOptional: true},
-		{Prefix: "/api/v1/webhooks", Target: envURL("SERVICE_PAYMENT_URL", "http://localhost:8098"), Public: true},
+		{Prefix: "/api/v1/webhooks", Target: envURL("SERVICE_PAYMENT_URL", "http://localhost:8098"), Public: true, TenantOptional: true},
 		{Prefix: "/api/v1/email-preferences/unsubscribe", Target: envURL("SERVICE_NOTIFICATION_URL", "http://localhost:8099"), Public: true, TenantOptional: true},
 		{Prefix: "/api/v1/notifications", Target: envURL("SERVICE_NOTIFICATION_URL", "http://localhost:8099"), FeatureKey: "email_notifications"},
 		{

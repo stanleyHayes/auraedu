@@ -255,7 +255,14 @@ func TestVerifyPayment_RequiresPermission(t *testing.T) {
 func TestProcessWebhook_TenantIsolation(t *testing.T) {
 	pRepo, txRepo, wRepo, pub := newFakePaymentRepo(), &fakeTxRepo{}, &fakeWebhookRepo{}, &fakePublisher{}
 	prov := &stubProvider{ref: "ref-1", verifyStatus: string(domain.PaymentStatusSuccess)}
-	svc := newDevService(pRepo, txRepo, wRepo, pub, prov)
+	gates := flags.NewStaticSnapshot()
+	gates.Set(unitTenantA, application.FeaturePayments, true)
+	gates.Set(unitTenantB, application.FeaturePayments, true)
+	svc := application.NewService(pRepo, txRepo, wRepo,
+		application.WithPublisher(pub),
+		application.WithPaymentProvider(prov),
+		application.WithFeatureGate(gates),
+	)
 	p := seedProcessingPayment(t, svc)
 
 	// A webhook claiming tenant B for a reference owned by tenant A finds nothing and

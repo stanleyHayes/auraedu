@@ -1,10 +1,9 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { StudentShell } from "@/components/student-shell";
+import { RouteFeatureGuard } from "@/components/route-feature-guard";
 import { APPLICANT_NAV, fetchTenantBranding, getTenantCodeFromHeaders } from "@/lib/tenant";
 import { isApplicant, requireAuth } from "@/lib/auth";
-import { checkRouteFeature } from "@/lib/features";
-import { FeatureDisabled } from "@auraedu/flags";
 export default async function ApplicantLayout({ children }: { children: React.ReactNode }) {
   const requestHeaders = await headers();
   const code = getTenantCodeFromHeaders(requestHeaders);
@@ -13,12 +12,6 @@ export default async function ApplicantLayout({ children }: { children: React.Re
     requireAuth().catch(() => null),
   ]);
   if (!session || !isApplicant(session)) redirect("/login");
-  const routeFeature = checkRouteFeature(requestHeaders.get("x-pathname") ?? "", tenant.features);
-  const guarded = routeFeature.enabled ? (
-    children
-  ) : (
-    <FeatureDisabled feature={routeFeature.feature!} />
-  );
   return (
     <StudentShell
       tenant={tenant}
@@ -37,7 +30,7 @@ export default async function ApplicantLayout({ children }: { children: React.Re
           .toUpperCase(),
       }}
     >
-      {guarded}
+      <RouteFeatureGuard flags={tenant.features}>{children}</RouteFeatureGuard>
     </StudentShell>
   );
 }

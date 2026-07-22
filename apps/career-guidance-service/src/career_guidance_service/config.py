@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://auraedu:auraedu@localhost:5432/ai"
     nats_host: str = "nats://localhost:4222"
     service_name: str = "career-guidance-service"
-    student_service_url: str = "http://localhost:8083"
+    student_service_url: str = "http://localhost:8090"
     internal_service_token: str = ""
     debug: bool = False
 

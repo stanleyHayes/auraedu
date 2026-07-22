@@ -1111,7 +1111,7 @@ services:
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
       SERVICE_TENANT_URL: http://tenant-service:8082
-      SERVICE_STUDENT_URL: http://student-service:8083
+      SERVICE_STUDENT_URL: http://student-service:8090
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-local-internal-service-token}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
@@ -1284,7 +1284,7 @@ services:
       AI_REC_DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/ai?sslmode=disable
       AI_REC_NATS_HOST: nats:4222
       AI_REC_PORT: 8200
-      AI_REC_STUDENT_SERVICE_URL: http://student-service:8083
+      AI_REC_STUDENT_SERVICE_URL: http://student-service:8090
       AI_REC_TENANT_SERVICE_URL: http://tenant-service:8082
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-local-internal-service-token}
     depends_on:
@@ -1316,7 +1316,7 @@ services:
       AI_PRED_DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/ai?sslmode=disable
       AI_PRED_NATS_HOST: nats:4222
       AI_PRED_PORT: 8201
-      AI_PRED_STUDENT_SERVICE_URL: http://student-service:8083
+      AI_PRED_STUDENT_SERVICE_URL: http://student-service:8090
       AI_PRED_TENANT_SERVICE_URL: http://tenant-service:8082
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-local-internal-service-token}
     depends_on:
@@ -1348,7 +1348,7 @@ services:
       AI_GUIDANCE_DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/ai?sslmode=disable
       AI_GUIDANCE_NATS_HOST: nats:4222
       AI_GUIDANCE_PORT: 8112
-      AI_GUIDANCE_STUDENT_SERVICE_URL: http://student-service:8083
+      AI_GUIDANCE_STUDENT_SERVICE_URL: http://student-service:8090
       AI_GUIDANCE_TENANT_SERVICE_URL: http://tenant-service:8082
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-local-internal-service-token}
     depends_on:

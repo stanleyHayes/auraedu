@@ -16,8 +16,48 @@ tags:
   - name: devices
   - name: communication-journeys
   - name: webhooks
+  - name: internal-transactional
 
 paths:
+  /internal/v1/transactional-email:
+    post:
+      operationId: deliverTransactionalEmail
+      description: Delivers an invite or password-reset email without placing the recipient address or one-time token on the event bus; the persisted record is redacted after delivery. Protected by the internal service bearer token; never exposed by the gateway.
+      tags: [internal-transactional]
+      summary: Deliver a security-sensitive transactional email for a trusted service
+      servers: [{ url: / }]
+      security: [{ serviceBearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [tenant_id, recipient, template, data]
+              properties:
+                tenant_id: { type: string, minLength: 1 }
+                recipient: { type: string, format: email }
+                template: { type: string, enum: [user_invite, password_reset] }
+                data:
+                  type: object
+                  description: Template-specific fields; user_invite requires invite_token (plus optional role), password_reset requires reset_token.
+                  additionalProperties: true
+      responses:
+        '202':
+          description: Delivery accepted and recorded with redacted content
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message_id, status]
+                properties:
+                  message_id: { type: string, format: uuid }
+                  status: { $ref: '#/components/schemas/MessageStatus' }
+        '401': { description: Invalid service credential }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '503': { description: Email suppression or delivery storage is unavailable; caller should retry }
   /webhooks/resend:
     post:
       operationId: processResendDeliveryWebhook
@@ -742,6 +782,9 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    serviceBearer:
+      type: http
+      scheme: bearer
 
 security:
   - bearerAuth: []

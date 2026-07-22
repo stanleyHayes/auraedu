@@ -41,9 +41,14 @@ func testBuilder() *Builder {
 		{Prefix: "/api/v1/uploads", Target: "http://localhost:8098", FeatureKey: "file_management", Permissions: map[string]string{
 			http.MethodPost: "files.upload",
 		}},
-		{Prefix: "/api/v1/webhooks", Target: "http://localhost:8098", Public: true},
+		{Prefix: "/api/v1/webhooks", Target: "http://localhost:8098", Public: true, TenantOptional: true},
+		{Prefix: "/api/v1/super-admin/features", Target: "http://localhost:8082", TenantOptional: true},
+		{Prefix: "/api/v1/super-admin", Target: "http://localhost:8082", FeatureKey: "billing"},
 		{Prefix: "/api/v1/invoices", Target: "http://localhost:8097", FeatureKey: "fees", Permissions: map[string]string{
 			http.MethodGet: "fees.read", http.MethodPost: "fees.manage",
+		}},
+		{Prefix: "/api/v1/balances", Target: "http://localhost:8097", FeatureKey: "fees", Permissions: map[string]string{
+			http.MethodGet: "fees.read",
 		}},
 		{Prefix: "/api/v1/messages", Target: "http://localhost:8099", FeatureKey: "email_notifications", Permissions: map[string]string{
 			http.MethodGet: "notifications.read", http.MethodPost: "notifications.send",
@@ -776,14 +781,108 @@ func TestAuthAllowsPublicWebhookRoute(t *testing.T) {
 		called = true
 	}))
 
-	// Payment provider webhooks carry no user JWT (same pattern as /api/v1/files/webhook).
+	// Payment provider webhooks carry no user JWT and no tenant header; the
+	// owning service resolves the tenant from the verified payload.
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/webhooks/paystack", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if !called {
+		t.Fatal("public webhook route should reach handler without a token or tenant header")
+	}
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", rr.Code, http.StatusOK)
+	}
+}
+
+func TestSuperAdminFeatureOverrideSkipsTenantBillingFlag(t *testing.T) {
+	b := testBuilder()
+	token := signTestToken(b, auth.Claims{Subject: "admin1", Role: auth.RolePlatformSuperAdmin})
+	called := false
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+
+	// Platform flag overrides carry no tenant header and must not be swallowed
+	// by the billing-gated /api/v1/super-admin catch-all.
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/super-admin/features/attendance/override", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if !called {
+		t.Fatal("super-admin feature override should reach handler without a billing flag")
+	}
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", rr.Code, http.StatusOK)
+	}
+}
+
+func TestSuperAdminFeatureOverrideRequiresToken(t *testing.T) {
+	b := testBuilder()
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("super-admin feature override must not be public")
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/super-admin/features/attendance/override", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("status: got %d, want %d", rr.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestBalancesPermissionAllowsReadActor(t *testing.T) {
+	b := testBuilder()
+	token := signTestToken(b, auth.Claims{
+		Subject:     "u1",
+		TenantID:    "upshs",
+		Role:        "accountant",
+		Permissions: []string{"fees.read"},
+	})
+	called := false
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/balances/s1", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("X-Tenant-ID", "upshs")
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
 	if !called {
-		t.Fatal("public webhook route should reach handler without a token")
+		t.Fatal("GET /balances should be allowed with fees.read")
+	}
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", rr.Code, http.StatusOK)
+	}
+}
+
+func TestBalancesPermissionDeniesActorWithoutFeesRead(t *testing.T) {
+	b := testBuilder()
+	token := signTestToken(b, auth.Claims{
+		Subject:     "u1",
+		TenantID:    "upshs",
+		Role:        "teacher",
+		Permissions: []string{"students.read"},
+	})
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("GET /balances should be denied without fees.read")
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/balances/s1", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("X-Tenant-ID", "upshs")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("status: got %d, want %d", rr.Code, http.StatusForbidden)
+	}
+	if !strings.Contains(rr.Body.String(), "permission_denied") {
+		t.Fatalf("expected permission_denied error, got %q", rr.Body.String())
 	}
 }
 

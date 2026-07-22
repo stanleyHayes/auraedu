@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import type { OpenAPI } from "@auraedu/shared-types";
-import { createServerClient } from "./api";
+import { createServerClientForTenant } from "./api";
 
 export interface FeatureFlagActionResult {
   success?: boolean;
@@ -27,7 +27,7 @@ export async function overrideFeatureFlagAction(
     return { error: "A reason is required for platform overrides." };
   }
 
-  const client = await createServerClient();
+  const client = await createServerClientForTenant(tenantCode);
   try {
     await client.post<OpenAPI.tenant_v1.components["schemas"]["FeatureFlag"]>(
       `/api/v1/super-admin/features/${encodeURIComponent(featureKey)}/override`,

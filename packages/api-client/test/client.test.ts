@@ -50,6 +50,70 @@ void test("gateway client maps authorization errors to typed failures", async (t
     });
   });
 
+  await t.test("gateway nested error shape", async () => {
+    const client = createGatewayClient({
+      baseUrl: "https://gateway.example",
+      fetch: () =>
+        Promise.resolve(
+          Response.json(
+            {
+              error: {
+                code: "feature_disabled",
+                message: "this feature is not enabled for the tenant",
+              },
+            },
+            { status: 403 },
+          ),
+        ),
+    });
+    await assert.rejects(client.get("/api/v1/fees"), (error: unknown) => {
+      assert.ok(error instanceof FeatureDisabledError);
+      assert.equal(error.feature, "unknown");
+      assert.equal(error.message, "this feature is not enabled for the tenant");
+      return true;
+    });
+  });
+
+  await t.test("domain httpx error shape with feature details", async () => {
+    const client = createGatewayClient({
+      baseUrl: "https://gateway.example",
+      fetch: () =>
+        Promise.resolve(
+          Response.json(
+            {
+              error: "feature_disabled",
+              message: "feature is disabled for this tenant",
+              details: { feature: "fees" },
+            },
+            { status: 403 },
+          ),
+        ),
+    });
+    await assert.rejects(client.get("/api/v1/fees"), (error: unknown) => {
+      assert.ok(error instanceof FeatureDisabledError);
+      assert.equal(error.feature, "fees");
+      return true;
+    });
+  });
+
+  await t.test("gateway nested unauthorized shape", async () => {
+    const client = createGatewayClient({
+      baseUrl: "https://gateway.example",
+      fetch: () =>
+        Promise.resolve(
+          Response.json(
+            { error: { code: "unauthorized", message: "invalid or expired access token" } },
+            { status: 401 },
+          ),
+        ),
+    });
+    await assert.rejects(client.get("/api/v1/profile"), (error: unknown) => {
+      assert.ok(error instanceof UnauthorizedError);
+      assert.equal(error.message, "invalid or expired access token");
+      return true;
+    });
+  });
+
   await t.test("unauthorized", async () => {
     const client = createGatewayClient({
       baseUrl: "https://gateway.example",

@@ -52,6 +52,7 @@
         "academic_year_id",
         "score",
         "max_score",
+        "recorded_by",
         "recorded_at"
       ],
       "properties": {
@@ -82,6 +83,12 @@
         "max_score": {
           "type": "number",
           "exclusiveMinimum": 0
+        },
+        "recorded_by": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
         },
         "recorded_at": {
           "type": "string",
@@ -124,6 +131,7 @@
         "academic_year_id": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
         "score": 72,
         "max_score": 100,
+        "recorded_by": "99999999-9999-9999-9999-999999999999",
         "recorded_at": "2026-07-08T10:00:00Z",
         "class_ids": [
           "ffffffff-ffff-ffff-ffff-ffffffffffff"

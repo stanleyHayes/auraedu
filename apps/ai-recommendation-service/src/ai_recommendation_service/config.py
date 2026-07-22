@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     nats_host: str = "nats://localhost:4222"
     service_name: str = "ai-recommendation-service"
     debug: bool = False
-    student_service_url: str = "http://student-service:8083"
+    student_service_url: str = "http://student-service:8090"
     internal_service_token: str = ""
 
     @field_validator("database_url")

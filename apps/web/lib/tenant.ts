@@ -14,7 +14,6 @@ export const SWITCHER = [
   { code: "cape-coast-prep", short: "Cape Coast", swatch: "#2456A6" },
 ] as const;
 
-export const DEFAULT_CODE = SWITCHER[0].code;
 export const DEFAULT_BRAND = SWITCHER[0].swatch;
 
 export const PREVIEW_TENANT_CODES: readonly string[] = SWITCHER.map((school) => school.code);
@@ -344,6 +343,16 @@ export function isTenantNeutralAppHost(host: string): boolean {
   return name?.toLowerCase() === "app.auraedu.com";
 }
 
+/**
+ * Hosts without a tenant subdomain (localhost, the apex domain) carry no
+ * tenant of their own, so the tenant they map to is deployment configuration,
+ * never code. Unset means no tenant, which routes into the tenant-not-found
+ * path.
+ */
+function defaultTenantCode(): string {
+  return canonicalTenantCode(process.env.NEXT_PUBLIC_DEFAULT_TENANT_CODE);
+}
+
 export function resolveTenantFromHost(host: string): string {
   const [name] = host.split(":");
   if (!name) return "";
@@ -355,7 +364,7 @@ export function resolveTenantFromHost(host: string): string {
     lower === "auraedu.com" ||
     lower === "www.auraedu.com"
   ) {
-    return DEFAULT_CODE;
+    return defaultTenantCode();
   }
 
   // The shared application hostname is a tenant-neutral authentication entry

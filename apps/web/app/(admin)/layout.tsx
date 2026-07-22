@@ -1,27 +1,18 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
+import { RouteFeatureGuard } from "@/components/route-feature-guard";
 import { ADMIN_NAV, fetchTenantBranding, getTenantCodeFromHeaders } from "@/lib/tenant";
 import { requireAuth, isAdmin } from "@/lib/auth";
-import { checkRouteFeature } from "@/lib/features";
-import { FeatureDisabled } from "@auraedu/flags";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const requestHeaders = await headers();
   const tenantCode = getTenantCodeFromHeaders(requestHeaders);
-  const pathname = requestHeaders.get("x-pathname") ?? "";
 
   const [tenant, session] = await Promise.all([
     fetchTenantBranding(tenantCode),
     requireAuth().catch(() => null),
   ]);
-
-  const routeFeature = checkRouteFeature(pathname, tenant.features);
-  const guardedChildren = routeFeature.enabled ? (
-    children
-  ) : (
-    <FeatureDisabled feature={routeFeature.feature!} />
-  );
 
   if (!session) {
     redirect("/login");
@@ -50,7 +41,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <AdminShell tenant={tenant} navGroups={ADMIN_NAV} showMobileMenu user={user}>
-      {guardedChildren}
+      <RouteFeatureGuard flags={tenant.features}>{children}</RouteFeatureGuard>
     </AdminShell>
   );
 }

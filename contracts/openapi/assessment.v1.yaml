@@ -423,28 +423,33 @@ components:
         request_id: { type: string }
     Assessment:
         type: object
-        required: [id, tenant_id, name, type, subject_id]
+        required: [id, tenant_id, academic_year_id, subject_id, type, title, max_score, status, created_at, updated_at]
         properties:
           id: { type: string, format: uuid }
           tenant_id: { type: string, format: uuid }
-          name: { type: string }
-          type: { type: string, enum: [test, exam, quiz, assignment] }
+          academic_year_id: { type: string, format: uuid }
           subject_id: { type: string, format: uuid }
-          class_id: { type: [string, 'null'], format: uuid }
-          term_id: { type: [string, 'null'], format: uuid }
-          max_score: { type: number, minimum: 0 }
-          scheduled_at: { type: [string, 'null'], format: date-time }
+          type: { type: string, enum: [assignment, test, exam] }
+          title: { type: string }
+          description: { type: [string, 'null'] }
+          max_score: { type: integer, minimum: 1 }
+          due_date: { type: [string, 'null'], format: date-time }
+          status: { type: string, enum: [draft, published, archived] }
+          class_ids: { type: array, items: { type: string, format: uuid } }
+          published_at: { type: [string, 'null'], format: date-time }
+          created_at: { type: string, format: date-time }
+          updated_at: { type: string, format: date-time }
     CreateAssessment:
         type: object
-        required: [name, type, subject_id]
+        required: [academic_year_id, subject_id, type, title, max_score]
         properties:
-          name: { type: string }
-          type: { type: string, enum: [test, exam, quiz, assignment] }
+          academic_year_id: { type: string, format: uuid }
           subject_id: { type: string, format: uuid }
-          class_id: { type: [string, 'null'], format: uuid }
-          term_id: { type: [string, 'null'], format: uuid }
-          max_score: { type: number, minimum: 0 }
-          scheduled_at: { type: [string, 'null'], format: date-time }
+          type: { type: string, enum: [assignment, test, exam] }
+          title: { type: string }
+          description: { type: string }
+          max_score: { type: integer, minimum: 1 }
+          due_date: { type: [string, 'null'], format: date-time }
     UpdateAssessment:
         type: object
         properties:
@@ -466,11 +471,12 @@ components:
           recorded_by: { type: [string, 'null'], format: uuid }
     CreateScore:
         type: object
-        required: [student_id, score]
+        required: [student_id, score, recorded_by]
         properties:
           student_id: { type: string, format: uuid }
           score: { type: number, minimum: 0 }
           max_score: { type: [number, 'null'], minimum: 0 }
+          recorded_by: { type: string, format: uuid }
     UpdateScore:
         type: object
         properties:

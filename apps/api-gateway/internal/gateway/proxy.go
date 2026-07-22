@@ -126,12 +126,20 @@ func scheme(r *http.Request) string {
 }
 
 func writeJSONError(w http.ResponseWriter, code int, errCode, message string) {
+	writeJSONErrorWithDetails(w, code, errCode, message, nil)
+}
+
+func writeJSONErrorWithDetails(w http.ResponseWriter, code int, errCode, message string, details map[string]any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
+	body := map[string]any{
+		"code":    errCode,
+		"message": message,
+	}
+	if details != nil {
+		body["details"] = details
+	}
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"error": map[string]any{
-			"code":    errCode,
-			"message": message,
-		},
+		"error": body,
 	})
 }

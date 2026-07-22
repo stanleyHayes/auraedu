@@ -69,7 +69,7 @@ func run() error {
 		application.WithPublisher(pub),
 		application.WithFeatureGate(gates),
 		application.WithLearnerScopeResolver(student.NewClient(
-			config.Getenv("SERVICE_STUDENT_URL", "http://student-service:8083"),
+			config.Getenv("SERVICE_STUDENT_URL", "http://student-service:8090"),
 			config.Getenv("INTERNAL_SERVICE_TOKEN", ""),
 		)),
 	)

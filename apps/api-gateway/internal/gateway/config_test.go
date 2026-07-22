@@ -33,6 +33,9 @@ func TestDefaultRegistryMatchesKnownRoutes(t *testing.T) {
 		{"/api/v1/report-templates/rt1", "/api/v1/report-templates"},
 		{"/api/v1/fee-structures/fs1", "/api/v1/fee-structures"},
 		{"/api/v1/invoices/inv1", "/api/v1/invoices"},
+		{"/api/v1/balances/s1", "/api/v1/balances"},
+		{"/api/v1/receipts/rcpt1", "/api/v1/receipts"},
+		{"/api/v1/super-admin/features/attendance/override", "/api/v1/super-admin/features"},
 		{"/api/v1/timetable/entry1", "/api/v1/timetable"},
 		{"/api/v1/messages/m1", "/api/v1/messages"},
 		{"/api/v1/analytics/metrics", "/api/v1/analytics"},
@@ -196,6 +199,9 @@ func TestDefaultRegistryServicePorts(t *testing.T) {
 		{"/api/v1/fees", "http://localhost:8097"},
 		{"/api/v1/fee-structures", "http://localhost:8097"},
 		{"/api/v1/invoices", "http://localhost:8097"},
+		{"/api/v1/balances", "http://localhost:8097"},
+		{"/api/v1/receipts", "http://localhost:8097"},
+		{"/api/v1/super-admin/features", "http://localhost:8082"},
 		{"/api/v1/payments", "http://localhost:8098"},
 		{"/api/v1/transactions", "http://localhost:8098"},
 		{"/api/v1/webhook-events", "http://localhost:8098"},
@@ -260,6 +266,12 @@ func TestDefaultRegistryRoutePolicies(t *testing.T) {
 		{"/api/v1/invoices", "fees", false, map[string]string{
 			http.MethodGet: "fees.read", http.MethodPost: "fees.manage",
 			http.MethodPatch: "fees.manage", http.MethodDelete: "fees.manage",
+		}},
+		{"/api/v1/balances", "fees", false, map[string]string{
+			http.MethodGet: "fees.read",
+		}},
+		{"/api/v1/receipts", "fees", false, map[string]string{
+			http.MethodGet: "fees.read",
 		}},
 		{"/api/v1/timetable", "timetable", false, map[string]string{
 			http.MethodGet: "academic.read", http.MethodPost: "academic.manage",
@@ -363,6 +375,23 @@ func TestTwilioWebhookIsPublicTenantOptionalAndNotificationOwned(t *testing.T) {
 	route, ok := DefaultRegistry().Match("/api/v1/webhooks/twilio")
 	if !ok || !route.Public || !route.TenantOptional || route.Target != "http://localhost:8099" {
 		t.Fatalf("unexpected Twilio webhook route: %+v", route)
+	}
+}
+
+func TestPaymentProviderWebhookIsPublicTenantOptionalAndPaymentOwned(t *testing.T) {
+	route, ok := DefaultRegistry().Match("/api/v1/webhooks/paystack")
+	if !ok || !route.Public || !route.TenantOptional || route.Target != "http://localhost:8098" {
+		t.Fatalf("unexpected payment provider webhook route: %+v", route)
+	}
+}
+
+func TestSuperAdminFeatureOverridesAreNotBillingGated(t *testing.T) {
+	route, ok := DefaultRegistry().Match("/api/v1/super-admin/features/attendance/override")
+	if !ok || route.Prefix != "/api/v1/super-admin/features" {
+		t.Fatalf("expected dedicated super-admin features route, got %+v", route)
+	}
+	if route.Public || !route.TenantOptional || route.FeatureKey != "" {
+		t.Fatalf("unexpected super-admin features route policy: %+v", route)
 	}
 }
 

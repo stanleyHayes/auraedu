@@ -19,7 +19,6 @@ import {
   TEACHER_NAV,
 } from "../lib/tenant.ts";
 import {
-  DEFAULT_CODE,
   TENANT_NOT_FOUND_HEADER,
   canonicalTenantCode,
   getTenantCodeFromHeaders,
@@ -31,12 +30,20 @@ import {
 void test("tenant resolution normalizes subdomains and ports", () => {
   assert.equal(resolveTenantFromHost("UPSHS.AURAEDU.COM:443"), "upshs");
   assert.equal(resolveTenantFromHost("aboom-ame-zion-c.localhost:3000"), "aboom-ame-zion-c");
-  assert.equal(resolveTenantFromHost("localhost:3000"), DEFAULT_CODE);
-  assert.equal(resolveTenantFromHost("127.0.0.1:3101"), DEFAULT_CODE);
   assert.equal(resolveTenantFromHost("app.auraedu.com"), "");
   assert.equal(resolveTenantFromHost("school.example.org"), "");
   assert.equal(isTenantNeutralAppHost("app.auraedu.com:443"), true);
   assert.equal(isTenantNeutralAppHost("app.attacker.example"), false);
+});
+
+void test("apex and localhost hosts carry no tenant unless one is configured", () => {
+  delete process.env.NEXT_PUBLIC_DEFAULT_TENANT_CODE;
+  assert.equal(resolveTenantFromHost("localhost:3000"), "");
+  assert.equal(resolveTenantFromHost("127.0.0.1:3101"), "");
+  assert.equal(resolveTenantFromHost("auraedu.com"), "");
+  process.env.NEXT_PUBLIC_DEFAULT_TENANT_CODE = "upshs";
+  assert.equal(resolveTenantFromHost("localhost:3000"), "upshs");
+  delete process.env.NEXT_PUBLIC_DEFAULT_TENANT_CODE;
 });
 
 void test("tenant bootstrap codes are canonical single DNS labels", () => {

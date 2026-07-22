@@ -25,6 +25,12 @@ interface TokenPair {
   };
 }
 
+// Refresh tokens are rotated single-use by the identity service, and parallel
+// refreshes with the same token trip its replay detection and revoke the whole
+// token family. Concurrent requests therefore share one in-flight refresh per
+// refresh-token value; entries are removed once the refresh settles.
+const inflightRefreshes = new Map<string, Promise<TokenPair | null>>();
+
 export default function proxy(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
   const pathname = request.nextUrl.pathname;
@@ -77,9 +83,8 @@ export default function proxy(request: NextRequest) {
     return redirectToLogin(request, tenantCode);
   }
 
-  // Synchronous proxy cannot await an external fetch, so perform the refresh
-  // asynchronously and let the next response carry the updated cookies. If the
-  // refresh fails, redirect to login.
+  // Await the (possibly shared) refresh and let this response carry the
+  // updated cookies. If the refresh fails, redirect to login.
   return refreshTokens(request, tenantCode, refreshToken, response);
 }
 
@@ -130,6 +135,54 @@ async function refreshTokens(
   refreshToken: string,
   allowResponse: NextResponse,
 ): Promise<NextResponse> {
+  let inflight = inflightRefreshes.get(refreshToken);
+  if (!inflight) {
+    inflight = requestTokenPair(tenantCode, refreshToken).finally(() => {
+      inflightRefreshes.delete(refreshToken);
+    });
+    inflightRefreshes.set(refreshToken, inflight);
+  }
+
+  const data = await inflight;
+  if (!data) {
+    return redirectToLogin(request, tenantCode);
+  }
+
+  const accessExp = decodeExpiry(data.access_token) ?? 60 * 15;
+  const refreshExp = decodeExpiry(data.refresh_token) ?? 60 * 60 * 24 * 7;
+
+  allowResponse.cookies.set(ACCESS_TOKEN_COOKIE, data.access_token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: accessExp,
+  });
+  allowResponse.cookies.set(REFRESH_TOKEN_COOKIE, data.refresh_token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: refreshExp,
+  });
+
+  if (data.user) {
+    allowResponse.cookies.set(USER_COOKIE, JSON.stringify(data.user), {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: refreshExp,
+    });
+  }
+
+  return allowResponse;
+}
+
+async function requestTokenPair(
+  tenantCode: string | null,
+  refreshToken: string,
+): Promise<TokenPair | null> {
   try {
     const res = await fetch(`${gatewayInternalUrl}/api/v1/auth/refresh`, {
       method: "POST",
@@ -141,41 +194,12 @@ async function refreshTokens(
     });
 
     if (!res.ok) {
-      return redirectToLogin(request, tenantCode);
+      return null;
     }
 
-    const data = (await res.json()) as TokenPair;
-    const accessExp = decodeExpiry(data.access_token) ?? 60 * 15;
-    const refreshExp = decodeExpiry(data.refresh_token) ?? 60 * 60 * 24 * 7;
-
-    allowResponse.cookies.set(ACCESS_TOKEN_COOKIE, data.access_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: accessExp,
-    });
-    allowResponse.cookies.set(REFRESH_TOKEN_COOKIE, data.refresh_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: refreshExp,
-    });
-
-    if (data.user) {
-      allowResponse.cookies.set(USER_COOKIE, JSON.stringify(data.user), {
-        httpOnly: false,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: refreshExp,
-      });
-    }
-
-    return allowResponse;
+    return (await res.json()) as TokenPair;
   } catch {
-    return redirectToLogin(request, tenantCode);
+    return null;
   }
 }
 

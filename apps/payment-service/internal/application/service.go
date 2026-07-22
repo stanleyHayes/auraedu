@@ -471,6 +471,14 @@ func (s *Service) ProcessWebhook(ctx context.Context, req ProcessWebhookRequest)
 	// payload, and Postgres RLS requires it on the session. Scope the ctx accordingly.
 	ctx = tenancy.WithContext(ctx, tenancy.TenantContext{TenantID: tenantID})
 
+	// Feature gate: a webhook for a tenant with online_payments disabled is skipped
+	// entirely — no event record, no reconciliation (agent_plan §2 rule 6).
+	if s.gates != nil && !s.gates.IsEnabled(ctx, tenantID, FeaturePayments) {
+		slog.Default().WarnContext(ctx, "skipping webhook for disabled feature",
+			"provider", req.Provider, "event_type", eventType, "tenant_id", tenantID, "feature", FeaturePayments)
+		return nil, fmt.Errorf("%w: %s", flags.ErrFeatureDisabled, FeaturePayments)
+	}
+
 	webhook, err := s.buildWebhookEvent(req.Provider, eventType, req.Payload, req.Signature, tenantID)
 	if err != nil {
 		return nil, err

@@ -96,6 +96,17 @@
           "items": {
             "type": "string"
           }
+        },
+        "payment_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "receipt_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "applied_cents": {
+          "type": "integer"
         }
       },
       "additionalProperties": false

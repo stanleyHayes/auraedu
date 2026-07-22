@@ -1,27 +1,18 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { ParentShell } from "@/components/parent-shell";
+import { RouteFeatureGuard } from "@/components/route-feature-guard";
 import { fetchTenantBranding, getTenantCodeFromHeaders, PARENT_NAV } from "@/lib/tenant";
 import { requireAuth, isParent } from "@/lib/auth";
-import { checkRouteFeature } from "@/lib/features";
-import { FeatureDisabled } from "@auraedu/flags";
 
 export default async function ParentLayout({ children }: { children: React.ReactNode }) {
   const requestHeaders = await headers();
   const tenantCode = getTenantCodeFromHeaders(requestHeaders);
-  const pathname = requestHeaders.get("x-pathname") ?? "";
 
   const [tenant, session] = await Promise.all([
     fetchTenantBranding(tenantCode),
     requireAuth().catch(() => null),
   ]);
-
-  const routeFeature = checkRouteFeature(pathname, tenant.features);
-  const guardedChildren = routeFeature.enabled ? (
-    children
-  ) : (
-    <FeatureDisabled feature={routeFeature.feature!} />
-  );
 
   if (!session) {
     redirect("/login");
@@ -49,7 +40,7 @@ export default async function ParentLayout({ children }: { children: React.React
 
   return (
     <ParentShell tenant={tenant} navGroups={PARENT_NAV} showMobileMenu user={user}>
-      {guardedChildren}
+      <RouteFeatureGuard flags={tenant.features}>{children}</RouteFeatureGuard>
     </ParentShell>
   );
 }
