@@ -3,7 +3,7 @@
 **Prepared:** 2026-07-22 (Africa/Accra)
 **Repository:** `https://github.com/stanleyHayes/auraedu.git`
 **Branch:** `main`
-**Published baseline:** `f64c39a76e45deee3a14d8386a41c7e956025354`
+**Published baseline:** `a995316338c88253dfddd8faee3579912ecf64e2`
 
 ## 1. Objective that must remain intact
 
@@ -19,29 +19,30 @@ Production readiness is proven only when every item in `release/evidence/manifes
 
 ## 2. Current Git state and publication history
 
-- `origin/main` and local `main` are aligned at
-  `f64c39a76e45deee3a14d8386a41c7e956025354`.
-- Thirty previously local commits were pushed on 2026-07-22.
-- GitHub initially rejected the range because commit `0a273ed` contained a Paystack unit-test
-  fixture shaped like a Stripe test secret. The unpublished range was replayed in an isolated
-  worktree, and only that fixture changed to `unit-test-paystack-key`.
-- The resulting 30 clean commit trees were scanned for the blocked value, the Payment unit suite
-  passed, and the clean history was pushed successfully.
-- Local `main` was realigned with a mixed reset only after proving the index had no staged changes.
-  No working-tree file was discarded.
-- A large, intentional production-readiness implementation corpus still exists in the working
-  tree. Before this handoff document, the inventory was 671 modified/deleted tracked files and
-  550 untracked entries. Treat it as valuable work. Do not run `git reset --hard`, `git clean`,
-  `git checkout --`, or broad deletion commands.
-- Local tool caches (`.raven/`, `.impeccable/`), the accidental root Expo `app.json`, and nested
-  locally compiled service binaries are now ignored. They are not product source and must not be
-  committed.
-- `.env` and `apps/mobile/.env.local` contain local/provider configuration, are ignored, and have
-  mode `0600`. Never print or commit their values.
+- `origin/main` and local `main` were aligned at
+  `a995316338c88253dfddd8faee3579912ecf64e2` before this handoff update.
+- Thirty previously local commits were pushed on 2026-07-22. GitHub initially rejected that range
+  because commit `0a273ed` contained a Paystack unit-test fixture shaped like a Stripe test
+  secret. The unpublished range was replayed in an isolated worktree, and only that fixture
+  changed to `unit-test-paystack-key`.
+- The remaining production-readiness corpus was then reviewed and published as one intentional
+  snapshot: 1,674 files and roughly 157,000 inserted lines. The staged diff check, repository
+  formatter, static security scan, credential-pattern scan, focused Go regressions, and GitHub
+  push protection all passed before publication.
+- The static review found and removed two AWS documentation credential fixtures, replaced a raw
+  unbounded internal Staff response decoder with `platform/httpx.DecodeJSONResponse`, and added an
+  oversized-response regression. It also removed three Twilio-shaped test identifiers and added
+  Twilio Account SID detection to the repository scanner.
+- Local tool caches (`.raven/`, `.impeccable/`), the accidental root Expo `app.json`, nested locally
+  compiled service binaries, `.vercel/` linkage state, and local Vercel environment files are
+  ignored. They are not product source and must not be committed.
+- `.env`, `apps/mobile/.env.local`, `apps/web/.env.local`, and
+  `apps/marketing/.env.local` contain local/provider or Vercel session configuration, are ignored,
+  and are mode `0600`. Never print or commit their values.
 
-The immediate publication task is to review, secret-scan, commit, and push the remaining
-production-readiness working tree without adding caches, binaries, secrets, or local environment
-files.
+The broad Foundation + Growth product snapshot is no longer stranded in a dirty worktree. Future
+publication should stage only deliberate source/documentation updates and must preserve the same
+secret and generated-artifact controls.
 
 ## 3. Verified internal baseline
 
@@ -60,6 +61,8 @@ The current working implementation, before this documentation-only handoff chang
 - generated TypeScript clients/validators/registries and generated Go stubs;
 - both Compose topology validations;
 - `make release-evidence-validate` (14 verifier tests; 19 tracked and 19 pending);
+- `tools/ci/security-static-scan.sh`, including credential patterns and production-source logging
+  controls;
 - actionlint for the modified workflow set;
 - `make dev-verify`: all 65 Compose services present, zero restarts, every application readiness
   endpoint and platform/observability probe healthy.
@@ -93,7 +96,7 @@ The working tree contains the broad Foundation + Growth implementation, includin
 Do not infer completeness from this list. `agent_plan.md` and the strict evidence manifest remain
 authoritative.
 
-## 5. Vercel state discovered in this run
+## 5. Vercel state completed in this run
 
 The user confirmed Vercel CLI access. The authenticated installation is:
 
@@ -114,17 +117,25 @@ Invoke it without relying on the non-interactive shell `PATH`:
 
 Current provider facts:
 
-- No AuraEDU project appears in either page of the account's current project list.
-- `https://auraedugh.vercel.app/` returns Vercel `404 DEPLOYMENT_NOT_FOUND`.
-- The intended Portal project name is `auraedugh`, rooted at `apps/web`.
-- Marketing must be a separate project, recommended name `auraedugh-marketing`, rooted at
-  `apps/marketing`.
-- Both app roots contain committed `vercel.json` files with workspace-aware install/build
-  commands and Frankfurt region configuration.
-- The local configuration has `NEXT_PUBLIC_APP_URL`/`PUBLIC_APP_URL` set to the intended Portal
-  origin and has a usable Resend API key.
-- The production API Gateway URL is still missing. The only current `NEXT_PUBLIC_API_URL` is a
+- Separate `auraedugh` (Portal) and `auraedugh-marketing` (Marketing) Vercel projects now exist.
+- Both projects are connected to `stanleyHayes/auraedu` with `main` as the production branch.
+- Portal is configured as Next.js with root `apps/web`; Marketing is configured as Next.js with
+  root `apps/marketing`.
+- Both projects include source outside their root directories so pnpm workspace packages are
+  available, and affected-project deployment detection is enabled.
+- `ENVIRONMENT=production` and `NEXT_PUBLIC_APP_URL=https://auraedugh.vercel.app` are present in
+  the Production target of both projects. Their values were never printed.
+- The committed Render Blueprint now allows exact-origin Gateway CORS from both the Portal and
+  Marketing Vercel hostnames; wildcard access remains prohibited.
+- The Portal and Marketing local directories are linked to those projects. Vercel session files
+  are ignored and mode `0600`; project IDs and credentials are intentionally not committed.
+- No deployment exists yet, so `https://auraedugh.vercel.app/` still returns Vercel
+  `404 DEPLOYMENT_NOT_FOUND`.
+- The production API Gateway URL is still missing. The only local `NEXT_PUBLIC_API_URL` is a
   loopback development URL. Production builds intentionally fail closed on that value.
+- Render CLI `2.17.0` is installed at `/opt/homebrew/bin/render`, but it is not authenticated and
+  has no active workspace. The Gateway URL cannot be discovered or deployed through Render until
+  a human completes `render login` and selects the AuraEDU workspace.
 - Because the deployed Gateway origin is missing, do not weaken
   `tools/vercel/validate-environment.mjs` just to get a green deployment.
 
@@ -144,10 +155,12 @@ API_GATEWAY_URL=https://<deployed-render-gateway-origin>
 
 Next Vercel steps after the backend Gateway is live:
 
-1. Create/link `auraedugh` from `apps/web` and `auraedugh-marketing` from `apps/marketing`.
-2. Set each project's Git root directory to the exact app directory.
-3. Add the production environment variables above without printing secrets.
-4. Connect both projects to `stanleyHayes/auraedu` and deploy the exact release commit.
+1. Authenticate Render CLI, select the correct workspace, apply/verify the committed Blueprint,
+   and capture the public `api-gateway` HTTPS origin.
+2. Add `NEXT_PUBLIC_API_URL` and `AURAEDU_API_URL` to both Vercel Production targets without
+   printing secrets; keep both values identical to the public Gateway origin.
+3. Apply the updated two-origin `GATEWAY_CORS_ORIGINS` value when deploying the Render Blueprint.
+4. Deploy both Vercel projects from the exact published release commit.
 5. Confirm both deployments are `READY`, return expected branded content, and expose the required
    security headers.
 6. Confirm the Gateway permits exact-origin CORS preflights from both distinct Vercel origins.
@@ -211,25 +224,23 @@ Do not manually mark these Done. Add bounded, secret-free evidence artifacts and
 
 ## 9. Immediate continuation order
 
-1. Run a secret and large-artifact review of the remaining working tree.
-2. Stage only product source, contracts, migrations, generated artifacts, tests, documentation,
-   workflows, deployment configuration, and accepted design evidence. Exclude env files, caches,
-   locally compiled binaries, ephemeral logs, and session state.
-3. Run `git diff --cached --check` and inspect the staged summary before committing.
-4. Commit and push the verified production-readiness snapshot. If GitHub push protection blocks a
-   test fixture, replace it with a deliberately non-secret synthetic value and rewrite only the
-   unpublished commit; never bypass push protection for convenience.
-5. Obtain or deploy the Render API Gateway origin. This is the immediate external dependency for
-   both Vercel projects and the Resend callback relay.
-6. Create/link/deploy the two Vercel projects and run `tools/vercelprobe`.
-7. Retry protected browser QA and capture the exact manifest states.
-8. Execute the remaining provider/staging/store/DR/performance evidence runs.
-9. Update `agent_plan.md`, bind evidence to the exact release SHA, run
+1. Have a human run `render login`, select the AuraEDU workspace, and confirm the intended Render
+   account can create the Blueprint resources and paid Starter Gateway.
+2. Apply/verify `render.yaml`, wait for the Gateway and its private dependencies to become ready,
+   and capture the public Gateway HTTPS origin.
+3. Complete the two missing Vercel Gateway environment keys, apply the committed exact-origin
+   CORS configuration, and deploy both already linked projects.
+4. Run `tools/vercelprobe` against the exact deployed Git SHA and retain AURA-9.8 evidence.
+5. Create the Resend webhook against the Portal relay and run the committed provider probe.
+6. Retry protected browser QA and capture the exact manifest states.
+7. Execute the remaining provider/staging/store/DR/performance evidence runs.
+8. Update `agent_plan.md`, bind evidence to the exact release SHA, run
    `make release-evidence-validate`, and finally run `make release-readiness`.
 
 ## 10. Safety and truthfulness rules for the next agent
 
-- Preserve the large dirty working tree; it contains the main body of current product work.
+- Preserve deliberate local edits and ignored provider/session files; never use destructive Git
+  cleanup as a shortcut.
 - Read `AGENTS.md`, `CLAUDE.md`, `DESIGN_SYSTEM.md`, `agent_plan.md`, and the release manifest before
   editing.
 - Respect lane ownership and contracts-first changes. Generated files are regenerated, never
@@ -237,7 +248,7 @@ Do not manually mark these Done. Add bounded, secret-free evidence artifacts and
 - Do not expose provider secrets in logs, chat, evidence, commits, or screenshots.
 - Do not weaken production validators, security checks, RLS, RBAC, feature gates, or evidence
   semantics to make a deployment pass.
-- Do not call the platform production-ready while any manifest item is pending or the supplied
-  Vercel hostname still returns `DEPLOYMENT_NOT_FOUND`.
+- Do not call the platform production-ready while any manifest item is pending, either Vercel
+  project has no matching `READY` deployment, or the Gateway is not publicly ready.
 - When an external proof becomes possible, execute it and retain evidence instead of replacing it
   with local inference.

@@ -17,7 +17,7 @@ AuraEDU deploys its two Next.js applications as separate Vercel projects. Render
 
 - Project root directory: `apps/marketing`
 - Include source files outside the root directory: enabled
-- Production URL: use the project's generated `https://<marketing-project>.vercel.app` hostname until a custom domain exists
+- Production URL: `https://auraedugh-marketing.vercel.app` until a custom domain exists
 - Required production variables:
   - `ENVIRONMENT=production`
   - `NEXT_PUBLIC_API_URL=https://<render-api-gateway-host>`

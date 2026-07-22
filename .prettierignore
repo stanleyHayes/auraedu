@@ -2,6 +2,8 @@
 **/node_modules/**
 **/.next/**
 **/dist/**
+**/.vercel/**
+**/.env*
 packages/shared-types/gen/**
 packages/shared-types/src/generated/**
 apps/*/dist/**

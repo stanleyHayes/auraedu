@@ -423,7 +423,7 @@ services:
           name: auraedu-cache
           property: connectionString
       - key: GATEWAY_CORS_ORIGINS
-        value: https://auraedugh.vercel.app
+        value: https://auraedugh.vercel.app,https://auraedugh-marketing.vercel.app
       - key: GATEWAY_TRUSTED_PROXY
         value: render
       - key: IDENTITY_HOSTPORT
