@@ -9,7 +9,7 @@ import (
 )
 
 func TestAuditLogBuilder_Success(t *testing.T) {
-	tenantID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	tenantID := "school-a"
 	log, err := domain.NewAuditLogBuilder().
 		TenantID(tenantID).
 		EventID("evt-1").
@@ -45,7 +45,7 @@ func TestAuditLogBuilder_MissingTenant(t *testing.T) {
 }
 
 func TestAuditLogBuilder_MissingEventID(t *testing.T) {
-	tenantID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	tenantID := "school-a"
 	_, err := domain.NewAuditLogBuilder().
 		TenantID(tenantID).
 		EventType("student.created.v1").
@@ -60,7 +60,7 @@ func TestAuditLogBuilder_MissingEventID(t *testing.T) {
 }
 
 func TestAuditLogBuilder_GeneratesID(t *testing.T) {
-	tenantID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	tenantID := "school-a"
 	log, err := domain.NewAuditLogBuilder().
 		TenantID(tenantID).
 		EventID("evt-1").

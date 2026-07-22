@@ -11,6 +11,8 @@ build/
 .next/
 out/
 .turbo/
+.impeccable/
+.raven/
 *.tsbuildinfo
 bin/
 coverage/
@@ -23,6 +25,8 @@ coverage/
 /server
 /*/server
 /*/worker
+/apps/*-service/*-service
+/tools/loadtest/loadtest
 
 # Env & secrets (never commit)
 .env
@@ -34,6 +38,7 @@ credentials.txt
 
 # Local data
 .pgdata/
+.auraedu-local/
 tmp/
 *.log
 
@@ -56,3 +61,4 @@ playwright-report/
 test-results/
 ai_rec_test.db
 /seed
+/app.json

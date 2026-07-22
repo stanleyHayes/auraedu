@@ -33,7 +33,9 @@ function MenuRow({ item }: { item: UserMenuItem }) {
         <span
           className={cn(
             "mt-0.5 size-4 shrink-0",
-            item.destructive ? "text-[var(--color-crit)]" : "text-[var(--color-gold)]",
+            item.destructive
+              ? "text-[var(--color-crit)]"
+              : "text-[var(--portal-accent,var(--color-brand))]",
           )}
         >
           {item.icon}
@@ -120,7 +122,7 @@ export function UserMenu({ user, items = [], align = "end", className }: UserMen
         aria-expanded={open}
         aria-label="Account menu"
         className={cn(
-          "grid size-10 place-items-center overflow-hidden rounded-full border-2 border-[var(--color-gold)]/30 bg-gradient-to-br from-[var(--color-brand)] to-[var(--color-burgundy)]",
+          "grid size-10 place-items-center overflow-hidden rounded-full border-2 border-[var(--portal-accent-soft,var(--color-teal-bright))]/35 bg-gradient-to-br from-[var(--portal-accent,var(--color-brand))] to-[var(--color-navy)]",
           "font-sans text-sm font-extrabold text-white shadow-sm transition-transform hover:scale-105",
         )}
       >
@@ -148,7 +150,7 @@ export function UserMenu({ user, items = [], align = "end", className }: UserMen
                   <p className="truncate text-xs text-[var(--muted-foreground)]">{user.email}</p>
                 ) : null}
                 {user.role ? (
-                  <p className="mt-1 inline-block rounded-full bg-[var(--color-gold)]/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--color-gold)]">
+                  <p className="mt-1 inline-block rounded-full bg-[var(--color-signal)]/12 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--color-forest)]">
                     {user.role}
                   </p>
                 ) : null}

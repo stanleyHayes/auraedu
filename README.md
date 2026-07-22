@@ -9,13 +9,15 @@ features. Built as Go microservices + Python AI services + a Next.js web app + a
 ## Docs
 | Doc | What |
 |---|---|
+| [`docs/README.md`](docs/README.md) / [`docs/SUMMARY.md`](docs/SUMMARY.md) | **AuraEDU Engineering Handbook** — primary product and engineering source of truth |
 | [`agent_plan.md`](agent_plan.md) | Sprints, epics, stories, lanes, Definition of Done — how the work is built in parallel |
 | [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md) | Mandatory UI/UX + animation spec (theming, sidebar, tour, mobile) |
+| [`docs/deployment/vercel.md`](docs/deployment/vercel.md) | Vercel project boundaries, required environment, and frontend deployment setup |
 | [`CLAUDE.md`](CLAUDE.md) / [`AGENTS.md`](AGENTS.md) | Non-negotiable rules + lane ownership |
-| [`AuraEDU_Microservices_Multi_Tenant_SaaS_Specification.md`](AuraEDU_Microservices_Multi_Tenant_SaaS_Specification.md) | The product/technical spec |
+| [`AuraEDU_Microservices_Multi_Tenant_SaaS_Specification.md`](AuraEDU_Microservices_Multi_Tenant_SaaS_Specification.md) | Legacy migration source retained for traceability |
 
 ## Stack
-Go 1.25 (hexagonal) · Python 3.13/FastAPI · Next.js 16 + React 19 · Expo/React Native · Postgres 17 (DB-per-service + RLS) · NATS JetStream · **Render** (deploy) · **Cloudinary** (media) · Render Key Value (Redis).
+Go 1.26.5 (hexagonal) · Python 3.14.6/FastAPI · Next.js 16 + React 19 · Expo/React Native · Postgres 18 (DB-per-service + RLS) · NATS JetStream · **Render** (backend) · **Vercel** (frontends) · **Cloudinary** (media) · Render Key Value (Redis).
 
 ## Repo layout
 ```
@@ -48,5 +50,6 @@ curl localhost:8080/health   # {"service":"api-gateway","status":"ok",...}
 > readonly…`). Run with `GOFLAGS=-mod=readonly`; all `make` targets already do.
 
 ## Status
-**Sprint 0 — Foundation** (in progress): monorepo scaffolded, workspace configs, contracts seed,
-Render Blueprint, local infra, gateway `/health`+`/ready` verified. See `agent_plan.md` §14.
+The platform is under active multi-sprint development. Use the live task board in
+[`agent_plan.md`](agent_plan.md#1a-agent-task-board-live) for current delivery status; do not infer
+completion from the legacy specification.

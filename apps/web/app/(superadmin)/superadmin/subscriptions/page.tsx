@@ -7,15 +7,21 @@ import { requireAuth } from "@/lib/auth";
 export default async function SubscriptionsPage() {
   await requireAuth();
 
-  let subscriptions: OpenAPI.billing_v1.components["schemas"]["Subscription"][] = [];
+  type Subscription = OpenAPI.billing_v1.components["schemas"]["Subscription"];
+  type Plan = OpenAPI.billing_v1.components["schemas"]["Plan"];
+
+  let subscriptions: Subscription[] = [];
+  let plansByID = new Map<string, Plan>();
   let error: string | null = null;
 
   try {
     const client = await createServerClient();
-    const res = await client.get<{
-      data?: OpenAPI.billing_v1.components["schemas"]["Subscription"][];
-    }>("/api/v1/billing/subscriptions?limit=50");
-    subscriptions = res.data ?? [];
+    const [subscriptionPage, planPage] = await Promise.all([
+      client.get<{ data?: Subscription[] }>("/api/v1/billing/subscriptions?limit=50"),
+      client.get<{ data?: Plan[] }>("/api/v1/billing/plans?limit=100"),
+    ]);
+    subscriptions = subscriptionPage.data ?? [];
+    plansByID = new Map((planPage.data ?? []).map((plan) => [plan.id, plan]));
   } catch (e) {
     error = e instanceof Error ? e.message : "Failed to load subscriptions";
   }
@@ -48,7 +54,14 @@ export default async function SubscriptionsPage() {
             {
               key: "plan",
               header: "Plan",
-              cell: (s) => <span className="font-mono text-xs">{s.plan_key}</span>,
+              cell: (s) => {
+                const plan = plansByID.get(s.plan_id);
+                return (
+                  <span title={s.plan_id}>
+                    {plan?.name ?? <span className="font-mono text-xs">{s.plan_id}</span>}
+                  </span>
+                );
+              },
             },
             {
               key: "status",

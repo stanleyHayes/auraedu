@@ -9,10 +9,16 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List assessments */
+        /**
+         * List assessments
+         * @description Executes the list assessments workflow within this AuraEDU API boundary.
+         */
         get: operations["listAssessments"];
         put?: never;
-        /** Create an assessment */
+        /**
+         * Create an assessment
+         * @description Executes the create assessment workflow within this AuraEDU API boundary.
+         */
         post: operations["createAssessment"];
         delete?: never;
         options?: never;
@@ -27,14 +33,25 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get an assessment */
+        /**
+         * Get an assessment
+         * @description Executes the get assessment workflow within this AuraEDU API boundary.
+         */
         get: operations["getAssessment"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete an assessment
+         * @description Executes the delete assessment workflow within this AuraEDU API boundary.
+         */
+        delete: operations["deleteAssessment"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update an assessment
+         * @description Executes the update assessment workflow within this AuraEDU API boundary.
+         */
+        patch: operations["updateAssessment"];
         trace?: never;
     };
     "/assessments/{assessment_id}/scores": {
@@ -44,14 +61,49 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List scores for an assessment
+         * @description Executes the list scores workflow within this AuraEDU API boundary.
+         */
+        get: operations["listScores"];
         put?: never;
-        /** Record a score */
+        /**
+         * Record a score
+         * @description Executes the record score workflow within this AuraEDU API boundary.
+         */
         post: operations["recordScore"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/assessments/{assessment_id}/scores/{score_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a score
+         * @description Executes the get score workflow within this AuraEDU API boundary.
+         */
+        get: operations["getScore"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a score
+         * @description Executes the delete score workflow within this AuraEDU API boundary.
+         */
+        delete: operations["deleteScore"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a score
+         * @description Executes the update score workflow within this AuraEDU API boundary.
+         */
+        patch: operations["updateScore"];
         trace?: never;
     };
     "/assignments": {
@@ -61,10 +113,16 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List assignments */
+        /**
+         * List assignments
+         * @description Executes the list assignments workflow within this AuraEDU API boundary.
+         */
         get: operations["listAssignments"];
         put?: never;
-        /** Create an assignment */
+        /**
+         * Create an assignment
+         * @description Executes the create assignment workflow within this AuraEDU API boundary.
+         */
         post: operations["createAssignment"];
         delete?: never;
         options?: never;
@@ -79,15 +137,24 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get an assignment */
+        /**
+         * Get an assignment
+         * @description Executes the get assignment workflow within this AuraEDU API boundary.
+         */
         get: operations["getAssignment"];
         put?: never;
         post?: never;
-        /** Delete an assignment */
+        /**
+         * Delete an assignment
+         * @description Executes the delete assignment workflow within this AuraEDU API boundary.
+         */
         delete: operations["deleteAssignment"];
         options?: never;
         head?: never;
-        /** Update an assignment */
+        /**
+         * Update an assignment
+         * @description Executes the update assignment workflow within this AuraEDU API boundary.
+         */
         patch: operations["updateAssignment"];
         trace?: never;
     };
@@ -100,7 +167,10 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Publish an assignment (emits assignment.published.v1) */
+        /**
+         * Publish an assignment (emits assignment.published.v1)
+         * @description Executes the publish assignment workflow within this AuraEDU API boundary.
+         */
         post: operations["publishAssignment"];
         delete?: never;
         options?: never;
@@ -115,7 +185,10 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Per-student or per-class gradebook summary (per-subject averages + overall) */
+        /**
+         * Per-student or per-class gradebook summary (per-subject averages + overall)
+         * @description Executes the get gradebook workflow within this AuraEDU API boundary.
+         */
         get: operations["getGradebook"];
         put?: never;
         post?: never;
@@ -167,6 +240,17 @@ export type components = {
             /** Format: date-time */
             scheduled_at?: string | null;
         };
+        UpdateAssessment: {
+            title?: string;
+            description?: string;
+            /** @enum {string} */
+            type?: "test" | "exam" | "quiz" | "assignment";
+            max_score?: number;
+            /** Format: date-time */
+            due_date?: string | null;
+            /** @enum {string} */
+            status?: "draft" | "published" | "archived";
+        };
         Score: {
             /** Format: uuid */
             id: string;
@@ -184,6 +268,14 @@ export type components = {
             student_id: string;
             score: number;
             max_score?: number | null;
+        };
+        UpdateScore: {
+            score?: number;
+            notes?: string;
+        };
+        ScoreList: {
+            data?: components["schemas"]["Score"][];
+            next_cursor?: string | null;
         };
         Assignment: {
             /** Format: uuid */
@@ -314,7 +406,8 @@ export type components = {
         };
     };
     parameters: {
-        TenantId: string;
+        AssessmentId: string;
+        ScoreId: string;
         AssignmentId: string;
         /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
         TenantHeader: string;
@@ -396,7 +489,7 @@ export interface operations {
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                assessment_id: components["parameters"]["AssessmentId"];
             };
             cookie?: never;
         };
@@ -417,6 +510,96 @@ export interface operations {
             422: components["responses"]["ValidationError"];
         };
     };
+    deleteAssessment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                assessment_id: components["parameters"]["AssessmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Assessment deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateAssessment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                assessment_id: components["parameters"]["AssessmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAssessment"];
+            };
+        };
+        responses: {
+            /** @description Updated assessment */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Assessment"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    listScores: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+                student_id?: string;
+            };
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                assessment_id: components["parameters"]["AssessmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Scores */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScoreList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
     recordScore: {
         parameters: {
             query?: never;
@@ -425,7 +608,7 @@ export interface operations {
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                assessment_id: components["parameters"]["AssessmentId"];
             };
             cookie?: never;
         };
@@ -437,6 +620,96 @@ export interface operations {
         responses: {
             /** @description OK */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Score"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getScore: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                assessment_id: components["parameters"]["AssessmentId"];
+                score_id: components["parameters"]["ScoreId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Score */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Score"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteScore: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                assessment_id: components["parameters"]["AssessmentId"];
+                score_id: components["parameters"]["ScoreId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Score deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateScore: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                assessment_id: components["parameters"]["AssessmentId"];
+                score_id: components["parameters"]["ScoreId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateScore"];
+            };
+        };
+        responses: {
+            /** @description Updated score */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

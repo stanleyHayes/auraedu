@@ -1,54 +1,102 @@
 import Link from "next/link";
+import Image from "next/image";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
 
-function Logo() {
-  return (
-    <span className="flex items-center gap-2 font-sans text-base font-extrabold text-foreground">
-      <span className="grid size-5 place-items-center rounded bg-foreground" aria-hidden="true">
-        <svg viewBox="0 0 16 12" className="w-3 text-primary">
-          <path
-            d="M1 6.5 5.2 10.5 15 1"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2.4}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </span>
-      AuraEDU
-    </span>
-  );
-}
-
-const footerLinks = [
-  { href: "/", label: "Home" },
-  { href: "/pricing", label: "Pricing" },
-  { href: "/about", label: "About" },
-  { href: "/contact", label: "Contact" },
-  { href: "/signup", label: "Sign up" },
-];
+const groups = [
+  {
+    title: "Platform",
+    links: [
+      ["/features", "Platform map"],
+      ["/pricing", "Plans"],
+      ["/signup", "Start a school"],
+    ],
+  },
+  {
+    title: "Company",
+    links: [
+      ["/about", "Why AuraEDU"],
+      ["/blog", "Platform notes"],
+      ["/contact", "Contact"],
+    ],
+  },
+  {
+    title: "Start",
+    links: [
+      ["/contact", "Talk through a workflow"],
+      ["/signup", "Request onboarding"],
+      [`${process.env.NEXT_PUBLIC_APP_URL ?? "https://app.auraedu.com"}/login`, "Sign in"],
+    ],
+  },
+  {
+    title: "Trust",
+    links: [
+      ["/security", "Security"],
+      ["/privacy", "Privacy"],
+      ["/accessibility", "Accessibility"],
+    ],
+  },
+] as const;
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-border bg-background">
-      <div className="mx-auto max-w-6xl px-6 py-10">
-        <div className="flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-center">
-          <Logo />
-          <nav
-            aria-label="Footer"
-            className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground"
-          >
-            {footerLinks.map((l) => (
-              <Link key={l.href} href={l.href} className="hover:text-foreground">
-                {l.label}
-              </Link>
-            ))}
-          </nav>
-        </div>
-        <div className="mt-8 border-t border-border pt-6 text-sm text-muted-foreground">
-          <p className="font-mono">
-            © {new Date().getFullYear()} AuraEDU · One platform, every school
+    <footer className="site-footer-shell">
+      <div className="mx-auto max-w-7xl px-6 pt-16">
+        <div className="footer-manifesto">
+          <p>
+            One school day.
+            <br />
+            <span>One dependable rhythm.</span>
           </p>
+          <Link href="/signup" className="cta-primary">
+            Start your school <ArrowRight className="size-4" />
+          </Link>
+        </div>
+      </div>
+      <div className="mx-auto grid max-w-7xl gap-12 px-6 py-16 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="md:pr-8">
+          <Link href="/" className="block w-fit" aria-label="AuraEDU home">
+            <Image
+              src="/brand/auraedu-logo-light.svg"
+              alt="AuraEDU"
+              width={208}
+              height={48}
+              className="brand-lockup h-9 w-auto"
+            />
+          </Link>
+          <p className="mt-5 max-w-md text-sm leading-6 text-slate-400">
+            One configurable education operating system for school operations, learning, families,
+            growth, trusted data and accountable AI.
+          </p>
+          <p className="mt-8 inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-2 text-[11px] font-semibold text-slate-300">
+            <span className="size-1.5 rounded-full bg-lime-signal" />
+            Platform foundations active
+          </p>
+        </div>
+        {groups.map((group) => (
+          <nav key={group.title} aria-label={group.title}>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-teal-bright">
+              {group.title}
+            </p>
+            <ul className="mt-4 grid gap-3">
+              {group.links.map(([href, label]) => (
+                <li key={href}>
+                  <Link
+                    href={href}
+                    className="inline-flex items-center gap-1.5 text-sm text-slate-300 hover:text-white"
+                  >
+                    {label}
+                    <ArrowUpRight className="size-3.5" aria-hidden="true" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        ))}
+      </div>
+      <div className="border-t border-white/10">
+        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-6 py-6 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+          <p>© {new Date().getFullYear()} AuraEDU</p>
+          <p>The education operating system · Built for distinct schools</p>
         </div>
       </div>
     </footer>

@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.auraedu.dev/events/application.submitted.v1.json",
+  "title": "application.submitted.v1",
+  "description": "Emitted after a complete application is submitted.",
+  "type": "object",
+  "required": [
+    "specversion",
+    "type",
+    "source",
+    "id",
+    "time",
+    "tenant_id",
+    "data"
+  ],
+  "properties": {
+    "specversion": {
+      "const": "1.0"
+    },
+    "type": {
+      "const": "application.submitted.v1"
+    },
+    "source": {
+      "const": "admissions-service"
+    },
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tenant_id": {
+      "type": "string"
+    },
+    "datacontenttype": {
+      "const": "application/json"
+    },
+    "data": {
+      "type": "object",
+      "required": [
+        "application_id",
+        "applicant_user_id",
+        "programme_id",
+        "intake_id",
+        "submitted_at"
+      ],
+      "properties": {
+        "application_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "applicant_user_id": {
+          "type": "string"
+        },
+        "lead_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "programme_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "intake_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "submitted_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "specversion": "1.0",
+      "type": "application.submitted.v1",
+      "source": "admissions-service",
+      "id": "11111111-1111-4111-8111-111111111111",
+      "time": "2026-07-19T10:00:00Z",
+      "tenant_id": "school-a",
+      "data": {
+        "application_id": "11111111-1111-4111-8111-111111111111",
+        "applicant_user_id": "example-applicant.user.id",
+        "programme_id": "11111111-1111-4111-8111-111111111111",
+        "intake_id": "11111111-1111-4111-8111-111111111111",
+        "submitted_at": "2026-07-19T10:00:00Z"
+      }
+    }
+  ]
+}

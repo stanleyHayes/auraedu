@@ -10,15 +10,18 @@ import (
 
 // Guardian represents a parent or legal guardian of one or more students.
 type Guardian struct {
-	ID           string    `json:"id"`
-	TenantID     string    `json:"tenant_id"`
-	FirstName    string    `json:"first_name"`
-	LastName     string    `json:"last_name"`
-	Relationship string    `json:"relationship"`
-	Phone        *string   `json:"phone,omitempty"`
-	Email        *string   `json:"email,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID           string  `json:"id"`
+	TenantID     string  `json:"tenant_id"`
+	FirstName    string  `json:"first_name"`
+	LastName     string  `json:"last_name"`
+	Relationship string  `json:"relationship"`
+	Phone        *string `json:"phone,omitempty"`
+	Email        *string `json:"email,omitempty"`
+	// UserID is the soft link to the identity-service user that owns this record
+	// (no cross-service FK, AURA-10.12). Nil while the record is unlinked.
+	UserID    *string   `json:"user_id,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // FullName returns the guardian's display name.
@@ -58,6 +61,11 @@ func (g Guardian) Validate() error {
 	}
 	if g.Email != nil && *g.Email != "" {
 		if _, err := mail.ParseAddress(*g.Email); err != nil {
+			return ErrValidation
+		}
+	}
+	if g.UserID != nil {
+		if _, err := uuid.Parse(*g.UserID); err != nil {
 			return ErrValidation
 		}
 	}

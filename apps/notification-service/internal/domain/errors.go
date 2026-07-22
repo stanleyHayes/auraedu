@@ -8,4 +8,5 @@ var (
 	ErrMissingTenant = errors.New("notifications: tenant context required")
 	ErrForbidden     = errors.New("notifications: forbidden")
 	ErrConflict      = errors.New("notifications: conflict")
+	ErrUnavailable   = errors.New("notifications: dependency unavailable")
 )

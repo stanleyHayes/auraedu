@@ -25,15 +25,21 @@ const base =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]";
 
 const variants: Record<ButtonVariant, string> = {
+  // Paint from --primary, not the raw --color-brand: --primary-foreground flips to
+  // ink in dark mode, so a fill that never flips would put dark text on dark brand.
+  // Flat --primary fill, not a gradient blending toward teal: that mid-stop tinted
+  // every tenant's brand with a fixed cyan and, being lighter than the brand, set
+  // the real contrast floor for the label (the default blue fell to 4.09:1). The
+  // sheen affordance already comes from .btn-shine + hover:brightness-105.
   primary:
-    "bg-gradient-to-r from-[var(--color-brand)] via-[color-mix(in_oklab,var(--color-brand)_85%,var(--color-gold))] to-[var(--color-brand)] " +
-    "text-[var(--primary-foreground)] shadow-md shadow-[color-mix(in_oklab,var(--color-brand)_18%,transparent)] hover:brightness-105",
+    "bg-[var(--primary)] " +
+    "text-[var(--primary-foreground)] shadow-md shadow-[color-mix(in_oklab,var(--primary)_18%,transparent)] hover:brightness-105",
   secondary:
-    "border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--muted)] hover:border-[var(--color-gold)]/50",
+    "border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--muted)] hover:border-[var(--portal-accent,var(--color-brand))]/45",
   ghost: "text-[var(--foreground)] hover:bg-[var(--muted)]",
   gold:
-    "bg-gradient-to-r from-[var(--color-gold)] to-[color-mix(in_oklab,var(--color-gold)_80%,#fff)] " +
-    "text-[var(--color-navy)] shadow-md shadow-[color-mix(in_oklab,var(--color-gold)_18%,transparent)] hover:brightness-105",
+    "bg-gradient-to-r from-[var(--color-signal)] to-[color-mix(in_oklab,var(--color-signal)_78%,#fff)] " +
+    "text-[var(--color-navy)] shadow-md shadow-[color-mix(in_oklab,var(--color-signal)_18%,transparent)] hover:brightness-105",
   navy:
     "bg-gradient-to-r from-[var(--color-navy)] to-[var(--color-navy-soft)] " +
     "text-[var(--color-cream)] shadow-md shadow-[color-mix(in_oklab,var(--color-navy)_18%,transparent)] hover:brightness-105",
@@ -104,4 +110,4 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
       )}
     </Comp>
   );
-})
+});

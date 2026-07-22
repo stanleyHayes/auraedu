@@ -27,24 +27,7 @@ func (p *Publisher) PublishAssessment(ctx context.Context, eventType string, a *
 	if p == nil || p.bus == nil {
 		return nil
 	}
-	data := map[string]any{
-		"assessment_id":    a.ID,
-		"academic_year_id": a.AcademicYearID,
-		"subject_id":       a.SubjectID,
-		"type":             a.Type,
-		"title":            a.Title,
-		"max_score":        a.MaxScore,
-		"status":           a.Status,
-	}
-	if a.Description != nil {
-		data["description"] = *a.Description
-	}
-	if a.DueDate != nil {
-		data["due_date"] = a.DueDate.Format(time.RFC3339)
-	}
-	for k, v := range meta {
-		data[k] = v
-	}
+	data := ports.AssessmentEventData(a, meta)
 	event, err := tenancy.NewCloudEvent(eventType, "assessment-service", "", a.TenantID, data)
 	if err != nil {
 		return fmt.Errorf("assessment: build event: %w", err)
@@ -60,20 +43,7 @@ func (p *Publisher) PublishAssignment(ctx context.Context, eventType string, a *
 	if p == nil || p.bus == nil {
 		return nil
 	}
-	data := map[string]any{
-		"assignment_id": a.ID,
-		"subject_id":    a.SubjectID,
-		"title":         a.Title,
-	}
-	if len(a.ClassIDs) > 0 {
-		data["class_ids"] = a.ClassIDs
-	}
-	if a.DueDate != nil {
-		data["due_date"] = a.DueDate.UTC().Format(time.RFC3339)
-	}
-	for k, v := range meta {
-		data[k] = v
-	}
+	data := ports.AssignmentEventData(a, meta)
 	event, err := tenancy.NewCloudEvent(eventType, "assessment-service", "", a.TenantID, data)
 	if err != nil {
 		return fmt.Errorf("assessment: build assignment event: %w", err)
@@ -88,24 +58,31 @@ func (p *Publisher) PublishScore(ctx context.Context, eventType string, s *domai
 	if p == nil || p.bus == nil {
 		return nil
 	}
-	data := map[string]any{
-		"score_id":      s.ID,
-		"assessment_id": s.AssessmentID,
-		"student_id":    s.StudentID,
-		"score":         s.Score,
-		"recorded_by":   s.RecordedBy,
-	}
-	if s.Notes != nil {
-		data["notes"] = *s.Notes
-	}
-	for k, v := range meta {
-		data[k] = v
-	}
+	data := ports.ScoreEventData(s, meta)
 	event, err := tenancy.NewCloudEvent(eventType, "assessment-service", "", s.TenantID, data)
 	if err != nil {
 		return fmt.Errorf("assessment: build score event: %w", err)
 	}
 	event.Subject = s.ID
+	event.Time = time.Now().UTC().Format(time.RFC3339)
+	return p.bus.Publish(ctx, event)
+}
+
+func (p *Publisher) PublishWithID(ctx context.Context, eventID, eventType, tenantID string, data map[string]any) error {
+	if p == nil || p.bus == nil {
+		return nil
+	}
+	event, err := tenancy.NewCloudEvent(eventType, "assessment-service", eventID, tenantID, data)
+	if err != nil {
+		return fmt.Errorf("assessment: build outbox event: %w", err)
+	}
+	for _, key := range []string{"score_id", "assignment_id", "assessment_id"} {
+		if id, ok := data[key].(string); ok && id != "" {
+			event.Subject = id
+			break
+		}
+	}
+	event.IdempotencyKey = eventID
 	event.Time = time.Now().UTC().Format(time.RFC3339)
 	return p.bus.Publish(ctx, event)
 }

@@ -18,7 +18,7 @@
       "const": "1.0"
     },
     "type": {
-      "const": "attendance.marked"
+      "const": "attendance.marked.v1"
     },
     "source": {
       "const": "attendance-service"
@@ -42,27 +42,32 @@
     "data": {
       "type": "object",
       "required": [
+        "attendance_id",
         "student_id",
+        "academic_year_id",
         "date",
-        "status"
+        "status",
+        "marked_by"
       ],
       "properties": {
+        "attendance_id": {
+          "type": "string",
+          "format": "uuid"
+        },
         "student_id": {
           "type": "string",
           "format": "uuid"
         },
+        "academic_year_id": {
+          "type": "string",
+          "format": "uuid"
+        },
         "class_id": {
-          "type": [
-            "string",
-            "null"
-          ],
+          "type": "string",
           "format": "uuid"
         },
         "subject_id": {
-          "type": [
-            "string",
-            "null"
-          ],
+          "type": "string",
           "format": "uuid"
         },
         "date": {
@@ -70,19 +75,36 @@
           "format": "date"
         },
         "status": {
-          "type": "string",
-          "enum": [
-            "present",
-            "absent",
-            "late",
-            "excused"
-          ]
+          "type": "string"
         },
-        "recorded_by": {
+        "marked_by": {
           "type": "string",
           "format": "uuid"
+        },
+        "reason": {
+          "type": "string"
         }
+      },
+      "additionalProperties": false
+    }
+  },
+  "examples": [
+    {
+      "specversion": "1.0",
+      "type": "attendance.marked.v1",
+      "source": "attendance-service",
+      "id": "example-id",
+      "time": "2026-07-19T10:00:00Z",
+      "tenant_id": "school-a",
+      "data": {
+        "attendance_id": "11111111-1111-4111-8111-111111111111",
+        "student_id": "11111111-1111-4111-8111-111111111111",
+        "academic_year_id": "11111111-1111-4111-8111-111111111111",
+        "date": "2026-07-19",
+        "status": "example-status",
+        "marked_by": "11111111-1111-4111-8111-111111111111"
       }
     }
-  }
+  ],
+  "additionalProperties": false
 }

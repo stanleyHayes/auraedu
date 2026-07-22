@@ -9,6 +9,7 @@ import (
 	"time"
 
 	servercmd "github.com/auraedu/payment-service/cmd/server"
+	workercmd "github.com/auraedu/payment-service/cmd/worker"
 	"github.com/auraedu/platform/config"
 	"github.com/auraedu/platform/db"
 	"github.com/spf13/cobra"
@@ -29,6 +30,13 @@ func main() {
 		Short: "Run the " + serviceName + " HTTP server",
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return servercmd.Run(version)
+		},
+	})
+	root.AddCommand(&cobra.Command{
+		Use:   "worker",
+		Short: "Dispatch durable payment reconciliation events",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return workercmd.Run(version)
 		},
 	})
 	root.AddCommand(&cobra.Command{

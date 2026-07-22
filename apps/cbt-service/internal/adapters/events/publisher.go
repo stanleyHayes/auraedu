@@ -27,17 +27,7 @@ func (p *Publisher) PublishQuestionBank(ctx context.Context, eventType string, q
 	if p == nil || p.bus == nil {
 		return nil
 	}
-	data := map[string]any{
-		"question_id":      q.ID,
-		"academic_year_id": q.AcademicYearID,
-		"subject_id":       q.SubjectID,
-		"question_type":    q.QuestionType,
-		"marks":            q.Marks,
-		"status":           q.Status,
-	}
-	for k, v := range meta {
-		data[k] = v
-	}
+	data := ports.QuestionEventData(q, meta)
 	event, err := tenancy.NewCloudEvent(eventType, "cbt-service", "", q.TenantID, data)
 	if err != nil {
 		return fmt.Errorf("cbt: build question event: %w", err)
@@ -52,24 +42,7 @@ func (p *Publisher) PublishExamSession(ctx context.Context, eventType string, e 
 	if p == nil || p.bus == nil {
 		return nil
 	}
-	data := map[string]any{
-		"exam_id":          e.ID,
-		"academic_year_id": e.AcademicYearID,
-		"subject_id":       e.SubjectID,
-		"title":            e.Title,
-		"question_count":   len(e.QuestionIDs),
-		"duration_minutes": e.DurationMinutes,
-		"status":           e.Status,
-	}
-	if e.StartAt != nil {
-		data["start_at"] = e.StartAt.Format(time.RFC3339)
-	}
-	if e.EndAt != nil {
-		data["end_at"] = e.EndAt.Format(time.RFC3339)
-	}
-	for k, v := range meta {
-		data[k] = v
-	}
+	data := ports.ExamEventData(e, meta)
 	event, err := tenancy.NewCloudEvent(eventType, "cbt-service", "", e.TenantID, data)
 	if err != nil {
 		return fmt.Errorf("cbt: build exam event: %w", err)
@@ -80,32 +53,35 @@ func (p *Publisher) PublishExamSession(ctx context.Context, eventType string, e 
 }
 
 // PublishSubmission emits a CloudEvent for the given submission domain event.
-func (p *Publisher) PublishSubmission(ctx context.Context, eventType string, s *domain.Submission, meta map[string]any) error {
+func (p *Publisher) PublishSubmission(ctx context.Context, eventType string, s *domain.Submission, _ map[string]any) error {
 	if p == nil || p.bus == nil {
 		return nil
 	}
-	data := map[string]any{
-		"submission_id": s.ID,
-		"exam_id":       s.ExamSessionID,
-		"student_id":    s.StudentID,
-		"status":        s.Status,
-		"score":         s.Score,
-		"max_score":     s.MaxScore,
-	}
-	if s.SubmittedAt != nil {
-		data["submitted_at"] = s.SubmittedAt.Format(time.RFC3339)
-	}
-	if s.GradedAt != nil {
-		data["graded_at"] = s.GradedAt.Format(time.RFC3339)
-	}
-	for k, v := range meta {
-		data[k] = v
-	}
+	data := ports.SubmissionEventData(eventType, s)
 	event, err := tenancy.NewCloudEvent(eventType, "cbt-service", "", s.TenantID, data)
 	if err != nil {
 		return fmt.Errorf("cbt: build submission event: %w", err)
 	}
 	event.Subject = s.ID
+	event.Time = time.Now().UTC().Format(time.RFC3339)
+	return p.bus.Publish(ctx, event)
+}
+
+func (p *Publisher) PublishWithID(ctx context.Context, eventID, eventType, tenantID string, data map[string]any) error {
+	if p == nil || p.bus == nil {
+		return nil
+	}
+	event, err := tenancy.NewCloudEvent(eventType, "cbt-service", eventID, tenantID, data)
+	if err != nil {
+		return fmt.Errorf("cbt: build outbox event: %w", err)
+	}
+	for _, key := range []string{"submission_id", "exam_id", "question_id"} {
+		if subject, ok := data[key].(string); ok && subject != "" {
+			event.Subject = subject
+			break
+		}
+	}
+	event.IdempotencyKey = eventID
 	event.Time = time.Now().UTC().Format(time.RFC3339)
 	return p.bus.Publish(ctx, event)
 }

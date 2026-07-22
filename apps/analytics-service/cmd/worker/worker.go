@@ -8,9 +8,11 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/auraedu/platform/config"
 	"github.com/auraedu/platform/db"
+	"github.com/auraedu/platform/observ"
 
 	// Register pgx SQL driver for database/sql based migrations.
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -21,10 +23,10 @@ import (
 	"github.com/auraedu/analytics-service/internal/application"
 )
 
-const service = "analytics-service"
+const service = "analytics-service-worker"
 
 func main() {
-	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	log := observ.DefaultLogger()
 	slog.SetDefault(log)
 
 	if err := run(log); err != nil {
@@ -35,6 +37,17 @@ func main() {
 
 func run(log *slog.Logger) error {
 	ctx := context.Background()
+	shutdownTelemetry, err := observ.InitTracing(service, config.Getenv("GIT_SHA", "dev"))
+	if err != nil {
+		return err
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := shutdownTelemetry(shutdownCtx); err != nil {
+			log.Error("flush analytics worker telemetry", "err", err)
+		}
+	}()
 	database, err := openDB(ctx)
 	if err != nil {
 		return err
@@ -60,7 +73,8 @@ func run(log *slog.Logger) error {
 		return fmt.Errorf("create JetStream context: %w", err)
 	}
 
-	sub := svcevents.NewSubscriber(js, projection, log)
+	metrics := observ.NewWorkerMetrics(service, "projection")
+	sub := svcevents.NewSubscriber(js, projection, log, metrics)
 	if err := sub.Start(ctx); err != nil {
 		return fmt.Errorf("start subscriber: %w", err)
 	}

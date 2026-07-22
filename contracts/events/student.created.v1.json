@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.auraedu.dev/events/student.created.v1.json",
+  "title": "student.created",
+  "description": "Emitted when a student record is created before any complete academic-year class enrollment exists.",
+  "type": "object",
+  "required": ["specversion", "type", "source", "id", "time", "tenant_id", "data"],
+  "properties": {
+    "specversion": { "const": "1.0" },
+    "type": { "const": "student.created.v1" },
+    "source": { "const": "student-service" },
+    "subject": { "type": "string", "format": "uuid" },
+    "id": { "type": "string", "format": "uuid" },
+    "time": { "type": "string", "format": "date-time" },
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "data": {
+      "type": "object",
+      "required": ["student_id"],
+      "properties": {
+        "student_id": { "type": "string", "format": "uuid" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "specversion": "1.0",
+      "type": "student.created.v1",
+      "source": "student-service",
+      "subject": "11111111-1111-4111-8111-111111111111",
+      "id": "22222222-2222-4222-8222-222222222222",
+      "time": "2026-07-20T10:00:00Z",
+      "tenant_id": "school-a",
+      "data": { "student_id": "11111111-1111-4111-8111-111111111111" }
+    }
+  ]
+}

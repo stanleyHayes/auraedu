@@ -9,15 +9,40 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List academic years */
+        /**
+         * List academic years
+         * @description Executes the list academic years workflow within this AuraEDU API boundary.
+         */
         get: operations["listAcademicYears"];
         put?: never;
-        /** Create an academic year */
+        /**
+         * Create an academic year
+         * @description Executes the create academic year workflow within this AuraEDU API boundary.
+         */
         post: operations["createAcademicYear"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/academic-years/{academic_year_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Executes the get academic year workflow within this AuraEDU API boundary. */
+        get: operations["getAcademicYear"];
+        put?: never;
+        post?: never;
+        /** @description Executes the delete academic year workflow within this AuraEDU API boundary. */
+        delete: operations["deleteAcademicYear"];
+        options?: never;
+        head?: never;
+        /** @description Executes the update academic year workflow within this AuraEDU API boundary. */
+        patch: operations["updateAcademicYear"];
         trace?: never;
     };
     "/terms": {
@@ -27,15 +52,40 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List terms */
+        /**
+         * List terms
+         * @description Executes the list terms workflow within this AuraEDU API boundary.
+         */
         get: operations["listTerms"];
         put?: never;
-        /** Create a term */
+        /**
+         * Create a term
+         * @description Executes the create term workflow within this AuraEDU API boundary.
+         */
         post: operations["createTerm"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/terms/{term_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Executes the get term workflow within this AuraEDU API boundary. */
+        get: operations["getTerm"];
+        put?: never;
+        post?: never;
+        /** @description Executes the delete term workflow within this AuraEDU API boundary. */
+        delete: operations["deleteTerm"];
+        options?: never;
+        head?: never;
+        /** @description Executes the update term workflow within this AuraEDU API boundary. */
+        patch: operations["updateTerm"];
         trace?: never;
     };
     "/classes": {
@@ -45,15 +95,40 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List classes */
+        /**
+         * List classes
+         * @description Executes the list classes workflow within this AuraEDU API boundary.
+         */
         get: operations["listClasses"];
         put?: never;
-        /** Create a class */
+        /**
+         * Create a class
+         * @description Executes the create class workflow within this AuraEDU API boundary.
+         */
         post: operations["createClass"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/classes/{class_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Executes the get class workflow within this AuraEDU API boundary. */
+        get: operations["getClass"];
+        put?: never;
+        post?: never;
+        /** @description Executes the delete class workflow within this AuraEDU API boundary. */
+        delete: operations["deleteClass"];
+        options?: never;
+        head?: never;
+        /** @description Executes the update class workflow within this AuraEDU API boundary. */
+        patch: operations["updateClass"];
         trace?: never;
     };
     "/subjects": {
@@ -63,15 +138,83 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List subjects */
+        /**
+         * List subjects
+         * @description Executes the list subjects workflow within this AuraEDU API boundary.
+         */
         get: operations["listSubjects"];
         put?: never;
-        /** Create a subject */
+        /**
+         * Create a subject
+         * @description Executes the create subject workflow within this AuraEDU API boundary.
+         */
         post: operations["createSubject"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/subjects/{subject_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Executes the get subject workflow within this AuraEDU API boundary. */
+        get: operations["getSubject"];
+        put?: never;
+        post?: never;
+        /** @description Executes the delete subject workflow within this AuraEDU API boundary. */
+        delete: operations["deleteSubject"];
+        options?: never;
+        head?: never;
+        /** @description Executes the update subject workflow within this AuraEDU API boundary. */
+        patch: operations["updateSubject"];
+        trace?: never;
+    };
+    "/timetable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List timetable entries scoped to the authenticated learner or teacher
+         * @description Executes the list timetable workflow within this AuraEDU API boundary.
+         */
+        get: operations["listTimetable"];
+        put?: never;
+        /**
+         * Create a conflict-protected timetable entry
+         * @description Executes the create timetable entry workflow within this AuraEDU API boundary.
+         */
+        post: operations["createTimetableEntry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/timetable/{entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Executes the get timetable entry workflow within this AuraEDU API boundary. */
+        get: operations["getTimetableEntry"];
+        put?: never;
+        post?: never;
+        /** @description Executes the delete timetable entry workflow within this AuraEDU API boundary. */
+        delete: operations["deleteTimetableEntry"];
+        options?: never;
+        head?: never;
+        /** @description Executes the update timetable entry workflow within this AuraEDU API boundary. */
+        patch: operations["updateTimetableEntry"];
         trace?: never;
     };
     "/grading-scales": {
@@ -81,15 +224,40 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List grading scales */
+        /**
+         * List grading scales
+         * @description Executes the list grading scales workflow within this AuraEDU API boundary.
+         */
         get: operations["listGradingScales"];
         put?: never;
-        /** Create a grading scale */
+        /**
+         * Create a grading scale
+         * @description Executes the create grading scale workflow within this AuraEDU API boundary.
+         */
         post: operations["createGradingScale"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/grading-scales/{grading_scale_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Executes the get grading scale workflow within this AuraEDU API boundary. */
+        get: operations["getGradingScale"];
+        put?: never;
+        post?: never;
+        /** @description Executes the delete grading scale workflow within this AuraEDU API boundary. */
+        delete: operations["deleteGradingScale"];
+        options?: never;
+        head?: never;
+        /** @description Executes the update grading scale workflow within this AuraEDU API boundary. */
+        patch: operations["updateGradingScale"];
         trace?: never;
     };
 };
@@ -105,17 +273,24 @@ export type components = {
         AcademicYear: {
             /** Format: uuid */
             id: string;
-            /** Format: uuid */
             tenant_id: string;
             name: string;
+            code: string;
             /** Format: date */
             start_date: string;
             /** Format: date */
             end_date: string;
-            is_current?: boolean;
+            /** @enum {string} */
+            status: "active" | "archived";
+            is_current: boolean;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
         };
         CreateAcademicYear: {
             name: string;
+            code?: string | null;
             /** Format: date */
             start_date: string;
             /** Format: date */
@@ -123,10 +298,20 @@ export type components = {
             /** @default false */
             is_current: boolean;
         };
+        UpdateAcademicYear: {
+            name?: string;
+            code?: string;
+            /** Format: date */
+            start_date?: string;
+            /** Format: date */
+            end_date?: string;
+            /** @enum {string} */
+            status?: "active" | "archived";
+            is_current?: boolean;
+        };
         Term: {
             /** Format: uuid */
             id: string;
-            /** Format: uuid */
             tenant_id: string;
             /** Format: uuid */
             academic_year_id: string;
@@ -135,6 +320,10 @@ export type components = {
             start_date: string;
             /** Format: date */
             end_date: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
         };
         CreateTerm: {
             /** Format: uuid */
@@ -144,6 +333,13 @@ export type components = {
             start_date: string;
             /** Format: date */
             end_date: string;
+        };
+        UpdateTerm: {
+            name?: string;
+            /** Format: date */
+            start_date?: string;
+            /** Format: date */
+            end_date?: string;
         };
         Class: {
             /** Format: uuid */
@@ -165,6 +361,12 @@ export type components = {
             class_teacher_id?: string | null;
             capacity?: number | null;
         };
+        UpdateClass: {
+            name?: string;
+            /** Format: uuid */
+            class_teacher_id?: string | null;
+            capacity?: number | null;
+        };
         Subject: {
             /** Format: uuid */
             id: string;
@@ -176,6 +378,11 @@ export type components = {
         };
         CreateSubject: {
             name: string;
+            code?: string | null;
+            description?: string | null;
+        };
+        UpdateSubject: {
+            name?: string;
             code?: string | null;
             description?: string | null;
         };
@@ -191,15 +398,67 @@ export type components = {
                 grade?: string;
                 remark?: string;
             }[];
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            updated_at?: string;
+        };
+        TimetableEntry: {
+            /** Format: uuid */
+            id: string;
+            tenant_id: string;
+            /** Format: uuid */
+            class_id: string;
+            /** Format: uuid */
+            term_id: string;
+            /** Format: uuid */
+            subject_id: string;
+            /** Format: uuid */
+            teacher_id?: string | null;
+            weekday: number;
+            start_time: string;
+            end_time: string;
+            room?: string | null;
+            /** @enum {string} */
+            status: "active" | "cancelled";
+        };
+        CreateTimetableEntry: {
+            /** Format: uuid */
+            class_id: string;
+            /** Format: uuid */
+            term_id: string;
+            /** Format: uuid */
+            subject_id: string;
+            /** Format: uuid */
+            teacher_id?: string | null;
+            weekday: number;
+            start_time: string;
+            end_time: string;
+            room?: string | null;
+        };
+        UpdateTimetableEntry: {
+            /** Format: uuid */
+            teacher_id?: string | null;
+            weekday?: number;
+            start_time?: string;
+            end_time?: string;
+            room?: string | null;
+            /** @enum {string} */
+            status?: "active" | "cancelled";
         };
         CreateGradingScale: {
             name: string;
-            ranges?: {
-                min?: number;
-                max?: number;
-                grade?: string;
-                remark?: string;
-            }[];
+            ranges: components["schemas"]["GradeRange"][];
+        };
+        UpdateGradingScale: {
+            name?: string;
+            ranges?: components["schemas"]["GradeRange"][];
+        };
+        GradeRange: {
+            min: number;
+            max: number;
+            grade: string;
+            remark?: string;
         };
         AcademicYearList: {
             data?: components["schemas"]["AcademicYear"][];
@@ -220,6 +479,9 @@ export type components = {
         GradingScaleList: {
             data?: components["schemas"]["GradingScale"][];
             next_cursor?: string | null;
+        };
+        TimetableList: {
+            data: components["schemas"]["TimetableEntry"][];
         };
     };
     responses: {
@@ -279,7 +541,11 @@ export type components = {
         };
     };
     parameters: {
-        TenantId: string;
+        AcademicYearId: string;
+        TermId: string;
+        ClassId: string;
+        SubjectId: string;
+        GradingScaleId: string;
         /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
         TenantHeader: string;
         Limit: number;
@@ -337,7 +603,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description OK */
+            /** @description Created academic year */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -348,6 +614,86 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getAcademicYear: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                academic_year_id: components["parameters"]["AcademicYearId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Academic year */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcademicYear"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteAcademicYear: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                academic_year_id: components["parameters"]["AcademicYearId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Academic year deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateAcademicYear: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                academic_year_id: components["parameters"]["AcademicYearId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAcademicYear"];
+            };
+        };
+        responses: {
+            /** @description Updated academic year */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcademicYear"];
+                };
+            };
             404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationError"];
         };
@@ -398,7 +744,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description OK */
+            /** @description Created term */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -409,6 +755,86 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getTerm: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                term_id: components["parameters"]["TermId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Term */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Term"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteTerm: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                term_id: components["parameters"]["TermId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Term deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateTerm: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                term_id: components["parameters"]["TermId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTerm"];
+            };
+        };
+        responses: {
+            /** @description Updated term */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Term"];
+                };
+            };
             404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationError"];
         };
@@ -459,7 +885,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description OK */
+            /** @description Created class */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -470,6 +896,86 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getClass: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                class_id: components["parameters"]["ClassId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Class */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Class"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteClass: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                class_id: components["parameters"]["ClassId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Class deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateClass: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                class_id: components["parameters"]["ClassId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateClass"];
+            };
+        };
+        responses: {
+            /** @description Updated class */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Class"];
+                };
+            };
             404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationError"];
         };
@@ -520,7 +1026,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description OK */
+            /** @description Created subject */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -531,8 +1037,236 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getSubject: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                subject_id: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Subject */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Subject"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteSubject: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                subject_id: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Subject deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateSubject: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                subject_id: components["parameters"]["SubjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSubject"];
+            };
+        };
+        responses: {
+            /** @description Updated subject */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Subject"];
+                };
+            };
             404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationError"];
+        };
+    };
+    listTimetable: {
+        parameters: {
+            query?: {
+                class_id?: string;
+                term_id?: string;
+                weekday?: number;
+            };
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimetableList"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createTimetableEntry: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTimetableEntry"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimetableEntry"];
+                };
+            };
+            /** @description Class or teacher period overlap */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getTimetableEntry: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimetableEntry"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteTimetableEntry: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateTimetableEntry: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTimetableEntry"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimetableEntry"];
+                };
+            };
+            /** @description Class or teacher period overlap */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     listGradingScales: {
@@ -578,7 +1312,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description OK */
+            /** @description Created grading scale */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -589,6 +1323,86 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getGradingScale: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                grading_scale_id: components["parameters"]["GradingScaleId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Grading scale */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GradingScale"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteGradingScale: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                grading_scale_id: components["parameters"]["GradingScaleId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Grading scale deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateGradingScale: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                grading_scale_id: components["parameters"]["GradingScaleId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateGradingScale"];
+            };
+        };
+        responses: {
+            /** @description Updated grading scale */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GradingScale"];
+                };
+            };
             404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationError"];
         };

@@ -9,6 +9,7 @@ import (
 
 	"github.com/auraedu/academic-service/internal/domain"
 	"github.com/auraedu/platform/eventbus"
+	"github.com/auraedu/platform/testkit"
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 )
@@ -111,10 +112,7 @@ func asString(t *testing.T, m map[string]any, key string) string {
 
 // assertContractConformance validates the emitted event against the parts of the
 // contract the bus can guarantee: required envelope/data keys, const values, and
-// declared uuid/date/date-time formats. The "type" const is checked separately:
-// contracts name the base type ("academic.class_created") while the bus convention —
-// followed by every publisher and subscriber in this repo — versions it
-// ("academic.class_created.v1"), so the subject and type carry the .v1 suffix.
+// declared uuid/date/date-time formats.
 func assertContractConformance(t *testing.T, schema map[string]any, event map[string]any) {
 	t.Helper()
 	for _, key := range stringSlice(t, schema["required"]) {
@@ -129,7 +127,7 @@ func assertContractConformance(t *testing.T, schema map[string]any, event map[st
 			continue
 		}
 		got, present := event[key]
-		if c, ok := prop["const"].(string); ok && present && key != "type" {
+		if c, ok := prop["const"].(string); ok && present {
 			if got != c {
 				t.Errorf("envelope key %q: expected const %q, got %v", key, c, got)
 			}
@@ -212,11 +210,7 @@ func oneMessage(t *testing.T, js *fakeJS, eventType string) map[string]any {
 	if want := "AURA." + eventType; msg.Subject != want {
 		t.Fatalf("subject: expected %q, got %q", want, msg.Subject)
 	}
-	var event map[string]any
-	if err := json.Unmarshal(msg.Data, &event); err != nil {
-		t.Fatalf("unmarshal published event: %v", err)
-	}
-	return event
+	return testkit.AssertEventContract(t, eventType, msg.Data)
 }
 
 func TestPublisher_YearCreated_ConformsToContract(t *testing.T) {

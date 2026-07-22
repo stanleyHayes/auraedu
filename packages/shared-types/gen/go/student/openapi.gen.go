@@ -16,11 +16,12 @@ type Student struct {
 	StudentCode    string  `json:"student_code"`
 	DateOfBirth    *string `json:"date_of_birth,omitempty"`
 	Gender         *string `json:"gender,omitempty"`
-	Status         *string `json:"status,omitempty"`
+	Status         string  `json:"status"`
 	ClassId        *string `json:"class_id,omitempty"`
 	AcademicYearId *string `json:"academic_year_id,omitempty"`
-	CreatedAt      *string `json:"created_at,omitempty"`
-	UpdatedAt      *string `json:"updated_at,omitempty"`
+	UserId         *string `json:"user_id,omitempty"`
+	CreatedAt      string  `json:"created_at"`
+	UpdatedAt      string  `json:"updated_at"`
 }
 
 // CreateStudent generated from OpenAPI schema.
@@ -31,6 +32,7 @@ type CreateStudent struct {
 	Gender         *string `json:"gender,omitempty"`
 	ClassId        *string `json:"class_id,omitempty"`
 	AcademicYearId *string `json:"academic_year_id,omitempty"`
+	UserId         *string `json:"user_id,omitempty"`
 }
 
 // UpdateStudent generated from OpenAPI schema.
@@ -38,7 +40,7 @@ type UpdateStudent struct {
 	FirstName *string `json:"first_name,omitempty"`
 	LastName  *string `json:"last_name,omitempty"`
 	Status    *string `json:"status,omitempty"`
-	ClassId   *string `json:"class_id,omitempty"`
+	UserId    *string `json:"user_id,omitempty"`
 }
 
 // Guardian generated from OpenAPI schema.
@@ -50,6 +52,7 @@ type Guardian struct {
 	Relationship string  `json:"relationship"`
 	Phone        *string `json:"phone,omitempty"`
 	Email        *string `json:"email,omitempty"`
+	UserId       *string `json:"user_id,omitempty"`
 }
 
 // CreateGuardian generated from OpenAPI schema.
@@ -59,6 +62,13 @@ type CreateGuardian struct {
 	Relationship string  `json:"relationship"`
 	Phone        *string `json:"phone,omitempty"`
 	Email        *string `json:"email,omitempty"`
+	UserId       *string `json:"user_id,omitempty"`
+}
+
+// GuardianChildren generated from OpenAPI schema.
+type GuardianChildren struct {
+	Guardian Guardian  `json:"guardian"`
+	Students []Student `json:"students"`
 }
 
 // UpdateGuardian generated from OpenAPI schema.
@@ -100,11 +110,12 @@ type ImportResult struct {
 
 // Enrollment generated from OpenAPI schema.
 type Enrollment struct {
-	Id             string  `json:"id"`
-	StudentId      string  `json:"student_id"`
-	ClassId        string  `json:"class_id"`
-	AcademicYearId string  `json:"academic_year_id"`
-	EnrolledAt     *string `json:"enrolled_at,omitempty"`
+	Id             string `json:"id"`
+	TenantId       string `json:"tenant_id"`
+	StudentId      string `json:"student_id"`
+	ClassId        string `json:"class_id"`
+	AcademicYearId string `json:"academic_year_id"`
+	EnrolledAt     string `json:"enrolled_at"`
 }
 
 // CreateEnrollment generated from OpenAPI schema.
@@ -136,6 +147,7 @@ type ServerInterface interface {
 	listStudents(w http.ResponseWriter, r *http.Request)
 	createStudent(w http.ResponseWriter, r *http.Request)
 	importStudents(w http.ResponseWriter, r *http.Request)
+	getMyStudent(w http.ResponseWriter, r *http.Request)
 	getStudent(w http.ResponseWriter, r *http.Request)
 	updateStudent(w http.ResponseWriter, r *http.Request)
 	deleteStudent(w http.ResponseWriter, r *http.Request)
@@ -144,6 +156,7 @@ type ServerInterface interface {
 	listStudentGuardians(w http.ResponseWriter, r *http.Request)
 	linkGuardian(w http.ResponseWriter, r *http.Request)
 	createGuardian(w http.ResponseWriter, r *http.Request)
+	getMyGuardianChildren(w http.ResponseWriter, r *http.Request)
 	getGuardian(w http.ResponseWriter, r *http.Request)
 	updateGuardian(w http.ResponseWriter, r *http.Request)
 	deleteGuardian(w http.ResponseWriter, r *http.Request)
@@ -155,6 +168,7 @@ type ClientInterface interface {
 	listStudents(ctx context.Context) (*http.Response, error)
 	createStudent(ctx context.Context) (*http.Response, error)
 	importStudents(ctx context.Context) (*http.Response, error)
+	getMyStudent(ctx context.Context) (*http.Response, error)
 	getStudent(ctx context.Context) (*http.Response, error)
 	updateStudent(ctx context.Context) (*http.Response, error)
 	deleteStudent(ctx context.Context) (*http.Response, error)
@@ -163,6 +177,7 @@ type ClientInterface interface {
 	listStudentGuardians(ctx context.Context) (*http.Response, error)
 	linkGuardian(ctx context.Context) (*http.Response, error)
 	createGuardian(ctx context.Context) (*http.Response, error)
+	getMyGuardianChildren(ctx context.Context) (*http.Response, error)
 	getGuardian(ctx context.Context) (*http.Response, error)
 	updateGuardian(ctx context.Context) (*http.Response, error)
 	deleteGuardian(ctx context.Context) (*http.Response, error)

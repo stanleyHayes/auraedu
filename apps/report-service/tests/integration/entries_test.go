@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"os"
+	"io"
 	"testing"
+	"time"
 
 	"github.com/auraedu/platform/flags"
 	"github.com/auraedu/report-service/internal/adapters/pdf"
+	"github.com/auraedu/report-service/internal/adapters/storage"
 	"github.com/auraedu/report-service/internal/application"
 	"github.com/auraedu/report-service/internal/domain"
 	"github.com/auraedu/report-service/internal/ports"
@@ -19,10 +21,10 @@ const term2 = "ffffffff-ffff-ffff-ffff-ffffffffffff"
 const subject1 = "99999999-9999-9999-9999-999999999999"
 const assessment1 = "12345678-1234-1234-1234-123456789abc"
 
-func mustScoreEntry(t *testing.T, tenantID, cardID, studentID, sourceKey string, score float64) *domain.ScoreEntry {
+func mustScoreEntry(t *testing.T, cardID string, score float64) *domain.ScoreEntry {
 	t.Helper()
-	max := 100.0
-	e, err := domain.NewScoreEntry(tenantID, cardID, studentID, subject1, sourceKey, "evt-1", score, &max)
+	maximum := 100.0
+	e, err := domain.NewScoreEntry(tenantA, cardID, studentA, subject1, assessment1, "evt-1", score, &maximum)
 	if err != nil {
 		t.Fatalf("new score entry: %v", err)
 	}
@@ -35,15 +37,15 @@ func TestRepository_ScoreEntryUpsertIdempotent(t *testing.T) {
 	tmpl := mustCreateTemplate(ctx, t, repo, "Midterm", ay1)
 	card := mustCreateCard(ctx, t, repo, studentA, tmpl.ID)
 
-	if err := repo.UpsertScoreEntry(ctx, tenantA, mustScoreEntry(t, tenantA, card.ID, studentA, assessment1, 72)); err != nil {
+	if err := repo.UpsertScoreEntry(ctx, tenantA, mustScoreEntry(t, card.ID, 72)); err != nil {
 		t.Fatalf("first upsert: %v", err)
 	}
 	// Replay of the same event (same natural key): still one row.
-	if err := repo.UpsertScoreEntry(ctx, tenantA, mustScoreEntry(t, tenantA, card.ID, studentA, assessment1, 72)); err != nil {
+	if err := repo.UpsertScoreEntry(ctx, tenantA, mustScoreEntry(t, card.ID, 72)); err != nil {
 		t.Fatalf("replay upsert: %v", err)
 	}
 	// Correction: new event, same assessment, new score value.
-	if err := repo.UpsertScoreEntry(ctx, tenantA, mustScoreEntry(t, tenantA, card.ID, studentA, assessment1, 81)); err != nil {
+	if err := repo.UpsertScoreEntry(ctx, tenantA, mustScoreEntry(t, card.ID, 81)); err != nil {
 		t.Fatalf("correction upsert: %v", err)
 	}
 
@@ -146,7 +148,7 @@ func TestRepository_TenantIsolation_Entries(t *testing.T) {
 	aCtx := withTenant(ctx, tenantA)
 	tmpl := mustCreateTemplate(aCtx, t, repo, "Midterm", ay1)
 	card := mustCreateCard(aCtx, t, repo, studentA, tmpl.ID)
-	if err := repo.UpsertScoreEntry(aCtx, tenantA, mustScoreEntry(t, tenantA, card.ID, studentA, assessment1, 72)); err != nil {
+	if err := repo.UpsertScoreEntry(aCtx, tenantA, mustScoreEntry(t, card.ID, 72)); err != nil {
 		t.Fatalf("upsert score: %v", err)
 	}
 	att, err := domain.NewAttendanceEntry(tenantA, card.ID, studentA, "2026-07-08", "present", "evt-1")
@@ -187,16 +189,20 @@ func TestService_MaterializeThenGenerate(t *testing.T) {
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantA, application.FeatureReportCards, true)
 
+	store, err := storage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	svc := application.NewService(repo,
 		application.WithFeatureGate(gates),
 		application.WithPDFGenerator(pdf.NewGenerator()),
-		application.WithReportOutputDir(t.TempDir()),
+		application.WithStorage(store),
 	)
 
-	max := 100.0
-	err := svc.MaterializeScore(ctx, application.ScoreRecordedInput{
+	maximum := 100.0
+	err = svc.MaterializeScore(ctx, application.ScoreRecordedInput{
 		EventID: "evt-s1", TenantID: tenantA, StudentID: studentA,
-		SubjectID: subject1, AssessmentID: assessment1, TermID: term1, Score: 72, MaxScore: &max,
+		SubjectID: subject1, AssessmentID: assessment1, TermID: term1, Score: 72, MaxScore: &maximum,
 	})
 	if err != nil {
 		t.Fatalf("materialize score: %v", err)
@@ -219,17 +225,30 @@ func TestService_MaterializeThenGenerate(t *testing.T) {
 	}
 	card := cards[0]
 
-	published, err := svc.GenerateReportCard(ctx, actorWithPerms(tenantA, application.PermPublish), card.ID)
+	if _, err := svc.RequestReportCardGeneration(ctx, actorWithPerms(tenantA, application.PermPublish), card.ID); err != nil {
+		t.Fatalf("queue: %v", err)
+	}
+	if processed, err := svc.ProcessNextGeneration(context.Background(), time.Minute, 5); err != nil || !processed {
+		t.Fatalf("process: processed=%v err=%v", processed, err)
+	}
+	published, err := repo.GetReportCardByID(ctx, tenantA, card.ID)
 	if err != nil {
-		t.Fatalf("generate: %v", err)
+		t.Fatalf("get published: %v", err)
 	}
 	if published.Status != string(domain.ReportCardStatusPublished) {
 		t.Fatalf("expected published, got %q", published.Status)
 	}
 
-	content, err := os.ReadFile(*published.PDFPath)
+	reader, _, err := svc.DownloadReportCard(ctx, actorWithPerms(tenantA, application.PermRead), card.ID)
+	if err != nil {
+		t.Fatalf("download pdf: %v", err)
+	}
+	content, err := io.ReadAll(reader)
 	if err != nil {
 		t.Fatalf("read pdf: %v", err)
+	}
+	if err := reader.Close(); err != nil {
+		t.Fatalf("close pdf: %v", err)
 	}
 	for _, want := range []string{subject1, "72", "100", "Present: 1", studentA, term1} {
 		if !bytes.Contains(content, []byte(want)) {

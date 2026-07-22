@@ -2,6 +2,47 @@
 // Do not edit by hand.
 
 export type paths = {
+    "/report-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Executes the list report templates workflow within this AuraEDU API boundary. */
+        get: operations["listReportTemplates"];
+        put?: never;
+        /** @description Executes the create report template workflow within this AuraEDU API boundary. */
+        post: operations["createReportTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/report-templates/{template_id}": {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                template_id: components["parameters"]["TemplateId"];
+            };
+            cookie?: never;
+        };
+        /** @description Executes the get report template workflow within this AuraEDU API boundary. */
+        get: operations["getReportTemplate"];
+        put?: never;
+        post?: never;
+        /** @description Executes the delete report template workflow within this AuraEDU API boundary. */
+        delete: operations["deleteReportTemplate"];
+        options?: never;
+        head?: never;
+        /** @description Executes the update report template workflow within this AuraEDU API boundary. */
+        patch: operations["updateReportTemplate"];
+        trace?: never;
+    };
     "/report-cards": {
         parameters: {
             query?: never;
@@ -9,17 +50,41 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List report cards */
+        /** @description Executes the list report cards workflow within this AuraEDU API boundary. */
         get: operations["listReportCards"];
         put?: never;
-        post?: never;
+        /** @description Executes the create report card workflow within this AuraEDU API boundary. */
+        post: operations["createReportCard"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/report-cards/generate": {
+    "/report-cards/{report_card_id}": {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                report_card_id: components["parameters"]["ReportCardId"];
+            };
+            cookie?: never;
+        };
+        /** @description Executes the get report card workflow within this AuraEDU API boundary. */
+        get: operations["getReportCard"];
+        put?: never;
+        post?: never;
+        /** @description Executes the delete report card workflow within this AuraEDU API boundary. */
+        delete: operations["deleteReportCard"];
+        options?: never;
+        head?: never;
+        /** @description Executes the update report card workflow within this AuraEDU API boundary. */
+        patch: operations["updateReportCard"];
+        trace?: never;
+    };
+    "/report-cards/{report_card_id}/generate": {
         parameters: {
             query?: never;
             header?: never;
@@ -28,8 +93,25 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Generate a report card */
+        /** @description Executes the generate report card workflow within this AuraEDU API boundary. */
         post: operations["generateReportCard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/report-cards/{report_card_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Executes the download report card workflow within this AuraEDU API boundary. */
+        get: operations["downloadReportCard"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -43,28 +125,13 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get a student transcript */
+        /**
+         * Derive a learner transcript from published and archived report-card evidence
+         * @description Executes the get transcript workflow within this AuraEDU API boundary.
+         */
         get: operations["getTranscript"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/report-templates": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List report templates */
-        get: operations["listReportTemplates"];
-        put?: never;
-        /** Create a report template */
-        post: operations["createReportTemplate"];
         delete?: never;
         options?: never;
         head?: never;
@@ -76,67 +143,118 @@ export type webhooks = Record<string, never>;
 export type components = {
     schemas: {
         Error: {
-            /** @enum {string} */
-            code: "forbidden" | "feature_disabled" | "tenant_mismatch" | "validation_error" | "not_found" | "unauthorized";
+            code: string;
             message: string;
             request_id?: string;
+        };
+        /** @enum {string} */
+        TemplateStatus: "draft" | "active" | "archived";
+        /** @enum {string} */
+        ReportCardStatus: "draft" | "generating" | "published" | "archived";
+        ReportTemplate: {
+            /** Format: uuid */
+            id: string;
+            tenant_id: string;
+            name: string;
+            /** Format: uuid */
+            academic_year_id: string;
+            body_template: string;
+            status: components["schemas"]["TemplateStatus"];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        CreateReportTemplate: {
+            name: string;
+            /** Format: uuid */
+            academic_year_id: string;
+            body_template: string;
+        };
+        UpdateReportTemplate: {
+            name?: string;
+            /** Format: uuid */
+            academic_year_id?: string;
+            body_template?: string;
+            status?: components["schemas"]["TemplateStatus"];
         };
         ReportCard: {
             /** Format: uuid */
             id: string;
-            /** Format: uuid */
             tenant_id: string;
             /** Format: uuid */
             student_id: string;
             /** Format: uuid */
-            term_id: string;
-            file_url?: string | null;
+            academic_year_id?: string;
+            /** Format: uuid */
+            term_id?: string;
+            /** Format: uuid */
+            template_id?: string;
+            status: components["schemas"]["ReportCardStatus"];
             /** Format: date-time */
-            generated_at?: string;
+            generated_at?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
         };
-        GenerateReportCardRequest: {
+        CreateReportCard: {
             /** Format: uuid */
             student_id: string;
             /** Format: uuid */
+            academic_year_id: string;
+            /** Format: uuid */
             term_id: string;
+            /** Format: uuid */
+            template_id: string;
+        };
+        UpdateReportCard: {
+            /** Format: uuid */
+            student_id?: string;
+            /** Format: uuid */
+            academic_year_id?: string;
+            /** Format: uuid */
+            template_id?: string;
+            status?: components["schemas"]["ReportCardStatus"];
+        };
+        SubjectScore: {
+            label: string;
+            score: number;
+            max_score?: number;
+            count: number;
+        };
+        AttendanceSummary: {
+            present: number;
+            absent: number;
+            late: number;
+            excused: number;
+        };
+        TranscriptEntry: {
+            /** Format: uuid */
+            report_card_id: string;
+            /** Format: uuid */
+            academic_year_id?: string;
+            /** Format: uuid */
+            term_id?: string;
+            /** Format: date-time */
+            published_at: string;
+            scores: components["schemas"]["SubjectScore"][];
+            attendance: components["schemas"]["AttendanceSummary"];
         };
         Transcript: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
             tenant_id: string;
             /** Format: uuid */
             student_id: string;
-            file_url?: string | null;
-            entries?: {
-                /** Format: uuid */
-                subject_id?: string;
-                subject_name?: string;
-                score?: number;
-                grade?: string;
-            }[];
-        };
-        ReportTemplate: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            tenant_id: string;
-            name: string;
-            layout?: string | null;
-            is_default?: boolean;
-        };
-        CreateReportTemplate: {
-            name: string;
-            layout?: string | null;
-            /** @default false */
-            is_default: boolean;
+            entries: components["schemas"]["TranscriptEntry"][];
+            /** Format: date-time */
+            generated_at: string;
         };
         ReportCardList: {
-            data?: components["schemas"]["ReportCard"][];
+            data: components["schemas"]["ReportCard"][];
             next_cursor?: string | null;
         };
         ReportTemplateList: {
-            data?: components["schemas"]["ReportTemplate"][];
+            data: components["schemas"]["ReportTemplate"][];
             next_cursor?: string | null;
         };
     };
@@ -146,62 +264,37 @@ export type components = {
             headers: {
                 [name: string]: unknown;
             };
-            content: {
-                /**
-                 * @example {
-                 *       "code": "unauthorized",
-                 *       "message": "Authentication required"
-                 *     }
-                 */
-                "application/json": components["schemas"]["Error"];
-            };
+            content?: never;
         };
-        /** @description Not permitted (auth, tenant scope, RBAC, or feature disabled) */
+        /** @description Not permitted, wrong tenant, or feature disabled */
         Forbidden: {
             headers: {
                 [name: string]: unknown;
             };
-            content: {
-                "application/json": components["schemas"]["Error"];
-            };
+            content?: never;
         };
-        /** @description Resource not found */
+        /** @description Resource not found or outside learner scope */
         NotFound: {
             headers: {
                 [name: string]: unknown;
             };
-            content: {
-                /**
-                 * @example {
-                 *       "code": "not_found",
-                 *       "message": "Resource not found"
-                 *     }
-                 */
-                "application/json": components["schemas"]["Error"];
-            };
+            content?: never;
         };
         /** @description Request failed validation */
         ValidationError: {
             headers: {
                 [name: string]: unknown;
             };
-            content: {
-                /**
-                 * @example {
-                 *       "code": "validation_error",
-                 *       "message": "request body is invalid"
-                 *     }
-                 */
-                "application/json": components["schemas"]["Error"];
-            };
+            content?: never;
         };
     };
     parameters: {
-        TenantId: string;
-        /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
         TenantHeader: string;
         Limit: number;
         Cursor: string;
+        TemplateId: string;
+        ReportCardId: string;
+        StudentId: string;
     };
     requestBodies: never;
     headers: never;
@@ -209,101 +302,15 @@ export type components = {
 };
 export type $defs = Record<string, never>;
 export interface operations {
-    listReportCards: {
+    listReportTemplates: {
         parameters: {
             query?: {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
+                academic_year_id?: string;
+                status?: components["schemas"]["TemplateStatus"];
             };
             header?: {
-                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
-                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReportCardList"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            422: components["responses"]["ValidationError"];
-        };
-    };
-    generateReportCard: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
-                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GenerateReportCardRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReportCard"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            422: components["responses"]["ValidationError"];
-        };
-    };
-    getTranscript: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
-                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                tenant_id: components["parameters"]["TenantId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Transcript"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            422: components["responses"]["ValidationError"];
-        };
-    };
-    listReportTemplates: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path?: never;
@@ -322,15 +329,12 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            422: components["responses"]["ValidationError"];
         };
     };
     createReportTemplate: {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path?: never;
@@ -342,7 +346,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description OK */
+            /** @description Created */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -351,10 +355,301 @@ export interface operations {
                     "application/json": components["schemas"]["ReportTemplate"];
                 };
             };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationError"];
+        };
+    };
+    getReportTemplate: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                template_id: components["parameters"]["TemplateId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportTemplate"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteReportTemplate: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                template_id: components["parameters"]["TemplateId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateReportTemplate: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                template_id: components["parameters"]["TemplateId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateReportTemplate"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportTemplate"];
+                };
+            };
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    listReportCards: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+                academic_year_id?: string;
+                status?: components["schemas"]["ReportCardStatus"];
+                student_id?: string;
+                template_id?: string;
+            };
+            header?: {
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportCardList"];
+                };
+            };
+        };
+    };
+    createReportCard: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateReportCard"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportCard"];
+                };
+            };
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getReportCard: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                report_card_id: components["parameters"]["ReportCardId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportCard"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteReportCard: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                report_card_id: components["parameters"]["ReportCardId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateReportCard: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                report_card_id: components["parameters"]["ReportCardId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateReportCard"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportCard"];
+                };
+            };
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    generateReportCard: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                report_card_id: components["parameters"]["ReportCardId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Durable PDF generation job accepted; the returned card is in generating state */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportCard"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            /** @description The card is already generating or cannot be generated from its current state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    downloadReportCard: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                report_card_id: components["parameters"]["ReportCardId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Published report-card PDF */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getTranscript: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                student_id: components["parameters"]["StudentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transcript"];
+                };
+            };
+            404: components["responses"]["NotFound"];
         };
     };
 }

@@ -1,0 +1,30 @@
+{
+  "name": "auraedu-critical-reads",
+  "environment": "local",
+  "base_url": "http://127.0.0.1:8080",
+  "duration": "2m",
+  "concurrency": 25,
+  "rate_per_second": 100,
+  "min_requests_per_second": 90,
+  "timeout": "5s",
+  "max_error_rate": 0.01,
+  "p95_ms": 750,
+  "p99_ms": 1500,
+  "required_tenant_count": 2,
+  "tenants": [{ "code": "upshs" }, { "code": "aboom" }],
+  "requests": [
+    { "name": "readiness", "method": "GET", "path": "/ready", "expected_status": [200] },
+    {
+      "name": "tenant-resolution",
+      "method": "GET",
+      "path": "/api/v1/tenants/resolve?subdomain={tenant}",
+      "expected_status": [200]
+    },
+    {
+      "name": "feature-snapshot",
+      "method": "GET",
+      "path": "/api/v1/features?tenant={tenant}",
+      "expected_status": [200]
+    }
+  ]
+}

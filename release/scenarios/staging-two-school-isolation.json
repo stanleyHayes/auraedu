@@ -1,0 +1,123 @@
+{
+  "name": "auraedu-staging-two-school-isolation",
+  "environment": "staging",
+  "base_url": "https://staging-api.auraedu.example",
+  "timeout": "5s",
+  "minimum_probe_count": 10,
+  "schools": [
+    {
+      "code": "school-a",
+      "token": "replace-at-runtime",
+      "resources": {
+        "student": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+        "staff": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+        "attendance": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+        "assessment": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4",
+        "report_card": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa5",
+        "invoice": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa6",
+        "payment": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa7",
+        "message": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa8",
+        "website_page": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa9",
+        "lead": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10"
+      }
+    },
+    {
+      "code": "school-b",
+      "token": "replace-at-runtime",
+      "resources": {
+        "student": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+        "staff": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2",
+        "attendance": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3",
+        "assessment": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb4",
+        "report_card": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb5",
+        "invoice": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb6",
+        "payment": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb7",
+        "message": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb8",
+        "website_page": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb9",
+        "lead": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb10"
+      }
+    }
+  ],
+  "probes": [
+    {
+      "name": "student",
+      "path": "/api/v1/students/{resource}",
+      "resource_key": "student",
+      "own_status": [200],
+      "cross_status": [404],
+      "mismatch_status": [403]
+    },
+    {
+      "name": "staff",
+      "path": "/api/v1/staff/{resource}",
+      "resource_key": "staff",
+      "own_status": [200],
+      "cross_status": [404],
+      "mismatch_status": [403]
+    },
+    {
+      "name": "attendance",
+      "path": "/api/v1/attendance/{resource}",
+      "resource_key": "attendance",
+      "own_status": [200],
+      "cross_status": [404],
+      "mismatch_status": [403]
+    },
+    {
+      "name": "assessment",
+      "path": "/api/v1/assessments/{resource}",
+      "resource_key": "assessment",
+      "own_status": [200],
+      "cross_status": [404],
+      "mismatch_status": [403]
+    },
+    {
+      "name": "report-card",
+      "path": "/api/v1/report-cards/{resource}",
+      "resource_key": "report_card",
+      "own_status": [200],
+      "cross_status": [404],
+      "mismatch_status": [403]
+    },
+    {
+      "name": "invoice",
+      "path": "/api/v1/invoices/{resource}",
+      "resource_key": "invoice",
+      "own_status": [200],
+      "cross_status": [404],
+      "mismatch_status": [403]
+    },
+    {
+      "name": "payment",
+      "path": "/api/v1/payments/{resource}",
+      "resource_key": "payment",
+      "own_status": [200],
+      "cross_status": [404],
+      "mismatch_status": [403]
+    },
+    {
+      "name": "message",
+      "path": "/api/v1/messages/{resource}",
+      "resource_key": "message",
+      "own_status": [200],
+      "cross_status": [404],
+      "mismatch_status": [403]
+    },
+    {
+      "name": "website-page",
+      "path": "/api/v1/website/pages/{resource}",
+      "resource_key": "website_page",
+      "own_status": [200],
+      "cross_status": [404],
+      "mismatch_status": [403]
+    },
+    {
+      "name": "crm-lead",
+      "path": "/api/v1/leads/{resource}",
+      "resource_key": "lead",
+      "own_status": [200],
+      "cross_status": [404],
+      "mismatch_status": [403]
+    }
+  ]
+}

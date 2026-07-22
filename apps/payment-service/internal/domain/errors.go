@@ -9,6 +9,8 @@ var (
 	ErrMissingTenant = errors.New("payments: tenant context required")
 	ErrForbidden     = errors.New("payments: forbidden")
 	ErrConflict      = errors.New("payments: conflict")
+	// ErrUnavailable is returned when learner ownership cannot be verified safely.
+	ErrUnavailable = errors.New("payments: ownership verification unavailable")
 	// ErrUnauthorized rejects unauthenticated requests, e.g. an invalid webhook signature.
 	ErrUnauthorized = errors.New("payments: unauthorized")
 )

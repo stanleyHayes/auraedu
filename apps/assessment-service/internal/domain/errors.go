@@ -8,4 +8,5 @@ var (
 	ErrMissingTenant = errors.New("assessment: tenant context required")
 	ErrForbidden     = errors.New("assessment: forbidden")
 	ErrConflict      = errors.New("assessment: conflict")
+	ErrUnavailable   = errors.New("assessment: dependency unavailable")
 )

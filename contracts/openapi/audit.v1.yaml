@@ -4,6 +4,8 @@ info:
   version: 1.0.0
   description: >
     Immutable audit log sink for compliance (spec \u00a77). Owned by lane L2 (EP-23).
+  contact:
+    name: AuraEDU Engineering
 servers:
   - url: /api/v1
 tags:
@@ -13,6 +15,7 @@ paths:
     /audit-logs:
       get:
             operationId: listAuditLogs
+            description: Executes the list audit logs workflow within this AuraEDU API boundary.
             tags: ['audit-logs']
             summary: List audit logs
             parameters:
@@ -29,14 +32,28 @@ paths:
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
+    /audit/logs:
+      get:
+        operationId: listAuditLogsGatewayAlias
+        description: Executes the list audit logs gateway alias workflow within this AuraEDU API boundary.
+        tags: ['audit-logs']
+        summary: List audit logs through the gateway-prefixed alias
+        deprecated: true
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/Limit'
+          - $ref: '#/components/parameters/Cursor'
+        responses:
+          '200':
+            description: OK
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/AuditLogList' }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
 
 components:
   parameters:
-    TenantId:
-      name: tenant_id
-      in: path
-      required: true
-      schema: { type: string, format: uuid }
     TenantHeader:
       name: X-Tenant-Code
       in: header
@@ -65,7 +82,7 @@ components:
         required: [id, tenant_id, event_type, actor_id, occurred_at]
         properties:
           id: { type: string, format: uuid }
-          tenant_id: { type: string, format: uuid }
+          tenant_id: { type: string, minLength: 1, description: Canonical tenant identifier }
           event_type: { type: string }
           actor_id: { type: [string, 'null'], format: uuid }
           resource_type: { type: [string, 'null'] }
@@ -115,4 +132,3 @@ components:
 
 security:
   - bearerAuth: []
-

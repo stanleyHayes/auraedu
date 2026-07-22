@@ -9,7 +9,10 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Service health check */
+        /**
+         * Service health check
+         * @description Executes the health check workflow within this AuraEDU API boundary.
+         */
         get: operations["healthCheck"];
         put?: never;
         post?: never;
@@ -28,7 +31,10 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Ingest a single approved learning metric */
+        /**
+         * Ingest a single approved learning metric
+         * @description Executes the ingest feature store metric workflow within this AuraEDU API boundary.
+         */
         post: operations["ingestFeatureStoreMetric"];
         delete?: never;
         options?: never;
@@ -43,10 +49,16 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List predictions for a student */
+        /**
+         * List predictions for a student
+         * @description Executes the list predictions workflow within this AuraEDU API boundary.
+         */
         get: operations["listPredictions"];
         put?: never;
-        /** Generate predictions for a student */
+        /**
+         * Generate predictions for a student
+         * @description Executes the generate predictions workflow within this AuraEDU API boundary.
+         */
         post: operations["generatePredictions"];
         delete?: never;
         options?: never;
@@ -61,7 +73,10 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get a prediction by ID */
+        /**
+         * Get a prediction by ID
+         * @description Executes the get prediction workflow within this AuraEDU API boundary.
+         */
         get: operations["getPrediction"];
         put?: never;
         post?: never;
@@ -78,7 +93,10 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get explainability details for a prediction */
+        /**
+         * Get explainability details for a prediction
+         * @description Executes the explain prediction workflow within this AuraEDU API boundary.
+         */
         get: operations["explainPrediction"];
         put?: never;
         post?: never;
@@ -97,7 +115,10 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Approve a prediction */
+        /**
+         * Approve a prediction
+         * @description Executes the approve prediction workflow within this AuraEDU API boundary.
+         */
         post: operations["approvePrediction"];
         delete?: never;
         options?: never;
@@ -114,7 +135,10 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Reject a prediction */
+        /**
+         * Reject a prediction
+         * @description Executes the reject prediction workflow within this AuraEDU API boundary.
+         */
         post: operations["rejectPrediction"];
         delete?: never;
         options?: never;

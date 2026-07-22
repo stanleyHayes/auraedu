@@ -9,10 +9,16 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List students */
+        /**
+         * List students
+         * @description Executes the list students workflow within this AuraEDU API boundary.
+         */
         get: operations["listStudents"];
         put?: never;
-        /** Create a student */
+        /**
+         * Create a student
+         * @description Executes the create student workflow within this AuraEDU API boundary.
+         */
         post: operations["createStudent"];
         delete?: never;
         options?: never;
@@ -29,8 +35,31 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Bulk import students and guardians from CSV */
+        /**
+         * Bulk import students and guardians from CSV
+         * @description Executes the import students workflow within this AuraEDU API boundary.
+         */
         post: operations["importStudents"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/students/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the caller's own student record
+         * @description Resolves the student record linked to the authenticated identity user (students.user_id = actor user id, AURA-10.12). 404 when the user has no linked student. Requires students.read.
+         */
+        get: operations["getMyStudent"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -44,15 +73,24 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get a student */
+        /**
+         * Get a student
+         * @description Executes the get student workflow within this AuraEDU API boundary.
+         */
         get: operations["getStudent"];
         put?: never;
         post?: never;
-        /** Delete a student */
+        /**
+         * Delete a student
+         * @description Executes the delete student workflow within this AuraEDU API boundary.
+         */
         delete: operations["deleteStudent"];
         options?: never;
         head?: never;
-        /** Update a student */
+        /**
+         * Update a student
+         * @description Executes the update student workflow within this AuraEDU API boundary.
+         */
         patch: operations["updateStudent"];
         trace?: never;
     };
@@ -63,10 +101,16 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List student enrollments */
+        /**
+         * List student enrollments
+         * @description Executes the list enrollments workflow within this AuraEDU API boundary.
+         */
         get: operations["listEnrollments"];
         put?: never;
-        /** Enroll a student */
+        /**
+         * Enroll a student
+         * @description Executes the create enrollment workflow within this AuraEDU API boundary.
+         */
         post: operations["createEnrollment"];
         delete?: never;
         options?: never;
@@ -81,10 +125,16 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List a student's guardians */
+        /**
+         * List a student's guardians
+         * @description Executes the list student guardians workflow within this AuraEDU API boundary.
+         */
         get: operations["listStudentGuardians"];
         put?: never;
-        /** Link a guardian to a student */
+        /**
+         * Link a guardian to a student
+         * @description Executes the link guardian workflow within this AuraEDU API boundary.
+         */
         post: operations["linkGuardian"];
         delete?: never;
         options?: never;
@@ -101,8 +151,31 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Create a guardian */
+        /**
+         * Create a guardian
+         * @description Executes the create guardian workflow within this AuraEDU API boundary.
+         */
         post: operations["createGuardian"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guardians/me/children": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the caller's guardian record with their linked students
+         * @description Resolves the guardian record linked to the authenticated identity user (guardians.user_id = actor user id, AURA-10.12) and returns it with the students linked via the student_guardians link table. 404 when the user has no linked guardian. Requires students.read.
+         */
+        get: operations["getMyGuardianChildren"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -116,15 +189,24 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get a guardian */
+        /**
+         * Get a guardian
+         * @description Executes the get guardian workflow within this AuraEDU API boundary.
+         */
         get: operations["getGuardian"];
         put?: never;
         post?: never;
-        /** Delete a guardian */
+        /**
+         * Delete a guardian
+         * @description Executes the delete guardian workflow within this AuraEDU API boundary.
+         */
         delete: operations["deleteGuardian"];
         options?: never;
         head?: never;
-        /** Update a guardian */
+        /**
+         * Update a guardian
+         * @description Executes the update guardian workflow within this AuraEDU API boundary.
+         */
         patch: operations["updateGuardian"];
         trace?: never;
     };
@@ -138,7 +220,10 @@ export type paths = {
         get?: never;
         put?: never;
         post?: never;
-        /** Unlink a guardian from a student */
+        /**
+         * Unlink a guardian from a student
+         * @description Executes the unlink guardian workflow within this AuraEDU API boundary.
+         */
         delete: operations["unlinkGuardian"];
         options?: never;
         head?: never;
@@ -158,7 +243,6 @@ export type components = {
         Student: {
             /** Format: uuid */
             id: string;
-            /** Format: uuid */
             tenant_id: string;
             first_name: string;
             last_name: string;
@@ -168,15 +252,20 @@ export type components = {
             /** @enum {string|null} */
             gender?: "male" | "female" | "other" | null;
             /** @enum {string} */
-            status?: "active" | "withdrawn" | "graduated";
+            status: "active" | "withdrawn" | "graduated";
             /** Format: uuid */
             class_id?: string | null;
             /** Format: uuid */
             academic_year_id?: string | null;
+            /**
+             * Format: uuid
+             * @description Soft link to the identity-service user that owns this record (no cross-service FK).
+             */
+            user_id?: string | null;
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
             /** Format: date-time */
-            updated_at?: string;
+            updated_at: string;
         };
         CreateStudent: {
             first_name: string;
@@ -189,14 +278,22 @@ export type components = {
             class_id?: string | null;
             /** Format: uuid */
             academic_year_id?: string | null;
+            /**
+             * Format: uuid
+             * @description Optional identity user to link the record to at creation.
+             */
+            user_id?: string | null;
         };
         UpdateStudent: {
             first_name?: string;
             last_name?: string;
             /** @enum {string} */
             status?: "active" | "withdrawn" | "graduated";
-            /** Format: uuid */
-            class_id?: string | null;
+            /**
+             * Format: uuid
+             * @description Identity account link; null clears an existing link.
+             */
+            user_id?: string | null;
         };
         Guardian: {
             /** Format: uuid */
@@ -209,6 +306,11 @@ export type components = {
             phone?: string | null;
             /** Format: email */
             email?: string | null;
+            /**
+             * Format: uuid
+             * @description Soft link to the identity-service user that owns this record (no cross-service FK).
+             */
+            user_id?: string | null;
         };
         CreateGuardian: {
             first_name: string;
@@ -217,6 +319,15 @@ export type components = {
             phone?: string | null;
             /** Format: email */
             email?: string | null;
+            /**
+             * Format: uuid
+             * @description Optional identity user to link the record to at creation.
+             */
+            user_id?: string | null;
+        };
+        GuardianChildren: {
+            guardian: components["schemas"]["Guardian"];
+            students: components["schemas"]["Student"][];
         };
         UpdateGuardian: {
             first_name?: string;
@@ -257,6 +368,7 @@ export type components = {
         Enrollment: {
             /** Format: uuid */
             id: string;
+            tenant_id: string;
             /** Format: uuid */
             student_id: string;
             /** Format: uuid */
@@ -264,7 +376,7 @@ export type components = {
             /** Format: uuid */
             academic_year_id: string;
             /** Format: date-time */
-            enrolled_at?: string;
+            enrolled_at: string;
         };
         CreateEnrollment: {
             /** Format: uuid */
@@ -342,7 +454,8 @@ export type components = {
         };
     };
     parameters: {
-        TenantId: string;
+        StudentId: string;
+        GuardianId: string;
         /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
         TenantHeader: string;
         Limit: number;
@@ -434,7 +547,7 @@ export interface operations {
                 "multipart/form-data": {
                     /**
                      * Format: binary
-                     * @description CSV with columns first_name,last_name,date_of_birth,gender,relationship,guardian_first_name,guardian_last_name,guardian_phone,guardian_email
+                     * @description CSV with columns first_name,last_name,date_of_birth,gender,relationship,guardian_first_name,guardian_last_name,guardian_phone,guardian_email,user_id,guardian_user_id
                      */
                     file?: string;
                 };
@@ -456,6 +569,33 @@ export interface operations {
             422: components["responses"]["ValidationError"];
         };
     };
+    getMyStudent: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Student"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
     getStudent: {
         parameters: {
             query?: never;
@@ -464,7 +604,7 @@ export interface operations {
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                student_id: components["parameters"]["StudentId"];
             };
             cookie?: never;
         };
@@ -493,7 +633,7 @@ export interface operations {
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                student_id: components["parameters"]["StudentId"];
             };
             cookie?: never;
         };
@@ -520,7 +660,7 @@ export interface operations {
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                student_id: components["parameters"]["StudentId"];
             };
             cookie?: never;
         };
@@ -556,7 +696,7 @@ export interface operations {
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                student_id: components["parameters"]["StudentId"];
             };
             cookie?: never;
         };
@@ -585,7 +725,7 @@ export interface operations {
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                student_id: components["parameters"]["StudentId"];
             };
             cookie?: never;
         };
@@ -607,6 +747,13 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            /** @description Student already has an enrollment for this academic year */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             422: components["responses"]["ValidationError"];
         };
     };
@@ -618,7 +765,7 @@ export interface operations {
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                student_id: components["parameters"]["StudentId"];
             };
             cookie?: never;
         };
@@ -647,7 +794,7 @@ export interface operations {
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                student_id: components["parameters"]["StudentId"];
             };
             cookie?: never;
         };
@@ -703,6 +850,33 @@ export interface operations {
             422: components["responses"]["ValidationError"];
         };
     };
+    getMyGuardianChildren: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuardianChildren"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
     getGuardian: {
         parameters: {
             query?: never;
@@ -711,7 +885,7 @@ export interface operations {
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                guardian_id: components["parameters"]["GuardianId"];
             };
             cookie?: never;
         };
@@ -740,7 +914,7 @@ export interface operations {
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                guardian_id: components["parameters"]["GuardianId"];
             };
             cookie?: never;
         };
@@ -767,7 +941,7 @@ export interface operations {
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                guardian_id: components["parameters"]["GuardianId"];
             };
             cookie?: never;
         };
@@ -800,7 +974,8 @@ export interface operations {
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                student_id: components["parameters"]["StudentId"];
+                guardian_id: components["parameters"]["GuardianId"];
             };
             cookie?: never;
         };

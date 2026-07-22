@@ -17,7 +17,7 @@ permissions:
   assessments: [assessments.read, assessments.record_scores, assessments.manage]
   reports:    [reports.read, reports.publish]
   fees:       [fees.read, fees.manage]
-  payments:   [payments.read, payments.initiate]
+  payments:   [payments.read, payments.initiate, payments.configure]
   notifications: [notifications.read, notifications.send, notifications.manage]
   website:    [website.read, website.manage]
   files:      [files.read, files.upload, files.update, files.delete]
@@ -25,7 +25,14 @@ permissions:
   billing:    [billing.read, billing.manage]
   cbt:        [cbt.read, cbt.author, cbt.take, cbt.grade]
   audit:      [audit.read]
-  ai:         [ai.view_recommendations, ai.approve_recommendations, ai.view_predictions, ai.view_guidance]
+  ai:         [ai.view_recommendations, ai.approve_recommendations, ai.view_predictions, ai.approve_predictions, ai.view_guidance, ai.approve_guidance]
+  crm:        [crm.lead.read, crm.lead.create, crm.lead.update, crm.lead.assign, crm.lead.export, crm.interaction.create]
+  campaigns:  [campaign.read, campaign.create, campaign.update, campaign.approve, campaign.publish, campaign.budget.approve]
+  content:    [content.generate, content.review, content.publish]
+  growth_admissions: [admissions.catalogue.manage, admissions.application.create, admissions.application.read, admissions.application.update, admissions.application.submit, admissions.application.review, admissions.offer.issue, admissions.offer.accept]
+  growth_ai:  [ai.agent.configure, ai.action.approve, knowledge.read, knowledge.manage, knowledge.approve, feedback.review]
+  growth_analytics: [analytics.executive.read]
+  growth_intelligence: [intelligence.read, intelligence.manage, intelligence.review]
 
 # Role → scope (spec §8.1). Permission sets are assigned per role per tenant by Identity Service.
 roles:
@@ -37,4 +44,5 @@ roles:
   teacher:              { scope: assigned_classes_subjects, platforms: [web, mobile] }
   parent:               { scope: own_children, platforms: [web, mobile] }
   student:              { scope: own_records, platforms: [web, mobile] }
+  applicant:            { scope: own_applications, platforms: [web] }
   support_agent:        { scope: limited_platform_support }

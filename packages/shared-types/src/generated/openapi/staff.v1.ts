@@ -9,10 +9,16 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List staff */
+        /**
+         * List staff
+         * @description Executes the list staff workflow within this AuraEDU API boundary.
+         */
         get: operations["listStaff"];
         put?: never;
-        /** Create a staff record */
+        /**
+         * Create a staff record
+         * @description Executes the create staff workflow within this AuraEDU API boundary.
+         */
         post: operations["createStaff"];
         delete?: never;
         options?: never;
@@ -27,14 +33,24 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get a staff record */
+        /**
+         * Get a staff record
+         * @description Executes the get staff workflow within this AuraEDU API boundary.
+         */
         get: operations["getStaff"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete a staff record
+         * @description Executes the delete staff workflow within this AuraEDU API boundary.
+         */
+        delete: operations["deleteStaff"];
         options?: never;
         head?: never;
-        /** Update a staff record */
+        /**
+         * Update a staff record
+         * @description Executes the update staff workflow within this AuraEDU API boundary.
+         */
         patch: operations["updateStaff"];
         trace?: never;
     };
@@ -45,12 +61,38 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List staff assignments */
+        /**
+         * List a staff member's class and subject assignments
+         * @description Executes the list staff assignments workflow within this AuraEDU API boundary.
+         */
         get: operations["listStaffAssignments"];
         put?: never;
-        /** Assign staff to class/subject */
+        /**
+         * Assign an active teacher to a class and optional subject
+         * @description Executes the create staff assignment workflow within this AuraEDU API boundary.
+         */
         post: operations["createStaffAssignment"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/staff/{staff_id}/assignments/{assignment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a staff class or subject assignment
+         * @description Executes the delete staff assignment workflow within this AuraEDU API boundary.
+         */
+        delete: operations["deleteStaffAssignment"];
         options?: never;
         head?: never;
         patch?: never;
@@ -69,7 +111,6 @@ export type components = {
         Staff: {
             /** Format: uuid */
             id: string;
-            /** Format: uuid */
             tenant_id: string;
             first_name: string;
             last_name: string;
@@ -77,9 +118,15 @@ export type components = {
             staff_type: "teacher" | "non_teaching";
             /** Format: email */
             email?: string | null;
-            staff_code?: string;
+            /** Format: uuid */
+            user_id?: string | null;
+            staff_code: string;
+            /** @enum {string} */
+            status: "active" | "inactive";
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
         };
         CreateStaff: {
             first_name: string;
@@ -88,6 +135,8 @@ export type components = {
             staff_type: "teacher" | "non_teaching";
             /** Format: email */
             email?: string | null;
+            /** Format: uuid */
+            user_id?: string | null;
         };
         UpdateStaff: {
             first_name?: string;
@@ -96,19 +145,24 @@ export type components = {
             staff_type?: "teacher" | "non_teaching";
             /** Format: email */
             email?: string | null;
+            /** Format: uuid */
+            user_id?: string | null;
+            /** @enum {string} */
+            status?: "active" | "inactive";
         };
         StaffAssignment: {
             /** Format: uuid */
             id: string;
+            tenant_id: string;
             /** Format: uuid */
             staff_id: string;
             /** Format: uuid */
-            class_id?: string | null;
+            class_id: string;
             /** Format: uuid */
             subject_id?: string | null;
             role?: string | null;
             /** Format: date-time */
-            assigned_at?: string;
+            assigned_at: string;
         };
         CreateStaffAssignment: {
             /** Format: uuid */
@@ -183,7 +237,8 @@ export type components = {
         };
     };
     parameters: {
-        TenantId: string;
+        StaffId: string;
+        AssignmentId: string;
         /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
         TenantHeader: string;
         Limit: number;
@@ -264,7 +319,7 @@ export interface operations {
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                staff_id: components["parameters"]["StaffId"];
             };
             cookie?: never;
         };
@@ -285,6 +340,32 @@ export interface operations {
             422: components["responses"]["ValidationError"];
         };
     };
+    deleteStaff: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                staff_id: components["parameters"]["StaffId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Staff record deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     updateStaff: {
         parameters: {
             query?: never;
@@ -293,7 +374,7 @@ export interface operations {
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                staff_id: components["parameters"]["StaffId"];
             };
             cookie?: never;
         };
@@ -320,19 +401,22 @@ export interface operations {
     };
     listStaffAssignments: {
         parameters: {
-            query?: never;
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+            };
             header?: {
                 /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                staff_id: components["parameters"]["StaffId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description OK */
+            /** @description Staff assignments */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -344,7 +428,6 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            422: components["responses"]["ValidationError"];
         };
     };
     createStaffAssignment: {
@@ -355,7 +438,7 @@ export interface operations {
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                staff_id: components["parameters"]["StaffId"];
             };
             cookie?: never;
         };
@@ -365,7 +448,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description OK */
+            /** @description Assignment created */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -378,6 +461,33 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationError"];
+        };
+    };
+    deleteStaffAssignment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                staff_id: components["parameters"]["StaffId"];
+                assignment_id: components["parameters"]["AssignmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Assignment removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
 }

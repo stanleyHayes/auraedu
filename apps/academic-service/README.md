@@ -4,11 +4,14 @@ Hexagonal Go service (agent_plan §5). Scaffolded by `make new-service NAME=acad
 
 **Status:** academic years, terms, classes, and subjects implemented (AURA-12.2/12.3/12.4):
 domain+migrations, repositories, CRUD+HTTP, events, feature-flag gating, tenant-isolation
-tests. Curriculum and grading scales are later stories (AURA-12.9).
+tests. Academic years, terms, classes, subjects, timetables, and tenant-owned grading scales are implemented.
+Promised year, term, class, and subject lifecycle events commit atomically through a
+FORCE-RLS outbox; the worker publishes stable event IDs with bounded retries.
 
 ## Run
 ```bash
-GOFLAGS=-mod=readonly go run ./cmd/server   # from apps/academic-service
+GOFLAGS=-mod=readonly go run ./cmd/academic-service server
+GOFLAGS=-mod=readonly go run ./cmd/academic-service worker
 curl localhost:8080/health
 ```
 

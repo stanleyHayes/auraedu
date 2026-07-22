@@ -12,17 +12,32 @@ type AcademicYear struct {
 	Id        string `json:"id"`
 	TenantId  string `json:"tenant_id"`
 	Name      string `json:"name"`
+	Code      string `json:"code"`
 	StartDate string `json:"start_date"`
 	EndDate   string `json:"end_date"`
-	IsCurrent *bool  `json:"is_current,omitempty"`
+	Status    string `json:"status"`
+	IsCurrent bool   `json:"is_current"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
 }
 
 // CreateAcademicYear generated from OpenAPI schema.
 type CreateAcademicYear struct {
-	Name      string `json:"name"`
-	StartDate string `json:"start_date"`
-	EndDate   string `json:"end_date"`
-	IsCurrent *bool  `json:"is_current,omitempty"`
+	Name      string  `json:"name"`
+	Code      *string `json:"code,omitempty"`
+	StartDate string  `json:"start_date"`
+	EndDate   string  `json:"end_date"`
+	IsCurrent *bool   `json:"is_current,omitempty"`
+}
+
+// UpdateAcademicYear generated from OpenAPI schema.
+type UpdateAcademicYear struct {
+	Name      *string `json:"name,omitempty"`
+	Code      *string `json:"code,omitempty"`
+	StartDate *string `json:"start_date,omitempty"`
+	EndDate   *string `json:"end_date,omitempty"`
+	Status    *string `json:"status,omitempty"`
+	IsCurrent *bool   `json:"is_current,omitempty"`
 }
 
 // Term generated from OpenAPI schema.
@@ -33,6 +48,8 @@ type Term struct {
 	Name           string `json:"name"`
 	StartDate      string `json:"start_date"`
 	EndDate        string `json:"end_date"`
+	CreatedAt      string `json:"created_at"`
+	UpdatedAt      string `json:"updated_at"`
 }
 
 // CreateTerm generated from OpenAPI schema.
@@ -41,6 +58,13 @@ type CreateTerm struct {
 	Name           string `json:"name"`
 	StartDate      string `json:"start_date"`
 	EndDate        string `json:"end_date"`
+}
+
+// UpdateTerm generated from OpenAPI schema.
+type UpdateTerm struct {
+	Name      *string `json:"name,omitempty"`
+	StartDate *string `json:"start_date,omitempty"`
+	EndDate   *string `json:"end_date,omitempty"`
 }
 
 // Class generated from OpenAPI schema.
@@ -61,6 +85,13 @@ type CreateClass struct {
 	Capacity       *int    `json:"capacity,omitempty"`
 }
 
+// UpdateClass generated from OpenAPI schema.
+type UpdateClass struct {
+	Name           *string `json:"name,omitempty"`
+	ClassTeacherId *string `json:"class_teacher_id,omitempty"`
+	Capacity       *int    `json:"capacity,omitempty"`
+}
+
 // Subject generated from OpenAPI schema.
 type Subject struct {
 	Id          string  `json:"id"`
@@ -77,6 +108,13 @@ type CreateSubject struct {
 	Description *string `json:"description,omitempty"`
 }
 
+// UpdateSubject generated from OpenAPI schema.
+type UpdateSubject struct {
+	Name        *string `json:"name,omitempty"`
+	Code        *string `json:"code,omitempty"`
+	Description *string `json:"description,omitempty"`
+}
+
 // GradingScale generated from OpenAPI schema.
 type GradingScale struct {
 	Id       string `json:"id"`
@@ -88,17 +126,65 @@ type GradingScale struct {
 		Grade  *string  `json:"grade,omitempty"`
 		Remark *string  `json:"remark,omitempty"`
 	} `json:"ranges,omitempty"`
+	CreatedAt *string `json:"created_at,omitempty"`
+	UpdatedAt *string `json:"updated_at,omitempty"`
+}
+
+// TimetableEntry generated from OpenAPI schema.
+type TimetableEntry struct {
+	Id        string  `json:"id"`
+	TenantId  string  `json:"tenant_id"`
+	ClassId   string  `json:"class_id"`
+	TermId    string  `json:"term_id"`
+	SubjectId string  `json:"subject_id"`
+	TeacherId *string `json:"teacher_id,omitempty"`
+	Weekday   int     `json:"weekday"`
+	StartTime string  `json:"start_time"`
+	EndTime   string  `json:"end_time"`
+	Room      *string `json:"room,omitempty"`
+	Status    string  `json:"status"`
+}
+
+// CreateTimetableEntry generated from OpenAPI schema.
+type CreateTimetableEntry struct {
+	ClassId   string  `json:"class_id"`
+	TermId    string  `json:"term_id"`
+	SubjectId string  `json:"subject_id"`
+	TeacherId *string `json:"teacher_id,omitempty"`
+	Weekday   int     `json:"weekday"`
+	StartTime string  `json:"start_time"`
+	EndTime   string  `json:"end_time"`
+	Room      *string `json:"room,omitempty"`
+}
+
+// UpdateTimetableEntry generated from OpenAPI schema.
+type UpdateTimetableEntry struct {
+	TeacherId *string `json:"teacher_id,omitempty"`
+	Weekday   *int    `json:"weekday,omitempty"`
+	StartTime *string `json:"start_time,omitempty"`
+	EndTime   *string `json:"end_time,omitempty"`
+	Room      *string `json:"room,omitempty"`
+	Status    *string `json:"status,omitempty"`
 }
 
 // CreateGradingScale generated from OpenAPI schema.
 type CreateGradingScale struct {
-	Name   string `json:"name"`
-	Ranges *[]struct {
-		Min    *float64 `json:"min,omitempty"`
-		Max    *float64 `json:"max,omitempty"`
-		Grade  *string  `json:"grade,omitempty"`
-		Remark *string  `json:"remark,omitempty"`
-	} `json:"ranges,omitempty"`
+	Name   string       `json:"name"`
+	Ranges []GradeRange `json:"ranges"`
+}
+
+// UpdateGradingScale generated from OpenAPI schema.
+type UpdateGradingScale struct {
+	Name   *string       `json:"name,omitempty"`
+	Ranges *[]GradeRange `json:"ranges,omitempty"`
+}
+
+// GradeRange generated from OpenAPI schema.
+type GradeRange struct {
+	Min    float64 `json:"min"`
+	Max    float64 `json:"max"`
+	Grade  string  `json:"grade"`
+	Remark *string `json:"remark,omitempty"`
 }
 
 // AcademicYearList generated from OpenAPI schema.
@@ -131,30 +217,75 @@ type GradingScaleList struct {
 	NextCursor *string         `json:"next_cursor,omitempty"`
 }
 
+// TimetableList generated from OpenAPI schema.
+type TimetableList struct {
+	Data []TimetableEntry `json:"data"`
+}
+
 // ServerInterface is implemented by the service HTTP adapter.
 type ServerInterface interface {
 	listAcademicYears(w http.ResponseWriter, r *http.Request)
 	createAcademicYear(w http.ResponseWriter, r *http.Request)
+	getAcademicYear(w http.ResponseWriter, r *http.Request)
+	updateAcademicYear(w http.ResponseWriter, r *http.Request)
+	deleteAcademicYear(w http.ResponseWriter, r *http.Request)
 	listTerms(w http.ResponseWriter, r *http.Request)
 	createTerm(w http.ResponseWriter, r *http.Request)
+	getTerm(w http.ResponseWriter, r *http.Request)
+	updateTerm(w http.ResponseWriter, r *http.Request)
+	deleteTerm(w http.ResponseWriter, r *http.Request)
 	listClasses(w http.ResponseWriter, r *http.Request)
 	createClass(w http.ResponseWriter, r *http.Request)
+	getClass(w http.ResponseWriter, r *http.Request)
+	updateClass(w http.ResponseWriter, r *http.Request)
+	deleteClass(w http.ResponseWriter, r *http.Request)
 	listSubjects(w http.ResponseWriter, r *http.Request)
 	createSubject(w http.ResponseWriter, r *http.Request)
+	getSubject(w http.ResponseWriter, r *http.Request)
+	updateSubject(w http.ResponseWriter, r *http.Request)
+	deleteSubject(w http.ResponseWriter, r *http.Request)
+	listTimetable(w http.ResponseWriter, r *http.Request)
+	createTimetableEntry(w http.ResponseWriter, r *http.Request)
+	getTimetableEntry(w http.ResponseWriter, r *http.Request)
+	updateTimetableEntry(w http.ResponseWriter, r *http.Request)
+	deleteTimetableEntry(w http.ResponseWriter, r *http.Request)
 	listGradingScales(w http.ResponseWriter, r *http.Request)
 	createGradingScale(w http.ResponseWriter, r *http.Request)
+	getGradingScale(w http.ResponseWriter, r *http.Request)
+	updateGradingScale(w http.ResponseWriter, r *http.Request)
+	deleteGradingScale(w http.ResponseWriter, r *http.Request)
 }
 
 // ClientInterface is the generated consumer stub for this service.
 type ClientInterface interface {
 	listAcademicYears(ctx context.Context) (*http.Response, error)
 	createAcademicYear(ctx context.Context) (*http.Response, error)
+	getAcademicYear(ctx context.Context) (*http.Response, error)
+	updateAcademicYear(ctx context.Context) (*http.Response, error)
+	deleteAcademicYear(ctx context.Context) (*http.Response, error)
 	listTerms(ctx context.Context) (*http.Response, error)
 	createTerm(ctx context.Context) (*http.Response, error)
+	getTerm(ctx context.Context) (*http.Response, error)
+	updateTerm(ctx context.Context) (*http.Response, error)
+	deleteTerm(ctx context.Context) (*http.Response, error)
 	listClasses(ctx context.Context) (*http.Response, error)
 	createClass(ctx context.Context) (*http.Response, error)
+	getClass(ctx context.Context) (*http.Response, error)
+	updateClass(ctx context.Context) (*http.Response, error)
+	deleteClass(ctx context.Context) (*http.Response, error)
 	listSubjects(ctx context.Context) (*http.Response, error)
 	createSubject(ctx context.Context) (*http.Response, error)
+	getSubject(ctx context.Context) (*http.Response, error)
+	updateSubject(ctx context.Context) (*http.Response, error)
+	deleteSubject(ctx context.Context) (*http.Response, error)
+	listTimetable(ctx context.Context) (*http.Response, error)
+	createTimetableEntry(ctx context.Context) (*http.Response, error)
+	getTimetableEntry(ctx context.Context) (*http.Response, error)
+	updateTimetableEntry(ctx context.Context) (*http.Response, error)
+	deleteTimetableEntry(ctx context.Context) (*http.Response, error)
 	listGradingScales(ctx context.Context) (*http.Response, error)
 	createGradingScale(ctx context.Context) (*http.Response, error)
+	getGradingScale(ctx context.Context) (*http.Response, error)
+	updateGradingScale(ctx context.Context) (*http.Response, error)
+	deleteGradingScale(ctx context.Context) (*http.Response, error)
 }

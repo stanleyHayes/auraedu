@@ -1,0 +1,98 @@
+groups:
+  - name: auraedu-http-slos
+    rules:
+      - alert: AuraEDUServiceDown
+        expr: up{job="auraedu-services"} == 0
+        for: 5m
+        labels: { severity: critical, team: platform }
+        annotations:
+          summary: "AuraEDU service target is unavailable"
+          description: "Prometheus has failed to scrape {{ $labels.instance }} for five minutes."
+          runbook: "docs/engineering-handbook/04-operations/runbooks/alerts.md#auraeduservicedown"
+
+      - alert: AuraEDUHighHTTPErrorRate
+        expr: |
+          sum by (service) (rate(auraedu_http_requests_total{status=~"5.."}[5m]))
+          /
+          clamp_min(sum by (service) (rate(auraedu_http_requests_total[5m])), 0.001)
+          > 0.01
+        for: 10m
+        labels: { severity: critical, team: platform }
+        annotations:
+          summary: "{{ $labels.service }} exceeds the 1% HTTP error budget"
+          description: "Five-minute server error ratio has remained above 1% for ten minutes."
+          runbook: "docs/engineering-handbook/04-operations/runbooks/alerts.md#auraeduhighhttperrorrate"
+
+      - alert: AuraEDUHighP95Latency
+        expr: |
+          histogram_quantile(0.95,
+            sum by (service, le) (rate(auraedu_http_request_duration_seconds_bucket[5m]))
+          ) > 0.75
+        for: 10m
+        labels: { severity: warning, team: platform }
+        annotations:
+          summary: "{{ $labels.service }} p95 latency exceeds 750ms"
+          description: "Five-minute p95 latency has exceeded the interactive API objective for ten minutes."
+          runbook: "docs/engineering-handbook/04-operations/runbooks/alerts.md#auraeduhighp95latency"
+
+      - alert: AuraEDUSustainedFailedLogins
+        expr: |
+          sum(rate(auraedu_http_requests_total{service="identity-service",route=~".*auth/login.*",status="401"}[5m])) > 0.5
+        for: 10m
+        labels: { severity: warning, team: security }
+        annotations:
+          summary: "Sustained failed login activity"
+          description: "Identity is returning more than 0.5 failed logins per second for ten minutes."
+          runbook: "docs/engineering-handbook/04-operations/runbooks/alerts.md#auraedusustainedfailedlogins"
+
+      - alert: AuraEDUPaymentWebhookFailures
+        expr: |
+          sum(rate(auraedu_http_requests_total{service="payment-service",route=~".*webhook.*",status=~"5.."}[5m])) > 0
+        for: 5m
+        labels: { severity: critical, team: payments }
+        annotations:
+          summary: "Payment webhook processing is failing"
+          description: "Payment provider webhook requests have returned server errors for five minutes."
+          runbook: "docs/engineering-handbook/04-operations/runbooks/alerts.md#auraedupaymentwebhookfailures"
+
+      - alert: AuraEDUNotificationAPIFailures
+        expr: |
+          sum(rate(auraedu_http_requests_total{service="notification-service",status=~"5.."}[5m])) > 0.01
+        for: 10m
+        labels: { severity: warning, team: communications }
+        annotations:
+          summary: "Notification service API failures"
+          description: "Notification API server errors exceed 0.01 requests per second. Provider-delivery alerts use the dedicated worker metric when configured."
+          runbook: "docs/engineering-handbook/04-operations/runbooks/alerts.md#auraedunotificationapifailures"
+
+      - alert: AuraEDUNotificationDeliveryFailures
+        expr: |
+          sum by (channel) (rate(auraedu_notification_deliveries_total{outcome=~"failed|unconfigured"}[5m])) > 0
+        for: 5m
+        labels: { severity: critical, team: communications }
+        annotations:
+          summary: "{{ $labels.channel }} notification delivery is failing"
+          description: "The notification provider has returned failures or the requested channel is not configured for five minutes."
+          runbook: "docs/engineering-handbook/04-operations/runbooks/alerts.md#auraedunotificationdeliveryfailures"
+
+      - alert: AuraEDUAIServiceLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum by (service, le) (rate(auraedu_http_request_duration_seconds_bucket{service=~"ai-.*|career-guidance-service"}[5m]))
+          ) > 2.5
+        for: 10m
+        labels: { severity: warning, team: ai }
+        annotations:
+          summary: "{{ $labels.service }} p95 latency exceeds 2.5s"
+          description: "An AI API has exceeded its latency objective for ten minutes."
+          runbook: "docs/engineering-handbook/04-operations/runbooks/alerts.md#auraeduaiservicelatency"
+
+      - alert: AuraEDUWorkerJobFailures
+        expr: |
+          sum by (service, job) (rate(auraedu_worker_jobs_total{outcome="failed"}[5m])) > 0
+        for: 5m
+        labels: { severity: warning, team: platform }
+        annotations:
+          summary: "{{ $labels.service }} job {{ $labels.job }} is failing"
+          description: "A bounded background job has returned failures for five minutes."
+          runbook: "docs/engineering-handbook/04-operations/runbooks/alerts.md#auraeduworkerjobfailures"

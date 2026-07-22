@@ -5,6 +5,8 @@ info:
   description: >
     Schools (tenants), branding, settings, and the feature-flag store.
     Source of truth for feature flags (spec §3). Owned by lane L1 (EP-05).
+  contact:
+    name: AuraEDU Engineering
 servers:
   - url: /api/v1
 tags:
@@ -12,9 +14,145 @@ tags:
   - name: features
 
 paths:
+  /internal/v1/onboarding-requests/{request_id}/administrator:
+    get:
+      operationId: resolveOnboardingAdministrator
+      tags: [tenants]
+      summary: Resolve approved onboarding administrator (service-to-service only)
+      description: Protected by the internal service bearer token; never exposed by the gateway.
+      parameters:
+        - name: request_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Approved administrator details
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tenant_code, administrator_name, email]
+                properties:
+                  tenant_code: { type: string }
+                  administrator_name: { type: string }
+                  email: { type: string, format: email }
+        '401': { description: Invalid service credential }
+        '404': { description: Request not found or not approved }
+
+  /public/onboarding-requests:
+    post:
+      operationId: submitOnboardingRequest
+      tags: [tenants]
+      summary: Submit a school onboarding request for platform review
+      description: >
+        Public, idempotent intake only. This endpoint never provisions a tenant
+        directly; a platform administrator must approve the request.
+      security: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 16, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OnboardingRequestCreate' }
+      responses:
+        '202':
+          description: Accepted for review
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OnboardingRequestReceipt' }
+        '409': { description: Idempotency key was reused with different content }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /super-admin/onboarding-requests:
+    get:
+      operationId: listOnboardingRequests
+      description: Executes the list onboarding requests workflow within this AuraEDU API boundary.
+      tags: [tenants]
+      summary: List onboarding requests (platform super admin only)
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - name: status
+          in: query
+          schema: { type: string, enum: [pending_review, approved, rejected, provisioning_failed] }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/OnboardingRequest' } }
+                  next_cursor: { type: [string, 'null'] }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /super-admin/onboarding-requests/{request_id}/approve:
+    post:
+      operationId: approveOnboardingRequest
+      description: Executes the approve onboarding request workflow within this AuraEDU API boundary.
+      tags: [tenants]
+      summary: Approve an onboarding request and provision its tenant
+      parameters:
+        - name: request_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_code]
+              properties:
+                tenant_code: { type: string, pattern: '^[a-z0-9-]{2,50}$' }
+      responses:
+        '200':
+          description: Approved and provisioned
+          content: { application/json: { schema: { $ref: '#/components/schemas/OnboardingRequest' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: Request or tenant code conflicts with existing state }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /super-admin/onboarding-requests/{request_id}/reject:
+    post:
+      operationId: rejectOnboardingRequest
+      description: Executes the reject onboarding request workflow within this AuraEDU API boundary.
+      tags: [tenants]
+      summary: Reject an onboarding request
+      parameters:
+        - name: request_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        '200':
+          description: Rejected
+          content: { application/json: { schema: { $ref: '#/components/schemas/OnboardingRequest' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: Request has already left pending review }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
   /tenants:
     get:
       operationId: listTenants
+      description: Executes the list tenants workflow within this AuraEDU API boundary.
       tags: [tenants]
       summary: List tenants (platform super admin only)
       parameters:
@@ -33,6 +171,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
     post:
       operationId: createTenant
+      description: Executes the create tenant workflow within this AuraEDU API boundary.
       tags: [tenants]
       summary: Create a tenant (onboarding / sign-up funnel)
       requestBody:
@@ -51,6 +190,7 @@ paths:
       - $ref: '#/components/parameters/TenantCode'
     get:
       operationId: getTenant
+      description: Executes the get tenant workflow within this AuraEDU API boundary.
       tags: [tenants]
       responses:
         '200':
@@ -60,6 +200,7 @@ paths:
         '404': { description: Not found }
     patch:
       operationId: updateTenant
+      description: Executes the update tenant workflow within this AuraEDU API boundary.
       tags: [tenants]
       summary: Update a tenant (platform super admin only)
       requestBody:
@@ -76,6 +217,7 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
     delete:
       operationId: deleteTenant
+      description: Executes the delete tenant workflow within this AuraEDU API boundary.
       tags: [tenants]
       summary: Delete a tenant (platform super admin only)
       responses:
@@ -88,6 +230,7 @@ paths:
       - $ref: '#/components/parameters/TenantCode'
     get:
       operationId: getBranding
+      description: Executes the get branding workflow within this AuraEDU API boundary.
       tags: [tenants]
       summary: Public branding for a tenant
       security: []
@@ -102,6 +245,7 @@ paths:
       - $ref: '#/components/parameters/TenantCode'
     get:
       operationId: getSettings
+      description: Executes the get settings workflow within this AuraEDU API boundary.
       tags: [tenants]
       summary: Tenant operational settings
       responses:
@@ -112,6 +256,7 @@ paths:
         '404': { description: Not found }
     patch:
       operationId: updateSettings
+      description: Executes the update settings workflow within this AuraEDU API boundary.
       tags: [tenants]
       summary: Update tenant operational settings
       requestBody:
@@ -127,9 +272,113 @@ paths:
         '404': { description: Not found }
         '422': { $ref: '#/components/responses/ValidationError' }
 
+  /tenants/{code}/custom-domain:
+    parameters:
+      - $ref: '#/components/parameters/TenantCode'
+    post:
+      operationId: requestCustomDomain
+      tags: [tenants]
+      summary: Start DNS ownership verification for a custom domain
+      description: Requires tenant scope, features.manage, an eligible plan, and the custom_domain feature.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [hostname]
+              additionalProperties: false
+              properties:
+                hostname: { type: string, minLength: 4, maxLength: 253, example: school.edu.gh }
+      responses:
+        '201':
+          description: DNS challenge created; the verification token is returned only in this response
+          content: { application/json: { schema: { $ref: '#/components/schemas/CustomDomain' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: Domain already claimed or active }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    get:
+      operationId: getCustomDomain
+      description: Executes the get custom domain workflow within this AuraEDU API boundary.
+      tags: [tenants]
+      summary: Read custom-domain verification state
+      responses:
+        '200':
+          description: Current state; never returns the verification token
+          content: { application/json: { schema: { $ref: '#/components/schemas/CustomDomain' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: No registration }
+
+  /tenants/{code}/custom-domain/verify:
+    parameters:
+      - $ref: '#/components/parameters/TenantCode'
+    post:
+      operationId: verifyCustomDomain
+      description: Executes the verify custom domain workflow within this AuraEDU API boundary.
+      tags: [tenants]
+      summary: Verify the DNS TXT ownership challenge
+      responses:
+        '200':
+          description: Ownership verified; provider TLS activation is still required
+          content: { application/json: { schema: { $ref: '#/components/schemas/CustomDomain' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: The expected DNS value was not observed }
+        '503': { description: DNS resolver unavailable }
+
+  /super-admin/tenants/{code}/custom-domain/activate:
+    parameters:
+      - $ref: '#/components/parameters/TenantCode'
+    post:
+      operationId: activateCustomDomain
+      description: Executes the activate custom domain workflow within this AuraEDU API boundary.
+      tags: [tenants]
+      summary: Activate a verified domain after the platform provider reports valid TLS
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider_reference]
+              additionalProperties: false
+              properties:
+                provider_reference: { type: string, minLength: 8, maxLength: 200 }
+      responses:
+        '200':
+          description: Domain is active for public resolution
+          content: { application/json: { schema: { $ref: '#/components/schemas/CustomDomain' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: DNS ownership is not verified }
+
+  /super-admin/tenants/{code}/custom-domain/deactivate:
+    parameters:
+      - $ref: '#/components/parameters/TenantCode'
+    post:
+      operationId: deactivateCustomDomain
+      description: Executes the deactivate custom domain workflow within this AuraEDU API boundary.
+      tags: [tenants]
+      summary: Deactivate an active custom domain after removing it from the platform provider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider_reference]
+              additionalProperties: false
+              properties:
+                provider_reference: { type: string, minLength: 8, maxLength: 200 }
+      responses:
+        '200':
+          description: Domain no longer resolves through AuraEDU
+          content: { application/json: { schema: { $ref: '#/components/schemas/CustomDomain' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: Domain is not active }
+
   /tenants/resolve:
     get:
       operationId: resolveTenant
+      description: Executes the resolve tenant workflow within this AuraEDU API boundary.
       tags: [tenants]
       summary: Resolve tenant by domain or subdomain
       security: []
@@ -149,6 +398,7 @@ paths:
   /features:
     get:
       operationId: getFeatureSnapshot
+      description: Executes the get feature snapshot workflow within this AuraEDU API boundary.
       tags: [features]
       summary: Feature-flag snapshot for the resolved tenant (loaded by web/mobile at startup)
       security: []
@@ -175,6 +425,7 @@ paths:
         schema: { type: string }
     put:
       operationId: setFeature
+      description: Executes the set feature workflow within this AuraEDU API boundary.
       tags: [features]
       summary: Enable or disable a feature for the resolved tenant
       requestBody:
@@ -202,6 +453,7 @@ paths:
         schema: { type: string }
     post:
       operationId: superAdminFeatureOverride
+      description: Executes the super admin feature override workflow within this AuraEDU API boundary.
       tags: [features]
       summary: Platform super admin override for a tenant feature
       requestBody:
@@ -238,6 +490,44 @@ components:
       schema: { type: string }
 
   schemas:
+    OnboardingRequestCreate:
+      type: object
+      required: [school_name, administrator_name, email, country_code, plan, privacy_notice_version, accepted_terms]
+      properties:
+        school_name: { type: string, minLength: 2, maxLength: 200 }
+        administrator_name: { type: string, minLength: 2, maxLength: 160 }
+        email: { type: string, format: email, maxLength: 320 }
+        phone: { type: [string, 'null'], maxLength: 40 }
+        country_code: { type: string, pattern: '^[A-Z]{2}$' }
+        plan: { type: string, enum: [starter, growth, professional, ai_plus, enterprise] }
+        priorities: { type: [string, 'null'], maxLength: 2000 }
+        privacy_notice_version: { type: string, minLength: 1, maxLength: 40 }
+        accepted_terms: { type: boolean, const: true }
+        website: { type: [string, 'null'], maxLength: 0, description: Honeypot; must be empty }
+    OnboardingRequestReceipt:
+      type: object
+      required: [request_id, status, submitted_at]
+      properties:
+        request_id: { type: string, format: uuid }
+        status: { type: string, const: pending_review }
+        submitted_at: { type: string, format: date-time }
+    OnboardingRequest:
+      type: object
+      required: [request_id, school_name, administrator_name, email, country_code, plan, status, submitted_at]
+      properties:
+        request_id: { type: string, format: uuid }
+        school_name: { type: string }
+        administrator_name: { type: string }
+        email: { type: string, format: email }
+        phone: { type: [string, 'null'] }
+        country_code: { type: string }
+        plan: { type: string, enum: [starter, growth, professional, ai_plus, enterprise] }
+        priorities: { type: [string, 'null'] }
+        status: { type: string, enum: [pending_review, approved, rejected, provisioning_failed] }
+        tenant_code: { type: [string, 'null'] }
+        decision_reason: { type: [string, 'null'] }
+        submitted_at: { type: string, format: date-time }
+        decided_at: { type: [string, 'null'], format: date-time }
     Tenant:
       type: object
       required: [tenant_code, name, status]
@@ -257,7 +547,6 @@ components:
         name: { type: string }
         short: { type: string }
         status: { type: string, enum: [active, suspended, onboarding] }
-        domain: { type: [string, 'null'] }
         plan: { type: string, enum: [starter, growth, professional, ai_plus, enterprise] }
         branding: { $ref: '#/components/schemas/Branding' }
     TenantUpdate:
@@ -266,9 +555,24 @@ components:
         name: { type: string }
         short: { type: [string, 'null'] }
         status: { type: string, enum: [active, suspended, onboarding] }
-        domain: { type: [string, 'null'] }
         plan: { type: string, enum: [starter, growth, professional, ai_plus, enterprise] }
         branding: { $ref: '#/components/schemas/Branding' }
+    CustomDomain:
+      type: object
+      required: [tenant_code, hostname, status, txt_record_name]
+      additionalProperties: false
+      properties:
+        tenant_code: { type: string }
+        hostname: { type: string, minLength: 4, maxLength: 253 }
+        status: { type: string, enum: [pending_dns, verified, active, inactive] }
+        txt_record_name: { type: string }
+        verification_token:
+          type: string
+          description: Returned only when a new challenge is created; never persisted in cleartext
+        verified_at: { type: [string, 'null'], format: date-time }
+        activated_at: { type: [string, 'null'], format: date-time }
+        deactivated_at: { type: [string, 'null'], format: date-time }
+        provider_reference: { type: [string, 'null'] }
     Branding:
       type: object
       properties:

@@ -95,6 +95,16 @@ func (s *CloudinaryStorage) SignUpload(ctx context.Context, tenantID, fileID, fo
 	if resourceType == "" {
 		resourceType = s.resourceType
 	}
+	if resourceType != "raw" && resourceType != "image" && resourceType != "video" {
+		return ports.SignedUpload{}, fmt.Errorf("unsupported resource type")
+	}
+	folder = strings.Trim(strings.TrimSpace(folder), "/")
+	if folder != tenantID && !strings.HasPrefix(folder, tenantID+"/") {
+		return ports.SignedUpload{}, fmt.Errorf("folder must be scoped to tenant")
+	}
+	if strings.Contains(folder, "..") || strings.Contains(folder, "\\") {
+		return ports.SignedUpload{}, fmt.Errorf("invalid upload folder")
+	}
 
 	timestamp := time.Now().Unix()
 	params := url.Values{}

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/auraedu/platform/auth"
 )
@@ -86,6 +87,56 @@ func TestTenantServiceClientEnabledAndFallback(t *testing.T) {
 	nilClient := (*TenantServiceClient)(nil)
 	if nilClient.IsEnabled(ctx, "upshs", "cbt_exams") {
 		t.Fatal("expected nil client to return false")
+	}
+}
+
+func TestTenantServiceClientBoundsDependencyAndEncodesTenant(t *testing.T) {
+	fallback := NewStaticSnapshot()
+	fallback.Set("slow-school", "fees", true)
+	fallback.Set("school&tenant=attacker", "fees", true)
+	fallback.Set("large-school", "fees", true)
+
+	receivedTenant := ""
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Query().Get("tenant") {
+		case "school&tenant=attacker":
+			receivedTenant = r.URL.Query().Get("tenant")
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"tenant_code":"school&tenant=attacker","features":[{"feature_key":"fees","is_enabled":false}]}`))
+		case "slow-school":
+			<-r.Context().Done()
+		case "large-school":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"tenant_code":"large-school","features":[{"feature_key":"fees","is_enabled":false}]}`))
+			_, _ = w.Write([]byte(strings.Repeat(" ", maxFeatureResponseBytes)))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client := NewTenantServiceClient(server.URL, fallback)
+	if client.client.Timeout != tenantServiceTimeout {
+		t.Fatalf("live entitlement timeout=%s want=%s", client.client.Timeout, tenantServiceTimeout)
+	}
+	if client.IsEnabled(context.Background(), "school&tenant=attacker", "fees") {
+		t.Fatal("live disabled entitlement must override fallback")
+	}
+	if receivedTenant != "school&tenant=attacker" {
+		t.Fatalf("tenant query was not encoded as one value: %q", receivedTenant)
+	}
+
+	client.client.Timeout = 25 * time.Millisecond
+	started := time.Now()
+	if !client.IsEnabled(context.Background(), "slow-school", "fees") {
+		t.Fatal("bounded dependency timeout must use the configured fallback")
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("stalled Tenant Service was not bounded: %s", elapsed)
+	}
+
+	if !client.IsEnabled(context.Background(), "large-school", "fees") {
+		t.Fatal("oversized entitlement response must use the configured fallback")
 	}
 }
 

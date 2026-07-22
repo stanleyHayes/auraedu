@@ -26,12 +26,14 @@
   "scripts": {
     "generate": "pnpm --filter @auraedu/codegen run generate",
     "build": "tsc -p tsconfig.json",
+    "test": "node --test test/*.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint .",
     "clean": "rm -rf dist"
   },
   "devDependencies": {
     "@auraedu/codegen": "workspace:*",
+    "@types/node": "^26.1.1",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "eslint": "^10.7.0",

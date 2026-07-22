@@ -12,3 +12,11 @@ type EventPublisher interface {
 	// Publish sends a file domain event. meta may contain extra event data such as changed_fields.
 	Publish(ctx context.Context, eventType string, file *domain.FileUpload, meta map[string]any) error
 }
+
+func FileEventData(file *domain.FileUpload, meta map[string]any) map[string]any {
+	data := map[string]any{"file_id": file.ID}
+	for key, value := range meta {
+		data[key] = value
+	}
+	return data
+}

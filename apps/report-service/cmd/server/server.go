@@ -4,6 +4,7 @@ package servercmd
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -17,6 +18,7 @@ import (
 	"github.com/auraedu/platform/eventbus"
 	"github.com/auraedu/platform/flags"
 	"github.com/auraedu/platform/httpx"
+	"github.com/auraedu/platform/observ"
 
 	// Register pgx SQL driver for database/sql based migrations.
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -24,9 +26,11 @@ import (
 
 	svcevents "github.com/auraedu/report-service/internal/adapters/events"
 	svchttp "github.com/auraedu/report-service/internal/adapters/http"
-	"github.com/auraedu/report-service/internal/adapters/pdf"
 	"github.com/auraedu/report-service/internal/adapters/postgres"
+	"github.com/auraedu/report-service/internal/adapters/storage"
+	studentadapter "github.com/auraedu/report-service/internal/adapters/student"
 	"github.com/auraedu/report-service/internal/application"
+	"github.com/auraedu/report-service/internal/ports"
 )
 
 const service = "report-service"
@@ -34,31 +38,46 @@ const service = "report-service"
 // version is injected via -ldflags "-X main.version=<sha>" (Dockerfile); falls back to env.
 var version = ""
 
-func main() {
-	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+func run() error {
+	log := observ.DefaultLogger()
 	slog.SetDefault(log)
+	if err := config.RequireProductionEnv("INTERNAL_SERVICE_TOKEN"); err != nil {
+		return fmt.Errorf("invalid production runtime configuration: %w", err)
+	}
 	if version == "" {
 		version = config.Getenv("GIT_SHA", "dev")
 	}
+	shutdownTracing, err := observ.InitTracing(service, version)
+	if err != nil {
+		return fmt.Errorf("initialize tracing: %w", err)
+	}
+	defer func() {
+		if err := shutdownTracing(context.Background()); err != nil {
+			log.Error("failed to flush tracing", "err", err)
+		}
+	}()
 
 	ctx := context.Background()
 	database, err := openDB(ctx)
 	if err != nil {
-		log.Error("failed to open database", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("open database: %w", err)
 	}
 	defer database.Close()
 
-	pub := publisher(ctx, log)
+	pub, closePublisher := publisher(ctx, log)
+	defer closePublisher()
 	gates := featureGates(log)
-	pdfGen := pdf.NewGenerator()
+	reportStorage, err := initStorage()
+	if err != nil {
+		return fmt.Errorf("initialize report storage: %w", err)
+	}
 
 	repo := postgres.NewRepository(database)
 	svc := application.NewService(repo,
 		application.WithPublisher(pub),
 		application.WithFeatureGate(gates),
-		application.WithPDFGenerator(pdfGen),
-		application.WithReportOutputDir(config.Getenv("REPORT_OUTPUT_DIR", application.DefaultReportOutputDir)),
+		application.WithStorage(reportStorage),
+		application.WithLearnerScopeResolver(studentadapter.NewClient(config.Getenv("SERVICE_STUDENT_URL", ""), config.Getenv("INTERNAL_SERVICE_TOKEN", ""))),
 	)
 	handler := svchttp.NewHandler(svc)
 
@@ -72,29 +91,53 @@ func main() {
 	addr := ":" + strconv.Itoa(config.Port(8080))
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           httpx.RequestIDMiddleware(mux),
+		Handler:           observ.HTTPHandler(service, httpx.RequestIDMiddleware(mux)),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
+	serverErrors := make(chan error, 1)
 	go func() {
 		log.Info(service+" listening", "addr", addr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error("server error", "err", err)
-			os.Exit(1)
+			serverErrors <- fmt.Errorf("serve HTTP: %w", err)
 		}
 	}()
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-	<-stop
+	select {
+	case <-stop:
+	case err := <-serverErrors:
+		return err
+	}
 	ctxShutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctxShutdown); err != nil {
-		log.Error("failed to shutdown server", "err", err)
+		return fmt.Errorf("shutdown server: %w", err)
 	}
 	log.Info(service + " stopped")
+	return nil
+}
+
+func initStorage() (ports.ReportStorage, error) {
+	backend := config.Getenv("REPORT_STORAGE_BACKEND", "local")
+	if config.Getenv("ENVIRONMENT", "development") == "production" && backend != "cloudinary" {
+		return nil, errors.New("production report storage must use cloudinary")
+	}
+	switch backend {
+	case "local":
+		return storage.NewLocal(config.Getenv("REPORT_OUTPUT_DIR", application.DefaultReportOutputDir))
+	case "cloudinary":
+		cloudURL, err := config.MustGetenv("CLOUDINARY_URL")
+		if err != nil {
+			return nil, err
+		}
+		return storage.NewCloudinary(cloudURL)
+	default:
+		return nil, errors.New("unsupported REPORT_STORAGE_BACKEND")
+	}
 }
 
 func openDB(ctx context.Context) (*db.DB, error) {
@@ -108,28 +151,30 @@ func openDB(ctx context.Context) (*db.DB, error) {
 	})
 }
 
-func publisher(_ context.Context, log *slog.Logger) *svcevents.Publisher {
+func publisher(_ context.Context, log *slog.Logger) (*svcevents.Publisher, func()) {
 	natsURL := config.Getenv("NATS_URL", "")
 	if natsURL == "" {
 		log.Info("NATS_URL not set; event publishing disabled")
-		return svcevents.NewPublisher(nil)
+		return svcevents.NewPublisher(nil), func() {}
 	}
 	nc, err := nats.Connect(natsURL)
 	if err != nil {
 		log.Error("failed to connect to NATS; event publishing disabled", "err", err)
-		return svcevents.NewPublisher(nil)
+		return svcevents.NewPublisher(nil), func() {}
 	}
 	js, err := nc.JetStream()
 	if err != nil {
 		log.Error("failed to create JetStream context; event publishing disabled", "err", err)
-		return svcevents.NewPublisher(nil)
+		nc.Close()
+		return svcevents.NewPublisher(nil), func() {}
 	}
 	if _, err := eventbus.EnsureStream(js, "AURA"); err != nil {
 		log.Error("failed to ensure NATS stream; event publishing disabled", "err", err)
-		return svcevents.NewPublisher(nil)
+		nc.Close()
+		return svcevents.NewPublisher(nil), func() {}
 	}
 	log.Info("event publishing enabled", "nats_url", natsURL)
-	return svcevents.NewPublisher(eventbus.NewPublisher(js))
+	return svcevents.NewPublisher(eventbus.NewPublisher(js)), nc.Close
 }
 
 func featureGates(log *slog.Logger) flags.Gate {
@@ -144,17 +189,11 @@ func featureGates(log *slog.Logger) flags.Gate {
 		fallback = reg.SnapshotFromRegistry()
 	}
 
-	// Live per-tenant overrides come from tenant-service (same wiring as the
-	// api-gateway); without SERVICE_TENANT_URL the static snapshot rules.
-	if tenantURL := config.Getenv("SERVICE_TENANT_URL", ""); tenantURL != "" {
-		return flags.NewTenantServiceClient(tenantURL, flags.WarnOnceFallback(fallback, log))
-	}
-	return fallback
+	return flags.NewRuntimeGate(config.Getenv("SERVICE_TENANT_URL", ""), fallback, log)
 }
 
 // Run starts the report-service HTTP server. It is invoked by the service CLI.
 func Run(serviceVersion string) error {
 	version = serviceVersion
-	main()
-	return nil
+	return run()
 }

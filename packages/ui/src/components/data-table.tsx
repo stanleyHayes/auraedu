@@ -33,13 +33,13 @@ export function DataTable<T>({
   return (
     <div
       className={cn(
-        "overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] shadow-sm",
+        "overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[0_10px_32px_color-mix(in_oklab,var(--color-navy)_5%,transparent)]",
         className,
       )}
     >
       <table className="w-full text-left text-sm">
         {caption ? <caption className="sr-only">{caption}</caption> : null}
-        <thead className="bg-[var(--muted)]">
+        <thead className="bg-[color-mix(in_oklab,var(--muted)_82%,var(--portal-accent,var(--color-brand)))]">
           <tr>
             {columns.map((col) => (
               <th
@@ -60,7 +60,7 @@ export function DataTable<T>({
             <tr
               key={keyExtractor(row)}
               className={cn(
-                "transition-colors hover:bg-[var(--muted)]/60 motion-safe:animate-[slide-up_0.35s_ease-out_both]",
+                "transition-colors hover:bg-[color-mix(in_oklab,var(--muted)_76%,var(--portal-accent,var(--color-brand)))] motion-safe:animate-[slide-up_0.35s_ease-out_both]",
                 i !== rows.length - 1 && "border-b border-[var(--border)]",
               )}
               style={{ animationDelay: `${Math.min(i * 40, 400)}ms` }}

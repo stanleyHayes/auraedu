@@ -32,7 +32,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/website/pages/{page_id}", h.getPage)
 	mux.HandleFunc("PATCH /api/v1/website/pages/{page_id}", h.updatePage)
 	mux.HandleFunc("DELETE /api/v1/website/pages/{page_id}", h.deletePage)
-	mux.HandleFunc("GET /api/v1/website/pages/by-slug/{slug}", h.getPageBySlug)
+	mux.HandleFunc("GET /api/v1/website/page-slugs/{slug}", h.getPageBySlug)
 
 	mux.HandleFunc("GET /api/v1/website/pages/{page_id}/sections", h.listSections)
 	mux.HandleFunc("POST /api/v1/website/pages/{page_id}/sections", h.createSection)

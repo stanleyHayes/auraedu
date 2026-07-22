@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CalendarCheck, ClipboardList } from "lucide-react";
+import { AlertTriangle, CalendarCheck, ClipboardList, LoaderCircle } from "lucide-react";
 import { useActionState } from "react";
 import {
   Button,
@@ -13,7 +13,11 @@ import {
   type DataTableColumn,
 } from "@auraedu/ui";
 import type { OpenAPI } from "@auraedu/shared-types";
-import { markAttendanceBulkAction, type TeacherActionResult } from "@/lib/teacher-actions";
+import {
+  loadTeacherClassRosterAction,
+  markAttendanceBulkAction,
+  type TeacherActionResult,
+} from "@/lib/teacher-actions";
 import type { AttendanceRecord } from "@/app/(teacher)/teacher/attendance/page";
 
 type AcademicClass = OpenAPI.academic_v1.components["schemas"]["Class"];
@@ -30,16 +34,20 @@ const columns: DataTableColumn<AttendanceRecord>[] = [
 
 interface TeacherAttendanceClientProps {
   initialRecords: AttendanceRecord[];
-  classes: AcademicClass[];
-  years: AcademicYear[];
-  students: Student[];
+  recordsAvailable: boolean;
+  classes: AcademicClass[] | null;
+  years: AcademicYear[] | null;
+  initialClassId: string;
+  initialStudents: Student[] | null;
 }
 
 export function TeacherAttendanceClient({
   initialRecords,
+  recordsAvailable,
   classes,
   years,
-  students,
+  initialClassId,
+  initialStudents,
 }: TeacherAttendanceClientProps) {
   const [state, formAction, pending] = useActionState<TeacherActionResult, FormData>(
     markAttendanceBulkAction,
@@ -47,16 +55,22 @@ export function TeacherAttendanceClient({
   );
   const formRef = React.useRef<HTMLFormElement>(null);
 
-  const currentYear = years.find((y) => y.is_current) ?? years[0];
-  const [classId, setClassId] = React.useState(classes[0]?.id ?? "");
+  const classRows = classes ?? [];
+  const yearRows = years ?? [];
+  const currentYear = yearRows.find((y) => y.is_current) ?? yearRows[0];
+  const [classId, setClassId] = React.useState(initialClassId);
   const [yearId, setYearId] = React.useState(
-    classes[0]?.academic_year_id ?? currentYear?.id ?? "",
+    classRows[0]?.academic_year_id ?? currentYear?.id ?? "",
   );
+  const [rosters, setRosters] = React.useState<Record<string, Student[] | null>>(
+    initialClassId ? { [initialClassId]: initialStudents } : {},
+  );
+  const [rosterLoading, setRosterLoading] = React.useState(false);
   const today = React.useMemo(() => new Date().toISOString().split("T")[0], []);
 
   function onClassChange(nextClassId: string) {
     setClassId(nextClassId);
-    const nextClass = classes.find((c) => c.id === nextClassId);
+    const nextClass = classRows.find((c) => c.id === nextClassId);
     if (nextClass) {
       setYearId(nextClass.academic_year_id);
     }
@@ -71,28 +85,51 @@ export function TeacherAttendanceClient({
     }
   }, [state]);
 
-  // The students API has no class filter, so the roster shows every active
-  // student; submitted records are tagged with the selected class.
-  const roster = students.filter((s) => !s.status || s.status === "active");
+  React.useEffect(() => {
+    if (!classId || rosters[classId] !== undefined) return;
+    let active = true;
+    setRosterLoading(true);
+    void loadTeacherClassRosterAction(classId).then((result) => {
+      if (!active) return;
+      setRosters((current) => ({
+        ...current,
+        [classId]: result.error ? null : (result.students ?? []),
+      }));
+      setRosterLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [classId, rosters]);
+
+  const roster = classId ? rosters[classId] : [];
 
   return (
     <div className="space-y-6">
       <section className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-5">
         <h3 className="font-sans font-semibold tracking-tight">Attendance records</h3>
         <div className="mt-4">
-          <DataTable
-            caption="Attendance records for the teacher's tenant"
-            columns={columns}
-            rows={initialRecords}
-            keyExtractor={(r) => r.id}
-            empty={
-              <EmptyState
-                icon={<ClipboardList className="size-8" />}
-                title="No attendance records"
-                description="Records will appear here once attendance is recorded."
-              />
-            }
-          />
+          {recordsAvailable ? (
+            <DataTable
+              caption="Attendance records for the teacher's tenant"
+              columns={columns}
+              rows={initialRecords}
+              keyExtractor={(r) => r.id}
+              empty={
+                <EmptyState
+                  icon={<ClipboardList className="size-8" />}
+                  title="No attendance records"
+                  description="Records will appear here once attendance is recorded."
+                />
+              }
+            />
+          ) : (
+            <EmptyState
+              icon={<AlertTriangle className="size-8" />}
+              title="Attendance records unavailable"
+              description="The attendance service could not be reached. No empty register has been assumed."
+            />
+          )}
         </div>
       </section>
 
@@ -113,8 +150,12 @@ export function TeacherAttendanceClient({
                 onChange={(e) => onClassChange(e.target.value)}
                 required
               >
-                {classes.length === 0 ? <option value="">No classes available</option> : null}
-                {classes.map((c) => (
+                {classRows.length === 0 ? (
+                  <option value="">
+                    {classes === null ? "Classes unavailable" : "No assigned classes"}
+                  </option>
+                ) : null}
+                {classRows.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                   </option>
@@ -130,8 +171,12 @@ export function TeacherAttendanceClient({
                 onChange={(e) => setYearId(e.target.value)}
                 required
               >
-                {years.length === 0 ? <option value="">No years available</option> : null}
-                {years.map((y) => (
+                {yearRows.length === 0 ? (
+                  <option value="">
+                    {years === null ? "Years unavailable" : "No academic years"}
+                  </option>
+                ) : null}
+                {yearRows.map((y) => (
                   <option key={y.id} value={y.id}>
                     {y.name}
                     {y.is_current ? " (current)" : ""}
@@ -145,13 +190,20 @@ export function TeacherAttendanceClient({
             </div>
           </div>
 
-          {roster.length > 0 ? (
+          {rosterLoading || roster === undefined ? (
+            <div className="flex items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-dashed border-[var(--border)] p-8 text-sm text-[var(--muted-foreground)]">
+              <LoaderCircle className="size-4 animate-spin" /> Loading the assigned class register…
+            </div>
+          ) : roster === null ? (
+            <EmptyState
+              icon={<AlertTriangle className="size-8" />}
+              title="Class register unavailable"
+              description="The roster could not be loaded. Attendance cannot be submitted until the authoritative register is available."
+            />
+          ) : roster.length > 0 ? (
             <div className="divide-y divide-[var(--border)] rounded-[var(--radius-sm)] border border-[var(--border)]">
               {roster.map((s) => (
-                <div
-                  key={s.id}
-                  className="flex items-center justify-between gap-4 px-4 py-2.5"
-                >
+                <div key={s.id} className="flex items-center justify-between gap-4 px-4 py-2.5">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">
                       {s.first_name} {s.last_name}
@@ -177,8 +229,12 @@ export function TeacherAttendanceClient({
           ) : (
             <EmptyState
               icon={<ClipboardList className="size-8" />}
-              title="No students to mark"
-              description="Active students will appear here once they are enrolled."
+              title={classId ? "No active learners" : "No assigned class"}
+              description={
+                classId
+                  ? "Active learners will appear here once they are enrolled in this class."
+                  : "An assigned class is required before attendance can be marked."
+              }
             />
           )}
 
@@ -187,7 +243,14 @@ export function TeacherAttendanceClient({
               type="submit"
               loading={pending}
               loadingLabel="Saving"
-              disabled={roster.length === 0 || !classId || !yearId}
+              disabled={
+                !roster ||
+                roster.length === 0 ||
+                !classId ||
+                !yearId ||
+                classes === null ||
+                years === null
+              }
             >
               <CalendarCheck className="size-4" />
               Save attendance

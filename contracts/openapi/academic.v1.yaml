@@ -4,6 +4,8 @@ info:
   version: 1.0.0
   description: >
     Academic years, terms, classes, subjects, curriculum, and grading scales (spec \u00a77). Owned by lane L2 (EP-12).
+  contact:
+    name: AuraEDU Engineering
 servers:
   - url: /api/v1
 tags:
@@ -12,11 +14,13 @@ tags:
   - name: classes
   - name: subjects
   - name: grading
+  - name: timetable
 
 paths:
     /academic-years:
       get:
             operationId: listAcademicYears
+            description: Executes the list academic years workflow within this AuraEDU API boundary.
             tags: ['academic-years']
             summary: List academic years
             parameters:
@@ -34,29 +38,48 @@ paths:
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
       post:
-            operationId: createAcademicYear
-            tags: ['academic-years']
-            summary: Create an academic year
-            parameters:
-              - $ref: '#/components/parameters/TenantHeader'
-            requestBody:
-              required: true
-              content:
-                application/json:
-                  schema: { $ref: '#/components/schemas/CreateAcademicYear' }
-            responses:
-              '201':
-                description: OK
-                content:
-                  application/json:
-                    schema: { $ref: '#/components/schemas/AcademicYear' }
-              '403': { $ref: '#/components/responses/Forbidden' }
-              '404': { $ref: '#/components/responses/NotFound' }
-              '422': { $ref: '#/components/responses/ValidationError' }
-              '401': { $ref: '#/components/responses/Unauthorized' }
+        operationId: createAcademicYear
+        description: Executes the create academic year workflow within this AuraEDU API boundary.
+        tags: [academic-years]
+        summary: Create an academic year
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }]
+        requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateAcademicYear' } } } }
+        responses:
+          '201': { description: Created academic year, content: { application/json: { schema: { $ref: '#/components/schemas/AcademicYear' } } } }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+    /academic-years/{academic_year_id}:
+      get:
+        operationId: getAcademicYear
+        description: Executes the get academic year workflow within this AuraEDU API boundary.
+        tags: [academic-years]
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/AcademicYearId' }]
+        responses:
+          '200': { description: Academic year, content: { application/json: { schema: { $ref: '#/components/schemas/AcademicYear' } } } }
+          '404': { $ref: '#/components/responses/NotFound' }
+      patch:
+        operationId: updateAcademicYear
+        description: Executes the update academic year workflow within this AuraEDU API boundary.
+        tags: [academic-years]
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/AcademicYearId' }]
+        requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UpdateAcademicYear' } } } }
+        responses:
+          '200': { description: Updated academic year, content: { application/json: { schema: { $ref: '#/components/schemas/AcademicYear' } } } }
+          '404': { $ref: '#/components/responses/NotFound' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+      delete:
+        operationId: deleteAcademicYear
+        description: Executes the delete academic year workflow within this AuraEDU API boundary.
+        tags: [academic-years]
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/AcademicYearId' }]
+        responses:
+          '204': { description: Academic year deleted }
+          '404': { $ref: '#/components/responses/NotFound' }
     /terms:
       get:
             operationId: listTerms
+            description: Executes the list terms workflow within this AuraEDU API boundary.
             tags: ['terms']
             summary: List terms
             parameters:
@@ -74,29 +97,48 @@ paths:
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
       post:
-            operationId: createTerm
-            tags: ['terms']
-            summary: Create a term
-            parameters:
-              - $ref: '#/components/parameters/TenantHeader'
-            requestBody:
-              required: true
-              content:
-                application/json:
-                  schema: { $ref: '#/components/schemas/CreateTerm' }
-            responses:
-              '201':
-                description: OK
-                content:
-                  application/json:
-                    schema: { $ref: '#/components/schemas/Term' }
-              '403': { $ref: '#/components/responses/Forbidden' }
-              '404': { $ref: '#/components/responses/NotFound' }
-              '422': { $ref: '#/components/responses/ValidationError' }
-              '401': { $ref: '#/components/responses/Unauthorized' }
+        operationId: createTerm
+        description: Executes the create term workflow within this AuraEDU API boundary.
+        tags: [terms]
+        summary: Create a term
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }]
+        requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateTerm' } } } }
+        responses:
+          '201': { description: Created term, content: { application/json: { schema: { $ref: '#/components/schemas/Term' } } } }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+    /terms/{term_id}:
+      get:
+        operationId: getTerm
+        description: Executes the get term workflow within this AuraEDU API boundary.
+        tags: [terms]
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/TermId' }]
+        responses:
+          '200': { description: Term, content: { application/json: { schema: { $ref: '#/components/schemas/Term' } } } }
+          '404': { $ref: '#/components/responses/NotFound' }
+      patch:
+        operationId: updateTerm
+        description: Executes the update term workflow within this AuraEDU API boundary.
+        tags: [terms]
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/TermId' }]
+        requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UpdateTerm' } } } }
+        responses:
+          '200': { description: Updated term, content: { application/json: { schema: { $ref: '#/components/schemas/Term' } } } }
+          '404': { $ref: '#/components/responses/NotFound' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+      delete:
+        operationId: deleteTerm
+        description: Executes the delete term workflow within this AuraEDU API boundary.
+        tags: [terms]
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/TermId' }]
+        responses:
+          '204': { description: Term deleted }
+          '404': { $ref: '#/components/responses/NotFound' }
     /classes:
       get:
             operationId: listClasses
+            description: Executes the list classes workflow within this AuraEDU API boundary.
             tags: ['classes']
             summary: List classes
             parameters:
@@ -114,29 +156,48 @@ paths:
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
       post:
-            operationId: createClass
-            tags: ['classes']
-            summary: Create a class
-            parameters:
-              - $ref: '#/components/parameters/TenantHeader'
-            requestBody:
-              required: true
-              content:
-                application/json:
-                  schema: { $ref: '#/components/schemas/CreateClass' }
-            responses:
-              '201':
-                description: OK
-                content:
-                  application/json:
-                    schema: { $ref: '#/components/schemas/Class' }
-              '403': { $ref: '#/components/responses/Forbidden' }
-              '404': { $ref: '#/components/responses/NotFound' }
-              '422': { $ref: '#/components/responses/ValidationError' }
-              '401': { $ref: '#/components/responses/Unauthorized' }
+        operationId: createClass
+        description: Executes the create class workflow within this AuraEDU API boundary.
+        tags: [classes]
+        summary: Create a class
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }]
+        requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateClass' } } } }
+        responses:
+          '201': { description: Created class, content: { application/json: { schema: { $ref: '#/components/schemas/Class' } } } }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+    /classes/{class_id}:
+      get:
+        operationId: getClass
+        description: Executes the get class workflow within this AuraEDU API boundary.
+        tags: [classes]
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/ClassId' }]
+        responses:
+          '200': { description: Class, content: { application/json: { schema: { $ref: '#/components/schemas/Class' } } } }
+          '404': { $ref: '#/components/responses/NotFound' }
+      patch:
+        operationId: updateClass
+        description: Executes the update class workflow within this AuraEDU API boundary.
+        tags: [classes]
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/ClassId' }]
+        requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UpdateClass' } } } }
+        responses:
+          '200': { description: Updated class, content: { application/json: { schema: { $ref: '#/components/schemas/Class' } } } }
+          '404': { $ref: '#/components/responses/NotFound' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+      delete:
+        operationId: deleteClass
+        description: Executes the delete class workflow within this AuraEDU API boundary.
+        tags: [classes]
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/ClassId' }]
+        responses:
+          '204': { description: Class deleted }
+          '404': { $ref: '#/components/responses/NotFound' }
     /subjects:
       get:
             operationId: listSubjects
+            description: Executes the list subjects workflow within this AuraEDU API boundary.
             tags: ['subjects']
             summary: List subjects
             parameters:
@@ -154,29 +215,103 @@ paths:
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
       post:
-            operationId: createSubject
-            tags: ['subjects']
-            summary: Create a subject
-            parameters:
-              - $ref: '#/components/parameters/TenantHeader'
-            requestBody:
-              required: true
-              content:
-                application/json:
-                  schema: { $ref: '#/components/schemas/CreateSubject' }
-            responses:
-              '201':
-                description: OK
-                content:
-                  application/json:
-                    schema: { $ref: '#/components/schemas/Subject' }
-              '403': { $ref: '#/components/responses/Forbidden' }
-              '404': { $ref: '#/components/responses/NotFound' }
-              '422': { $ref: '#/components/responses/ValidationError' }
-              '401': { $ref: '#/components/responses/Unauthorized' }
+        operationId: createSubject
+        description: Executes the create subject workflow within this AuraEDU API boundary.
+        tags: [subjects]
+        summary: Create a subject
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }]
+        requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateSubject' } } } }
+        responses:
+          '201': { description: Created subject, content: { application/json: { schema: { $ref: '#/components/schemas/Subject' } } } }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+    /subjects/{subject_id}:
+      get:
+        operationId: getSubject
+        description: Executes the get subject workflow within this AuraEDU API boundary.
+        tags: [subjects]
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/SubjectId' }]
+        responses:
+          '200': { description: Subject, content: { application/json: { schema: { $ref: '#/components/schemas/Subject' } } } }
+          '404': { $ref: '#/components/responses/NotFound' }
+      patch:
+        operationId: updateSubject
+        description: Executes the update subject workflow within this AuraEDU API boundary.
+        tags: [subjects]
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/SubjectId' }]
+        requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UpdateSubject' } } } }
+        responses:
+          '200': { description: Updated subject, content: { application/json: { schema: { $ref: '#/components/schemas/Subject' } } } }
+          '404': { $ref: '#/components/responses/NotFound' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+      delete:
+        operationId: deleteSubject
+        description: Executes the delete subject workflow within this AuraEDU API boundary.
+        tags: [subjects]
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/SubjectId' }]
+        responses:
+          '204': { description: Subject deleted }
+          '404': { $ref: '#/components/responses/NotFound' }
+    /timetable:
+      get:
+        operationId: listTimetable
+        description: Executes the list timetable workflow within this AuraEDU API boundary.
+        tags: [timetable]
+        summary: List timetable entries scoped to the authenticated learner or teacher
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - { name: class_id, in: query, schema: { type: string, format: uuid } }
+          - { name: term_id, in: query, schema: { type: string, format: uuid } }
+          - { name: weekday, in: query, schema: { type: integer, minimum: 1, maximum: 7 } }
+        responses:
+          '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/TimetableList' } } } }
+          '403': { $ref: '#/components/responses/Forbidden' }
+      post:
+        operationId: createTimetableEntry
+        description: Executes the create timetable entry workflow within this AuraEDU API boundary.
+        tags: [timetable]
+        summary: Create a conflict-protected timetable entry
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }]
+        requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateTimetableEntry' } } } }
+        responses:
+          '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/TimetableEntry' } } } }
+          '409': { description: Class or teacher period overlap }
+          '422': { $ref: '#/components/responses/ValidationError' }
+    /timetable/{entry_id}:
+      get:
+        operationId: getTimetableEntry
+        description: Executes the get timetable entry workflow within this AuraEDU API boundary.
+        tags: [timetable]
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - { name: entry_id, in: path, required: true, schema: { type: string, format: uuid } }
+        responses:
+          '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/TimetableEntry' } } } }
+          '404': { $ref: '#/components/responses/NotFound' }
+      patch:
+        operationId: updateTimetableEntry
+        description: Executes the update timetable entry workflow within this AuraEDU API boundary.
+        tags: [timetable]
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - { name: entry_id, in: path, required: true, schema: { type: string, format: uuid } }
+        requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UpdateTimetableEntry' } } } }
+        responses:
+          '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/TimetableEntry' } } } }
+          '409': { description: Class or teacher period overlap }
+      delete:
+        operationId: deleteTimetableEntry
+        description: Executes the delete timetable entry workflow within this AuraEDU API boundary.
+        tags: [timetable]
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - { name: entry_id, in: path, required: true, schema: { type: string, format: uuid } }
+        responses: { '204': { description: Deleted } }
     /grading-scales:
       get:
             operationId: listGradingScales
+            description: Executes the list grading scales workflow within this AuraEDU API boundary.
             tags: ['grading']
             summary: List grading scales
             parameters:
@@ -192,31 +327,69 @@ paths:
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
       post:
-            operationId: createGradingScale
-            tags: ['grading']
-            summary: Create a grading scale
-            parameters:
-              - $ref: '#/components/parameters/TenantHeader'
-            requestBody:
-              required: true
-              content:
-                application/json:
-                  schema: { $ref: '#/components/schemas/CreateGradingScale' }
-            responses:
-              '201':
-                description: OK
-                content:
-                  application/json:
-                    schema: { $ref: '#/components/schemas/GradingScale' }
-              '403': { $ref: '#/components/responses/Forbidden' }
-              '404': { $ref: '#/components/responses/NotFound' }
-              '422': { $ref: '#/components/responses/ValidationError' }
-              '401': { $ref: '#/components/responses/Unauthorized' }
+        operationId: createGradingScale
+        description: Executes the create grading scale workflow within this AuraEDU API boundary.
+        tags: [grading]
+        summary: Create a grading scale
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }]
+        requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateGradingScale' } } } }
+        responses:
+          '201': { description: Created grading scale, content: { application/json: { schema: { $ref: '#/components/schemas/GradingScale' } } } }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+    /grading-scales/{grading_scale_id}:
+      get:
+        operationId: getGradingScale
+        description: Executes the get grading scale workflow within this AuraEDU API boundary.
+        tags: [grading]
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/GradingScaleId' }]
+        responses:
+          '200': { description: Grading scale, content: { application/json: { schema: { $ref: '#/components/schemas/GradingScale' } } } }
+          '404': { $ref: '#/components/responses/NotFound' }
+      patch:
+        operationId: updateGradingScale
+        description: Executes the update grading scale workflow within this AuraEDU API boundary.
+        tags: [grading]
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/GradingScaleId' }]
+        requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UpdateGradingScale' } } } }
+        responses:
+          '200': { description: Updated grading scale, content: { application/json: { schema: { $ref: '#/components/schemas/GradingScale' } } } }
+          '404': { $ref: '#/components/responses/NotFound' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+      delete:
+        operationId: deleteGradingScale
+        description: Executes the delete grading scale workflow within this AuraEDU API boundary.
+        tags: [grading]
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/GradingScaleId' }]
+        responses:
+          '204': { description: Grading scale deleted }
+          '404': { $ref: '#/components/responses/NotFound' }
 
 components:
   parameters:
-    TenantId:
-      name: tenant_id
+    AcademicYearId:
+      name: academic_year_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    TermId:
+      name: term_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ClassId:
+      name: class_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    SubjectId:
+      name: subject_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    GradingScaleId:
+      name: grading_scale_id
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -245,32 +418,49 @@ components:
         request_id: { type: string }
     AcademicYear:
         type: object
-        required: [id, tenant_id, name, start_date, end_date]
+        required: [id, tenant_id, name, code, start_date, end_date, status, is_current, created_at, updated_at]
         properties:
           id: { type: string, format: uuid }
-          tenant_id: { type: string, format: uuid }
+          tenant_id: { type: string }
           name: { type: string }
+          code: { type: string }
           start_date: { type: string, format: date }
           end_date: { type: string, format: date }
+          status: { type: string, enum: [active, archived] }
           is_current: { type: boolean }
+          created_at: { type: string, format: date-time }
+          updated_at: { type: string, format: date-time }
     CreateAcademicYear:
         type: object
         required: [name, start_date, end_date]
         properties:
           name: { type: string }
+          code: { type: [string, 'null'] }
           start_date: { type: string, format: date }
           end_date: { type: string, format: date }
           is_current: { type: boolean, default: false }
+    UpdateAcademicYear:
+      type: object
+      minProperties: 1
+      properties:
+        name: { type: string }
+        code: { type: string }
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date }
+        status: { type: string, enum: [active, archived] }
+        is_current: { type: boolean }
     Term:
         type: object
-        required: [id, tenant_id, academic_year_id, name, start_date, end_date]
+        required: [id, tenant_id, academic_year_id, name, start_date, end_date, created_at, updated_at]
         properties:
           id: { type: string, format: uuid }
-          tenant_id: { type: string, format: uuid }
+          tenant_id: { type: string }
           academic_year_id: { type: string, format: uuid }
           name: { type: string }
           start_date: { type: string, format: date }
           end_date: { type: string, format: date }
+          created_at: { type: string, format: date-time }
+          updated_at: { type: string, format: date-time }
     CreateTerm:
         type: object
         required: [academic_year_id, name, start_date, end_date]
@@ -279,6 +469,13 @@ components:
           name: { type: string }
           start_date: { type: string, format: date }
           end_date: { type: string, format: date }
+    UpdateTerm:
+      type: object
+      minProperties: 1
+      properties:
+        name: { type: string }
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date }
     Class:
         type: object
         required: [id, tenant_id, name, academic_year_id]
@@ -297,6 +494,13 @@ components:
           academic_year_id: { type: string, format: uuid }
           class_teacher_id: { type: [string, 'null'], format: uuid }
           capacity: { type: [integer, 'null'] }
+    UpdateClass:
+      type: object
+      minProperties: 1
+      properties:
+        name: { type: string }
+        class_teacher_id: { type: [string, 'null'], format: uuid }
+        capacity: { type: [integer, 'null'], minimum: 1 }
     Subject:
         type: object
         required: [id, tenant_id, name]
@@ -313,6 +517,13 @@ components:
           name: { type: string }
           code: { type: [string, 'null'] }
           description: { type: [string, 'null'] }
+    UpdateSubject:
+      type: object
+      minProperties: 1
+      properties:
+        name: { type: string }
+        code: { type: [string, 'null'] }
+        description: { type: [string, 'null'] }
     GradingScale:
         type: object
         required: [id, tenant_id, name]
@@ -321,12 +532,64 @@ components:
           tenant_id: { type: string, format: uuid }
           name: { type: string }
           ranges: { type: array, items: { type: object, properties: { min: { type: number }, max: { type: number }, grade: { type: string }, remark: { type: string } } } }
+          created_at: { type: string, format: date-time }
+          updated_at: { type: string, format: date-time }
+    TimetableEntry:
+        type: object
+        required: [id, tenant_id, class_id, term_id, subject_id, weekday, start_time, end_time, status]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string }
+          class_id: { type: string, format: uuid }
+          term_id: { type: string, format: uuid }
+          subject_id: { type: string, format: uuid }
+          teacher_id: { type: [string, 'null'], format: uuid }
+          weekday: { type: integer, minimum: 1, maximum: 7 }
+          start_time: { type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
+          end_time: { type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
+          room: { type: [string, 'null'] }
+          status: { type: string, enum: [active, cancelled] }
+    CreateTimetableEntry:
+        type: object
+        required: [class_id, term_id, subject_id, weekday, start_time, end_time]
+        properties:
+          class_id: { type: string, format: uuid }
+          term_id: { type: string, format: uuid }
+          subject_id: { type: string, format: uuid }
+          teacher_id: { type: [string, 'null'], format: uuid }
+          weekday: { type: integer, minimum: 1, maximum: 7 }
+          start_time: { type: string }
+          end_time: { type: string }
+          room: { type: [string, 'null'] }
+    UpdateTimetableEntry:
+        type: object
+        properties:
+          teacher_id: { type: [string, 'null'], format: uuid }
+          weekday: { type: integer, minimum: 1, maximum: 7 }
+          start_time: { type: string }
+          end_time: { type: string }
+          room: { type: [string, 'null'] }
+          status: { type: string, enum: [active, cancelled] }
     CreateGradingScale:
         type: object
-        required: [name]
+        required: [name, ranges]
         properties:
           name: { type: string }
-          ranges: { type: array, items: { type: object, properties: { min: { type: number }, max: { type: number }, grade: { type: string }, remark: { type: string } } } }
+          ranges: { type: array, minItems: 1, items: { $ref: '#/components/schemas/GradeRange' } }
+    UpdateGradingScale:
+      type: object
+      minProperties: 1
+      properties:
+        name: { type: string }
+        ranges: { type: array, minItems: 1, items: { $ref: '#/components/schemas/GradeRange' } }
+    GradeRange:
+      type: object
+      required: [min, max, grade]
+      properties:
+        min: { type: number, minimum: 0, maximum: 100 }
+        max: { type: number, minimum: 0, maximum: 100 }
+        grade: { type: string, minLength: 1 }
+        remark: { type: string }
     AcademicYearList:
         type: object
         properties:
@@ -352,6 +615,11 @@ components:
         properties:
           data: { type: array, items: { $ref: '#/components/schemas/GradingScale' } }
           next_cursor: { type: [string, 'null'] }
+    TimetableList:
+        type: object
+        required: [data]
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/TimetableEntry' } }
 
   responses:
     Unauthorized:
@@ -390,4 +658,3 @@ components:
 
 security:
   - bearerAuth: []
-

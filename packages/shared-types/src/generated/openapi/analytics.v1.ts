@@ -2,15 +2,15 @@
 // Do not edit by hand.
 
 export type paths = {
-    "/kpis": {
+    "/analytics/metrics": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List KPI snapshots */
-        get: operations["listKpis"];
+        /** @description Executes the list metrics workflow within this AuraEDU API boundary. */
+        get: operations["listMetrics"];
         put?: never;
         post?: never;
         delete?: never;
@@ -19,17 +19,40 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/projections": {
+    "/analytics/executive/growth": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List projections */
-        get: operations["listProjections"];
+        /**
+         * Explainable enquiry-to-offer funnel, attribution, and basic operating forecast
+         * @description Executes the get growth executive analytics workflow within this AuraEDU API boundary.
+         */
+        get: operations["getGrowthExecutiveAnalytics"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/analytics/executive/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Answer an approved Growth analytics question from cited projection data
+         * @description Executes the ask executive analytics workflow within this AuraEDU API boundary.
+         */
+        post: operations["askExecutiveAnalytics"];
         delete?: never;
         options?: never;
         head?: never;
@@ -40,59 +63,112 @@ export type paths = {
 export type webhooks = Record<string, never>;
 export type components = {
     schemas: {
-        Error: {
+        Metric: {
+            /** Format: uuid */
+            id: string;
+            tenant_id: string;
+            metric_name: string;
+            /** Format: date */
+            bucket_date: string;
+            value: number;
             /** @enum {string} */
-            code: "forbidden" | "feature_disabled" | "tenant_mismatch" | "validation_error" | "not_found" | "unauthorized";
+            unit: "count" | "sum" | "average" | "percentage";
+            dimensions?: {
+                [key: string]: string;
+            };
+            sample_count?: number;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        MetricList: {
+            data: components["schemas"]["Metric"][];
+            next_cursor: string | null;
+        };
+        FunnelStep: {
+            /** @enum {string} */
+            stage: "leads" | "applications_started" | "applications_submitted" | "admitted" | "offers_issued" | "offers_accepted";
+            count: number;
+            conversion_from_previous: number | null;
+            conversion_from_lead: number | null;
+        };
+        GrowthBreakdown: {
+            key: string;
+            leads: number;
+            applications_started: number;
+            applications_submitted: number;
+            admitted: number;
+            offers_issued: number;
+            offers_accepted: number;
+            lead_to_application_rate: number | null;
+            application_to_offer_rate: number | null;
+        };
+        EnrolmentForecast: {
+            /** @constant */
+            horizon_days: 30;
+            projected_offer_acceptances: number;
+            observed_days: number;
+            /** @constant */
+            method: "observed_offer_acceptance_run_rate";
+            /** @enum {string} */
+            confidence: "low" | "medium" | "high";
+            calculation_notes: string[];
+        };
+        GrowthExecutive: {
+            /** Format: date-time */
+            generated_at: string;
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            funnel: components["schemas"]["FunnelStep"][];
+            by_source: components["schemas"]["GrowthBreakdown"][];
+            by_programme: components["schemas"]["GrowthBreakdown"][];
+            forecast: components["schemas"]["EnrolmentForecast"];
+            data_quality: {
+                unattributed_application_events: number;
+            };
+        };
+        ExecutiveQuestion: {
+            question: string;
+            /** Format: date */
+            from?: string;
+            /** Format: date */
+            to?: string;
+        };
+        ExecutiveAnswer: {
+            answer: string;
+            /** @enum {string} */
+            confidence: "low" | "medium" | "high";
+            source_datasets: string[];
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            filters: {
+                [key: string]: string;
+            };
+            calculation_notes: string[];
+            dashboard_url: string;
+        };
+        Error: {
+            code: string;
             message: string;
             request_id?: string;
         };
-        KpiSnapshot: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            tenant_id: string;
-            metric_key: string;
-            value: number;
-            /** Format: date-time */
-            recorded_at?: string;
-        };
-        Projection: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            tenant_id: string;
-            metric_key: string;
-            projected_value: number;
-            horizon?: string;
-            /** Format: date-time */
-            generated_at?: string;
-        };
-        KpiSnapshotList: {
-            data?: components["schemas"]["KpiSnapshot"][];
-            next_cursor?: string | null;
-        };
-        ProjectionList: {
-            data?: components["schemas"]["Projection"][];
-            next_cursor?: string | null;
-        };
     };
     responses: {
-        /** @description Missing or invalid bearer token */
+        /** @description Authentication required */
         Unauthorized: {
             headers: {
                 [name: string]: unknown;
             };
             content: {
-                /**
-                 * @example {
-                 *       "code": "unauthorized",
-                 *       "message": "Authentication required"
-                 *     }
-                 */
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description Not permitted (auth, tenant scope, RBAC, or feature disabled) */
+        /** @description Tenant, permission, or feature gate denied */
         Forbidden: {
             headers: {
                 [name: string]: unknown;
@@ -101,43 +177,18 @@ export type components = {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description Resource not found */
-        NotFound: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "code": "not_found",
-                 *       "message": "Resource not found"
-                 *     }
-                 */
-                "application/json": components["schemas"]["Error"];
-            };
-        };
-        /** @description Request failed validation */
+        /** @description Invalid query */
         ValidationError: {
             headers: {
                 [name: string]: unknown;
             };
             content: {
-                /**
-                 * @example {
-                 *       "code": "validation_error",
-                 *       "message": "request body is invalid"
-                 *     }
-                 */
                 "application/json": components["schemas"]["Error"];
             };
         };
     };
     parameters: {
-        TenantId: string;
-        /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
-        TenantHeader: string;
-        Limit: number;
-        Cursor: string;
+        TenantCode: string;
     };
     requestBodies: never;
     headers: never;
@@ -145,63 +196,94 @@ export type components = {
 };
 export type $defs = Record<string, never>;
 export interface operations {
-    listKpis: {
+    listMetrics: {
         parameters: {
             query?: {
-                limit?: components["parameters"]["Limit"];
-                cursor?: components["parameters"]["Cursor"];
+                limit?: number;
+                cursor?: string;
+                metric_name?: string;
+                bucket_date_from?: string;
+                bucket_date_to?: string;
+                dimension_key?: string;
+                dimension_value?: string;
             };
             header?: {
-                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
-                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+                "X-Tenant-Code"?: components["parameters"]["TenantCode"];
             };
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description OK */
+            /** @description Tenant-scoped metric page */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["KpiSnapshotList"];
+                    "application/json": components["schemas"]["MetricList"];
                 };
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
+        };
+    };
+    getGrowthExecutiveAnalytics: {
+        parameters: {
+            query?: {
+                /** @description Defaults to 89 days before today. */
+                from?: string;
+                /** @description Defaults to today. */
+                to?: string;
+            };
+            header?: {
+                "X-Tenant-Code"?: components["parameters"]["TenantCode"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tenant Growth executive report */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrowthExecutive"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             422: components["responses"]["ValidationError"];
         };
     };
-    listProjections: {
+    askExecutiveAnalytics: {
         parameters: {
-            query?: {
-                limit?: components["parameters"]["Limit"];
-                cursor?: components["parameters"]["Cursor"];
-            };
+            query?: never;
             header?: {
-                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
-                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+                "X-Tenant-Code"?: components["parameters"]["TenantCode"];
             };
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExecutiveQuestion"];
+            };
+        };
         responses: {
-            /** @description OK */
+            /** @description Calculation-grounded answer */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProjectionList"];
+                    "application/json": components["schemas"]["ExecutiveAnswer"];
                 };
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationError"];
         };
     };

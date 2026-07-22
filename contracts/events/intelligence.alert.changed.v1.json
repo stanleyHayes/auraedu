@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.auraedu.dev/events/intelligence.alert.changed.v1.json",
+  "title": "intelligence.alert.changed.v1",
+  "description": "PII-free audit event emitted when a deterministic reputation threshold creates or updates an alert.",
+  "type": "object",
+  "required": [
+    "specversion",
+    "type",
+    "source",
+    "id",
+    "time",
+    "tenant_id",
+    "data"
+  ],
+  "properties": {
+    "specversion": {
+      "const": "1.0"
+    },
+    "type": {
+      "const": "intelligence.alert.changed.v1"
+    },
+    "source": {
+      "const": "market-intelligence-service"
+    },
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tenant_id": {
+      "type": "string"
+    },
+    "data": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "category",
+        "observation_count",
+        "threshold",
+        "window_days",
+        "reason",
+        "actor_user_id",
+        "occurred_at"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "kind": {
+          "const": "reputation"
+        },
+        "category": {
+          "enum": [
+            "recurring_issue",
+            "misinformation"
+          ]
+        },
+        "observation_count": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "threshold": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 20
+        },
+        "window_days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 90
+        },
+        "reason": {
+          "type": "string"
+        },
+        "actor_user_id": {
+          "type": "string"
+        },
+        "occurred_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "specversion": "1.0",
+      "type": "intelligence.alert.changed.v1",
+      "source": "market-intelligence-service",
+      "id": "11111111-1111-4111-8111-111111111111",
+      "time": "2026-07-19T10:00:00Z",
+      "tenant_id": "school-a",
+      "data": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "kind": "reputation",
+        "category": "recurring_issue",
+        "observation_count": 2,
+        "threshold": 2,
+        "window_days": 1,
+        "reason": "example-reason",
+        "actor_user_id": "example-actor.user.id",
+        "occurred_at": "2026-07-19T10:00:00Z"
+      }
+    }
+  ]
+}

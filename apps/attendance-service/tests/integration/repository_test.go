@@ -31,6 +31,41 @@ func newRepo(t *testing.T) ports.Repository {
 	return postgres.NewRepository(tdb.DB)
 }
 
+func TestRepository_LifecycleMutationAndOutboxAreAtomic(t *testing.T) {
+	ctx := withTenant(context.Background(), tenantA)
+	tdb := testkit.NewPostgres(context.Background(), t, "../../migrations")
+	repo := postgres.NewRepository(tdb.DB)
+
+	record, err := domain.NewAttendanceRecord(tenantA, studentA, ay1, "2025-09-01", "present", staff1, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CommitAttendanceLifecycle(ctx, tenantA, ports.AttendanceMutationCreate, []*domain.AttendanceRecord{record}, "attendance.marked.v1", nil); err != nil {
+		t.Fatalf("commit lifecycle: %v", err)
+	}
+	items, err := repo.ClaimPendingAttendanceEvents(context.Background(), 10)
+	if err != nil {
+		t.Fatalf("claim outbox: %v", err)
+	}
+	if len(items) != 1 || items[0].EventType != "attendance.marked.v1" || items[0].TenantID != tenantA {
+		t.Fatalf("unexpected outbox items: %+v", items)
+	}
+
+	rollback, err := domain.NewAttendanceRecord(tenantA, studentB, ay1, "2025-09-02", "absent", staff1, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tdb.DB.Pool().Exec(context.Background(), `DROP TABLE attendance_outbox`); err != nil {
+		t.Fatalf("drop outbox: %v", err)
+	}
+	if err := repo.CommitAttendanceLifecycle(ctx, tenantA, ports.AttendanceMutationCreate, []*domain.AttendanceRecord{rollback}, "attendance.marked.v1", nil); err == nil {
+		t.Fatal("expected outbox failure")
+	}
+	if _, err := repo.GetByID(ctx, tenantA, rollback.ID); err == nil {
+		t.Fatal("attendance mutation must roll back when outbox insert fails")
+	}
+}
+
 func withTenant(ctx context.Context, tenantID string) context.Context {
 	return tenancy.WithContext(ctx, tenancy.TenantContext{TenantID: tenantID})
 }
@@ -107,6 +142,8 @@ func TestRepository_ListFilters(t *testing.T) {
 		want   int
 	}{
 		{"by student_id", ports.ListFilter{Limit: 10, StudentID: studentA}, 2},
+		{"by learner scope", ports.ListFilter{Limit: 10, StudentIDs: []string{studentB}}, 1},
+		{"empty learner scope", ports.ListFilter{Limit: 10, StudentIDs: []string{}}, 0},
 		{"by academic_year_id", ports.ListFilter{Limit: 10, AcademicYearID: ay1}, 2},
 		{"by date", ports.ListFilter{Limit: 10, Date: "2025-09-01"}, 2},
 		{"by status", ports.ListFilter{Limit: 10, Status: "late"}, 1},

@@ -7,78 +7,147 @@ import (
 	"net/http"
 )
 
-// ReportCard generated from OpenAPI schema.
-type ReportCard struct {
-	Id          string  `json:"id"`
-	TenantId    string  `json:"tenant_id"`
-	StudentId   string  `json:"student_id"`
-	TermId      string  `json:"term_id"`
-	FileUrl     *string `json:"file_url,omitempty"`
-	GeneratedAt *string `json:"generated_at,omitempty"`
+// TemplateStatus generated from OpenAPI schema.
+type TemplateStatus struct {
 }
 
-// GenerateReportCardRequest generated from OpenAPI schema.
-type GenerateReportCardRequest struct {
-	StudentId string `json:"student_id"`
-	TermId    string `json:"term_id"`
-}
-
-// Transcript generated from OpenAPI schema.
-type Transcript struct {
-	Id        string  `json:"id"`
-	TenantId  string  `json:"tenant_id"`
-	StudentId string  `json:"student_id"`
-	FileUrl   *string `json:"file_url,omitempty"`
-	Entries   *[]struct {
-		SubjectId   *string  `json:"subject_id,omitempty"`
-		SubjectName *string  `json:"subject_name,omitempty"`
-		Score       *float64 `json:"score,omitempty"`
-		Grade       *string  `json:"grade,omitempty"`
-	} `json:"entries,omitempty"`
+// ReportCardStatus generated from OpenAPI schema.
+type ReportCardStatus struct {
 }
 
 // ReportTemplate generated from OpenAPI schema.
 type ReportTemplate struct {
-	Id        string  `json:"id"`
-	TenantId  string  `json:"tenant_id"`
-	Name      string  `json:"name"`
-	Layout    *string `json:"layout,omitempty"`
-	IsDefault *bool   `json:"is_default,omitempty"`
+	Id             string         `json:"id"`
+	TenantId       string         `json:"tenant_id"`
+	Name           string         `json:"name"`
+	AcademicYearId string         `json:"academic_year_id"`
+	BodyTemplate   string         `json:"body_template"`
+	Status         TemplateStatus `json:"status"`
+	CreatedAt      string         `json:"created_at"`
+	UpdatedAt      string         `json:"updated_at"`
 }
 
 // CreateReportTemplate generated from OpenAPI schema.
 type CreateReportTemplate struct {
-	Name      string  `json:"name"`
-	Layout    *string `json:"layout,omitempty"`
-	IsDefault *bool   `json:"is_default,omitempty"`
+	Name           string `json:"name"`
+	AcademicYearId string `json:"academic_year_id"`
+	BodyTemplate   string `json:"body_template"`
+}
+
+// UpdateReportTemplate generated from OpenAPI schema.
+type UpdateReportTemplate struct {
+	Name           *string         `json:"name,omitempty"`
+	AcademicYearId *string         `json:"academic_year_id,omitempty"`
+	BodyTemplate   *string         `json:"body_template,omitempty"`
+	Status         *TemplateStatus `json:"status,omitempty"`
+}
+
+// ReportCard generated from OpenAPI schema.
+type ReportCard struct {
+	Id             string           `json:"id"`
+	TenantId       string           `json:"tenant_id"`
+	StudentId      string           `json:"student_id"`
+	AcademicYearId *string          `json:"academic_year_id,omitempty"`
+	TermId         *string          `json:"term_id,omitempty"`
+	TemplateId     *string          `json:"template_id,omitempty"`
+	Status         ReportCardStatus `json:"status"`
+	GeneratedAt    *string          `json:"generated_at,omitempty"`
+	CreatedAt      string           `json:"created_at"`
+	UpdatedAt      string           `json:"updated_at"`
+}
+
+// CreateReportCard generated from OpenAPI schema.
+type CreateReportCard struct {
+	StudentId      string `json:"student_id"`
+	AcademicYearId string `json:"academic_year_id"`
+	TermId         string `json:"term_id"`
+	TemplateId     string `json:"template_id"`
+}
+
+// UpdateReportCard generated from OpenAPI schema.
+type UpdateReportCard struct {
+	StudentId      *string           `json:"student_id,omitempty"`
+	AcademicYearId *string           `json:"academic_year_id,omitempty"`
+	TemplateId     *string           `json:"template_id,omitempty"`
+	Status         *ReportCardStatus `json:"status,omitempty"`
+}
+
+// SubjectScore generated from OpenAPI schema.
+type SubjectScore struct {
+	Label    string   `json:"label"`
+	Score    float64  `json:"score"`
+	MaxScore *float64 `json:"max_score,omitempty"`
+	Count    int      `json:"count"`
+}
+
+// AttendanceSummary generated from OpenAPI schema.
+type AttendanceSummary struct {
+	Present int `json:"present"`
+	Absent  int `json:"absent"`
+	Late    int `json:"late"`
+	Excused int `json:"excused"`
+}
+
+// TranscriptEntry generated from OpenAPI schema.
+type TranscriptEntry struct {
+	ReportCardId   string            `json:"report_card_id"`
+	AcademicYearId *string           `json:"academic_year_id,omitempty"`
+	TermId         *string           `json:"term_id,omitempty"`
+	PublishedAt    string            `json:"published_at"`
+	Scores         []SubjectScore    `json:"scores"`
+	Attendance     AttendanceSummary `json:"attendance"`
+}
+
+// Transcript generated from OpenAPI schema.
+type Transcript struct {
+	TenantId    string            `json:"tenant_id"`
+	StudentId   string            `json:"student_id"`
+	Entries     []TranscriptEntry `json:"entries"`
+	GeneratedAt string            `json:"generated_at"`
 }
 
 // ReportCardList generated from OpenAPI schema.
 type ReportCardList struct {
-	Data       *[]ReportCard `json:"data,omitempty"`
-	NextCursor *string       `json:"next_cursor,omitempty"`
+	Data       []ReportCard `json:"data"`
+	NextCursor *string      `json:"next_cursor,omitempty"`
 }
 
 // ReportTemplateList generated from OpenAPI schema.
 type ReportTemplateList struct {
-	Data       *[]ReportTemplate `json:"data,omitempty"`
-	NextCursor *string           `json:"next_cursor,omitempty"`
+	Data       []ReportTemplate `json:"data"`
+	NextCursor *string          `json:"next_cursor,omitempty"`
 }
 
 // ServerInterface is implemented by the service HTTP adapter.
 type ServerInterface interface {
-	listReportCards(w http.ResponseWriter, r *http.Request)
-	generateReportCard(w http.ResponseWriter, r *http.Request)
-	getTranscript(w http.ResponseWriter, r *http.Request)
 	listReportTemplates(w http.ResponseWriter, r *http.Request)
 	createReportTemplate(w http.ResponseWriter, r *http.Request)
+	getReportTemplate(w http.ResponseWriter, r *http.Request)
+	updateReportTemplate(w http.ResponseWriter, r *http.Request)
+	deleteReportTemplate(w http.ResponseWriter, r *http.Request)
+	listReportCards(w http.ResponseWriter, r *http.Request)
+	createReportCard(w http.ResponseWriter, r *http.Request)
+	getReportCard(w http.ResponseWriter, r *http.Request)
+	updateReportCard(w http.ResponseWriter, r *http.Request)
+	deleteReportCard(w http.ResponseWriter, r *http.Request)
+	generateReportCard(w http.ResponseWriter, r *http.Request)
+	downloadReportCard(w http.ResponseWriter, r *http.Request)
+	getTranscript(w http.ResponseWriter, r *http.Request)
 }
 
 // ClientInterface is the generated consumer stub for this service.
 type ClientInterface interface {
-	listReportCards(ctx context.Context) (*http.Response, error)
-	generateReportCard(ctx context.Context) (*http.Response, error)
-	getTranscript(ctx context.Context) (*http.Response, error)
 	listReportTemplates(ctx context.Context) (*http.Response, error)
 	createReportTemplate(ctx context.Context) (*http.Response, error)
+	getReportTemplate(ctx context.Context) (*http.Response, error)
+	updateReportTemplate(ctx context.Context) (*http.Response, error)
+	deleteReportTemplate(ctx context.Context) (*http.Response, error)
+	listReportCards(ctx context.Context) (*http.Response, error)
+	createReportCard(ctx context.Context) (*http.Response, error)
+	getReportCard(ctx context.Context) (*http.Response, error)
+	updateReportCard(ctx context.Context) (*http.Response, error)
+	deleteReportCard(ctx context.Context) (*http.Response, error)
+	generateReportCard(ctx context.Context) (*http.Response, error)
+	downloadReportCard(ctx context.Context) (*http.Response, error)
+	getTranscript(ctx context.Context) (*http.Response, error)
 }

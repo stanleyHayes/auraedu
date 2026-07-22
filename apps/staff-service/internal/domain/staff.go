@@ -26,16 +26,78 @@ const (
 
 // Staff is the aggregate root of the staff service. Every record is tenant-scoped.
 type Staff struct {
-	ID        string    `json:"id"`
-	TenantID  string    `json:"tenant_id"`
-	FirstName string    `json:"first_name"`
-	LastName  string    `json:"last_name"`
-	StaffType string    `json:"staff_type"`
-	Email     *string   `json:"email,omitempty"`
+	ID        string  `json:"id"`
+	TenantID  string  `json:"tenant_id"`
+	FirstName string  `json:"first_name"`
+	LastName  string  `json:"last_name"`
+	StaffType string  `json:"staff_type"`
+	Email     *string `json:"email,omitempty"`
+	// UserID is the soft link to the identity-service user that owns this staff
+	// profile. Cross-service foreign keys are intentionally avoided.
+	UserID    *string   `json:"user_id,omitempty"`
 	StaffCode string    `json:"staff_code"`
 	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// Assignment links an active teacher to a class and, optionally, a subject.
+// Class and subject identifiers are soft cross-service references by design.
+type Assignment struct {
+	ID         string    `json:"id"`
+	TenantID   string    `json:"tenant_id"`
+	StaffID    string    `json:"staff_id"`
+	ClassID    string    `json:"class_id"`
+	SubjectID  *string   `json:"subject_id,omitempty"`
+	Role       *string   `json:"role,omitempty"`
+	AssignedAt time.Time `json:"assigned_at"`
+}
+
+// NewAssignment constructs a tenant-owned teacher assignment.
+func NewAssignment(tenantID, staffID, classID string, subjectID, role *string) (*Assignment, error) {
+	if tenantID == "" {
+		return nil, ErrMissingTenant
+	}
+	if _, err := uuid.Parse(staffID); err != nil {
+		return nil, ErrValidation
+	}
+	if _, err := uuid.Parse(classID); err != nil {
+		return nil, ErrValidation
+	}
+	if subjectID != nil {
+		value := strings.TrimSpace(*subjectID)
+		if value == "" {
+			subjectID = nil
+		} else if _, err := uuid.Parse(value); err != nil {
+			return nil, ErrValidation
+		} else {
+			subjectID = &value
+		}
+	}
+	if role != nil {
+		value := strings.TrimSpace(*role)
+		if len(value) > 100 {
+			return nil, ErrValidation
+		}
+		if value == "" {
+			role = nil
+		} else {
+			role = &value
+		}
+	}
+	id, err := uuid.NewV7()
+	if err != nil {
+		return nil, fmt.Errorf("staff: generate assignment id: %w", err)
+	}
+	return &Assignment{
+		ID:         id.String(),
+		TenantID:   tenantID,
+		StaffID:    staffID,
+		ClassID:    classID,
+		SubjectID:  subjectID,
+		Role:       role,
+		AssignedAt: time.Now().UTC(),
+	}, nil
 }
 
 // FullName returns the staff member's display name.
@@ -102,12 +164,17 @@ func (s Staff) Validate() error {
 	if s.Email != nil && *s.Email != "" && !isValidEmail(*s.Email) {
 		return ErrValidation
 	}
+	if s.UserID != nil {
+		if _, err := uuid.Parse(*s.UserID); err != nil {
+			return ErrValidation
+		}
+	}
 	return nil
 }
 
 // ApplyUpdate mutates the staff with non-empty patch fields. It returns the
 // names of fields that changed, or ErrValidation if a supplied value is invalid.
-func (s *Staff) ApplyUpdate(firstName, lastName, staffType, email, status *string) ([]string, error) {
+func (s *Staff) ApplyUpdate(firstName, lastName, staffType, email, status, userID *string) ([]string, error) {
 	var changed []string
 	if firstName != nil {
 		if strings.TrimSpace(*firstName) == "" {
@@ -131,10 +198,15 @@ func (s *Staff) ApplyUpdate(firstName, lastName, staffType, email, status *strin
 		changed = append(changed, "staff_type")
 	}
 	if email != nil {
-		if *email != "" && !isValidEmail(*email) {
-			return nil, ErrValidation
+		value := strings.TrimSpace(*email)
+		if value == "" {
+			s.Email = nil
+		} else {
+			if !isValidEmail(value) {
+				return nil, ErrValidation
+			}
+			s.Email = &value
 		}
-		s.Email = email
 		changed = append(changed, "email")
 	}
 	if status != nil {
@@ -143,6 +215,18 @@ func (s *Staff) ApplyUpdate(firstName, lastName, staffType, email, status *strin
 		}
 		s.Status = *status
 		changed = append(changed, "status")
+	}
+	if userID != nil {
+		value := strings.TrimSpace(*userID)
+		if value == "" {
+			s.UserID = nil
+		} else {
+			if _, err := uuid.Parse(value); err != nil {
+				return nil, ErrValidation
+			}
+			s.UserID = &value
+		}
+		changed = append(changed, "user_id")
 	}
 	if len(changed) > 0 {
 		s.UpdatedAt = time.Now().UTC()

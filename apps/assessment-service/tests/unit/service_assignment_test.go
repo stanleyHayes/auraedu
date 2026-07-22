@@ -57,9 +57,30 @@ func (f *fakeRepo) ListAssessments(_ context.Context, tenantID string, filter po
 	defer f.mu.Unlock()
 	var out []*domain.Assessment
 	for _, a := range f.assessments {
-		if a.TenantID == tenantID && a.DeletedAt == nil {
-			out = append(out, a)
+		if a.TenantID != tenantID || a.DeletedAt != nil {
+			continue
 		}
+		if filter.Status != "" && a.Status != filter.Status {
+			continue
+		}
+		if filter.ClassIDs != nil {
+			matched := false
+			for _, allowed := range filter.ClassIDs {
+				for _, target := range a.ClassIDs {
+					if allowed == target {
+						matched = true
+						break
+					}
+				}
+				if matched {
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
+		}
+		out = append(out, a)
 	}
 	return out, "", nil
 }
@@ -103,14 +124,30 @@ func (f *fakeRepo) GetScoreByID(_ context.Context, tenantID, assessmentID, score
 	return s, nil
 }
 
-func (f *fakeRepo) ListScores(_ context.Context, tenantID, assessmentID string, _ ports.ScoreListFilter) ([]*domain.Score, string, error) {
+func (f *fakeRepo) ListScores(_ context.Context, tenantID, assessmentID string, filter ports.ScoreListFilter) ([]*domain.Score, string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	var out []*domain.Score
 	for _, s := range f.scores {
-		if s.TenantID == tenantID && s.AssessmentID == assessmentID && s.DeletedAt == nil {
-			out = append(out, s)
+		if s.TenantID != tenantID || s.AssessmentID != assessmentID || s.DeletedAt != nil {
+			continue
 		}
+		if filter.StudentID != "" && s.StudentID != filter.StudentID {
+			continue
+		}
+		if filter.StudentIDs != nil {
+			allowed := false
+			for _, id := range filter.StudentIDs {
+				if s.StudentID == id {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				continue
+			}
+		}
+		out = append(out, s)
 	}
 	return out, "", nil
 }
@@ -146,6 +183,18 @@ func (f *fakeRepo) ListAssignments(_ context.Context, tenantID string, filter po
 		if filter.ClassID != "" && !contains(a.ClassIDs, filter.ClassID) {
 			continue
 		}
+		if filter.ClassIDs != nil {
+			matched := false
+			for _, classID := range filter.ClassIDs {
+				if contains(a.ClassIDs, classID) {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
+		}
 		out = append(out, a)
 	}
 	return out, "", nil
@@ -171,10 +220,17 @@ type publishedEvent struct {
 	assignment *domain.Assessment
 }
 
+type publishedScoreEvent struct {
+	eventType string
+	score     *domain.Score
+	meta      map[string]any
+}
+
 type fakePublisher struct {
 	mu       sync.Mutex
 	events   []publishedEvent
 	assessEv []string
+	scoreEv  []publishedScoreEvent
 }
 
 func (p *fakePublisher) PublishAssessment(_ context.Context, eventType string, _ *domain.Assessment, _ map[string]any) error {
@@ -191,7 +247,14 @@ func (p *fakePublisher) PublishAssignment(_ context.Context, eventType string, a
 	return nil
 }
 
-func (p *fakePublisher) PublishScore(_ context.Context, _ string, _ *domain.Score, _ map[string]any) error {
+func (p *fakePublisher) PublishScore(_ context.Context, eventType string, score *domain.Score, meta map[string]any) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	clonedMeta := make(map[string]any, len(meta))
+	for key, value := range meta {
+		clonedMeta[key] = value
+	}
+	p.scoreEv = append(p.scoreEv, publishedScoreEvent{eventType: eventType, score: score, meta: clonedMeta})
 	return nil
 }
 
@@ -205,10 +268,10 @@ func svcWithGates(repo ports.Repository, pub ports.EventPublisher, gates *flags.
 	return application.NewService(repo, opts...)
 }
 
-func enabledGates(tenantID string) *flags.StaticSnapshot {
+func enabledGates() *flags.StaticSnapshot {
 	g := flags.NewStaticSnapshot()
-	g.Set(tenantID, application.FeatureAssessments, true)
-	g.Set(tenantID, application.FeatureAssignments, true)
+	g.Set(tenantA, application.FeatureAssessments, true)
+	g.Set(tenantA, application.FeatureAssignments, true)
 	return g
 }
 
@@ -236,7 +299,7 @@ func createReq() application.CreateAssignmentRequest {
 func TestService_AssignmentCRUDAndPublish(t *testing.T) {
 	repo := newFakeRepo()
 	pub := &fakePublisher{}
-	svc := svcWithGates(repo, pub, enabledGates(tenantA))
+	svc := svcWithGates(repo, pub, enabledGates())
 	ctx := ctxFor(tenantA)
 	manager := actor(tenantA, application.PermManage)
 	reader := actor(tenantA, application.PermRead)
@@ -307,9 +370,49 @@ func TestService_AssignmentCRUDAndPublish(t *testing.T) {
 	}
 }
 
+func TestService_StudentAssignmentsArePublishedAndClassScoped(t *testing.T) {
+	repo := newFakeRepo()
+	assigned, err := domain.NewAssignment(tenantA, ay1, subject1, "Assigned work", "Do it", 20, nil, []string{class1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := domain.NewAssignment(tenantA, ay1, subject1, "Other work", "Do it", 20, nil, []string{class2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft, err := domain.NewAssignment(tenantA, ay1, subject1, "Draft work", "Do it", 20, nil, []string{class1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := assigned.Publish(); err != nil {
+		t.Fatal(err)
+	}
+	if err := other.Publish(); err != nil {
+		t.Fatal(err)
+	}
+	for _, assignment := range []*domain.Assessment{assigned, other, draft} {
+		if err := repo.CreateAssessment(ctxFor(tenantA), tenantA, assignment); err != nil {
+			t.Fatal(err)
+		}
+	}
+	svc := application.NewService(repo, application.WithFeatureGate(enabledGates()), application.WithLearnerScopeResolver(scoreScope{classIDs: []string{class1}}))
+	student := actor(tenantA, application.PermRead)
+	student.Role = "student"
+	items, _, err := svc.ListAssignments(ctxFor(tenantA), student, ports.AssignmentListFilter{Limit: 20})
+	if err != nil || len(items) != 1 || items[0].ID != assigned.ID {
+		t.Fatalf("items=%+v err=%v", items, err)
+	}
+	if _, err := svc.GetAssignment(ctxFor(tenantA), student, other.ID); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("other=%v", err)
+	}
+	if _, err := svc.GetAssignment(ctxFor(tenantA), student, draft.ID); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("draft=%v", err)
+	}
+}
+
 func TestService_GetAssignmentRejectsNonAssignment(t *testing.T) {
 	repo := newFakeRepo()
-	svc := svcWithGates(repo, nil, enabledGates(tenantA))
+	svc := svcWithGates(repo, nil, enabledGates())
 	ctx := ctxFor(tenantA)
 	manager := actor(tenantA, application.PermManage)
 
@@ -388,7 +491,7 @@ func TestService_AssessmentsFlagGatesAssessmentsAndGradebook(t *testing.T) {
 
 func TestService_AssignmentRequiresManagePermission(t *testing.T) {
 	repo := newFakeRepo()
-	svc := svcWithGates(repo, nil, enabledGates(tenantA))
+	svc := svcWithGates(repo, nil, enabledGates())
 	ctx := ctxFor(tenantA)
 	reader := actor(tenantA, application.PermRead)
 
@@ -399,7 +502,7 @@ func TestService_AssignmentRequiresManagePermission(t *testing.T) {
 
 func TestService_AssignmentTenantScoping(t *testing.T) {
 	repo := newFakeRepo()
-	gates := enabledGates(tenantA)
+	gates := enabledGates()
 	gates.Set(tenantB, application.FeatureAssessments, true)
 	gates.Set(tenantB, application.FeatureAssignments, true)
 	svc := svcWithGates(repo, nil, gates)
@@ -439,7 +542,7 @@ func TestService_GetGradebook(t *testing.T) {
 		{SubjectID: subject1, Score: 90, MaxScore: 100},
 		{SubjectID: subject2, Score: 40, MaxScore: 50},
 	}
-	svc := svcWithGates(repo, nil, enabledGates(tenantA))
+	svc := svcWithGates(repo, nil, enabledGates())
 	ctx := ctxFor(tenantA)
 	reader := actor(tenantA, application.PermRead)
 
@@ -460,7 +563,7 @@ func TestService_GetGradebook(t *testing.T) {
 
 func TestService_GetGradebook_Empty(t *testing.T) {
 	repo := newFakeRepo()
-	svc := svcWithGates(repo, nil, enabledGates(tenantA))
+	svc := svcWithGates(repo, nil, enabledGates())
 	book, err := svc.GetGradebook(ctxFor(tenantA), actor(tenantA, application.PermRead), ports.GradebookFilter{ClassID: class1})
 	if err != nil {
 		t.Fatalf("gradebook: %v", err)
@@ -475,7 +578,7 @@ func TestService_GetGradebook_Empty(t *testing.T) {
 
 func TestService_GetGradebook_RequiresStudentOrClass(t *testing.T) {
 	repo := newFakeRepo()
-	svc := svcWithGates(repo, nil, enabledGates(tenantA))
+	svc := svcWithGates(repo, nil, enabledGates())
 	_, err := svc.GetGradebook(ctxFor(tenantA), actor(tenantA, application.PermRead), ports.GradebookFilter{})
 	if !errors.Is(err, domain.ErrValidation) {
 		t.Fatalf("expected validation error when neither student_id nor class_id given, got %v", err)

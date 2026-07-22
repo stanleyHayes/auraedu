@@ -28,13 +28,30 @@ type SignedUploadResponse struct {
 
 // File generated from OpenAPI schema.
 type File struct {
-	Id           string  `json:"id"`
-	TenantId     string  `json:"tenant_id"`
-	PublicId     string  `json:"public_id"`
-	SecureUrl    string  `json:"secure_url"`
-	ResourceType *string `json:"resource_type,omitempty"`
-	Folder       *string `json:"folder,omitempty"`
-	UploadedBy   *string `json:"uploaded_by,omitempty"`
+	Id               string                  `json:"id"`
+	TenantId         string                  `json:"tenant_id"`
+	OriginalFilename string                  `json:"original_filename"`
+	StoragePath      string                  `json:"storage_path"`
+	StorageBackend   string                  `json:"storage_backend"`
+	ContentType      string                  `json:"content_type"`
+	SizeBytes        int                     `json:"size_bytes"`
+	Checksum         string                  `json:"checksum"`
+	OwnerId          string                  `json:"owner_id"`
+	Purpose          string                  `json:"purpose"`
+	Status           string                  `json:"status"`
+	SecureUrl        *string                 `json:"secure_url,omitempty"`
+	Metadata         *map[string]interface{} `json:"metadata,omitempty"`
+	CreatedAt        string                  `json:"created_at"`
+	UpdatedAt        string                  `json:"updated_at"`
+}
+
+// UpdateFile generated from OpenAPI schema.
+type UpdateFile struct {
+	OriginalFilename *string                 `json:"original_filename,omitempty"`
+	ContentType      *string                 `json:"content_type,omitempty"`
+	Purpose          *string                 `json:"purpose,omitempty"`
+	Status           *string                 `json:"status,omitempty"`
+	Metadata         *map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // FileList generated from OpenAPI schema.
@@ -78,9 +95,12 @@ type FileUsageList struct {
 type ServerInterface interface {
 	requestSignedUpload(w http.ResponseWriter, r *http.Request)
 	listFiles(w http.ResponseWriter, r *http.Request)
+	uploadFile(w http.ResponseWriter, r *http.Request)
 	completeSignedUpload(w http.ResponseWriter, r *http.Request)
 	getFile(w http.ResponseWriter, r *http.Request)
+	updateFile(w http.ResponseWriter, r *http.Request)
 	deleteFile(w http.ResponseWriter, r *http.Request)
+	downloadFile(w http.ResponseWriter, r *http.Request)
 	cloudinaryWebhook(w http.ResponseWriter, r *http.Request)
 	getFileUsage(w http.ResponseWriter, r *http.Request)
 	getFileDeliveryURL(w http.ResponseWriter, r *http.Request)
@@ -90,9 +110,12 @@ type ServerInterface interface {
 type ClientInterface interface {
 	requestSignedUpload(ctx context.Context) (*http.Response, error)
 	listFiles(ctx context.Context) (*http.Response, error)
+	uploadFile(ctx context.Context) (*http.Response, error)
 	completeSignedUpload(ctx context.Context) (*http.Response, error)
 	getFile(ctx context.Context) (*http.Response, error)
+	updateFile(ctx context.Context) (*http.Response, error)
 	deleteFile(ctx context.Context) (*http.Response, error)
+	downloadFile(ctx context.Context) (*http.Response, error)
 	cloudinaryWebhook(ctx context.Context) (*http.Response, error)
 	getFileUsage(ctx context.Context) (*http.Response, error)
 	getFileDeliveryURL(ctx context.Context) (*http.Response, error)

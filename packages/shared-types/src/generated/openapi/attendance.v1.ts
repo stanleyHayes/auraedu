@@ -9,10 +9,17 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List attendance records */
+        /**
+         * List attendance records
+         * @description Executes the list attendance workflow within this AuraEDU API boundary.
+         */
         get: operations["listAttendance"];
         put?: never;
-        post?: never;
+        /**
+         * Create an attendance record
+         * @description Executes the create attendance workflow within this AuraEDU API boundary.
+         */
+        post: operations["createAttendance"];
         delete?: never;
         options?: never;
         head?: never;
@@ -28,7 +35,10 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Mark attendance in bulk */
+        /**
+         * Mark attendance in bulk
+         * @description Executes the mark attendance bulk workflow within this AuraEDU API boundary.
+         */
         post: operations["markAttendanceBulk"];
         delete?: never;
         options?: never;
@@ -36,21 +46,32 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/students/{student_id}/attendance": {
+    "/attendance/{attendance_id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get attendance for a student */
-        get: operations["getStudentAttendance"];
+        /**
+         * Get an attendance record
+         * @description Executes the get attendance workflow within this AuraEDU API boundary.
+         */
+        get: operations["getAttendance"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete an attendance record
+         * @description Executes the delete attendance workflow within this AuraEDU API boundary.
+         */
+        delete: operations["deleteAttendance"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update an attendance record
+         * @description Executes the update attendance workflow within this AuraEDU API boundary.
+         */
+        patch: operations["updateAttendance"];
         trace?: never;
     };
 };
@@ -66,10 +87,11 @@ export type components = {
         AttendanceRecord: {
             /** Format: uuid */
             id: string;
-            /** Format: uuid */
             tenant_id: string;
             /** Format: uuid */
             student_id: string;
+            /** Format: uuid */
+            academic_year_id?: string;
             /** Format: uuid */
             class_id?: string | null;
             /** Format: uuid */
@@ -78,10 +100,30 @@ export type components = {
             date: string;
             /** @enum {string} */
             status: "present" | "absent" | "late" | "excused";
-            /** Format: uuid */
-            recorded_by?: string;
+            reason?: string | null;
+            marked_by?: string;
             /** Format: date-time */
-            recorded_at?: string;
+            created_at?: string;
+            /** Format: date-time */
+            updated_at?: string;
+        };
+        CreateAttendance: {
+            /** Format: uuid */
+            student_id: string;
+            /** Format: uuid */
+            academic_year_id: string;
+            /** Format: date */
+            date: string;
+            /** @enum {string} */
+            status: "present" | "absent" | "late" | "excused";
+            reason?: string | null;
+            marked_by: string;
+        };
+        UpdateAttendance: {
+            /** @enum {string} */
+            status?: "present" | "absent" | "late" | "excused";
+            reason?: string | null;
+            marked_by?: string;
         };
         BulkAttendanceRequest: {
             /** Format: date */
@@ -162,7 +204,7 @@ export type components = {
         };
     };
     parameters: {
-        TenantId: string;
+        AttendanceId: string;
         /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
         TenantHeader: string;
         Limit: number;
@@ -179,6 +221,10 @@ export interface operations {
             query?: {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
+                student_id?: string;
+                academic_year_id?: string;
+                date?: string;
+                status?: "present" | "absent" | "late" | "excused";
             };
             header?: {
                 /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
@@ -201,6 +247,36 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    createAttendance: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAttendance"];
+            };
+        };
+        responses: {
+            /** @description Attendance record */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttendanceRecord"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             422: components["responses"]["ValidationError"];
         };
     };
@@ -235,18 +311,15 @@ export interface operations {
             422: components["responses"]["ValidationError"];
         };
     };
-    getStudentAttendance: {
+    getAttendance: {
         parameters: {
-            query?: {
-                limit?: components["parameters"]["Limit"];
-                cursor?: components["parameters"]["Cursor"];
-            };
+            query?: never;
             header?: {
                 /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                attendance_id: components["parameters"]["AttendanceId"];
             };
             cookie?: never;
         };
@@ -258,7 +331,66 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AttendanceRecordList"];
+                    "application/json": components["schemas"]["AttendanceRecord"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    deleteAttendance: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                attendance_id: components["parameters"]["AttendanceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Attendance record deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateAttendance: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                attendance_id: components["parameters"]["AttendanceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAttendance"];
+            };
+        };
+        responses: {
+            /** @description Updated attendance record */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttendanceRecord"];
                 };
             };
             401: components["responses"]["Unauthorized"];

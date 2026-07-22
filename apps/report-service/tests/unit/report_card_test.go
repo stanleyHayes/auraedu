@@ -1,6 +1,8 @@
 package unit
 
 import (
+	"bytes"
+	"encoding/json"
 	"testing"
 
 	"github.com/auraedu/report-service/internal/domain"
@@ -93,6 +95,13 @@ func TestReportCard_SetPublished(t *testing.T) {
 	}
 	if card.GeneratedAt == nil {
 		t.Fatal("expected generated_at to be set")
+	}
+	payload, err := json.Marshal(card)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(payload, []byte("pdf_path")) || bytes.Contains(payload, []byte("/tmp/reports")) {
+		t.Fatalf("private storage key leaked into REST payload: %s", payload)
 	}
 }
 

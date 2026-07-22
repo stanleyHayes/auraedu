@@ -3,9 +3,49 @@ package ports
 
 import (
 	"context"
+	"encoding/json"
+	"time"
 
 	"github.com/auraedu/payment-service/internal/domain"
 )
+
+// ReconciliationRepository atomically persists the provider outcome, its
+// ledger transaction, and the integration event that downstream Fees and
+// Notification services rely on.
+type ReconciliationRepository interface {
+	CommitReconciliation(context.Context, string, *domain.Payment, *domain.Transaction, string, map[string]any) error
+}
+
+const (
+	PaymentMutationCreate = "create"
+	PaymentMutationUpdate = "update"
+	PaymentMutationDelete = "delete"
+)
+
+// LifecycleRepository atomically applies a payment aggregate mutation and
+// records the lifecycle event promised by that mutation.
+type LifecycleRepository interface {
+	CommitPaymentLifecycle(context.Context, string, *domain.Payment, string, string, map[string]any) error
+}
+
+type OutboxEvent struct {
+	ID        string
+	TenantID  string
+	EventType string
+	Payload   json.RawMessage
+	CreatedAt time.Time
+}
+
+type OutboxRepository interface {
+	ClaimPendingPaymentEvents(context.Context, int) ([]OutboxEvent, error)
+	MarkPaymentEventPublished(context.Context, string) error
+	MarkPaymentEventFailed(context.Context, string, string) error
+}
+
+// InvoiceAccessResolver returns the authorized subset of requested learner-owned invoices.
+type InvoiceAccessResolver interface {
+	Resolve(context.Context, string, string, string, []string) ([]string, error)
+}
 
 // PaymentRepository persists Payment aggregates. Implementations MUST scope
 // every query by tenantID (defense-in-depth with Postgres RLS).

@@ -4,8 +4,10 @@ info:
   version: 1.0.0
   description: >
     Public site content, pages, and menus (spec \u00a77). Owned by lane L2 (EP-19). Feature flag: public_website.
+  contact:
+    name: AuraEDU Engineering
 servers:
-  - url: /api/v1
+  - url: /api/v1/website
 tags:
   - name: pages
   - name: sections
@@ -15,6 +17,7 @@ paths:
     /pages:
       get:
             operationId: listPages
+            description: Executes the list pages workflow within this AuraEDU API boundary.
             tags: ['pages']
             summary: List pages
             parameters:
@@ -33,6 +36,7 @@ paths:
               '401': { $ref: '#/components/responses/Unauthorized' }
       post:
             operationId: createPage
+            description: Executes the create page workflow within this AuraEDU API boundary.
             tags: ['pages']
             summary: Create a page
             parameters:
@@ -52,14 +56,15 @@ paths:
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
-    /pages/{slug}:
+    /pages/{page_id}:
       get:
-            operationId: getPageBySlug
+            operationId: getPage
+            description: Executes the get page workflow within this AuraEDU API boundary.
             tags: ['pages']
-            summary: Get a public page by slug
+            summary: Get a page by ID
             parameters:
               - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/TenantId'
+              - $ref: '#/components/parameters/PageId'
             responses:
               '200':
                 description: OK
@@ -70,52 +75,176 @@ paths:
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
-    /menus:
+      patch:
+        operationId: updatePage
+        description: Executes the update page workflow within this AuraEDU API boundary.
+        tags: ['pages']
+        summary: Update a page
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/PageId'
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UpdatePage' }
+        responses:
+          '200':
+            description: Updated page
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/Page' }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+      delete:
+        operationId: deletePage
+        description: Executes the delete page workflow within this AuraEDU API boundary.
+        tags: ['pages']
+        summary: Delete a page
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/PageId'
+        responses:
+          '204': { description: Page deleted }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+    /page-slugs/{slug}:
       get:
-            operationId: listMenus
-            tags: ['menus']
-            summary: List menus
+            operationId: getPageBySlug
+            description: Executes the get page by slug workflow within this AuraEDU API boundary.
+            tags: ['pages']
+            summary: Get a page by slug
             parameters:
               - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/Slug'
             responses:
               '200':
                 description: OK
                 content:
                   application/json:
-                    schema: { $ref: '#/components/schemas/MenuList' }
+                    schema: { $ref: '#/components/schemas/Page' }
               '403': { $ref: '#/components/responses/Forbidden' }
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
+    /pages/{page_id}/sections:
+      get:
+        operationId: listSections
+        description: Executes the list sections workflow within this AuraEDU API boundary.
+        tags: ['sections']
+        summary: List sections for a page
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/PageId'
+          - $ref: '#/components/parameters/Limit'
+          - $ref: '#/components/parameters/Cursor'
+        responses:
+          '200':
+            description: Sections
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/SectionList' }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
       post:
-            operationId: createMenu
-            tags: ['menus']
-            summary: Create a menu
-            parameters:
-              - $ref: '#/components/parameters/TenantHeader'
-            requestBody:
-              required: true
-              content:
-                application/json:
-                  schema: { $ref: '#/components/schemas/CreateMenu' }
-            responses:
-              '201':
-                description: OK
-                content:
-                  application/json:
-                    schema: { $ref: '#/components/schemas/Menu' }
-              '403': { $ref: '#/components/responses/Forbidden' }
-              '404': { $ref: '#/components/responses/NotFound' }
-              '422': { $ref: '#/components/responses/ValidationError' }
-              '401': { $ref: '#/components/responses/Unauthorized' }
+        operationId: createSection
+        description: Executes the create section workflow within this AuraEDU API boundary.
+        tags: ['sections']
+        summary: Create a page section
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/PageId'
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateSection' }
+        responses:
+          '201':
+            description: Created section
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/Section' }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+    /sections/{section_id}:
+      get:
+        operationId: getSection
+        description: Executes the get section workflow within this AuraEDU API boundary.
+        tags: ['sections']
+        summary: Get a section
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/SectionId'
+        responses:
+          '200':
+            description: Section
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/Section' }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+      patch:
+        operationId: updateSection
+        description: Executes the update section workflow within this AuraEDU API boundary.
+        tags: ['sections']
+        summary: Update a section
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/SectionId'
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UpdateSection' }
+        responses:
+          '200':
+            description: Updated section
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/Section' }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+      delete:
+        operationId: deleteSection
+        description: Executes the delete section workflow within this AuraEDU API boundary.
+        tags: ['sections']
+        summary: Delete a section
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/SectionId'
+        responses:
+          '204': { description: Section deleted }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
 
 components:
   parameters:
-    TenantId:
-      name: tenant_id
+    PageId:
+      name: page_id
       in: path
       required: true
       schema: { type: string, format: uuid }
+    SectionId:
+      name: section_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Slug:
+      name: slug
+      in: path
+      required: true
+      schema: { type: string }
     TenantHeader:
       name: X-Tenant-Code
       in: header
@@ -141,14 +270,17 @@ components:
         request_id: { type: string }
     Page:
         type: object
-        required: [id, tenant_id, slug, title]
+        required: [id, tenant_id, slug, title, status, layout, created_at, updated_at]
         properties:
           id: { type: string, format: uuid }
-          tenant_id: { type: string, format: uuid }
+          tenant_id: { type: string }
           slug: { type: string }
           title: { type: string }
-          sections: { type: array, items: { $ref: '#/components/schemas/Section' } }
-          is_published: { type: boolean }
+          status: { type: string, enum: [draft, published, archived] }
+          meta_description: { type: [string, 'null'] }
+          layout: { type: string, enum: [default, landing, contact] }
+          created_at: { type: string, format: date-time }
+          updated_at: { type: string, format: date-time }
           published_at: { type: [string, 'null'], format: date-time }
     CreatePage:
         type: object
@@ -156,39 +288,54 @@ components:
         properties:
           slug: { type: string }
           title: { type: string }
-          sections: { type: array, items: { $ref: '#/components/schemas/Section' } }
-          is_published: { type: boolean, default: false }
+          status: { type: string, enum: [draft, published, archived], default: draft }
+          meta_description: { type: [string, 'null'] }
+          layout: { type: string, enum: [default, landing, contact], default: default }
+    UpdatePage:
+        type: object
+        properties:
+          slug: { type: string }
+          title: { type: string }
+          status: { type: string, enum: [draft, published, archived] }
+          meta_description: { type: [string, 'null'] }
+          layout: { type: string, enum: [default, landing, contact] }
     Section:
         type: object
-        required: [type]
-        properties:
-          type: { type: string, enum: [hero, text, gallery, call_to_action] }
-          title: { type: [string, 'null'] }
-          content: { type: [string, 'null'] }
-          media: { type: array, items: { type: string } }
-    Menu:
-        type: object
-        required: [id, tenant_id, name]
+        required: [id, tenant_id, page_id, type, sort_order, status, created_at, updated_at]
         properties:
           id: { type: string, format: uuid }
-          tenant_id: { type: string, format: uuid }
-          name: { type: string }
-          items: { type: array, items: { type: object, properties: { label: { type: string }, url: { type: string }, page_id: { type: [string, 'null'], format: uuid } } } }
-    CreateMenu:
+          tenant_id: { type: string }
+          page_id: { type: string, format: uuid }
+          type: { type: string, enum: [hero, text, features, gallery, cta, contact] }
+          content: { type: object, additionalProperties: true }
+          sort_order: { type: integer, minimum: 0 }
+          status: { type: string, enum: [draft, published] }
+          created_at: { type: string, format: date-time }
+          updated_at: { type: string, format: date-time }
+    CreateSection:
         type: object
-        required: [name]
+        required: [type, content, sort_order]
         properties:
-          name: { type: string }
-          items: { type: array, items: { type: object, properties: { label: { type: string }, url: { type: string }, page_id: { type: [string, 'null'], format: uuid } } } }
+          type: { type: string, enum: [hero, text, features, gallery, cta, contact] }
+          content: { type: object, additionalProperties: true }
+          sort_order: { type: integer, minimum: 0 }
+          status: { type: string, enum: [draft, published], default: draft }
+    UpdateSection:
+        type: object
+        properties:
+          type: { type: string, enum: [hero, text, features, gallery, cta, contact] }
+          content: { type: object, additionalProperties: true }
+          sort_order: { type: integer, minimum: 0 }
+          status: { type: string, enum: [draft, published] }
     PageList:
         type: object
         properties:
           data: { type: array, items: { $ref: '#/components/schemas/Page' } }
           next_cursor: { type: [string, 'null'] }
-    MenuList:
+    SectionList:
         type: object
         properties:
-          data: { type: array, items: { $ref: '#/components/schemas/Menu' } }
+          data: { type: array, items: { $ref: '#/components/schemas/Section' } }
           next_cursor: { type: [string, 'null'] }
 
   responses:
@@ -228,4 +375,3 @@ components:
 
 security:
   - bearerAuth: []
-

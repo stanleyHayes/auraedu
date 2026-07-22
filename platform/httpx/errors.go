@@ -20,6 +20,7 @@ const (
 	ErrUnauthorized    ErrorCode = "unauthorized"
 	ErrInternal        ErrorCode = "internal_error"
 	ErrTooManyRequests ErrorCode = "too_many_requests"
+	ErrPayloadTooLarge ErrorCode = "payload_too_large"
 )
 
 type Error struct {
@@ -54,6 +55,8 @@ func StatusForError(code ErrorCode) int {
 		return http.StatusNotFound
 	case ErrTooManyRequests:
 		return http.StatusTooManyRequests
+	case ErrPayloadTooLarge:
+		return http.StatusRequestEntityTooLarge
 	default:
 		return http.StatusInternalServerError
 	}
@@ -106,4 +109,8 @@ func Unauthorized(w http.ResponseWriter, r *http.Request, message string) {
 
 func InternalError(w http.ResponseWriter, r *http.Request, message string) {
 	RespondError(w, r, Error{Code: ErrInternal, Message: message})
+}
+
+func PayloadTooLarge(w http.ResponseWriter, r *http.Request) {
+	RespondError(w, r, Error{Code: ErrPayloadTooLarge, Message: "request body too large"})
 }

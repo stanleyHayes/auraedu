@@ -39,10 +39,7 @@ export function PillNav({ items, className, indicatorClassName }: PillNavProps) 
     <div
       ref={containerRef}
       role="tablist"
-      className={cn(
-        "pill-nav relative isolate inline-flex items-center",
-        className,
-      )}
+      className={cn("pill-nav relative isolate inline-flex items-center", className)}
     >
       {indicator.width > 0 ? (
         <span

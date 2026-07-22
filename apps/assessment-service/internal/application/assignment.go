@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/auraedu/assessment-service/internal/domain"
@@ -55,6 +56,19 @@ func (s *Service) ListAssignments(ctx context.Context, actor auth.Actor, filter 
 		return nil, "", err
 	}
 	filter.Limit = normalizeLimit(filter.Limit)
+	if scopedRole(actor.Role) {
+		if s.scope == nil {
+			return nil, "", domain.ErrUnavailable
+		}
+		scope, err := s.scope.Resolve(ctx, actor.TenantID, actor.UserID, strings.ToLower(strings.TrimSpace(actor.Role)))
+		if err != nil {
+			return nil, "", err
+		}
+		filter.ClassIDs = scope.ClassIDs
+		if strings.EqualFold(strings.TrimSpace(actor.Role), "student") || strings.EqualFold(strings.TrimSpace(actor.Role), "parent") {
+			filter.Status = string(domain.StatusPublished)
+		}
+	}
 	return s.repo.ListAssignments(ctx, tenantID, filter)
 }
 
@@ -64,7 +78,38 @@ func (s *Service) GetAssignment(ctx context.Context, actor auth.Actor, id string
 	if err != nil {
 		return nil, err
 	}
-	return s.getAssignment(ctx, tenantID, id)
+	assignment, err := s.getAssignment(ctx, tenantID, id)
+	if err != nil {
+		return nil, err
+	}
+	if scopedRole(actor.Role) { //nolint:nestif // Role and class scope must be evaluated together.
+		if s.scope == nil {
+			return nil, domain.ErrUnavailable
+		}
+		scope, err := s.scope.Resolve(ctx, actor.TenantID, actor.UserID, strings.ToLower(strings.TrimSpace(actor.Role)))
+		if err != nil {
+			return nil, err
+		}
+		allowed := false
+		for _, assigned := range scope.ClassIDs {
+			for _, target := range assignment.ClassIDs {
+				if assigned == target {
+					allowed = true
+					break
+				}
+			}
+			if allowed {
+				break
+			}
+		}
+		if !allowed {
+			return nil, domain.ErrNotFound
+		}
+		if (strings.EqualFold(actor.Role, "student") || strings.EqualFold(actor.Role, "parent")) && assignment.Status != string(domain.StatusPublished) {
+			return nil, domain.ErrNotFound
+		}
+	}
+	return assignment, nil
 }
 
 // UpdateAssignment patches an assignment.
@@ -119,11 +164,17 @@ func (s *Service) PublishAssignment(ctx context.Context, actor auth.Actor, id st
 	if err := assignment.Publish(); err != nil {
 		return nil, err
 	}
-	if err := s.repo.UpdateAssessment(ctx, tenantID, assignment); err != nil {
+	events := []ports.LifecycleEvent{{EventType: "assignment.published.v1", Payload: ports.AssignmentEventData(assignment, nil)}}
+	if err := s.commitLifecycle(
+		ctx,
+		tenantID,
+		ports.LifecycleMutation{Kind: ports.AssessmentMutationUpdate, Assessment: assignment},
+		events,
+		func() error { return s.repo.UpdateAssessment(ctx, tenantID, assignment) },
+		func() error { return s.pub.PublishAssignment(ctx, "assignment.published.v1", assignment, nil) },
+	); err != nil {
 		return nil, err
 	}
-	//nolint:errcheck // Event publishing is best-effort after the assignment is published.
-	_ = s.pub.PublishAssignment(ctx, "assignment.published.v1", assignment, nil)
 	return assignment, nil
 }
 

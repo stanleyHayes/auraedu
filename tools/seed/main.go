@@ -4,7 +4,6 @@ package main
 import (
 	"context"
 	"crypto/rand"
-	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -17,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/argon2"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -51,11 +51,6 @@ func hashPassword(password string) (credential, error) {
 	return credential{Salt: salt, Hash: hash, Algo: "argon2id", Params: params}, nil
 }
 
-func verifyPassword(password string, c credential) bool {
-	got := argon2.IDKey([]byte(password), c.Salt, c.Params.Time, c.Params.Memory, c.Params.Threads, c.Params.KeyLen)
-	return subtle.ConstantTimeCompare(got, c.Hash) == 1
-}
-
 type user struct {
 	ID          string
 	TenantID    *string
@@ -75,57 +70,98 @@ type tenant struct {
 	Status string
 }
 
-var defaultPassword = envOr("SEED_PASSWORD", "Password123")
-
-var platformSuperAdmin = user{
-	ID:       "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
-	Email:    "superadmin@auraedu.com",
-	Name:     "Super Admin",
-	Role:     "platform_super_admin",
-	Password: defaultPassword,
-	Permissions: []string{
-		"features.manage", "users.read", "users.create", "users.update", "roles.assign",
-		"students.read", "students.create", "students.update", "students.delete",
-		"staff.read", "staff.create", "staff.update",
-		"academic.read", "academic.manage",
-		"attendance.read", "attendance.mark",
-		"assessments.read", "assessments.record_scores", "assessments.manage",
-		"reports.read", "reports.publish",
-		"fees.read", "fees.manage",
-		"payments.read", "payments.initiate",
-		"notifications.read", "notifications.send", "notifications.manage",
-		"website.read", "website.manage",
-		"files.read", "files.upload", "files.delete",
-		"analytics.view",
-		"billing.read", "billing.manage",
-		"cbt.read", "cbt.author", "cbt.take", "cbt.grade",
-		"audit.read",
-	},
+type featureDefault struct {
+	Key     string
+	Enabled bool
 }
 
-var tenants = []tenant{
-	{Code: "upshs", Name: "Union Preparatory SHS", Short: "UPSHS", Domain: "upshs.auraedu.com", Plan: "starter", Status: "active"},
-	{Code: "aboom", Name: "Aboom Senior High", Short: "Aboom", Domain: "aboom.auraedu.com", Plan: "starter", Status: "active"},
+type featureRegistry struct {
+	Features []struct {
+		Key      string            `yaml:"key"`
+		Defaults map[string]string `yaml:"defaults"`
+	} `yaml:"features"`
 }
 
-var tenantAdmins = []user{
-	{ID: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12", TenantID: strPtr("upshs"), Email: "admin@upshs.edu", Name: "UPSHS Admin", Role: "admin", Password: defaultPassword},
-	{ID: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13", TenantID: strPtr("aboom"), Email: "admin@aboom.edu", Name: "Aboom Admin", Role: "admin", Password: defaultPassword},
+func platformSuperAdmin() user {
+	return user{
+		ID: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11", Email: "superadmin@auraedu.com",
+		Name: "Super Admin", Role: "platform_super_admin", Password: seedPassword(),
+		Permissions: []string{
+			"features.manage", "users.read", "users.create", "users.update", "roles.assign",
+			"students.read", "students.create", "students.update", "students.delete",
+			"staff.read", "staff.create", "staff.update", "academic.read", "academic.manage",
+			"attendance.read", "attendance.mark", "assessments.read", "assessments.record_scores",
+			"assessments.manage", "reports.read", "reports.publish", "fees.read", "fees.manage",
+			"payments.read", "payments.initiate", "notifications.read", "notifications.send",
+			"notifications.manage", "website.read", "website.manage", "files.read", "files.upload",
+			"files.delete", "analytics.view", "billing.read", "billing.manage", "cbt.read", "cbt.author",
+			"cbt.take", "cbt.grade", "audit.read",
+		},
+	}
 }
 
-var defaultFeatures = []string{
-	"public_website",
-	"student_management",
-	"staff_management",
-	"parent_portal",
-	"teacher_portal",
-	"attendance",
-	"report_cards",
-	"announcements",
-	"email_notifications",
-	"billing",
-	"file_management",
+func catalogueTenants() []tenant {
+	return []tenant{
+		{Code: "upshs", Name: "Union Preparatory SHS", Short: "UPSHS", Domain: "upshs.auraedu.com", Plan: "starter", Status: "active"},
+		{Code: "aboom", Name: "Aboom Senior High", Short: "Aboom", Domain: "aboom.auraedu.com", Plan: "starter", Status: "active"},
+	}
 }
+
+func tenantAdmins() []user {
+	password := seedPassword()
+	return []user{
+		{ID: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12", TenantID: strPtr("upshs"),
+			Email: "admin@upshs.edu", Name: "UPSHS Admin", Role: "school_admin", Password: password},
+		{ID: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13", TenantID: strPtr("aboom"),
+			Email: "admin@aboom.edu", Name: "Aboom Admin", Role: "school_admin", Password: password},
+	}
+}
+
+func loadFeatureDefaults(path, tenantCode string) ([]featureDefault, error) {
+	contents, err := os.ReadFile(path) //nolint:gosec // repository-owned feature registry
+	if err != nil {
+		return nil, fmt.Errorf("read feature registry: %w", err)
+	}
+
+	var registry featureRegistry
+	if err := yaml.Unmarshal(contents, &registry); err != nil {
+		return nil, fmt.Errorf("parse feature registry: %w", err)
+	}
+	if len(registry.Features) == 0 {
+		return nil, fmt.Errorf("feature registry contains no features")
+	}
+
+	defaults := make([]featureDefault, 0, len(registry.Features))
+	seen := make(map[string]struct{}, len(registry.Features))
+	for _, feature := range registry.Features {
+		key := strings.TrimSpace(feature.Key)
+		if key == "" {
+			return nil, fmt.Errorf("feature registry contains an empty key")
+		}
+		if _, exists := seen[key]; exists {
+			return nil, fmt.Errorf("feature registry contains duplicate key %q", key)
+		}
+		seen[key] = struct{}{}
+
+		rawDefault, ok := feature.Defaults[tenantCode]
+		if !ok {
+			return nil, fmt.Errorf("feature %q has no default for seed tenant %q", key, tenantCode)
+		}
+		var enabled bool
+		switch strings.ToLower(strings.TrimSpace(rawDefault)) {
+		case "on":
+			enabled = true
+		case "off", "optional":
+			enabled = false
+		default:
+			return nil, fmt.Errorf("feature %q has invalid default %q for seed tenant %q", key, rawDefault, tenantCode)
+		}
+		defaults = append(defaults, featureDefault{Key: key, Enabled: enabled})
+	}
+	return defaults, nil
+}
+
+func seedPassword() string { return envOr("SEED_PASSWORD", "Password123") }
 
 // tenantUUID derives the legacy UUID previously stored in billing/student/staff
 // tenant_id columns (pre TEXT migration). Kept only to clean up old seed rows.
@@ -138,6 +174,13 @@ func deterministicUUID(seed string) string {
 }
 
 func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	ctx := context.Background()
 
 	dbs := map[string]*pgxpool.Pool{}
@@ -150,44 +193,38 @@ func main() {
 	} {
 		pool, err := openPool(ctx, dsn)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "%s db: %v\n", name, err)
-			os.Exit(1)
+			return fmt.Errorf("%s db: %w", name, err)
 		}
 		defer pool.Close()
 		dbs[name] = pool
 	}
 
 	if err := seedIdentity(ctx, dbs["identity"]); err != nil {
-		fmt.Fprintf(os.Stderr, "seed identity: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("seed identity: %w", err)
 	}
 
 	if err := seedTenants(ctx, dbs["tenant"]); err != nil {
-		fmt.Fprintf(os.Stderr, "seed tenants: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("seed tenants: %w", err)
 	}
 
 	if err := seedBilling(ctx, dbs["billing"]); err != nil {
-		fmt.Fprintf(os.Stderr, "seed billing: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("seed billing: %w", err)
 	}
 
 	if err := seedStudents(ctx, dbs["student"]); err != nil {
-		fmt.Fprintf(os.Stderr, "seed students: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("seed students: %w", err)
 	}
 
 	if err := seedStaff(ctx, dbs["staff"]); err != nil {
-		fmt.Fprintf(os.Stderr, "seed staff: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("seed staff: %w", err)
 	}
 
 	if err := writeCredentials(filepath.Join(repoRoot(), "credentials.txt")); err != nil {
-		fmt.Fprintf(os.Stderr, "write credentials: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("write credentials: %w", err)
 	}
 
 	fmt.Println("Seed complete. See credentials.txt for login details.")
+	return nil
 }
 
 func seedIdentity(ctx context.Context, db *pgxpool.Pool) error {
@@ -201,7 +238,7 @@ func seedIdentity(ctx context.Context, db *pgxpool.Pool) error {
 		return err
 	}
 
-	allUsers := append([]user{platformSuperAdmin}, tenantAdmins...)
+	allUsers := append([]user{platformSuperAdmin()}, tenantAdmins()...)
 	for _, u := range allUsers {
 		cred, err := hashPassword(u.Password)
 		if err != nil {
@@ -265,7 +302,14 @@ func seedTenants(ctx context.Context, db *pgxpool.Pool) error {
 	}
 	defer tx.Rollback(ctx)
 
-	for _, t := range tenants {
+	for _, t := range catalogueTenants() {
+		featureDefaults, err := loadFeatureDefaults(
+			filepath.Join(repoRoot(), "contracts", "features", "features.yaml"),
+			t.Code,
+		)
+		if err != nil {
+			return fmt.Errorf("load feature defaults for %s: %w", t.Code, err)
+		}
 		if _, err := tx.Exec(ctx, fmt.Sprintf("SET LOCAL app.tenant_id = '%s'", strings.ReplaceAll(t.Code, "'", "''"))); err != nil {
 			return err
 		}
@@ -284,15 +328,13 @@ func seedTenants(ctx context.Context, db *pgxpool.Pool) error {
 			return fmt.Errorf("upsert tenant %s: %w", t.Code, err)
 		}
 
-		for _, f := range defaultFeatures {
+		for _, feature := range featureDefaults {
 			if _, err := tx.Exec(ctx, `
 				INSERT INTO tenant_features (tenant_code, feature_key, is_enabled, updated_at)
-				VALUES ($1, $2, true, now())
-				ON CONFLICT (tenant_code, feature_key) DO UPDATE SET
-				  is_enabled = EXCLUDED.is_enabled,
-				  updated_at = now()
-			`, t.Code, f); err != nil {
-				return fmt.Errorf("upsert feature %s for %s: %w", f, t.Code, err)
+				VALUES ($1, $2, $3, now())
+				ON CONFLICT (tenant_code, feature_key) DO NOTHING
+			`, t.Code, feature.Key, feature.Enabled); err != nil {
+				return fmt.Errorf("seed feature %s for %s: %w", feature.Key, t.Code, err)
 			}
 		}
 	}
@@ -319,9 +361,14 @@ func seedBilling(ctx context.Context, db *pgxpool.Pool) error {
 		interval string
 		features []string
 	}{
-		{deterministicUUID("auraedu:plan:starter"), "Starter", "starter", 29900, "monthly", []string{"public_website", "student_management", "staff_management", "attendance", "report_cards"}},
-		{deterministicUUID("auraedu:plan:growth"), "Growth", "growth", 59900, "monthly", []string{"public_website", "student_management", "staff_management", "attendance", "report_cards", "fees", "sms_notifications"}},
-		{deterministicUUID("auraedu:plan:professional"), "Professional", "professional", 99900, "monthly", []string{"public_website", "student_management", "staff_management", "attendance", "report_cards", "fees", "sms_notifications", "analytics", "custom_domain"}},
+		{deterministicUUID("auraedu:plan:starter"), "Starter", "starter", 29900, "monthly",
+			[]string{"public_website", "student_management", "staff_management", "attendance", "report_cards"}},
+		{deterministicUUID("auraedu:plan:growth"), "Growth", "growth", 59900, "monthly",
+			[]string{"public_website", "student_management", "staff_management", "attendance", "report_cards",
+				"fees", "sms_notifications"}},
+		{deterministicUUID("auraedu:plan:professional"), "Professional", "professional", 99900, "monthly",
+			[]string{"public_website", "student_management", "staff_management", "attendance", "report_cards",
+				"fees", "sms_notifications", "analytics", "custom_domain"}},
 	}
 
 	planIDs := make(map[string]string)
@@ -358,7 +405,7 @@ func seedBilling(ctx context.Context, db *pgxpool.Pool) error {
 	}
 
 	now := time.Now().UTC()
-	for _, t := range tenants {
+	for _, t := range catalogueTenants() {
 		// Tenant IDs are tenant *codes* (e.g. upshs) — see billing migration 0003_tenant_id_text.
 		subID := deterministicUUID("auraedu:subscription:" + t.Code)
 		invoiceID := deterministicUUID("auraedu:invoice:" + t.Code)
@@ -510,10 +557,11 @@ func writeCredentials(path string) error {
 	var b strings.Builder
 	b.WriteString("AuraEDU local seed credentials\n")
 	b.WriteString("================================\n\n")
-	b.WriteString(fmt.Sprintf("%-30s %-30s %s\n", "Email", "Role", "Password"))
-	b.WriteString(fmt.Sprintf("%-30s %-30s %s\n", platformSuperAdmin.Email, platformSuperAdmin.Role, platformSuperAdmin.Password))
-	for _, u := range tenantAdmins {
-		b.WriteString(fmt.Sprintf("%-30s %-30s %s\n", u.Email, u.Role+" ("+*u.TenantID+")", u.Password))
+	fmt.Fprintf(&b, "%-30s %-30s %s\n", "Email", "Role", "Password")
+	admin := platformSuperAdmin()
+	fmt.Fprintf(&b, "%-30s %-30s %s\n", admin.Email, admin.Role, admin.Password)
+	for _, u := range tenantAdmins() {
+		fmt.Fprintf(&b, "%-30s %-30s %s\n", u.Email, u.Role+" ("+*u.TenantID+")", u.Password)
 	}
 	return os.WriteFile(path, []byte(b.String()), 0o600)
 }
@@ -527,7 +575,10 @@ func openPool(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 }
 
 func repoRoot() string {
-	_, filename, _, _ := runtime.Caller(0)
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		return "."
+	}
 	return filepath.Join(filepath.Dir(filename), "..", "..")
 }
 

@@ -3,11 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { OpenAPI } from "@auraedu/shared-types";
-import { createServerClient } from "./api";
+import { createServerClient, createServerClientForTenant } from "./api";
 
 export interface TenantActionResult {
   success?: boolean;
   error?: string;
+}
+
+export interface DomainActionResult extends TenantActionResult {
+  domain?: OpenAPI.tenant_v1.components["schemas"]["CustomDomain"];
 }
 
 const CODE_PATTERN = /^[a-z0-9-]{2,50}$/;
@@ -18,8 +22,8 @@ function parseBranding(formData: FormData): OpenAPI.tenant_v1.components["schema
   const logo = String((formData.get("logo_url") as string | null) ?? "").trim();
   return {
     brand: {
-      primary: primary || "#C6402F",
-      secondary: secondary || null,
+      primary: primary || "#1557FF",
+      secondary: secondary || "#087F8C",
     },
     logo_url: logo || null,
   };
@@ -45,7 +49,9 @@ export async function createTenantAction(
   _prev: TenantActionResult,
   formData: FormData,
 ): Promise<TenantActionResult> {
-  const tenantCode = String((formData.get("tenant_code") as string | null) ?? "").trim().toLowerCase();
+  const tenantCode = String((formData.get("tenant_code") as string | null) ?? "")
+    .trim()
+    .toLowerCase();
   const name = String((formData.get("name") as string | null) ?? "").trim();
 
   if (!CODE_PATTERN.test(tenantCode)) {
@@ -58,7 +64,6 @@ export async function createTenantAction(
   const short = String((formData.get("short") as string | null) ?? "").trim() || undefined;
   const status = (formData.get("status") as string | null) ?? "active";
   const plan = (formData.get("plan") as string | null) ?? "starter";
-  const domain = String((formData.get("domain") as string | null) ?? "").trim() || null;
 
   const body: OpenAPI.tenant_v1.components["schemas"]["TenantCreate"] = {
     tenant_code: tenantCode,
@@ -66,7 +71,6 @@ export async function createTenantAction(
     short,
     status: status as OpenAPI.tenant_v1.components["schemas"]["Tenant"]["status"],
     plan: plan as OpenAPI.tenant_v1.components["schemas"]["Tenant"]["plan"],
-    domain,
     branding: parseBranding(formData),
   };
 
@@ -93,14 +97,12 @@ export async function updateTenantAction(
   const short = String((formData.get("short") as string | null) ?? "").trim() || null;
   const status = (formData.get("status") as string | null) ?? undefined;
   const plan = (formData.get("plan") as string | null) ?? undefined;
-  const domain = String((formData.get("domain") as string | null) ?? "").trim() || null;
 
   const body: OpenAPI.tenant_v1.components["schemas"]["TenantUpdate"] = {
     name,
     short,
     status: status as OpenAPI.tenant_v1.components["schemas"]["Tenant"]["status"] | undefined,
     plan: plan as OpenAPI.tenant_v1.components["schemas"]["Tenant"]["plan"] | undefined,
-    domain,
     branding: parseBranding(formData),
   };
 
@@ -112,6 +114,98 @@ export async function updateTenantAction(
     return { success: true };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to update school." };
+  }
+}
+
+function revalidateTenantDomain(code: string) {
+  revalidatePath("/admin/settings");
+  revalidatePath("/superadmin/tenants");
+  revalidatePath(`/superadmin/tenants/${code}`);
+}
+
+export async function requestCustomDomainAction(
+  code: string,
+  _prev: DomainActionResult,
+  formData: FormData,
+): Promise<DomainActionResult> {
+  const hostname = String((formData.get("hostname") as string | null) ?? "").trim();
+  if (!hostname) return { error: "Enter the hostname owned by the school." };
+  try {
+    const client = await createServerClientForTenant(code);
+    const domain = await client.post<OpenAPI.tenant_v1.components["schemas"]["CustomDomain"]>(
+      `/api/v1/tenants/${encodeURIComponent(code)}/custom-domain`,
+      { hostname },
+    );
+    revalidateTenantDomain(code);
+    return { success: true, domain };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to start domain verification." };
+  }
+}
+
+export async function verifyCustomDomainAction(
+  code: string,
+  _prev: DomainActionResult,
+  _formData: FormData,
+): Promise<DomainActionResult> {
+  void _prev;
+  void _formData;
+  try {
+    const client = await createServerClientForTenant(code);
+    const domain = await client.post<OpenAPI.tenant_v1.components["schemas"]["CustomDomain"]>(
+      `/api/v1/tenants/${encodeURIComponent(code)}/custom-domain/verify`,
+      {},
+    );
+    revalidateTenantDomain(code);
+    return { success: true, domain };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "DNS ownership could not be verified yet." };
+  }
+}
+
+export async function activateCustomDomainAction(
+  code: string,
+  _prev: DomainActionResult,
+  formData: FormData,
+): Promise<DomainActionResult> {
+  const providerReference = String(
+    (formData.get("provider_reference") as string | null) ?? "",
+  ).trim();
+  if (providerReference.length < 8)
+    return { error: "Enter the provider domain or certificate reference." };
+  try {
+    const client = await createServerClientForTenant(code);
+    const domain = await client.post<OpenAPI.tenant_v1.components["schemas"]["CustomDomain"]>(
+      `/api/v1/super-admin/tenants/${encodeURIComponent(code)}/custom-domain/activate`,
+      { provider_reference: providerReference },
+    );
+    revalidateTenantDomain(code);
+    return { success: true, domain };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to activate the verified domain." };
+  }
+}
+
+export async function deactivateCustomDomainAction(
+  code: string,
+  _prev: DomainActionResult,
+  formData: FormData,
+): Promise<DomainActionResult> {
+  const providerReference = String(
+    (formData.get("provider_reference") as string | null) ?? "",
+  ).trim();
+  if (providerReference.length < 8)
+    return { error: "Enter the provider removal or certificate reference." };
+  try {
+    const client = await createServerClientForTenant(code);
+    const domain = await client.post<OpenAPI.tenant_v1.components["schemas"]["CustomDomain"]>(
+      `/api/v1/super-admin/tenants/${encodeURIComponent(code)}/custom-domain/deactivate`,
+      { provider_reference: providerReference },
+    );
+    revalidateTenantDomain(code);
+    return { success: true, domain };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to deactivate the custom domain." };
   }
 }
 
@@ -156,7 +250,9 @@ export async function requestSignedUploadAction(
     );
     return res;
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "Failed to request upload." } as OpenAPI.file_v1.components["schemas"]["SignedUploadResponse"] & { error: string };
+    return {
+      error: e instanceof Error ? e.message : "Failed to request upload.",
+    } as OpenAPI.file_v1.components["schemas"]["SignedUploadResponse"] & { error: string };
   }
 }
 
@@ -171,7 +267,12 @@ export async function completeUploadAction(
   try {
     const res = await client.post<{ secure_url?: string }>(
       `/api/v1/files/${encodeURIComponent(fileId)}/complete`,
-      { secure_url: secureUrl, public_id: publicId, size_bytes: sizeBytes, content_type: contentType },
+      {
+        secure_url: secureUrl,
+        public_id: publicId,
+        size_bytes: sizeBytes,
+        content_type: contentType,
+      },
     );
     return { secure_url: res.secure_url ?? secureUrl };
   } catch (e) {

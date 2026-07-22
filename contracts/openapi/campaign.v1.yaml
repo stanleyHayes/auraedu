@@ -1,0 +1,199 @@
+openapi: 3.1.0
+info:
+  title: AuraEDU Growth Campaign API
+  version: 1.0.0
+  description: Tenant-isolated campaign planning, four-eyes approval, tracking and lifecycle control.
+  contact:
+    name: AuraEDU Engineering
+servers: [{ url: /api/v1 }]
+tags:
+  - name: campaigns
+
+paths:
+  /campaigns:
+    post:
+      operationId: createCampaign
+      description: Executes the create campaign workflow within this AuraEDU API boundary.
+      tags: ['campaigns']
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/TenantCode' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateCampaign' } } }
+      responses:
+        '201': { description: Draft campaign created, content: { application/json: { schema: { $ref: '#/components/schemas/Campaign' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    get:
+      operationId: listCampaigns
+      description: Executes the list campaigns workflow within this AuraEDU API boundary.
+      tags: ['campaigns']
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/TenantCode' }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/CampaignStatus' } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+      responses:
+        '200':
+          description: Tenant campaign page
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { type: array, items: { $ref: '#/components/schemas/Campaign' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /campaigns/{campaign_id}:
+    get:
+      operationId: getCampaign
+      description: Executes the get campaign workflow within this AuraEDU API boundary.
+      tags: ['campaigns']
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/TenantCode' }, { $ref: '#/components/parameters/CampaignId' }]
+      responses:
+        '200': { description: Campaign, content: { application/json: { schema: { $ref: '#/components/schemas/Campaign' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: updateDraftCampaign
+      description: Executes the update draft campaign workflow within this AuraEDU API boundary.
+      tags: ['campaigns']
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/TenantCode' }, { $ref: '#/components/parameters/CampaignId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateCampaign' } } }
+      responses:
+        '200': { description: Draft updated, content: { application/json: { schema: { $ref: '#/components/schemas/Campaign' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /campaigns/{campaign_id}/submit-for-approval:
+    post:
+      operationId: submitCampaignForApproval
+      description: Executes the submit campaign for approval workflow within this AuraEDU API boundary.
+      tags: ['campaigns']
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/TenantCode' }, { $ref: '#/components/parameters/CampaignId' }]
+      responses:
+        '200': { description: Campaign pending approval, content: { application/json: { schema: { $ref: '#/components/schemas/Campaign' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /campaigns/{campaign_id}/approve:
+    post:
+      operationId: approveCampaign
+      description: Executes the approve campaign workflow within this AuraEDU API boundary.
+      tags: ['campaigns']
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/TenantCode' }, { $ref: '#/components/parameters/CampaignId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [review_note]
+              properties: { review_note: { type: string, minLength: 3, maxLength: 500 } }
+              additionalProperties: false
+      responses:
+        '200': { description: Campaign approved, content: { application/json: { schema: { $ref: '#/components/schemas/Campaign' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /campaigns/{campaign_id}/publish:
+    post:
+      operationId: publishCampaign
+      tags: ['campaigns']
+      description: Activates tracking or schedules the approved campaign; does not auto-publish unapproved creative content.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/TenantCode' }, { $ref: '#/components/parameters/CampaignId' }]
+      responses:
+        '200': { description: Campaign scheduled or active, content: { application/json: { schema: { $ref: '#/components/schemas/Campaign' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /campaigns/{campaign_id}/pause:
+    post:
+      operationId: pauseCampaign
+      description: Executes the pause campaign workflow within this AuraEDU API boundary.
+      tags: ['campaigns']
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/TenantCode' }, { $ref: '#/components/parameters/CampaignId' }]
+      responses:
+        '200': { description: Campaign paused, content: { application/json: { schema: { $ref: '#/components/schemas/Campaign' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+components:
+  securitySchemes: { bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT } }
+  parameters:
+    TenantCode:
+      name: X-Tenant-Code
+      in: header
+      required: true
+      schema: { type: string, pattern: '^[a-z0-9][a-z0-9-]{1,62}$' }
+    CampaignId:
+      name: campaign_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  schemas:
+    CampaignStatus:
+      type: string
+      enum: [draft, pending_approval, approved, scheduled, active, paused, completed, cancelled]
+    Channel:
+      type: string
+      enum: [website, email, sms, whatsapp, facebook, instagram, tiktok, youtube, linkedin, radio, event, referral, school_visit, agent, affiliate]
+    CreateCampaign:
+      type: object
+      required: [name, objective, channel, audience_definition, budget, currency, start_at, end_at]
+      properties:
+        name: { type: string, minLength: 3, maxLength: 160 }
+        objective: { type: string, minLength: 3, maxLength: 500 }
+        channel: { $ref: '#/components/schemas/Channel' }
+        audience_definition: { type: string, minLength: 3, maxLength: 2000 }
+        programme_ids: { type: array, maxItems: 30, items: { type: string, format: uuid } }
+        budget: { type: number, minimum: 0, maximum: 100000000 }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        start_at: { type: string, format: date-time }
+        end_at: { type: string, format: date-time }
+      additionalProperties: false
+    UpdateCampaign:
+      type: object
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 3, maxLength: 160 }
+        objective: { type: string, minLength: 3, maxLength: 500 }
+        audience_definition: { type: string, minLength: 3, maxLength: 2000 }
+        programme_ids: { type: array, maxItems: 30, items: { type: string, format: uuid } }
+        budget: { type: number, minimum: 0, maximum: 100000000 }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        start_at: { type: string, format: date-time }
+        end_at: { type: string, format: date-time }
+      additionalProperties: false
+    Campaign:
+      type: object
+      required: [id, tenant_id, name, objective, status, channel, audience_definition, programme_ids, budget, currency, start_at, end_at, approval_status, owner_user_id, tracking_url_parameters, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string }
+        name: { type: string }
+        objective: { type: string }
+        status: { $ref: '#/components/schemas/CampaignStatus' }
+        channel: { $ref: '#/components/schemas/Channel' }
+        audience_definition: { type: string }
+        programme_ids: { type: array, items: { type: string, format: uuid } }
+        budget: { type: number }
+        currency: { type: string }
+        start_at: { type: string, format: date-time }
+        end_at: { type: string, format: date-time }
+        approval_status: { type: string, enum: [not_submitted, pending, approved, rejected] }
+        owner_user_id: { type: string }
+        submitted_by: { type: [string, 'null'] }
+        submitted_at: { type: [string, 'null'], format: date-time }
+        approved_by: { type: [string, 'null'] }
+        approved_at: { type: [string, 'null'], format: date-time }
+        review_note: { type: [string, 'null'] }
+        tracking_url_parameters: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    Error:
+      type: object
+      required: [code, message]
+      properties: { code: { type: string }, message: { type: string } }
+  responses:
+    Forbidden: { description: Permission or tenant scope denied, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    NotFound: { description: Campaign not found, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Conflict: { description: Invalid lifecycle transition, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    ValidationError: { description: Request failed validation, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }

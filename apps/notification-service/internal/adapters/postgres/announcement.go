@@ -81,6 +81,9 @@ func (r *AnnouncementRepository) List(ctx context.Context, tenantID string, filt
 		if filter.Audience != "" {
 			args = append(args, filter.Audience)
 			where += fmt.Sprintf(" AND audience = $%d", len(args))
+		} else if len(filter.Audiences) > 0 {
+			args = append(args, filter.Audiences)
+			where += fmt.Sprintf(" AND audience = ANY($%d)", len(args))
 		}
 		if filter.Cursor != "" {
 			args = append(args, filter.Cursor)

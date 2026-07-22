@@ -7,21 +7,27 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 
 from ai_prediction_service.api.routes import public_router, router
-from ai_prediction_service.db import engine
+from ai_prediction_service.config import validate_production_runtime
+from ai_prediction_service.db import engine, initialize_database
+from ai_prediction_service.events.outbox import OutboxDispatcher
 from ai_prediction_service.events.subscriber import FeatureStoreSubscriber
 from ai_prediction_service.events.transport import close_transport
 from ai_prediction_service.models import Base
+from ai_prediction_service.observability import PrometheusMiddleware, RequestBodyLimitMiddleware
 
 app_subscriber = FeatureStoreSubscriber()
+outbox_dispatcher = OutboxDispatcher()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:  # noqa: ARG001
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    validate_production_runtime()
+    await initialize_database(Base.metadata)
     await app_subscriber.connect()
     await app_subscriber.start()
+    await outbox_dispatcher.start()
     yield
+    await outbox_dispatcher.close()
     await app_subscriber.close()
     await close_transport()
     await engine.dispose()
@@ -32,6 +38,8 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+app.add_middleware(RequestBodyLimitMiddleware)
+app.add_middleware(PrometheusMiddleware, service="ai-prediction-service")
 
 
 @app.exception_handler(HTTPException)
@@ -50,3 +58,5 @@ async def value_error_handler(request: object, exc: ValueError) -> JSONResponse:
 
 app.include_router(public_router)
 app.include_router(router)
+# The gateway preserves the full public contract path when proxying.
+app.include_router(router, prefix="/api/v1/ai")

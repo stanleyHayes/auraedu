@@ -6,7 +6,7 @@ name: auraedu-infra
 
 services:
   postgres:
-    image: postgres:18-alpine
+    image: postgres:18-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15
     environment:
       POSTGRES_USER: auraedu
       POSTGRES_PASSWORD: auraedu
@@ -23,7 +23,7 @@ services:
     restart: unless-stopped
 
   redis:
-    image: valkey/valkey:8-alpine
+    image: valkey/valkey:8-alpine@sha256:94365b275456ae14621001c03556c732b1d93a0cdeacc317d1bdd52eba680885
     command: ["valkey-server", "--save", "60", "1"]
     ports: ["6379:6379"]
     volumes: ["redisdata:/data"]
@@ -35,7 +35,7 @@ services:
     restart: unless-stopped
 
   nats:
-    image: nats:2.11-alpine
+    image: nats:2.11-alpine@sha256:e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00
     command: ["-js", "-sd", "/data", "-m", "8222"]
     ports: ["4222:4222", "8222:8222"]
     volumes: ["natsdata:/data"]
@@ -47,16 +47,146 @@ services:
     restart: unless-stopped
 
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:latest
+    image: otel/opentelemetry-collector-contrib:0.156.0@sha256:125bdbeb7590cc1952c5b3430ecf14063568980c2c93d5b38676cc0446ed8108
     command: ["--config=/etc/otel/config.yaml"]
     volumes:
       - ../infrastructure/docker/otel-collector-config.yaml:/etc/otel/config.yaml:ro
     ports:
       - "4317:4317" # OTLP gRPC
       - "4318:4318" # OTLP HTTP
+      - "13133:13133" # Collector health
+      - "8889:8889" # OTLP application metrics exported for Prometheus
+    depends_on:
+      loki: { condition: service_healthy }
+      tempo: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "/otelcol-contrib", "validate", "--config=/etc/otel/config.yaml"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.12.0@sha256:69f5241418838263316593f7274a304b095c40bcf22e57272865da91bd60a8ac
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+    ports: ["${PROMETHEUS_PORT:-9090}:9090"]
+    volumes:
+      - ../infrastructure/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../infrastructure/observability/rules:/etc/prometheus/rules:ro
+      - prometheusdata:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      alertmanager: { condition: service_healthy }
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.32.1@sha256:51a825c2a40acc3e338fdd00d622e01ec090f72be2b3ea46be0839cd47a4d286
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    ports: ["9093:9093"]
+    volumes:
+      - ../infrastructure/observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanagerdata:/alertmanager
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9093/-/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  loki-init:
+    image: alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce
+    command: ["chown", "-R", "10001:10001", "/var/loki"]
+    user: "0:0"
+    volumes:
+      - lokidata:/var/loki
+    restart: "no"
+
+  loki:
+    image: grafana/loki:3.7.2@sha256:191d4fdfb7264f16989f0a57f320872620a5a7c2ceeec6229212c4190ec49b86
+    command: ["-config.file=/etc/loki/config.yml"]
+    ports: ["3100:3100"]
+    volumes:
+      - ../infrastructure/observability/loki.yml:/etc/loki/config.yml:ro
+      - lokidata:/var/loki
+    healthcheck:
+      test: ["CMD", "/usr/bin/loki", "-verify-config", "-config.file=/etc/loki/config.yml"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      loki-init: { condition: service_completed_successfully }
+    restart: unless-stopped
+
+  tempo:
+    image: grafana/tempo:2.10.5@sha256:ee21727732c7a7199cb71c3eee9153bbf23f9b0b87619f0555a0cf21a67f1a33
+    command: ["-config.file=/etc/tempo/config.yml"]
+    ports: ["3200:3200"]
+    volumes:
+      - ../infrastructure/observability/tempo.yml:/etc/tempo/config.yml:ro
+      - tempodata:/var/tempo
+    healthcheck:
+      test: ["CMD", "/tempo", "-config.file=/etc/tempo/config.yml", "-config.verify=true"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  alloy:
+    image: grafana/alloy:v1.16.1@sha256:51aeb9d829239345070619dad3edd6873186f913c84f45b365b74574fcb38ec0
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    ports: ["12345:12345"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ../infrastructure/observability/alloy.config:/etc/alloy/config.alloy:ro
+      - alloydata:/var/lib/alloy/data
+    depends_on:
+      loki: { condition: service_healthy }
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:13.1.0@sha256:121a7a9ece6dc10b969f1f96eed64b4f07dfac0d0b8abc070f7cb83bbde86f63
+    ports: ["${GRAFANA_PORT:-3000}:3000"]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-auraedu-local-change-me}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ../infrastructure/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../infrastructure/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    depends_on:
+      prometheus: { condition: service_healthy }
+      loki: { condition: service_healthy }
+      tempo: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health | grep -q ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     restart: unless-stopped
 
 volumes:
   pgdata:
   redisdata:
   natsdata:
+  prometheusdata:
+  alertmanagerdata:
+  lokidata:
+  tempodata:
+  alloydata:
+  grafanadata:

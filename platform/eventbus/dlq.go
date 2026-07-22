@@ -12,7 +12,11 @@ import (
 )
 
 // DLQStreamName is the default JetStream stream that stores dead-lettered events.
-const DLQStreamName = "AURA_DLQ"
+const (
+	DLQStreamName  = "AURA_DLQ_EVENTS"
+	dlqLegacyName  = "AURA_DLQ"
+	dlqSubjectRoot = "AURA_DLQ"
+)
 
 // dlqEvent is the envelope persisted to the DLQ stream.
 type dlqEvent struct {
@@ -30,7 +34,7 @@ type JetStreamDLQ struct {
 
 // NewJetStreamDLQ creates a DLQ publisher backed by NATS JetStream.
 func NewJetStreamDLQ(js JetStreamContext) *JetStreamDLQ {
-	return &JetStreamDLQ{js: js, prefix: "AURA", stream: DLQStreamName}
+	return &JetStreamDLQ{js: js, prefix: dlqSubjectRoot, stream: DLQStreamName}
 }
 
 // DeadLetter writes the failed event to the DLQ stream so it can be retried or
@@ -46,7 +50,7 @@ func (d *JetStreamDLQ) DeadLetter(ctx context.Context, event tenancy.CloudEvent,
 		return fmt.Errorf("eventbus: marshal dlq entry: %w", marshalErr)
 	}
 
-	subject := fmt.Sprintf("%s.dlq.%s", d.prefix, event.Type)
+	subject := fmt.Sprintf("%s.%s", d.prefix, event.Type)
 	msg := &nats.Msg{
 		Subject: subject,
 		Data:    data,
@@ -68,18 +72,44 @@ func (d *JetStreamDLQ) DeadLetter(ctx context.Context, event tenancy.CloudEvent,
 
 // EnsureDLQStream creates the DLQ stream if it does not already exist.
 func EnsureDLQStream(js JetStreamContext) (*nats.StreamInfo, error) {
+	desired := nats.StreamConfig{
+		Name:      DLQStreamName,
+		Subjects:  []string{dlqSubjectRoot + ".>"},
+		Retention: nats.LimitsPolicy,
+		MaxMsgs:   1_000_000,
+		MaxAge:    30 * 24 * time.Hour,
+	}
 	info, err := js.StreamInfo(DLQStreamName)
 	if err == nil && info != nil {
-		return info, nil
+		if streamConfigMatches(info.Config, desired) {
+			return info, nil
+		}
+		updater, ok := js.(interface {
+			UpdateStream(cfg *nats.StreamConfig, opts ...nats.JSOpt) (*nats.StreamInfo, error)
+		})
+		if !ok {
+			return nil, fmt.Errorf("eventbus: DLQ stream requires subject/retention migration")
+		}
+		return updater.UpdateStream(&desired)
 	}
 	if !errors.Is(err, nats.ErrStreamNotFound) {
 		return nil, fmt.Errorf("eventbus: dlq stream info: %w", err)
 	}
-	return js.AddStream(&nats.StreamConfig{
-		Name:      DLQStreamName,
-		Subjects:  []string{"AURA.dlq.*"},
-		Retention: nats.WorkQueuePolicy,
-		MaxMsgs:   1_000_000,
-		MaxAge:    30 * 24 * time.Hour,
-	})
+	legacy, legacyErr := js.StreamInfo(dlqLegacyName)
+	if legacyErr == nil && legacy != nil {
+		updater, ok := js.(interface {
+			UpdateStream(cfg *nats.StreamConfig, opts ...nats.JSOpt) (*nats.StreamInfo, error)
+		})
+		if !ok {
+			return nil, fmt.Errorf("eventbus: legacy DLQ stream requires subject migration")
+		}
+		legacyConfig := legacy.Config
+		legacyConfig.Subjects = []string{"AURA_DLQ_LEGACY.>"}
+		if _, err := updater.UpdateStream(&legacyConfig); err != nil {
+			return nil, fmt.Errorf("eventbus: move legacy DLQ stream: %w", err)
+		}
+	} else if !errors.Is(legacyErr, nats.ErrStreamNotFound) {
+		return nil, fmt.Errorf("eventbus: legacy DLQ stream info: %w", legacyErr)
+	}
+	return js.AddStream(&desired)
 }

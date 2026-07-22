@@ -31,7 +31,7 @@ func NewSubscription(tenantID, userID, channel string, isEnabled bool) (*Subscri
 		return nil, fmt.Errorf("%w: channel is required", ErrValidation)
 	}
 	if !isValidChannel(NotificationChannel(channel)) {
-		return nil, fmt.Errorf("%w: channel must be email, sms, whatsapp or in_app", ErrValidation)
+		return nil, fmt.Errorf("%w: channel must be email, sms, whatsapp, in_app or push", ErrValidation)
 	}
 
 	id, err := uuid.NewV7()
@@ -59,7 +59,7 @@ func (s Subscription) Validate() error {
 		return fmt.Errorf("%w: user_id is required", ErrValidation)
 	}
 	if !isValidChannel(NotificationChannel(s.Channel)) {
-		return fmt.Errorf("%w: channel must be email, sms, whatsapp or in_app", ErrValidation)
+		return fmt.Errorf("%w: channel must be email, sms, whatsapp, in_app or push", ErrValidation)
 	}
 	return nil
 }
@@ -76,7 +76,7 @@ func (s *Subscription) ApplyUpdate(patch SubscriptionPatch) ([]string, error) {
 
 	if patch.Channel != nil {
 		if !isValidChannel(NotificationChannel(*patch.Channel)) {
-			return nil, fmt.Errorf("%w: channel must be email, sms, whatsapp or in_app", ErrValidation)
+			return nil, fmt.Errorf("%w: channel must be email, sms, whatsapp, in_app or push", ErrValidation)
 		}
 		s.Channel = strings.TrimSpace(strings.ToLower(*patch.Channel))
 		changed = append(changed, "channel")

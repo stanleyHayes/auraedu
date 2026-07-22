@@ -22,6 +22,26 @@ export interface AcademicClassCreatedData {
 
 export type AcademicClassCreatedEvent = CloudEventEnvelope<AcademicClassCreatedData>;
 
+/** Academic lifecycle event academic.class_deleted.v1. */
+export interface AcademicClassDeletedV1Data {
+  class_id: string;
+  name: string;
+  academic_year_id: string;
+  changed_fields?: string[];
+}
+
+export type AcademicClassDeletedV1Event = CloudEventEnvelope<AcademicClassDeletedV1Data>;
+
+/** Academic lifecycle event academic.class_updated.v1. */
+export interface AcademicClassUpdatedV1Data {
+  class_id: string;
+  name: string;
+  academic_year_id: string;
+  changed_fields?: string[];
+}
+
+export type AcademicClassUpdatedV1Event = CloudEventEnvelope<AcademicClassUpdatedV1Data>;
+
 /** Emitted when a subject is created. */
 export interface AcademicSubjectCreatedData {
   subject_id: string;
@@ -30,6 +50,50 @@ export interface AcademicSubjectCreatedData {
 }
 
 export type AcademicSubjectCreatedEvent = CloudEventEnvelope<AcademicSubjectCreatedData>;
+
+/** Academic lifecycle event academic.subject_deleted.v1. */
+export interface AcademicSubjectDeletedV1Data {
+  subject_id: string;
+  name: string;
+  code?: string | null;
+  changed_fields?: string[];
+}
+
+export type AcademicSubjectDeletedV1Event = CloudEventEnvelope<AcademicSubjectDeletedV1Data>;
+
+/** Academic lifecycle event academic.subject_updated.v1. */
+export interface AcademicSubjectUpdatedV1Data {
+  subject_id: string;
+  name: string;
+  code?: string | null;
+  changed_fields?: string[];
+}
+
+export type AcademicSubjectUpdatedV1Event = CloudEventEnvelope<AcademicSubjectUpdatedV1Data>;
+
+/** Academic lifecycle event academic.term_deleted.v1. */
+export interface AcademicTermDeletedV1Data {
+  term_id: string;
+  academic_year_id: string;
+  name: string;
+  start_date?: string;
+  end_date?: string;
+  changed_fields?: string[];
+}
+
+export type AcademicTermDeletedV1Event = CloudEventEnvelope<AcademicTermDeletedV1Data>;
+
+/** Academic lifecycle event academic.term_updated.v1. */
+export interface AcademicTermUpdatedV1Data {
+  term_id: string;
+  academic_year_id: string;
+  name: string;
+  start_date?: string;
+  end_date?: string;
+  changed_fields?: string[];
+}
+
+export type AcademicTermUpdatedV1Event = CloudEventEnvelope<AcademicTermUpdatedV1Data>;
 
 /** Emitted when an academic year is created. */
 export interface AcademicYearCreatedData {
@@ -40,6 +104,28 @@ export interface AcademicYearCreatedData {
 }
 
 export type AcademicYearCreatedEvent = CloudEventEnvelope<AcademicYearCreatedData>;
+
+/** Academic lifecycle event academic.year_deleted.v1. */
+export interface AcademicYearDeletedV1Data {
+  year_id: string;
+  name: string;
+  start_date?: string;
+  end_date?: string;
+  changed_fields?: string[];
+}
+
+export type AcademicYearDeletedV1Event = CloudEventEnvelope<AcademicYearDeletedV1Data>;
+
+/** Academic lifecycle event academic.year_updated.v1. */
+export interface AcademicYearUpdatedV1Data {
+  year_id: string;
+  name: string;
+  start_date?: string;
+  end_date?: string;
+  changed_fields?: string[];
+}
+
+export type AcademicYearUpdatedV1Event = CloudEventEnvelope<AcademicYearUpdatedV1Data>;
 
 /** Emitted when AI career guidance is generated. */
 export interface AiGuidanceGeneratedData {
@@ -82,17 +168,164 @@ export interface AnalyticsMetricUpdatedData {
 
 export type AnalyticsMetricUpdatedEvent = CloudEventEnvelope<AnalyticsMetricUpdatedData>;
 
-/** Emitted by Assessment Service when a score is recorded (spec §4.3). CloudEvents 1.0 envelope; every event MUST carry tenant_id. */
-export interface AssessmentScoreRecordedV1Data {
+/** Emitted after a human admissions decision admits an applicant. */
+export interface ApplicationAdmittedV1Data {
+  application_id: string;
+  applicant_user_id: string;
+  lead_id?: string | null;
+  programme_id: string;
+  intake_id?: string;
+  reviewed_by: string;
+  reviewed_at: string;
+}
+
+export type ApplicationAdmittedV1Event = CloudEventEnvelope<ApplicationAdmittedV1Data>;
+
+/** Emitted when an applicant starts an application. */
+export interface ApplicationStartedV1Data {
+  application_id: string;
+  applicant_user_id: string;
+  lead_id?: string | null;
+  programme_id: string;
+  intake_id: string;
+  started_at: string;
+}
+
+export type ApplicationStartedV1Event = CloudEventEnvelope<ApplicationStartedV1Data>;
+
+/** Emitted after a complete application is submitted. */
+export interface ApplicationSubmittedV1Data {
+  application_id: string;
+  applicant_user_id: string;
+  lead_id?: string | null;
+  programme_id: string;
+  intake_id: string;
+  submitted_at: string;
+}
+
+export type ApplicationSubmittedV1Event = CloudEventEnvelope<ApplicationSubmittedV1Data>;
+
+/** Assessment created event. */
+export interface AssessmentCreatedV1Data {
+  assessment_id: string;
+  academic_year_id: string;
+  subject_id: string;
+  type: string;
+  title: string;
+  max_score: number;
+  status: string;
+  description?: string;
+  due_date?: string;
+  changed_fields?: string[];
+}
+
+export type AssessmentCreatedV1Event = CloudEventEnvelope<AssessmentCreatedV1Data>;
+
+/** Assessment deleted event. */
+export interface AssessmentDeletedV1Data {
+  assessment_id: string;
+  academic_year_id: string;
+  subject_id: string;
+  type: string;
+  title: string;
+  max_score: number;
+  status: string;
+  description?: string;
+  due_date?: string;
+  changed_fields?: string[];
+}
+
+export type AssessmentDeletedV1Event = CloudEventEnvelope<AssessmentDeletedV1Data>;
+
+/** Assessment published event. */
+export interface AssessmentPublishedV1Data {
+  assessment_id: string;
+  academic_year_id: string;
+  subject_id: string;
+  type: string;
+  title: string;
+  max_score: number;
+  status: string;
+  description?: string;
+  due_date?: string;
+  changed_fields?: string[];
+}
+
+export type AssessmentPublishedV1Event = CloudEventEnvelope<AssessmentPublishedV1Data>;
+
+/** Emitted by Assessment Service after a score is deleted. Carries the former score context so current-state projections can remove it deterministically. */
+export interface AssessmentScoreDeletedV1Data {
+  score_id: string;
+  assessment_id: string;
   student_id: string;
   subject_id: string;
-  assessment_id?: string;
+  academic_year_id: string;
   score: number;
-  max_score?: number;
+  max_score: number;
+  recorded_at: string;
+  updated_at?: string;
+  deleted_at: string;
+  recorded_by?: string;
+  notes?: string;
+  class_ids?: string[];
+}
+
+export type AssessmentScoreDeletedV1Event = CloudEventEnvelope<AssessmentScoreDeletedV1Data>;
+
+/** Emitted by Assessment Service when a score is recorded (spec §4.3). CloudEvents 1.0 envelope; every event MUST carry tenant_id. */
+export interface AssessmentScoreRecordedV1Data {
+  score_id: string;
+  assessment_id: string;
+  student_id: string;
+  subject_id: string;
+  academic_year_id: string;
+  score: number;
+  max_score: number;
+  recorded_at: string;
+  updated_at?: string;
   term_id?: string;
+  class_ids?: string[];
 }
 
 export type AssessmentScoreRecordedV1Event = CloudEventEnvelope<AssessmentScoreRecordedV1Data>;
+
+/** Emitted by Assessment Service when an existing score changes. Carries complete current-state context so projections can replace prior values without reading the Assessment database. */
+export interface AssessmentScoreUpdatedV1Data {
+  score_id: string;
+  assessment_id: string;
+  student_id: string;
+  subject_id: string;
+  academic_year_id: string;
+  score: number;
+  max_score: number;
+  recorded_at: string;
+  updated_at: string;
+  recorded_by?: string;
+  notes?: string;
+  /**
+   * @minItems 1
+   */
+  changed_fields: [string, ...string[]];
+  class_ids?: string[];
+}
+
+export type AssessmentScoreUpdatedV1Event = CloudEventEnvelope<AssessmentScoreUpdatedV1Data>;
+
+/** Assessment updated event. */
+export interface AssessmentUpdatedV1Data {
+  assessment_id: string;
+  academic_year_id: string;
+  subject_id: string;
+  type: string;
+  title: string;
+  max_score: number;
+  status: string;
+  description?: string;
+  due_date?: string;
+  changed_fields?: string[];
+}
+
+export type AssessmentUpdatedV1Event = CloudEventEnvelope<AssessmentUpdatedV1Data>;
 
 /** Emitted when an assignment is published. */
 export interface AssignmentPublishedData {
@@ -104,35 +337,151 @@ export interface AssignmentPublishedData {
 
 export type AssignmentPublishedEvent = CloudEventEnvelope<AssignmentPublishedData>;
 
+/** assistant.question_unanswered */
+export interface AssistantQuestionUnansweredData {
+  session_id: string;
+  message_id: string;
+  locale: string;
+  created_at: string;
+}
+
+export type AssistantQuestionUnansweredEvent = CloudEventEnvelope<AssistantQuestionUnansweredData>;
+
+/** Attendance deleted event. */
+export interface AttendanceDeletedV1Data {
+  attendance_id: string;
+  student_id: string;
+  academic_year_id: string;
+  class_id?: string;
+  subject_id?: string;
+  date: string;
+  status: string;
+  marked_by: string;
+  reason?: string;
+  changed_fields?: string[];
+}
+
+export type AttendanceDeletedV1Event = CloudEventEnvelope<AttendanceDeletedV1Data>;
+
 /** Emitted when attendance is recorded. */
 export interface AttendanceMarkedData {
+  attendance_id: string;
   student_id: string;
-  class_id?: string | null;
-  subject_id?: string | null;
+  academic_year_id: string;
+  class_id?: string;
+  subject_id?: string;
   date: string;
-  status: "present" | "absent" | "late" | "excused";
-  recorded_by?: string;
+  status: string;
+  marked_by: string;
+  reason?: string;
 }
 
 export type AttendanceMarkedEvent = CloudEventEnvelope<AttendanceMarkedData>;
 
+/** Attendance updated event. */
+export interface AttendanceUpdatedV1Data {
+  attendance_id: string;
+  student_id: string;
+  academic_year_id: string;
+  class_id?: string;
+  subject_id?: string;
+  date: string;
+  status: string;
+  marked_by: string;
+  reason?: string;
+  changed_fields?: string[];
+}
+
+export type AttendanceUpdatedV1Event = CloudEventEnvelope<AttendanceUpdatedV1Data>;
+
+/** SaaS subscription invoice created. */
+export interface BillingInvoiceCreatedV1Data {
+  invoice_id: string;
+  tenant_id: string;
+  subscription_id: string;
+  amount_cents: number;
+  status: string;
+}
+
+export type BillingInvoiceCreatedV1Event = CloudEventEnvelope<BillingInvoiceCreatedV1Data>;
+
 /** Emitted when a tenant upgrades their plan. */
 export interface BillingPlanUpgradedData {
+  plan_id: string;
+  plan_code: string;
+  name: string;
+  price_cents: number;
+  currency: string;
   tenant_id: string;
-  plan: string;
-  previous_plan?: string | null;
+  previous_plan: string;
 }
 
 export type BillingPlanUpgradedEvent = CloudEventEnvelope<BillingPlanUpgradedData>;
 
 /** Emitted when a tenant subscription changes. */
 export interface BillingSubscriptionChangedData {
+  subscription_id: string;
   tenant_id: string;
+  plan_id: string;
   plan_key: string;
-  status: "active" | "canceled" | "past_due";
+  status: string;
 }
 
 export type BillingSubscriptionChangedEvent = CloudEventEnvelope<BillingSubscriptionChangedData>;
+
+/** Tenant subscription trial started. */
+export interface BillingTrialStartedV1Data {
+  subscription_id: string;
+  tenant_id: string;
+  plan_id: string;
+  plan_key?: string;
+  status: string;
+  trial_ends_at: string;
+}
+
+export type BillingTrialStartedV1Event = CloudEventEnvelope<BillingTrialStartedV1Data>;
+
+/** campaign.status_changed */
+export interface CampaignStatusChangedData {
+  campaign_id: string;
+  previous_status: string;
+  status: string;
+  changed_at: string;
+}
+
+export type CampaignStatusChangedEvent = CloudEventEnvelope<CampaignStatusChangedData>;
+
+/** CBT exam created event. */
+export interface CbtExamCreatedV1Data {
+  exam_id: string;
+  academic_year_id: string;
+  subject_id: string;
+  title: string;
+  question_count: number;
+  duration_minutes: number;
+  status: string;
+  start_at?: string;
+  end_at?: string;
+  changed_fields?: string[];
+}
+
+export type CbtExamCreatedV1Event = CloudEventEnvelope<CbtExamCreatedV1Data>;
+
+/** CBT exam deleted event. */
+export interface CbtExamDeletedV1Data {
+  exam_id: string;
+  academic_year_id: string;
+  subject_id: string;
+  title: string;
+  question_count: number;
+  duration_minutes: number;
+  status: string;
+  start_at?: string;
+  end_at?: string;
+  changed_fields?: string[];
+}
+
+export type CbtExamDeletedV1Event = CloudEventEnvelope<CbtExamDeletedV1Data>;
 
 /** Emitted when a CBT exam is submitted. */
 export interface CbtExamSubmittedData {
@@ -144,6 +493,22 @@ export interface CbtExamSubmittedData {
 
 export type CbtExamSubmittedEvent = CloudEventEnvelope<CbtExamSubmittedData>;
 
+/** CBT exam updated event. */
+export interface CbtExamUpdatedV1Data {
+  exam_id: string;
+  academic_year_id: string;
+  subject_id: string;
+  title: string;
+  question_count: number;
+  duration_minutes: number;
+  status: string;
+  start_at?: string;
+  end_at?: string;
+  changed_fields?: string[];
+}
+
+export type CbtExamUpdatedV1Event = CloudEventEnvelope<CbtExamUpdatedV1Data>;
+
 /** Emitted when a CBT submission is graded. */
 export interface CbtGradedData {
   submission_id: string;
@@ -152,6 +517,83 @@ export interface CbtGradedData {
 }
 
 export type CbtGradedEvent = CloudEventEnvelope<CbtGradedData>;
+
+/** CBT question created event. */
+export interface CbtQuestionCreatedV1Data {
+  question_id: string;
+  academic_year_id: string;
+  subject_id: string;
+  question_type: string;
+  marks: number;
+  status: string;
+  changed_fields?: string[];
+}
+
+export type CbtQuestionCreatedV1Event = CloudEventEnvelope<CbtQuestionCreatedV1Data>;
+
+/** CBT question deleted event. */
+export interface CbtQuestionDeletedV1Data {
+  question_id: string;
+  academic_year_id: string;
+  subject_id: string;
+  question_type: string;
+  marks: number;
+  status: string;
+  changed_fields?: string[];
+}
+
+export type CbtQuestionDeletedV1Event = CloudEventEnvelope<CbtQuestionDeletedV1Data>;
+
+/** CBT question updated event. */
+export interface CbtQuestionUpdatedV1Data {
+  question_id: string;
+  academic_year_id: string;
+  subject_id: string;
+  question_type: string;
+  marks: number;
+  status: string;
+  changed_fields?: string[];
+}
+
+export type CbtQuestionUpdatedV1Event = CloudEventEnvelope<CbtQuestionUpdatedV1Data>;
+
+/** Privacy-safe audit fact emitted when a communication journey is created or changes lifecycle state. */
+export interface CommunicationJourneyChangedData {
+  journey_id: string;
+  status: "draft" | "active" | "paused" | "archived";
+  trigger_event: string;
+  version: number;
+  step_count: number;
+  changed_by: string;
+  changed_at: string;
+}
+
+export type CommunicationJourneyChangedEvent = CloudEventEnvelope<CommunicationJourneyChangedData>;
+
+/** A governed content draft was created. Content, brief, audience, and facts are deliberately excluded. */
+export interface ContentDraftGeneratedV1Data {
+  content_id: string;
+  campaign_id?: string | null;
+  content_type: string;
+  version: number;
+  generator: string;
+  brand_profile_version: number;
+  created_at: string;
+}
+
+export type ContentDraftGeneratedV1Event = CloudEventEnvelope<ContentDraftGeneratedV1Data>;
+
+/** A content version moved through review. Content and review text are deliberately excluded. */
+export interface ContentStatusChangedV1Data {
+  content_id: string;
+  version: number;
+  previous_status: string;
+  status: string;
+  actor_id: string;
+  changed_at: string;
+}
+
+export type ContentStatusChangedV1Event = CloudEventEnvelope<ContentStatusChangedV1Data>;
 
 /** Emitted when a fee structure is assigned to a class. */
 export interface FeeAssignedData {
@@ -162,15 +604,235 @@ export interface FeeAssignedData {
 
 export type FeeAssignedEvent = CloudEventEnvelope<FeeAssignedData>;
 
+/** File metadata deleted event. */
+export interface FileDeletedV1Data {
+  file_id: string;
+  changed_fields?: string[];
+}
+
+export type FileDeletedV1Event = CloudEventEnvelope<FileDeletedV1Data>;
+
+/** File metadata updated event. */
+export interface FileUpdatedV1Data {
+  file_id: string;
+  changed_fields?: string[];
+}
+
+export type FileUpdatedV1Event = CloudEventEnvelope<FileUpdatedV1Data>;
+
 /** Emitted when a file is uploaded to Cloudinary. */
 export interface FileUploadedData {
   file_id: string;
-  public_id: string;
-  secure_url?: string | null;
-  folder?: string | null;
 }
 
 export type FileUploadedEvent = CloudEventEnvelope<FileUploadedData>;
+
+/** Emitted after a consented admissions callback time request is committed. Contact PII remains in CRM. */
+export interface GrowthCallbackRequestedData {
+  callback_request_id: string;
+  lead_id: string;
+  preferred_at: string;
+  timezone: string;
+  locale: "en" | "en-GH" | "fr" | "fr-GH";
+  status: "requested";
+  requested_at: string;
+}
+
+export type GrowthCallbackRequestedEvent = CloudEventEnvelope<GrowthCallbackRequestedData>;
+
+/** Emitted when prospect or staff feedback is accepted for controlled review. */
+export interface GrowthFeedbackSubmittedData {
+  feedback_id: string;
+  interaction_id?: string | null;
+  ai_run_id?: string | null;
+  feedback_type: string;
+  rating?: number | null;
+  submitted_at: string;
+}
+
+export type GrowthFeedbackSubmittedEvent = CloudEventEnvelope<GrowthFeedbackSubmittedData>;
+
+/** Guardian lifecycle event guardian.created.v1. */
+export interface GuardianCreatedV1Data {
+  guardian_id: string;
+  tenant_id: string;
+  student_id?: string;
+  changed_fields?: string[];
+}
+
+export type GuardianCreatedV1Event = CloudEventEnvelope<GuardianCreatedV1Data>;
+
+/** Guardian lifecycle event guardian.deleted.v1. */
+export interface GuardianDeletedV1Data {
+  guardian_id: string;
+  tenant_id: string;
+  student_id?: string;
+  changed_fields?: string[];
+}
+
+export type GuardianDeletedV1Event = CloudEventEnvelope<GuardianDeletedV1Data>;
+
+/** Guardian lifecycle event guardian.linked.v1. */
+export interface GuardianLinkedV1Data {
+  guardian_id: string;
+  tenant_id: string;
+  student_id: string;
+  changed_fields?: string[];
+}
+
+export type GuardianLinkedV1Event = CloudEventEnvelope<GuardianLinkedV1Data>;
+
+/** Guardian lifecycle event guardian.unlinked.v1. */
+export interface GuardianUnlinkedV1Data {
+  guardian_id: string;
+  tenant_id: string;
+  student_id: string;
+  changed_fields?: string[];
+}
+
+export type GuardianUnlinkedV1Event = CloudEventEnvelope<GuardianUnlinkedV1Data>;
+
+/** Guardian lifecycle event guardian.updated.v1. */
+export interface GuardianUpdatedV1Data {
+  guardian_id: string;
+  tenant_id: string;
+  student_id?: string;
+  changed_fields: string[];
+}
+
+export type GuardianUpdatedV1Event = CloudEventEnvelope<GuardianUpdatedV1Data>;
+
+/** Emitted transactionally when staff creates a tenant programme intake draft. */
+export interface IntakeCreatedV1Data {
+  intake_id: string;
+  programme_id: string;
+  status: "draft" | "open" | "closed" | "archived";
+  version: number;
+  changed_by: string;
+  changed_at: string;
+}
+
+export type IntakeCreatedV1Event = CloudEventEnvelope<IntakeCreatedV1Data>;
+
+/** Emitted transactionally when staff changes an intake or its application status. */
+export interface IntakeUpdatedV1Data {
+  intake_id: string;
+  programme_id: string;
+  previous_status: "draft" | "open" | "closed" | "archived";
+  status: "draft" | "open" | "closed" | "archived";
+  version: number;
+  changed_by: string;
+  changed_at: string;
+}
+
+export type IntakeUpdatedV1Event = CloudEventEnvelope<IntakeUpdatedV1Data>;
+
+/** PII-free audit event emitted after a human acknowledges a reputation alert. */
+export interface IntelligenceAlertAcknowledgedV1Data {
+  id: string;
+  kind: "reputation";
+  actor_user_id: string;
+  occurred_at: string;
+}
+
+export type IntelligenceAlertAcknowledgedV1Event = CloudEventEnvelope<IntelligenceAlertAcknowledgedV1Data>;
+
+/** PII-free audit event emitted when a deterministic reputation threshold creates or updates an alert. */
+export interface IntelligenceAlertChangedV1Data {
+  id: string;
+  kind: "reputation";
+  category: "recurring_issue" | "misinformation";
+  observation_count: number;
+  threshold: number;
+  window_days: number;
+  reason: string;
+  actor_user_id: string;
+  occurred_at: string;
+}
+
+export type IntelligenceAlertChangedV1Event = CloudEventEnvelope<IntelligenceAlertChangedV1Data>;
+
+/** PII-free audit event emitted when a human changes deterministic reputation alert thresholds. */
+export interface IntelligenceAlertRuleUpdatedV1Data {
+  id: string;
+  kind: "reputation";
+  actor_user_id: string;
+  occurred_at: string;
+}
+
+export type IntelligenceAlertRuleUpdatedV1Event = CloudEventEnvelope<IntelligenceAlertRuleUpdatedV1Data>;
+
+/** PII-free audit event emitted when an approved-evidence competitor comparison enters review. */
+export interface IntelligenceCompetitorSummaryCreatedV1Data {
+  id: string;
+  kind: "competitor";
+  actor_user_id: string;
+  occurred_at: string;
+  item_count: number;
+  source_count: number;
+}
+
+export type IntelligenceCompetitorSummaryCreatedV1Event = CloudEventEnvelope<IntelligenceCompetitorSummaryCreatedV1Data>;
+
+/** PII-free audit event emitted after independent competitor-summary review. */
+export interface IntelligenceCompetitorSummaryReviewedV1Data {
+  id: string;
+  kind: "competitor";
+  actor_user_id: string;
+  occurred_at: string;
+}
+
+export type IntelligenceCompetitorSummaryReviewedV1Event = CloudEventEnvelope<IntelligenceCompetitorSummaryReviewedV1Data>;
+
+/** PII-free audit event emitted when bounded evidence enters review. */
+export interface IntelligenceObservationCreatedV1Data {
+  id: string;
+  kind: "reputation" | "competitor";
+  actor_user_id: string;
+  occurred_at: string;
+}
+
+export type IntelligenceObservationCreatedV1Event = CloudEventEnvelope<IntelligenceObservationCreatedV1Data>;
+
+/** PII-free audit event emitted when an approved reputation issue is resolved internally. */
+export interface IntelligenceObservationResolvedV1Data {
+  id: string;
+  kind: "reputation" | "competitor";
+  actor_user_id: string;
+  occurred_at: string;
+}
+
+export type IntelligenceObservationResolvedV1Event = CloudEventEnvelope<IntelligenceObservationResolvedV1Data>;
+
+/** PII-free audit event emitted after evidence and response-draft review. */
+export interface IntelligenceObservationReviewedV1Data {
+  id: string;
+  kind: "reputation" | "competitor";
+  actor_user_id: string;
+  occurred_at: string;
+}
+
+export type IntelligenceObservationReviewedV1Event = CloudEventEnvelope<IntelligenceObservationReviewedV1Data>;
+
+/** PII-free audit event emitted when a lawful-source record enters compliance review. */
+export interface IntelligenceSourceCreatedV1Data {
+  id: string;
+  kind: "reputation" | "competitor";
+  actor_user_id: string;
+  occurred_at: string;
+}
+
+export type IntelligenceSourceCreatedV1Event = CloudEventEnvelope<IntelligenceSourceCreatedV1Data>;
+
+/** PII-free audit event emitted after human source compliance review. */
+export interface IntelligenceSourceReviewedV1Data {
+  id: string;
+  kind: "reputation" | "competitor";
+  actor_user_id: string;
+  occurred_at: string;
+}
+
+export type IntelligenceSourceReviewedV1Event = CloudEventEnvelope<IntelligenceSourceReviewedV1Data>;
 
 /** Emitted when an invoice is created. */
 export interface InvoiceCreatedData {
@@ -182,10 +844,111 @@ export interface InvoiceCreatedData {
 
 export type InvoiceCreatedEvent = CloudEventEnvelope<InvoiceCreatedData>;
 
+/** Learner fee invoice.deleted.v1. */
+export interface InvoiceDeletedV1Data {
+  invoice_id: string;
+  student_id: string;
+  fee_structure_id: string;
+  amount_due?: number;
+  balance_due?: number;
+  amount_cents: number;
+  balance_cents: number;
+  status: string;
+  due_date: string;
+  issued_at: string;
+  notes?: string;
+  changed_fields?: string[];
+}
+
+export type InvoiceDeletedV1Event = CloudEventEnvelope<InvoiceDeletedV1Data>;
+
+/** Learner fee invoice.paid.v1. */
+export interface InvoicePaidV1Data {
+  invoice_id: string;
+  student_id: string;
+  fee_structure_id: string;
+  amount_due?: number;
+  balance_due?: number;
+  amount_cents: number;
+  balance_cents: number;
+  status: string;
+  due_date: string;
+  issued_at: string;
+  notes?: string;
+  changed_fields?: string[];
+}
+
+export type InvoicePaidV1Event = CloudEventEnvelope<InvoicePaidV1Data>;
+
+/** Learner fee invoice.updated.v1. */
+export interface InvoiceUpdatedV1Data {
+  invoice_id: string;
+  student_id: string;
+  fee_structure_id: string;
+  amount_due?: number;
+  balance_due?: number;
+  amount_cents: number;
+  balance_cents: number;
+  status: string;
+  due_date: string;
+  issued_at: string;
+  notes?: string;
+  changed_fields?: string[];
+}
+
+export type InvoiceUpdatedV1Event = CloudEventEnvelope<InvoiceUpdatedV1Data>;
+
+/** knowledge.source_approved */
+export interface KnowledgeSourceApprovedData {
+  source_id: string;
+  source_type: string;
+  locale: "en" | "en-GH" | "fr" | "fr-GH";
+  version: number;
+  effective_at: string;
+}
+
+export type KnowledgeSourceApprovedEvent = CloudEventEnvelope<KnowledgeSourceApprovedData>;
+
+/** Emitted after a tenant-scoped recruitment lead is committed. */
+export interface LeadCreatedData {
+  lead_id: string;
+  stage: "new";
+  source: string;
+  campaign_id?: string | null;
+  created_at: string;
+}
+
+export type LeadCreatedEvent = CloudEventEnvelope<LeadCreatedData>;
+
+/** Emitted when a tenant-scoped CRM interaction is recorded. */
+export interface LeadInteractionCreatedData {
+  interaction_id: string;
+  lead_id: string;
+  channel: string;
+  direction: "inbound" | "outbound";
+  actor_type: "prospect" | "staff" | "ai" | "system";
+  occurred_at: string;
+}
+
+export type LeadInteractionCreatedEvent = CloudEventEnvelope<LeadInteractionCreatedData>;
+
+/** PII-free explanation emitted when a rules-based lead score materially changes. */
+export interface LeadScoredData {
+  lead_id: string;
+  score: number;
+  confidence: "low" | "medium" | "high";
+  positive_factor_codes: string[];
+  negative_factor_codes: string[];
+  rule_version: string;
+  evaluated_at: string;
+}
+
+export type LeadScoredEvent = CloudEventEnvelope<LeadScoredData>;
+
 /** Emitted when a notification fails to send. */
 export interface NotificationFailedData {
   message_id: string;
-  channel: "email" | "sms" | "whatsapp" | "in_app";
+  channel: "email" | "sms" | "whatsapp" | "in_app" | "push";
   reason?: string | null;
 }
 
@@ -194,11 +957,74 @@ export type NotificationFailedEvent = CloudEventEnvelope<NotificationFailedData>
 /** Emitted when a notification is sent. */
 export interface NotificationSentData {
   message_id: string;
-  channel: "email" | "sms" | "whatsapp" | "in_app";
+  channel: "email" | "sms" | "whatsapp" | "in_app" | "push";
   recipient_id: string;
 }
 
 export type NotificationSentEvent = CloudEventEnvelope<NotificationSentData>;
+
+/** Emitted when an applicant accepts a current admission offer. */
+export interface OfferAcceptedV1Data {
+  application_id: string;
+  applicant_user_id: string;
+  lead_id?: string | null;
+  programme_id: string;
+  intake_id?: string;
+  accepted_at: string;
+}
+
+export type OfferAcceptedV1Event = CloudEventEnvelope<OfferAcceptedV1Data>;
+
+/** Emitted when an authorised human issues a time-bound admission offer. */
+export interface OfferIssuedV1Data {
+  application_id: string;
+  applicant_user_id: string;
+  lead_id?: string | null;
+  programme_id: string;
+  intake_id?: string;
+  issued_at: string;
+  offer_expires_at: string;
+}
+
+export type OfferIssuedV1Event = CloudEventEnvelope<OfferIssuedV1Data>;
+
+/** Payment created event. */
+export interface PaymentCreatedV1Data {
+  payment_id: string;
+  invoice_id: string;
+  amount: number;
+  amount_cents: number;
+  currency: string;
+  provider: string;
+  gateway?: string;
+  status: string;
+  initiated_at: string;
+  provider_reference?: string;
+  completed_at?: string;
+  changed_fields?: string[];
+  failure_reason?: string;
+}
+
+export type PaymentCreatedV1Event = CloudEventEnvelope<PaymentCreatedV1Data>;
+
+/** Payment deleted event. */
+export interface PaymentDeletedV1Data {
+  payment_id: string;
+  invoice_id: string;
+  amount: number;
+  amount_cents: number;
+  currency: string;
+  provider: string;
+  gateway?: string;
+  status: string;
+  initiated_at: string;
+  provider_reference?: string;
+  completed_at?: string;
+  changed_fields?: string[];
+  failure_reason?: string;
+}
+
+export type PaymentDeletedV1Event = CloudEventEnvelope<PaymentDeletedV1Data>;
 
 /** Emitted when a payment fails. */
 export interface PaymentFailedData {
@@ -208,6 +1034,25 @@ export interface PaymentFailedData {
 }
 
 export type PaymentFailedEvent = CloudEventEnvelope<PaymentFailedData>;
+
+/** Payment initiated event. */
+export interface PaymentInitiatedV1Data {
+  payment_id: string;
+  invoice_id: string;
+  amount: number;
+  amount_cents: number;
+  currency: string;
+  provider: string;
+  gateway?: string;
+  status: string;
+  initiated_at: string;
+  provider_reference?: string;
+  completed_at?: string;
+  changed_fields?: string[];
+  failure_reason?: string;
+}
+
+export type PaymentInitiatedV1Event = CloudEventEnvelope<PaymentInitiatedV1Data>;
 
 /** Emitted when a payment is successfully received. */
 export interface PaymentReceivedData {
@@ -219,6 +1064,88 @@ export interface PaymentReceivedData {
 
 export type PaymentReceivedEvent = CloudEventEnvelope<PaymentReceivedData>;
 
+/** Payment updated event. */
+export interface PaymentUpdatedV1Data {
+  payment_id: string;
+  invoice_id: string;
+  amount: number;
+  amount_cents: number;
+  currency: string;
+  provider: string;
+  gateway?: string;
+  status: string;
+  initiated_at: string;
+  provider_reference?: string;
+  completed_at?: string;
+  changed_fields?: string[];
+  failure_reason?: string;
+}
+
+export type PaymentUpdatedV1Event = CloudEventEnvelope<PaymentUpdatedV1Data>;
+
+/** Emitted transactionally when staff creates a tenant programme draft. */
+export interface ProgrammeCreatedV1Data {
+  programme_id: string;
+  code: string;
+  status: "draft" | "published" | "archived";
+  version: number;
+  changed_by: string;
+  changed_at: string;
+}
+
+export type ProgrammeCreatedV1Event = CloudEventEnvelope<ProgrammeCreatedV1Data>;
+
+/** Emitted transactionally when staff changes programme content or publication status. */
+export interface ProgrammeUpdatedV1Data {
+  programme_id: string;
+  code: string;
+  previous_status: "draft" | "published" | "archived";
+  status: "draft" | "published" | "archived";
+  version: number;
+  changed_by: string;
+  changed_at: string;
+}
+
+export type ProgrammeUpdatedV1Event = CloudEventEnvelope<ProgrammeUpdatedV1Data>;
+
+/** Report template or card created event. */
+export type ReportCreatedV1Data = {
+  [k: string]: unknown;
+} & {
+  report_template_id?: string;
+  report_card_id?: string;
+  student_id?: string;
+  academic_year_id?: string;
+  term_id?: string;
+  template_id?: string;
+  name?: string;
+  status?: string;
+  file_url?: string;
+  generated_at?: string;
+  changed_fields?: string[];
+};
+
+export type ReportCreatedV1Event = CloudEventEnvelope<ReportCreatedV1Data>;
+
+/** Report template or card deleted event. */
+export type ReportDeletedV1Data = {
+  [k: string]: unknown;
+} & {
+  report_template_id?: string;
+  report_card_id?: string;
+  student_id?: string;
+  academic_year_id?: string;
+  term_id?: string;
+  template_id?: string;
+  name?: string;
+  status?: string;
+  file_url?: string;
+  generated_at?: string;
+  changed_fields?: string[];
+};
+
+export type ReportDeletedV1Event = CloudEventEnvelope<ReportDeletedV1Data>;
+
 /** Emitted when a report card is published. */
 export interface ReportPublishedData {
   report_card_id: string;
@@ -228,6 +1155,25 @@ export interface ReportPublishedData {
 }
 
 export type ReportPublishedEvent = CloudEventEnvelope<ReportPublishedData>;
+
+/** Report template or card updated event. */
+export type ReportUpdatedV1Data = {
+  [k: string]: unknown;
+} & {
+  report_template_id?: string;
+  report_card_id?: string;
+  student_id?: string;
+  academic_year_id?: string;
+  term_id?: string;
+  template_id?: string;
+  name?: string;
+  status?: string;
+  file_url?: string;
+  generated_at?: string;
+  changed_fields?: string[];
+};
+
+export type ReportUpdatedV1Event = CloudEventEnvelope<ReportUpdatedV1Data>;
 
 /** Emitted when a staff member is assigned to a class/subject. */
 export interface StaffAssignedData {
@@ -248,6 +1194,40 @@ export interface StaffCreatedData {
 
 export type StaffCreatedEvent = CloudEventEnvelope<StaffCreatedData>;
 
+/** Staff record deleted event. */
+export interface StaffDeletedV1Data {
+  staff_id: string;
+  staff_type: string;
+  name: string;
+  changed_fields?: string[];
+}
+
+export type StaffDeletedV1Event = CloudEventEnvelope<StaffDeletedV1Data>;
+
+/** Staff record updated event. */
+export interface StaffUpdatedV1Data {
+  staff_id: string;
+  staff_type: string;
+  name: string;
+  changed_fields?: string[];
+}
+
+export type StaffUpdatedV1Event = CloudEventEnvelope<StaffUpdatedV1Data>;
+
+/** Emitted when a student record is created before any complete academic-year class enrollment exists. */
+export interface StudentCreatedData {
+  student_id: string;
+}
+
+export type StudentCreatedEvent = CloudEventEnvelope<StudentCreatedData>;
+
+/** Student record deleted. */
+export interface StudentDeletedV1Data {
+  student_id: string;
+}
+
+export type StudentDeletedV1Event = CloudEventEnvelope<StudentDeletedV1Data>;
+
 /** Emitted when a student is enrolled in a class. */
 export interface StudentEnrolledData {
   student_id: string;
@@ -266,6 +1246,14 @@ export interface StudentUpdatedData {
 
 export type StudentUpdatedEvent = CloudEventEnvelope<StudentUpdatedData>;
 
+/** tenant.activated */
+export interface TenantActivatedData {
+  tenant_code: string;
+  status: "active";
+}
+
+export type TenantActivatedEvent = CloudEventEnvelope<TenantActivatedData>;
+
 /** tenant.created */
 export interface TenantCreatedData {
   tenant_code: string;
@@ -274,6 +1262,29 @@ export interface TenantCreatedData {
 }
 
 export type TenantCreatedEvent = CloudEventEnvelope<TenantCreatedData>;
+
+/** tenant.custom_domain_activated */
+export interface TenantCustomDomainActivatedData {
+  tenant_code: string;
+  hostname: string;
+}
+
+export type TenantCustomDomainActivatedEvent = CloudEventEnvelope<TenantCustomDomainActivatedData>;
+
+/** tenant.custom_domain_deactivated */
+export interface TenantCustomDomainDeactivatedData {
+  tenant_code: string;
+  hostname: string;
+}
+
+export type TenantCustomDomainDeactivatedEvent = CloudEventEnvelope<TenantCustomDomainDeactivatedData>;
+
+/** tenant.deleted */
+export interface TenantDeletedData {
+  tenant_code: string;
+}
+
+export type TenantDeletedEvent = CloudEventEnvelope<TenantDeletedData>;
 
 /** tenant.feature_disabled */
 export interface TenantFeatureDisabledData {
@@ -293,6 +1304,34 @@ export interface TenantFeatureEnabledData {
 
 export type TenantFeatureEnabledEvent = CloudEventEnvelope<TenantFeatureEnabledData>;
 
+/** tenant.onboarding_approved */
+export interface TenantOnboardingApprovedData {
+  request_id: string;
+  tenant_code: string;
+  plan: string;
+}
+
+export type TenantOnboardingApprovedEvent = CloudEventEnvelope<TenantOnboardingApprovedData>;
+
+/** tenant.settings_updated */
+export interface TenantSettingsUpdatedData {
+  tenant_code: string;
+  locale: string;
+  timezone: string;
+}
+
+export type TenantSettingsUpdatedEvent = CloudEventEnvelope<TenantSettingsUpdatedData>;
+
+/** tenant.updated */
+export interface TenantUpdatedData {
+  tenant_code: string;
+  name: string;
+  status: "active" | "onboarding" | "suspended";
+  plan: "core" | "starter" | "growth" | "professional" | "ai_plus" | "enterprise";
+}
+
+export type TenantUpdatedEvent = CloudEventEnvelope<TenantUpdatedData>;
+
 /** user.role_changed */
 export interface UserRoleChangedData {
   user_id: string;
@@ -303,6 +1342,26 @@ export interface UserRoleChangedData {
 
 export type UserRoleChangedEvent = CloudEventEnvelope<UserRoleChangedData>;
 
+/** Website page created event. */
+export interface WebsitePageCreatedV1Data {
+  page_id: string;
+  slug: string;
+  title: string;
+  changed_fields?: string[];
+}
+
+export type WebsitePageCreatedV1Event = CloudEventEnvelope<WebsitePageCreatedV1Data>;
+
+/** Website page deleted event. */
+export interface WebsitePageDeletedV1Data {
+  page_id: string;
+  slug: string;
+  title: string;
+  changed_fields?: string[];
+}
+
+export type WebsitePageDeletedV1Event = CloudEventEnvelope<WebsitePageDeletedV1Data>;
+
 /** Emitted when a website page is published. */
 export interface WebsitePagePublishedData {
   page_id: string;
@@ -311,4 +1370,44 @@ export interface WebsitePagePublishedData {
 }
 
 export type WebsitePagePublishedEvent = CloudEventEnvelope<WebsitePagePublishedData>;
+
+/** Website page updated event. */
+export interface WebsitePageUpdatedV1Data {
+  page_id: string;
+  slug: string;
+  title: string;
+  changed_fields?: string[];
+}
+
+export type WebsitePageUpdatedV1Event = CloudEventEnvelope<WebsitePageUpdatedV1Data>;
+
+/** Website section created event. */
+export interface WebsiteSectionCreatedV1Data {
+  section_id: string;
+  page_id: string;
+  type: string;
+  changed_fields?: string[];
+}
+
+export type WebsiteSectionCreatedV1Event = CloudEventEnvelope<WebsiteSectionCreatedV1Data>;
+
+/** Website section deleted event. */
+export interface WebsiteSectionDeletedV1Data {
+  section_id: string;
+  page_id: string;
+  type: string;
+  changed_fields?: string[];
+}
+
+export type WebsiteSectionDeletedV1Event = CloudEventEnvelope<WebsiteSectionDeletedV1Data>;
+
+/** Website section updated event. */
+export interface WebsiteSectionUpdatedV1Data {
+  section_id: string;
+  page_id: string;
+  type: string;
+  changed_fields?: string[];
+}
+
+export type WebsiteSectionUpdatedV1Event = CloudEventEnvelope<WebsiteSectionUpdatedV1Data>;
 

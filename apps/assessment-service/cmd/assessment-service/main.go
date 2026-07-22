@@ -9,6 +9,7 @@ import (
 	"time"
 
 	servercmd "github.com/auraedu/assessment-service/cmd/server"
+	workercmd "github.com/auraedu/assessment-service/cmd/worker"
 	"github.com/auraedu/platform/config"
 	"github.com/auraedu/platform/db"
 	"github.com/spf13/cobra"
@@ -24,6 +25,9 @@ func main() {
 		Short:   serviceName + " service CLI",
 		Version: version,
 	}
+	root.AddCommand(&cobra.Command{
+		Use: "worker", Short: "Run the " + serviceName + " outbox worker", RunE: func(_ *cobra.Command, _ []string) error { return workercmd.Run(version) },
+	})
 	root.AddCommand(&cobra.Command{
 		Use:   "server",
 		Short: "Run the " + serviceName + " HTTP server",

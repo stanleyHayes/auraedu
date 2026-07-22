@@ -6,14 +6,16 @@ Implements the Website Service minimal CRUD for `Page` and `Section` aggregates:
 - Domain model with validation and patch `ApplyUpdate`
 - Postgres adapter with cursor pagination, tenant-scoped filters, and RLS
 - HTTP adapter for pages and sections
-- Event publishing over `platform/eventbus`
+- Transactional page/section lifecycle outbox with stable event IDs and retry
 - Feature-flag gating (`public_website`) and RBAC (`website.read`, `website.manage`)
-- Worker that provisions a default `home` page with a hero section on `tenant.created.v1`
+- Replay-safe worker that atomically provisions a default `home` page, hero section,
+  and lifecycle events on `tenant.created.v1`, while also draining the outbox
 
 ## Run
 
 ```bash
-GOFLAGS=-mod=readonly go run ./cmd/server   # from apps/website-service
+GOFLAGS=-mod=readonly go run ./cmd/website-service server
+GOFLAGS=-mod=readonly go run ./cmd/website-service worker
 curl localhost:8080/health
 ```
 

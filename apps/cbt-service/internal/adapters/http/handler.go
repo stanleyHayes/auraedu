@@ -43,6 +43,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 
 	mux.HandleFunc("GET /api/v1/cbt/submissions", h.listSubmissions)
 	mux.HandleFunc("GET /api/v1/cbt/submissions/{submission_id}", h.getSubmission)
+	mux.HandleFunc("GET /api/v1/cbt/submissions/{submission_id}/questions", h.getSubmissionQuestions)
 	mux.HandleFunc("POST /api/v1/cbt/submissions/{submission_id}/submit", h.submitAnswers)
 	mux.HandleFunc("POST /api/v1/cbt/submissions/{submission_id}/grade", h.gradeSubmission)
 }
@@ -311,26 +312,30 @@ func (h *Handler) deleteExam(w http.ResponseWriter, r *http.Request) {
 
 // --- Submissions. ---
 
-type startSubmissionBody struct {
-	StudentID string `json:"student_id"`
-}
-
 func (h *Handler) startSubmission(w http.ResponseWriter, r *http.Request) {
 	ctx, actor, ok := h.context(r)
 	if !ok {
 		return
 	}
-	var body startSubmissionBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		httpx.ValidationError(w, r, map[string]any{"body": "invalid JSON"})
-		return
-	}
-	sub, err := h.svc.StartSubmission(ctx, actor, r.PathValue("exam_id"), body.StudentID)
+	sub, err := h.svc.StartSubmission(ctx, actor, r.PathValue("exam_id"), "")
 	if err != nil {
 		h.writeErr(w, r, err)
 		return
 	}
 	httpx.RespondJSON(w, r, http.StatusCreated, sub)
+}
+
+func (h *Handler) getSubmissionQuestions(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	questions, err := h.svc.GetSubmissionQuestions(ctx, actor, r.PathValue("submission_id"))
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, map[string]any{"data": questions})
 }
 
 func (h *Handler) listSubmissions(w http.ResponseWriter, r *http.Request) {
@@ -431,6 +436,8 @@ func (h *Handler) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 		httpx.NotFound(w, r, "resource")
 	case errors.Is(err, domain.ErrConflict):
 		httpx.RespondJSON(w, r, http.StatusConflict, map[string]any{"error": "conflict", "message": err.Error()})
+	case errors.Is(err, domain.ErrUnavailable):
+		httpx.RespondJSON(w, r, http.StatusServiceUnavailable, map[string]any{"error": "unavailable", "message": "learner scope is unavailable"})
 	case errors.Is(err, flags.ErrFeatureDisabled):
 		httpx.FeatureDisabled(w, r, application.FeatureCBTExams)
 	case errors.Is(err, domain.ErrForbidden):

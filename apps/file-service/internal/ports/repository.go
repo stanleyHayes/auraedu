@@ -2,9 +2,34 @@ package ports
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/auraedu/file-service/internal/domain"
 )
+
+const (
+	FileMutationCreate = "create"
+	FileMutationUpdate = "update"
+	FileMutationDelete = "delete"
+)
+
+type LifecycleRepository interface {
+	CommitFileLifecycle(context.Context, string, *domain.FileUpload, string, string, map[string]any) error
+}
+
+type OutboxEvent struct {
+	ID          string
+	TenantID    string
+	EventType   string
+	Payload     json.RawMessage
+	CleanupPath string
+}
+
+type OutboxRepository interface {
+	ClaimPendingFileEvents(context.Context, int) ([]OutboxEvent, error)
+	MarkFileEventPublished(context.Context, string) error
+	MarkFileEventFailed(context.Context, string, string) error
+}
 
 // UsageRecord is a per-day, per-tenant file-storage aggregate.
 type UsageRecord struct {

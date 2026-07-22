@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"sync"
 
+	"github.com/auraedu/payment-service/internal/application"
 	"github.com/auraedu/payment-service/internal/domain"
 	"github.com/auraedu/payment-service/internal/ports"
 	"github.com/auraedu/platform/auth"
@@ -265,8 +266,8 @@ func unitActor(tenantID string, perms ...string) auth.Actor {
 	return auth.Actor{UserID: "user-1", TenantID: tenantID, Permissions: perms}
 }
 
-func enabledGates(tenantID string, featureKey string) flags.Gate {
+func enabledGates() flags.Gate {
 	gates := flags.NewStaticSnapshot()
-	gates.Set(tenantID, featureKey, true)
+	gates.Set(unitTenantA, application.FeaturePayments, true)
 	return gates
 }

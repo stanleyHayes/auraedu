@@ -105,6 +105,9 @@ func inSlice(v string, ss []string) bool {
 
 // ValidateUpdate checks the updated fields are legal.
 func (upd TenantUpdate) ValidateUpdate() error {
+	if upd.Domain != nil {
+		return ErrValidation
+	}
 	if upd.Status != nil && !inSlice(*upd.Status, ValidTenantStatuses()) {
 		return ErrValidation
 	}

@@ -1,6 +1,5 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { Users } from "lucide-react";
 import { ParentShell } from "@/components/parent-shell";
 import { fetchTenantBranding, getTenantCodeFromHeaders, PARENT_NAV } from "@/lib/tenant";
 import { requireAuth, isParent } from "@/lib/auth";
@@ -18,7 +17,9 @@ export default async function ParentLayout({ children }: { children: React.React
   ]);
 
   const routeFeature = checkRouteFeature(pathname, tenant.features);
-  const guardedChildren = routeFeature.enabled ? children : (
+  const guardedChildren = routeFeature.enabled ? (
+    children
+  ) : (
     <FeatureDisabled feature={routeFeature.feature!} />
   );
 
@@ -32,6 +33,7 @@ export default async function ParentLayout({ children }: { children: React.React
   }
 
   const user = {
+    id: session.user_id ?? session.sub,
     name: session.name ?? session.email ?? "Parent",
     email: session.email ?? "",
     role: session.role,
@@ -46,17 +48,7 @@ export default async function ParentLayout({ children }: { children: React.React
   };
 
   return (
-    <ParentShell
-      tenant={tenant}
-      navGroups={PARENT_NAV}
-      showMobileMenu
-      user={user}
-      page={{
-        icon: <Users className="size-7" />,
-        title: "Parent Portal",
-        description: "Your children's attendance, results, fees, and announcements.",
-      }}
-    >
+    <ParentShell tenant={tenant} navGroups={PARENT_NAV} showMobileMenu user={user}>
       {guardedChildren}
     </ParentShell>
   );

@@ -28,13 +28,19 @@ func newProcessedEventRepo(t *testing.T) ports.ProcessedEventRepository {
 	return postgres.NewProcessedEventRepository(tdb.DB)
 }
 
-func mustCreateAnnouncement(ctx context.Context, t *testing.T, repo ports.AnnouncementRepository, tenantID, title, audience string) *domain.Announcement {
+func mustCreateAnnouncement(
+	ctx context.Context,
+	t *testing.T,
+	repo ports.AnnouncementRepository,
+	title string,
+	audience string,
+) *domain.Announcement {
 	t.Helper()
-	a, err := domain.NewAnnouncement(tenantID, title, "Body for "+title, audience)
+	a, err := domain.NewAnnouncement(tenantA, title, "Body for "+title, audience)
 	if err != nil {
 		t.Fatalf("new announcement: %v", err)
 	}
-	if err := repo.Create(ctx, tenantID, a); err != nil {
+	if err := repo.Create(ctx, tenantA, a); err != nil {
 		t.Fatalf("create announcement: %v", err)
 	}
 	return a
@@ -44,7 +50,7 @@ func TestAnnouncementRepository_CreateAndGet(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
 	repo := newAnnouncementRepo(t)
 
-	a := mustCreateAnnouncement(ctx, t, repo, tenantA, "Sports day", "students")
+	a := mustCreateAnnouncement(ctx, t, repo, "Sports day", "students")
 
 	got, err := repo.GetByID(ctx, tenantA, a.ID)
 	if err != nil {
@@ -59,8 +65,8 @@ func TestAnnouncementRepository_ListFiltersAndPagination(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
 	repo := newAnnouncementRepo(t)
 
-	mustCreateAnnouncement(ctx, t, repo, tenantA, "One", "all")
-	second := mustCreateAnnouncement(ctx, t, repo, tenantA, "Two", "guardians")
+	mustCreateAnnouncement(ctx, t, repo, "One", "all")
+	second := mustCreateAnnouncement(ctx, t, repo, "Two", "guardians")
 
 	page, next, err := repo.List(ctx, tenantA, ports.AnnouncementFilter{Limit: 1})
 	if err != nil {
@@ -84,13 +90,17 @@ func TestAnnouncementRepository_ListFiltersAndPagination(t *testing.T) {
 	if len(guardians) != 1 || guardians[0].ID != second.ID {
 		t.Fatalf("expected only the guardians announcement, got %+v", guardians)
 	}
+	roleScope, _, err := repo.List(ctx, tenantA, ports.AnnouncementFilter{Limit: 10, Audiences: []string{"all", "guardians"}})
+	if err != nil || len(roleScope) != 2 {
+		t.Fatalf("list role audiences=%+v err=%v", roleScope, err)
+	}
 }
 
 func TestAnnouncementRepository_Delete(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
 	repo := newAnnouncementRepo(t)
 
-	a := mustCreateAnnouncement(ctx, t, repo, tenantA, "Goodbye", "all")
+	a := mustCreateAnnouncement(ctx, t, repo, "Goodbye", "all")
 	if err := repo.Delete(ctx, tenantA, a.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
@@ -104,7 +114,7 @@ func TestAnnouncementRepository_TenantIsolation(t *testing.T) {
 	repo := newAnnouncementRepo(t)
 
 	aCtx := withTenant(ctx, tenantA)
-	a := mustCreateAnnouncement(aCtx, t, repo, tenantA, "Tenant A news", "all")
+	a := mustCreateAnnouncement(aCtx, t, repo, "Tenant A news", "all")
 
 	// Tenant B must not see tenant A's announcement — the repo scopes by tenant
 	// and Postgres RLS enforces the same boundary.

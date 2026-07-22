@@ -18,7 +18,7 @@
       "const": "1.0"
     },
     "type": {
-      "const": "billing.subscription_changed"
+      "const": "billing.subscription_changed.v1"
     },
     "source": {
       "const": "billing-service"
@@ -42,12 +42,21 @@
     "data": {
       "type": "object",
       "required": [
+        "subscription_id",
         "tenant_id",
+        "plan_id",
         "plan_key",
         "status"
       ],
       "properties": {
+        "subscription_id": {
+          "type": "string",
+          "format": "uuid"
+        },
         "tenant_id": {
+          "type": "string"
+        },
+        "plan_id": {
           "type": "string",
           "format": "uuid"
         },
@@ -55,14 +64,28 @@
           "type": "string"
         },
         "status": {
-          "type": "string",
-          "enum": [
-            "active",
-            "canceled",
-            "past_due"
-          ]
+          "type": "string"
         }
+      },
+      "additionalProperties": false
+    }
+  },
+  "examples": [
+    {
+      "specversion": "1.0",
+      "type": "billing.subscription_changed.v1",
+      "source": "billing-service",
+      "id": "example-id",
+      "time": "2026-07-19T10:00:00Z",
+      "tenant_id": "school-a",
+      "data": {
+        "subscription_id": "11111111-1111-4111-8111-111111111111",
+        "tenant_id": "school-a",
+        "plan_id": "11111111-1111-4111-8111-111111111111",
+        "plan_key": "example-plan.key",
+        "status": "example-status"
       }
     }
-  }
+  ],
+  "additionalProperties": false
 }

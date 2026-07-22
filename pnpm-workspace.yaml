@@ -11,6 +11,15 @@ packages:
 # immediately during active development.
 minimumReleaseAge: 0
 
+# Keep vulnerable transitive build/runtime tooling out of every workspace package.
+overrides:
+  "postcss@<8.5.10": "8.5.10"
+  "uuid@<11.1.1": "11.1.1"
+  "js-yaml@>=4.0.0 <4.3.0": "4.3.0"
+  "@expo/log-box@57.0.0": "57.0.1"
+  "@expo/dom-webview@57.0.0": "57.0.1"
+  "react-native-worklets@0.11.1": "0.10.1"
+
 # openapi-typescript@7 still declares typescript ^5.x as a peer, but it runs fine on TS 6.
 peerDependencyRules:
   allowedVersions:
@@ -24,5 +33,7 @@ fetchRetryMaxtimeout: 60000
 
 # Allow native builds that Next.js/image processing depend on.
 allowBuilds:
+  # Scarf's install hook only reports package analytics; keep it explicitly disabled.
+  "@scarf/scarf": false
   esbuild: true
   sharp: true

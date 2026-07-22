@@ -3,11 +3,17 @@ package http
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"io"
+	"mime"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 
+	providerwebhooks "github.com/auraedu/notification-service/internal/adapters/webhooks"
 	"github.com/auraedu/notification-service/internal/application"
 	"github.com/auraedu/notification-service/internal/domain"
 	"github.com/auraedu/notification-service/internal/ports"
@@ -19,11 +25,34 @@ import (
 
 // Handler adapts HTTP to the notification use cases. No business logic here (agent_plan §5).
 type Handler struct {
-	svc *application.Service
+	svc            *application.Service
+	internalToken  string
+	resendVerifier deliveryWebhookVerifier
+	twilioVerifier twilioWebhookVerifier
+}
+
+type deliveryWebhookVerifier interface {
+	Verify([]byte, http.Header) (ports.DeliveryFeedback, bool, error)
+}
+
+type twilioWebhookVerifier interface {
+	Verify(string, url.Values, string) (ports.DeliveryFeedback, bool, error)
 }
 
 // NewHandler creates the HTTP adapter.
 func NewHandler(svc *application.Service) *Handler { return &Handler{svc: svc} }
+
+func (h *Handler) WithInternalToken(token string) *Handler { h.internalToken = token; return h }
+
+func (h *Handler) WithResendWebhookVerifier(verifier deliveryWebhookVerifier) *Handler {
+	h.resendVerifier = verifier
+	return h
+}
+
+func (h *Handler) WithTwilioWebhookVerifier(verifier twilioWebhookVerifier) *Handler {
+	h.twilioVerifier = verifier
+	return h
+}
 
 // Register mounts the service routes.
 func (h *Handler) Register(mux *http.ServeMux) {
@@ -33,6 +62,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/v1/messages/{message_id}", h.updateMessage)
 	mux.HandleFunc("DELETE /api/v1/messages/{message_id}", h.deleteMessage)
 	mux.HandleFunc("POST /api/v1/messages/{message_id}/send", h.sendMessage)
+	mux.HandleFunc("POST /api/v1/webhooks/resend", h.resendWebhook)
+	mux.HandleFunc("POST /api/v1/webhooks/twilio", h.twilioWebhook)
+	mux.HandleFunc("POST /api/v1/email-preferences/unsubscribe", h.unsubscribeEmail)
 
 	mux.HandleFunc("GET /api/v1/notification-templates", h.listTemplates)
 	mux.HandleFunc("POST /api/v1/notification-templates", h.createTemplate)
@@ -45,8 +77,185 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/notification-subscriptions/{subscription_id}", h.getSubscription)
 	mux.HandleFunc("PATCH /api/v1/notification-subscriptions/{subscription_id}", h.updateSubscription)
 	mux.HandleFunc("DELETE /api/v1/notification-subscriptions/{subscription_id}", h.deleteSubscription)
+	mux.HandleFunc("POST /api/v1/device-tokens", h.registerDeviceToken)
+	mux.HandleFunc("DELETE /api/v1/device-tokens/{device_id}", h.unregisterDeviceToken)
 
 	h.registerAnnouncements(mux)
+	h.registerJourneys(mux)
+	mux.HandleFunc("POST /internal/v1/transactional-email", h.transactionalEmail)
+}
+
+func (h *Handler) unsubscribeEmail(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Token string `json:"token"`
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&body); err != nil || strings.TrimSpace(body.Token) == "" {
+		httpx.ValidationError(w, r, map[string]any{"body": "invalid email preference request"})
+		return
+	}
+	if err := h.svc.UnsubscribeEmail(r.Context(), body.Token); err != nil {
+		if errors.Is(err, domain.ErrValidation) {
+			httpx.ValidationError(w, r, map[string]any{"body": "invalid or expired request"})
+			return
+		}
+		h.writeErr(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) resendWebhook(w http.ResponseWriter, r *http.Request) {
+	if h.resendVerifier == nil {
+		httpx.RespondJSON(w, r, http.StatusServiceUnavailable, map[string]any{"error": "unavailable", "message": "delivery feedback is not configured"})
+		return
+	}
+	payload, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 128<<10))
+	if err != nil {
+		httpx.ValidationError(w, r, map[string]any{"body": "unreadable or too large"})
+		return
+	}
+	feedback, relevant, err := h.resendVerifier.Verify(payload, r.Header)
+	if errors.Is(err, providerwebhooks.ErrInvalidSignature) {
+		httpx.Unauthorized(w, r, "invalid webhook signature")
+		return
+	}
+	if errors.Is(err, providerwebhooks.ErrInvalidPayload) {
+		httpx.ValidationError(w, r, map[string]any{"body": "invalid provider event"})
+		return
+	}
+	if err != nil {
+		httpx.RespondError(w, r, httpx.ErrorFrom(err))
+		return
+	}
+	if !relevant {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if _, err := h.svc.ApplyDeliveryFeedback(r.Context(), feedback); err != nil {
+		if errors.Is(err, domain.ErrNotFound) || errors.Is(err, domain.ErrUnavailable) {
+			// A provider callback can race the transaction that records its receipt.
+			// A 503 asks Resend to retry rather than silently losing the event.
+			httpx.RespondJSON(w, r, http.StatusServiceUnavailable, map[string]any{
+				"error": "delivery_feedback_unavailable", "message": "delivery feedback could not be applied",
+			})
+			return
+		}
+		httpx.RespondError(w, r, httpx.ErrorFrom(err))
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) twilioWebhook(w http.ResponseWriter, r *http.Request) {
+	if h.twilioVerifier == nil {
+		httpx.RespondJSON(w, r, http.StatusServiceUnavailable, map[string]any{"error": "unavailable", "message": "delivery feedback is not configured"})
+		return
+	}
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || mediaType != "application/x-www-form-urlencoded" {
+		httpx.ValidationError(w, r, map[string]any{"body": "Twilio callback must be form encoded"})
+		return
+	}
+	payload, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 128<<10))
+	if err != nil {
+		httpx.ValidationError(w, r, map[string]any{"body": "unreadable or too large"})
+		return
+	}
+	values, err := url.ParseQuery(string(payload))
+	messageIDs := r.URL.Query()["message_id"]
+	if err != nil || len(messageIDs) != 1 || strings.TrimSpace(messageIDs[0]) == "" {
+		httpx.ValidationError(w, r, map[string]any{"body": "invalid provider event"})
+		return
+	}
+	feedback, relevant, err := h.twilioVerifier.Verify(messageIDs[0], values, r.Header.Get("X-Twilio-Signature"))
+	if errors.Is(err, providerwebhooks.ErrInvalidTwilioSignature) {
+		httpx.Unauthorized(w, r, "invalid webhook signature")
+		return
+	}
+	if errors.Is(err, providerwebhooks.ErrInvalidTwilioPayload) {
+		httpx.ValidationError(w, r, map[string]any{"body": "invalid provider event"})
+		return
+	}
+	if err != nil {
+		httpx.RespondError(w, r, httpx.ErrorFrom(err))
+		return
+	}
+	if !relevant {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if _, err := h.svc.ApplyDeliveryFeedback(r.Context(), feedback); err != nil {
+		if errors.Is(err, domain.ErrNotFound) || errors.Is(err, domain.ErrUnavailable) {
+			// A callback can race the transaction that records its Twilio receipt.
+			// A 503 asks Twilio to retry instead of silently losing the event.
+			httpx.RespondJSON(w, r, http.StatusServiceUnavailable, map[string]any{
+				"error": "delivery_feedback_unavailable", "message": "delivery feedback could not be applied",
+			})
+			return
+		}
+		httpx.RespondError(w, r, httpx.ErrorFrom(err))
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) registerDeviceToken(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, _ := h.context(r)
+	var body struct {
+		DeviceID string `json:"device_id"`
+		Platform string `json:"platform"`
+		Token    string `json:"token"`
+	}
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&body) != nil {
+		httpx.ValidationError(w, r, map[string]any{"body": "invalid JSON"})
+		return
+	}
+	device, err := h.svc.RegisterDeviceToken(ctx, actor, body.DeviceID, body.Platform, body.Token)
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, device)
+}
+func (h *Handler) unregisterDeviceToken(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, _ := h.context(r)
+	if err := h.svc.UnregisterDeviceToken(ctx, actor, r.PathValue("device_id")); err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type transactionalEmailBody struct {
+	TenantID  string         `json:"tenant_id"`
+	Recipient string         `json:"recipient"`
+	Template  string         `json:"template"`
+	Data      map[string]any `json:"data"`
+}
+
+func (h *Handler) transactionalEmail(w http.ResponseWriter, r *http.Request) {
+	provided := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if h.internalToken == "" || len(provided) != len(h.internalToken) || subtle.ConstantTimeCompare([]byte(provided), []byte(h.internalToken)) != 1 {
+		httpx.Unauthorized(w, r, "invalid service credential")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	var body transactionalEmailBody
+	if err := dec.Decode(&body); err != nil {
+		httpx.ValidationError(w, r, map[string]any{"body": "invalid JSON"})
+		return
+	}
+	ctx := tenancy.WithContext(r.Context(), tenancy.TenantContext{TenantID: body.TenantID, ActorRole: "internal_service"})
+	record, err := h.svc.DeliverTransactionalEmail(ctx, body.TenantID, body.Recipient, body.Template, body.Data)
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusAccepted, map[string]any{"message_id": record.ID, "status": record.Status})
 }
 
 // --- Message handlers ---
@@ -417,6 +626,8 @@ func (h *Handler) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, domain.ErrValidation):
 		httpx.ValidationError(w, r, map[string]any{"detail": err.Error()})
+	case errors.Is(err, domain.ErrConflict):
+		httpx.RespondJSON(w, r, http.StatusConflict, map[string]any{"code": "conflict", "message": "invalid lifecycle transition"})
 	case errors.Is(err, domain.ErrNotFound):
 		httpx.NotFound(w, r, "resource")
 	case errors.Is(err, flags.ErrFeatureDisabled):
@@ -425,6 +636,8 @@ func (h *Handler) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 		httpx.Forbidden(w, r, "not permitted for this actor or tenant")
 	case errors.Is(err, domain.ErrMissingTenant):
 		httpx.TenantMismatch(w, r)
+	case errors.Is(err, domain.ErrUnavailable):
+		httpx.RespondJSON(w, r, http.StatusServiceUnavailable, map[string]any{"error": "unavailable", "message": "push token storage is unavailable"})
 	default:
 		httpx.RespondError(w, r, httpx.ErrorFrom(err))
 	}

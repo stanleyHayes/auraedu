@@ -33,6 +33,40 @@ func newRepo(t *testing.T) ports.Repository {
 	return postgres.NewRepository(tdb.DB)
 }
 
+func mustNewAssessment(t *testing.T, title string) *domain.Assessment {
+	t.Helper()
+	assessment, err := domain.NewAssessment(tenantA, ay1, subject1, "test", title, "", 100, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return assessment
+}
+
+func TestRepository_LifecycleOutboxIsAtomic(t *testing.T) {
+	ctx := withTenant(context.Background(), tenantA)
+	tdb := testkit.NewPostgres(context.Background(), t, "../../migrations")
+	repo := postgres.NewRepository(tdb.DB)
+	a := mustNewAssessment(t, "Durable")
+	events := []ports.LifecycleEvent{{EventType: "assessment.created.v1", Payload: ports.AssessmentEventData(a, nil)}}
+	if err := repo.CommitAssessmentLifecycle(ctx, tenantA, ports.LifecycleMutation{Kind: ports.AssessmentMutationCreate, Assessment: a}, events); err != nil {
+		t.Fatal(err)
+	}
+	items, err := repo.ClaimPendingAssessmentEvents(context.Background(), 10)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("items=%+v err=%v", items, err)
+	}
+	rollback := mustNewAssessment(t, "Rollback")
+	if _, err := tdb.DB.Pool().Exec(context.Background(), `DROP TABLE assessment_outbox`); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CommitAssessmentLifecycle(ctx, tenantA, ports.LifecycleMutation{Kind: ports.AssessmentMutationCreate, Assessment: rollback}, []ports.LifecycleEvent{{EventType: "assessment.created.v1", Payload: ports.AssessmentEventData(rollback, nil)}}); err == nil {
+		t.Fatal("expected outbox failure")
+	}
+	if _, err := repo.GetAssessmentByID(ctx, tenantA, rollback.ID); err == nil {
+		t.Fatal("assessment mutation must roll back")
+	}
+}
+
 func withTenant(ctx context.Context, tenantID string) context.Context {
 	return tenancy.WithContext(ctx, tenancy.TenantContext{TenantID: tenantID})
 }
@@ -140,6 +174,31 @@ func TestRepository_ListAssessmentFilters(t *testing.T) {
 	}
 }
 
+func TestRepository_ListAssessmentsByAssignedClasses(t *testing.T) {
+	ctx := withTenant(context.Background(), tenantA)
+	repo := newRepo(t)
+	classOwn := "77777777-7777-4777-8777-777777777777"
+	classOther := "88888888-8888-4888-8888-888888888888"
+	assigned := mustNewAssessment(t, "Assigned")
+	assigned.ClassIDs = []string{classOwn}
+	other := mustNewAssessment(t, "Other")
+	other.ClassIDs = []string{classOther}
+	if err := repo.CreateAssessment(ctx, tenantA, assigned); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CreateAssessment(ctx, tenantA, other); err != nil {
+		t.Fatal(err)
+	}
+	items, _, err := repo.ListAssessments(ctx, tenantA, ports.AssessmentListFilter{Limit: 10, ClassIDs: []string{classOwn}})
+	if err != nil || len(items) != 1 || items[0].ID != assigned.ID {
+		t.Fatalf("items=%+v err=%v", items, err)
+	}
+	empty, _, err := repo.ListAssessments(ctx, tenantA, ports.AssessmentListFilter{Limit: 10, ClassIDs: []string{}})
+	if err != nil || len(empty) != 0 {
+		t.Fatalf("empty=%+v err=%v", empty, err)
+	}
+}
+
 func TestRepository_UpdateAssessment(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)
 	repo := newRepo(t)
@@ -206,6 +265,14 @@ func TestRepository_ListScoresFilter(t *testing.T) {
 	}
 	if len(page) != 1 {
 		t.Fatalf("expected 1 score, got %d", len(page))
+	}
+	page, _, err = repo.ListScores(ctx, tenantA, a.ID, ports.ScoreListFilter{Limit: 10, StudentIDs: []string{studentB}})
+	if err != nil || len(page) != 1 || page[0].StudentID != studentB {
+		t.Fatalf("learner scope=%+v err=%v", page, err)
+	}
+	page, _, err = repo.ListScores(ctx, tenantA, a.ID, ports.ScoreListFilter{Limit: 10, StudentIDs: []string{}})
+	if err != nil || len(page) != 0 {
+		t.Fatalf("empty learner scope=%+v err=%v", page, err)
 	}
 }
 

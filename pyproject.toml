@@ -43,6 +43,7 @@ dev = [
   "pytest-asyncio>=1.4.0",
   "httpx>=0.28.1",
   "aiosqlite>=0.22.1",
+  "jsonschema[format]>=4.25.1",
   "ruff>=0.15.21",
   "pip-audit>=2.10.1",
   "mypy>=1.16.0",
@@ -52,3 +53,4 @@ dev = [
 [tool.pytest.ini_options]
 addopts = "-q"
 asyncio_mode = "auto"
+pythonpath = ["."]

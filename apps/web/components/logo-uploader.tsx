@@ -43,10 +43,13 @@ export function LogoUploader({ tenantCode, value, onChange, disabled }: LogoUplo
       formData.append("folder", signed.folder);
       formData.append("public_id", signed.file_id);
 
-      const uploadRes = await fetch(signed.upload_url ?? `https://api.cloudinary.com/v1_1/${signed.cloud_name}/image/upload`, {
-        method: "POST",
-        body: formData,
-      });
+      const uploadRes = await fetch(
+        signed.upload_url ?? `https://api.cloudinary.com/v1_1/${signed.cloud_name}/image/upload`,
+        {
+          method: "POST",
+          body: formData,
+        },
+      );
 
       if (!uploadRes.ok) {
         const body = await uploadRes.text();
@@ -128,7 +131,11 @@ export function LogoUploader({ tenantCode, value, onChange, disabled }: LogoUplo
             loading={uploading}
             loadingLabel="Uploading"
           >
-            {uploading ? <Loader2 className="mr-2 size-4 animate-spin" /> : <UploadCloud className="mr-2 size-4" />}
+            {uploading ? (
+              <Loader2 className="mr-2 size-4 animate-spin" />
+            ) : (
+              <UploadCloud className="mr-2 size-4" />
+            )}
             {uploading ? "Uploading..." : value ? "Change logo" : "Upload logo"}
           </Button>
         </div>

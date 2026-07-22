@@ -9,10 +9,16 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List pages */
+        /**
+         * List pages
+         * @description Executes the list pages workflow within this AuraEDU API boundary.
+         */
         get: operations["listPages"];
         put?: never;
-        /** Create a page */
+        /**
+         * Create a page
+         * @description Executes the create page workflow within this AuraEDU API boundary.
+         */
         post: operations["createPage"];
         delete?: never;
         options?: never;
@@ -20,14 +26,45 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/pages/{slug}": {
+    "/pages/{page_id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get a public page by slug */
+        /**
+         * Get a page by ID
+         * @description Executes the get page workflow within this AuraEDU API boundary.
+         */
+        get: operations["getPage"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a page
+         * @description Executes the delete page workflow within this AuraEDU API boundary.
+         */
+        delete: operations["deletePage"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a page
+         * @description Executes the update page workflow within this AuraEDU API boundary.
+         */
+        patch: operations["updatePage"];
+        trace?: never;
+    };
+    "/page-slugs/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a page by slug
+         * @description Executes the get page by slug workflow within this AuraEDU API boundary.
+         */
         get: operations["getPageBySlug"];
         put?: never;
         post?: never;
@@ -37,22 +74,56 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/menus": {
+    "/pages/{page_id}/sections": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List menus */
-        get: operations["listMenus"];
+        /**
+         * List sections for a page
+         * @description Executes the list sections workflow within this AuraEDU API boundary.
+         */
+        get: operations["listSections"];
         put?: never;
-        /** Create a menu */
-        post: operations["createMenu"];
+        /**
+         * Create a page section
+         * @description Executes the create section workflow within this AuraEDU API boundary.
+         */
+        post: operations["createSection"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/sections/{section_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a section
+         * @description Executes the get section workflow within this AuraEDU API boundary.
+         */
+        get: operations["getSection"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a section
+         * @description Executes the delete section workflow within this AuraEDU API boundary.
+         */
+        delete: operations["deleteSection"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a section
+         * @description Executes the update section workflow within this AuraEDU API boundary.
+         */
+        patch: operations["updateSection"];
         trace?: never;
     };
 };
@@ -68,57 +139,93 @@ export type components = {
         Page: {
             /** Format: uuid */
             id: string;
-            /** Format: uuid */
             tenant_id: string;
             slug: string;
             title: string;
-            sections?: components["schemas"]["Section"][];
-            is_published?: boolean;
+            /** @enum {string} */
+            status: "draft" | "published" | "archived";
+            meta_description?: string | null;
+            /** @enum {string} */
+            layout: "default" | "landing" | "contact";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
             /** Format: date-time */
             published_at?: string | null;
         };
         CreatePage: {
             slug: string;
             title: string;
-            sections?: components["schemas"]["Section"][];
-            /** @default false */
-            is_published: boolean;
+            /**
+             * @default draft
+             * @enum {string}
+             */
+            status: "draft" | "published" | "archived";
+            meta_description?: string | null;
+            /**
+             * @default default
+             * @enum {string}
+             */
+            layout: "default" | "landing" | "contact";
+        };
+        UpdatePage: {
+            slug?: string;
+            title?: string;
+            /** @enum {string} */
+            status?: "draft" | "published" | "archived";
+            meta_description?: string | null;
+            /** @enum {string} */
+            layout?: "default" | "landing" | "contact";
         };
         Section: {
-            /** @enum {string} */
-            type: "hero" | "text" | "gallery" | "call_to_action";
-            title?: string | null;
-            content?: string | null;
-            media?: string[];
-        };
-        Menu: {
             /** Format: uuid */
             id: string;
-            /** Format: uuid */
             tenant_id: string;
-            name: string;
-            items?: {
-                label?: string;
-                url?: string;
-                /** Format: uuid */
-                page_id?: string | null;
-            }[];
+            /** Format: uuid */
+            page_id: string;
+            /** @enum {string} */
+            type: "hero" | "text" | "features" | "gallery" | "cta" | "contact";
+            content?: {
+                [key: string]: unknown;
+            };
+            sort_order: number;
+            /** @enum {string} */
+            status: "draft" | "published";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
         };
-        CreateMenu: {
-            name: string;
-            items?: {
-                label?: string;
-                url?: string;
-                /** Format: uuid */
-                page_id?: string | null;
-            }[];
+        CreateSection: {
+            /** @enum {string} */
+            type: "hero" | "text" | "features" | "gallery" | "cta" | "contact";
+            content: {
+                [key: string]: unknown;
+            };
+            sort_order: number;
+            /**
+             * @default draft
+             * @enum {string}
+             */
+            status: "draft" | "published";
+        };
+        UpdateSection: {
+            /** @enum {string} */
+            type?: "hero" | "text" | "features" | "gallery" | "cta" | "contact";
+            content?: {
+                [key: string]: unknown;
+            };
+            sort_order?: number;
+            /** @enum {string} */
+            status?: "draft" | "published";
         };
         PageList: {
             data?: components["schemas"]["Page"][];
             next_cursor?: string | null;
         };
-        MenuList: {
-            data?: components["schemas"]["Menu"][];
+        SectionList: {
+            data?: components["schemas"]["Section"][];
             next_cursor?: string | null;
         };
     };
@@ -179,7 +286,9 @@ export type components = {
         };
     };
     parameters: {
-        TenantId: string;
+        PageId: string;
+        SectionId: string;
+        Slug: string;
         /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
         TenantHeader: string;
         Limit: number;
@@ -252,7 +361,7 @@ export interface operations {
             422: components["responses"]["ValidationError"];
         };
     };
-    getPageBySlug: {
+    getPage: {
         parameters: {
             query?: never;
             header?: {
@@ -260,7 +369,7 @@ export interface operations {
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                page_id: components["parameters"]["PageId"];
             };
             cookie?: never;
         };
@@ -281,14 +390,75 @@ export interface operations {
             422: components["responses"]["ValidationError"];
         };
     };
-    listMenus: {
+    deletePage: {
         parameters: {
             query?: never;
             header?: {
                 /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
-            path?: never;
+            path: {
+                page_id: components["parameters"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Page deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updatePage: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                page_id: components["parameters"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePage"];
+            };
+        };
+        responses: {
+            /** @description Updated page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getPageBySlug: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                slug: components["parameters"]["Slug"];
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -299,7 +469,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MenuList"];
+                    "application/json": components["schemas"]["Page"];
                 };
             };
             401: components["responses"]["Unauthorized"];
@@ -308,29 +478,149 @@ export interface operations {
             422: components["responses"]["ValidationError"];
         };
     };
-    createMenu: {
+    listSections: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                page_id: components["parameters"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sections */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SectionList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createSection: {
         parameters: {
             query?: never;
             header?: {
                 /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
-            path?: never;
+            path: {
+                page_id: components["parameters"]["PageId"];
+            };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CreateMenu"];
+                "application/json": components["schemas"]["CreateSection"];
             };
         };
         responses: {
-            /** @description OK */
+            /** @description Created section */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Menu"];
+                    "application/json": components["schemas"]["Section"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getSection: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                section_id: components["parameters"]["SectionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Section */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Section"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteSection: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                section_id: components["parameters"]["SectionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Section deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateSection: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                section_id: components["parameters"]["SectionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSection"];
+            };
+        };
+        responses: {
+            /** @description Updated section */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Section"];
                 };
             };
             401: components["responses"]["Unauthorized"];

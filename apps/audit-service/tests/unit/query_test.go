@@ -22,7 +22,7 @@ const (
 func seedLog(t *testing.T, repo *memory.Repository, tenantID, eventType, actorID string) *domain.AuditLog {
 	t.Helper()
 	log, err := domain.NewAuditLogBuilder().
-		TenantID(uuid.MustParse(tenantID)).
+		TenantID(tenantID).
 		EventID(uuid.NewString()).
 		EventType(eventType).
 		SourceService("test-service").
@@ -67,7 +67,7 @@ func TestQuery_ListAuditLogs_TenantScoped(t *testing.T) {
 	if len(logs) != 1 {
 		t.Fatalf("expected 1 log, got %d", len(logs))
 	}
-	if logs[0].TenantID.String() != tenantAID {
+	if logs[0].TenantID != tenantAID {
 		t.Fatalf("tenant mismatch: got %s, want %s", logs[0].TenantID, tenantAID)
 	}
 }
@@ -138,7 +138,7 @@ func TestQuery_ListAuditLogs_PlatformAdminScopedTenant(t *testing.T) {
 	if len(logs) != 1 {
 		t.Fatalf("expected 1 log, got %d", len(logs))
 	}
-	if logs[0].TenantID.String() != tenantBID {
+	if logs[0].TenantID != tenantBID {
 		t.Fatalf("tenant mismatch: got %s, want %s", logs[0].TenantID, tenantBID)
 	}
 }

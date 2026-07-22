@@ -11,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
-	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 type PostgresTestDB struct {
@@ -25,15 +24,11 @@ type PostgresTestDB struct {
 func NewPostgres(ctx context.Context, tb testing.TB, migrationsDir string) *PostgresTestDB {
 	tb.Helper()
 
-	ctr, err := postgres.Run(ctx, "postgres:17-alpine",
+	ctr, err := postgres.Run(ctx, "postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193",
 		postgres.WithDatabase("test"),
 		postgres.WithUsername("test"),
 		postgres.WithPassword("test"),
-		testcontainers.WithWaitStrategy(
-			wait.ForLog("database system is ready to accept connections").
-				WithOccurrence(2).
-				WithStartupTimeout(60*time.Second),
-		),
+		postgres.BasicWaitStrategies(),
 	)
 	if err != nil {
 		tb.Fatalf("start postgres container: %v", err)

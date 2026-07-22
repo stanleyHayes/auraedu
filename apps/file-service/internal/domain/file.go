@@ -54,8 +54,8 @@ func NewFileUpload(tenantID, originalFilename, contentType, ownerID, purpose str
 	if tenantID == "" {
 		return nil, ErrMissingTenant
 	}
-	originalFilename = strings.TrimSpace(originalFilename)
-	if originalFilename == "" {
+	originalFilename, err := SanitizeFilename(originalFilename)
+	if err != nil {
 		return nil, ErrValidation
 	}
 	id, err := uuid.NewV7()
@@ -88,6 +88,10 @@ func (f FileUpload) Validate() error {
 	if strings.TrimSpace(f.OriginalFilename) == "" {
 		return ErrValidation
 	}
+	cleaned, err := SanitizeFilename(f.OriginalFilename)
+	if err != nil || cleaned != f.OriginalFilename {
+		return ErrValidation
+	}
 	if f.SizeBytes < 0 {
 		return ErrValidation
 	}
@@ -105,10 +109,11 @@ func (f FileUpload) Validate() error {
 func (f *FileUpload) ApplyUpdate(originalFilename, contentType, purpose, status *string, metadata map[string]any) ([]string, error) {
 	var changed []string
 	if originalFilename != nil {
-		if strings.TrimSpace(*originalFilename) == "" {
+		cleaned, err := SanitizeFilename(*originalFilename)
+		if err != nil {
 			return nil, ErrValidation
 		}
-		f.OriginalFilename = strings.TrimSpace(*originalFilename)
+		f.OriginalFilename = cleaned
 		changed = append(changed, "original_filename")
 	}
 	if contentType != nil {
@@ -139,6 +144,22 @@ func (f *FileUpload) ApplyUpdate(originalFilename, contentType, purpose, status 
 		f.UpdatedAt = time.Now().UTC()
 	}
 	return changed, nil
+}
+
+// SanitizeFilename removes client-supplied path components and rejects control
+// characters that could escape Content-Disposition or corrupt audit output.
+func SanitizeFilename(value string) (string, error) {
+	value = strings.TrimSpace(strings.ReplaceAll(value, "\\", "/"))
+	value = filepath.Base(value)
+	if value == "" || value == "." || value == ".." || len(value) > 255 {
+		return "", ErrValidation
+	}
+	for _, r := range value {
+		if r < 0x20 || r == 0x7f {
+			return "", ErrValidation
+		}
+	}
+	return value, nil
 }
 
 // ComputeChecksum returns the SHA-256 hex digest of the supplied bytes.

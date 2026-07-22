@@ -7,25 +7,22 @@ import (
 	"github.com/auraedu/platform/auth"
 	"github.com/auraedu/platform/flags"
 	"github.com/auraedu/platform/testkit"
-	"github.com/auraedu/website-service/internal/adapters/events"
 	"github.com/auraedu/website-service/internal/adapters/postgres"
 	"github.com/auraedu/website-service/internal/application"
 	"github.com/auraedu/website-service/internal/ports"
 )
 
-func newService(t *testing.T, enabled bool) (*application.Service, *events.RecordingPublisher) {
+func newService(t *testing.T, enabled bool) (*application.Service, *postgres.Repository) {
 	t.Helper()
 	ctx := context.Background()
 	tdb := testkit.NewPostgres(ctx, t, "../../migrations")
 	repo := postgres.NewRepository(tdb.DB)
-	pub := events.NewRecordingPublisher()
 	gate := flags.NewStaticSnapshot()
 	gate.Set(tenantA, application.FeaturePublicWebsite, enabled)
 	svc := application.NewService(repo,
-		application.WithPublisher(pub),
 		application.WithFeatureGate(gate),
 	)
-	return svc, pub
+	return svc, repo
 }
 
 func actorWithPerm() auth.Actor {
@@ -52,7 +49,7 @@ func TestService_FeatureFlagGatesCreate(t *testing.T) {
 }
 
 func TestService_CreatePagePublishesEvent(t *testing.T) {
-	svc, pub := newService(t, true)
+	svc, repo := newService(t, true)
 	ctx := withTenant(context.Background(), tenantA)
 
 	page, err := svc.CreatePage(ctx, actorWithPerm(), application.CreatePageRequest{
@@ -62,21 +59,31 @@ func TestService_CreatePagePublishesEvent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create page: %v", err)
 	}
+	if page.ID == "" {
+		t.Fatal("created page has no id")
+	}
 
+	queued, err := repo.ClaimPendingWebsiteEvents(context.Background(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
 	found := false
-	for _, e := range pub.Events {
-		if e.Type == "website.page_created.v1" && e.SubjectID == page.ID {
+	for _, e := range queued {
+		if e.EventType == "website.page_created.v1" {
 			found = true
+			if err := repo.MarkWebsiteEventPublished(context.Background(), e.ID); err != nil {
+				t.Fatal(err)
+			}
 			break
 		}
 	}
 	if !found {
-		t.Fatalf("expected page_created event, got %v", pub.Events)
+		t.Fatalf("expected durable page_created event, got %v", queued)
 	}
 }
 
 func TestService_PublishPageFiresPagePublishedEvent(t *testing.T) {
-	svc, pub := newService(t, true)
+	svc, repo := newService(t, true)
 	ctx := withTenant(context.Background(), tenantA)
 
 	page, err := svc.CreatePage(ctx, actorWithPerm(), application.CreatePageRequest{
@@ -86,7 +93,15 @@ func TestService_PublishPageFiresPagePublishedEvent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create page: %v", err)
 	}
-	pub.Events = nil
+	created, err := repo.ClaimPendingWebsiteEvents(context.Background(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range created {
+		if err := repo.MarkWebsiteEventPublished(context.Background(), event.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	status := "published"
 	_, err = svc.UpdatePage(ctx, actorWithPerm(), page.ID, application.UpdatePageRequest{
@@ -96,15 +111,19 @@ func TestService_PublishPageFiresPagePublishedEvent(t *testing.T) {
 		t.Fatalf("update page: %v", err)
 	}
 
+	queued, err := repo.ClaimPendingWebsiteEvents(context.Background(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
 	found := false
-	for _, e := range pub.Events {
-		if e.Type == "website.page_published.v1" && e.SubjectID == page.ID {
+	for _, e := range queued {
+		if e.EventType == "website.page_published.v1" {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Fatalf("expected page_published event, got %v", pub.Events)
+		t.Fatalf("expected durable page_published event, got %v", queued)
 	}
 }
 

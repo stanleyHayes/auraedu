@@ -163,7 +163,7 @@ func (s SubjectScore) Percentage() (float64, bool) {
 }
 
 // AggregateScores groups score entries per subject, summing scores. Entries
-// without a subject are grouped per assessment (source key) and labelled
+// without a subject are grouped per assessment (source key) and labeled
 // "Assessment <id>". MaxScore is summed only when every entry in the group has
 // one. Groups are sorted by label for stable rendering.
 func AggregateScores(entries []*ScoreEntry) []SubjectScore {
@@ -208,8 +208,8 @@ func AggregateScores(entries []*ScoreEntry) []SubjectScore {
 		g := groups[key]
 		ss := SubjectScore{Label: g.label, Score: g.score, Count: g.count}
 		if g.hasMax && g.allMax {
-			max := g.max
-			ss.MaxScore = &max
+			maximum := g.max
+			ss.MaxScore = &maximum
 		}
 		out = append(out, ss)
 	}

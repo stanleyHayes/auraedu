@@ -47,7 +47,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 // not exposed over the query API.
 type auditLogDTO struct {
 	ID           uuid.UUID       `json:"id"`
-	TenantID     uuid.UUID       `json:"tenant_id"`
+	TenantID     string          `json:"tenant_id"`
 	EventType    string          `json:"event_type"`
 	ActorID      *string         `json:"actor_id"`
 	ResourceType *string         `json:"resource_type"`

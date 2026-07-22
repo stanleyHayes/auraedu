@@ -419,6 +419,104 @@ type Subject struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+// TimetableEntry is a recurring weekly lesson period for one class and term.
+type TimetableEntry struct {
+	ID        string    `json:"id"`
+	TenantID  string    `json:"tenant_id"`
+	ClassID   string    `json:"class_id"`
+	TermID    string    `json:"term_id"`
+	SubjectID string    `json:"subject_id"`
+	TeacherID *string   `json:"teacher_id,omitempty"`
+	Weekday   int       `json:"weekday"`
+	StartTime string    `json:"start_time"`
+	EndTime   string    `json:"end_time"`
+	Room      *string   `json:"room,omitempty"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func NewTimetableEntry(
+	tenantID, classID, termID, subjectID string,
+	teacherID *string,
+	weekday int,
+	startTime, endTime string,
+	room *string,
+) (*TimetableEntry, error) {
+	entry := &TimetableEntry{
+		TenantID:  tenantID,
+		ClassID:   strings.TrimSpace(classID),
+		TermID:    strings.TrimSpace(termID),
+		SubjectID: strings.TrimSpace(subjectID),
+		TeacherID: normalizeOptionalID(teacherID),
+		Weekday:   weekday,
+		StartTime: strings.TrimSpace(startTime),
+		EndTime:   strings.TrimSpace(endTime),
+		Room:      normalizeOptionalText(room),
+		Status:    "active",
+	}
+	if err := entry.Validate(); err != nil {
+		return nil, err
+	}
+	id, err := uuid.NewV7()
+	if err != nil {
+		return nil, fmt.Errorf("academic: generate timetable id: %w", err)
+	}
+	now := time.Now().UTC()
+	entry.ID, entry.CreatedAt, entry.UpdatedAt = id.String(), now, now
+	return entry, nil
+}
+
+func (e TimetableEntry) Validate() error {
+	if e.TenantID == "" {
+		return ErrMissingTenant
+	}
+	if e.ClassID == "" || e.TermID == "" || e.SubjectID == "" {
+		return fmt.Errorf("%w: class_id, term_id and subject_id are required", ErrValidation)
+	}
+	if e.Weekday < 1 || e.Weekday > 7 {
+		return fmt.Errorf("%w: weekday must be between 1 and 7", ErrValidation)
+	}
+	start, err := time.Parse("15:04", e.StartTime)
+	if err != nil {
+		return fmt.Errorf("%w: start_time must be HH:MM", ErrValidation)
+	}
+	end, err := time.Parse("15:04", e.EndTime)
+	if err != nil || !end.After(start) {
+		return fmt.Errorf("%w: end_time must be HH:MM and after start_time", ErrValidation)
+	}
+	if e.Status != "active" && e.Status != "cancelled" {
+		return fmt.Errorf("%w: status must be active or cancelled", ErrValidation)
+	}
+	return nil
+}
+
+func (e *TimetableEntry) ApplyUpdate(teacherID *string, weekday *int, startTime, endTime, room, status *string) error {
+	if teacherID != nil {
+		e.TeacherID = normalizeOptionalID(teacherID)
+	}
+	if weekday != nil {
+		e.Weekday = *weekday
+	}
+	if startTime != nil {
+		e.StartTime = strings.TrimSpace(*startTime)
+	}
+	if endTime != nil {
+		e.EndTime = strings.TrimSpace(*endTime)
+	}
+	if room != nil {
+		e.Room = normalizeOptionalText(room)
+	}
+	if status != nil {
+		e.Status = strings.ToLower(strings.TrimSpace(*status))
+	}
+	if err := e.Validate(); err != nil {
+		return err
+	}
+	e.UpdatedAt = time.Now().UTC()
+	return nil
+}
+
 // NewSubject constructs a Subject, enforcing invariants.
 func NewSubject(tenantID, name string, code, description *string) (*Subject, error) {
 	if tenantID == "" {

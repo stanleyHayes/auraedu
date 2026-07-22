@@ -7,12 +7,15 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/auraedu/platform/auth"
 	"github.com/auraedu/platform/tenancy"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	// Register the pgx database/sql driver used by Goose migrations.
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 )
@@ -61,6 +64,7 @@ func Open(ctx context.Context, cfg Config) (*DB, error) {
 	d := &DB{pool: pool, dsn: cfg.DSN}
 	if cfg.Migrations != "" {
 		if err := d.RunMigrations(ctx, cfg.Migrations); err != nil {
+			pool.Close()
 			return nil, fmt.Errorf("db: run migrations: %w", err)
 		}
 	}
@@ -88,15 +92,30 @@ func (d *DB) Migrate(ctx context.Context, dir string) error {
 }
 
 // RunMigrations applies Goose migration scripts from dir using a dedicated sql.DB.
-func (d *DB) RunMigrations(ctx context.Context, dir string) error {
+func (d *DB) RunMigrations(ctx context.Context, dir string) (returnErr error) {
 	sqlDB, err := sql.Open("pgx", d.dsn)
 	if err != nil {
 		return fmt.Errorf("open sql db for migrations: %w", err)
 	}
-	defer sqlDB.Close()
+	defer func() { returnErr = errors.Join(returnErr, sqlDB.Close()) }()
 	if err := sqlDB.PingContext(ctx); err != nil {
 		return fmt.Errorf("ping sql db for migrations: %w", err)
 	}
+	lockConn, err := sqlDB.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("acquire migration lock connection: %w", err)
+	}
+	defer func() { returnErr = errors.Join(returnErr, lockConn.Close()) }()
+	const migrationLock = "hashtextextended(current_database() || ':auraedu.migrations', 0)"
+	if _, err := lockConn.ExecContext(ctx, "SELECT pg_advisory_lock("+migrationLock+")"); err != nil {
+		return fmt.Errorf("acquire migration advisory lock: %w", err)
+	}
+	defer func() {
+		unlockCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, unlockErr := lockConn.ExecContext(unlockCtx, "SELECT pg_advisory_unlock("+migrationLock+")")
+		returnErr = errors.Join(returnErr, unlockErr)
+	}()
 	if err := goose.SetDialect("postgres"); err != nil {
 		return fmt.Errorf("set dialect: %w", err)
 	}

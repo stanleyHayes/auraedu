@@ -8,4 +8,5 @@ var (
 	ErrMissingTenant = errors.New("analytics: tenant context required")
 	ErrForbidden     = errors.New("analytics: forbidden")
 	ErrConflict      = errors.New("analytics: conflict")
+	ErrUnavailable   = errors.New("analytics: dependency unavailable")
 )

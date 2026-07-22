@@ -1,4 +1,5 @@
-// Package session is a minimal local stub for the Redis session store.
+// Package session provides the Redis-backed refresh-session store. An in-memory
+// implementation is retained for local development and unit tests only.
 package session
 
 import (
@@ -38,6 +39,9 @@ func NewFromEnv(ctx context.Context) (ports.SessionStore, error) {
 			return nil, fmt.Errorf("redis ping: %w", err)
 		}
 		return &Store{redis: client, prefix: prefix}, nil
+	}
+	if config.Getenv("ENVIRONMENT", "development") == "production" {
+		return nil, errors.New("REDIS_URL is required in production")
 	}
 	return &Store{prefix: prefix, mem: make(map[string]memEntry), memClock: time.Now}, nil
 }

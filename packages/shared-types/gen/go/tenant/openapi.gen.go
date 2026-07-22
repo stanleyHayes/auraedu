@@ -7,6 +7,44 @@ import (
 	"net/http"
 )
 
+// OnboardingRequestCreate generated from OpenAPI schema.
+type OnboardingRequestCreate struct {
+	SchoolName           string  `json:"school_name"`
+	AdministratorName    string  `json:"administrator_name"`
+	Email                string  `json:"email"`
+	Phone                *string `json:"phone,omitempty"`
+	CountryCode          string  `json:"country_code"`
+	Plan                 string  `json:"plan"`
+	Priorities           *string `json:"priorities,omitempty"`
+	PrivacyNoticeVersion string  `json:"privacy_notice_version"`
+	AcceptedTerms        bool    `json:"accepted_terms"`
+	Website              *string `json:"website,omitempty"`
+}
+
+// OnboardingRequestReceipt generated from OpenAPI schema.
+type OnboardingRequestReceipt struct {
+	RequestId   string `json:"request_id"`
+	Status      string `json:"status"`
+	SubmittedAt string `json:"submitted_at"`
+}
+
+// OnboardingRequest generated from OpenAPI schema.
+type OnboardingRequest struct {
+	RequestId         string  `json:"request_id"`
+	SchoolName        string  `json:"school_name"`
+	AdministratorName string  `json:"administrator_name"`
+	Email             string  `json:"email"`
+	Phone             *string `json:"phone,omitempty"`
+	CountryCode       string  `json:"country_code"`
+	Plan              string  `json:"plan"`
+	Priorities        *string `json:"priorities,omitempty"`
+	Status            string  `json:"status"`
+	TenantCode        *string `json:"tenant_code,omitempty"`
+	DecisionReason    *string `json:"decision_reason,omitempty"`
+	SubmittedAt       string  `json:"submitted_at"`
+	DecidedAt         *string `json:"decided_at,omitempty"`
+}
+
 // Tenant generated from OpenAPI schema.
 type Tenant struct {
 	TenantCode string    `json:"tenant_code"`
@@ -24,7 +62,6 @@ type TenantCreate struct {
 	Name       string    `json:"name"`
 	Short      *string   `json:"short,omitempty"`
 	Status     *string   `json:"status,omitempty"`
-	Domain     *string   `json:"domain,omitempty"`
 	Plan       *string   `json:"plan,omitempty"`
 	Branding   *Branding `json:"branding,omitempty"`
 }
@@ -34,9 +71,21 @@ type TenantUpdate struct {
 	Name     *string   `json:"name,omitempty"`
 	Short    *string   `json:"short,omitempty"`
 	Status   *string   `json:"status,omitempty"`
-	Domain   *string   `json:"domain,omitempty"`
 	Plan     *string   `json:"plan,omitempty"`
 	Branding *Branding `json:"branding,omitempty"`
+}
+
+// CustomDomain generated from OpenAPI schema.
+type CustomDomain struct {
+	TenantCode        string  `json:"tenant_code"`
+	Hostname          string  `json:"hostname"`
+	Status            string  `json:"status"`
+	TxtRecordName     string  `json:"txt_record_name"`
+	VerificationToken *string `json:"verification_token,omitempty"`
+	VerifiedAt        *string `json:"verified_at,omitempty"`
+	ActivatedAt       *string `json:"activated_at,omitempty"`
+	DeactivatedAt     *string `json:"deactivated_at,omitempty"`
+	ProviderReference *string `json:"provider_reference,omitempty"`
 }
 
 // Branding generated from OpenAPI schema.
@@ -75,6 +124,11 @@ type RolloutConfig struct {
 
 // ServerInterface is implemented by the service HTTP adapter.
 type ServerInterface interface {
+	resolveOnboardingAdministrator(w http.ResponseWriter, r *http.Request)
+	submitOnboardingRequest(w http.ResponseWriter, r *http.Request)
+	listOnboardingRequests(w http.ResponseWriter, r *http.Request)
+	approveOnboardingRequest(w http.ResponseWriter, r *http.Request)
+	rejectOnboardingRequest(w http.ResponseWriter, r *http.Request)
 	listTenants(w http.ResponseWriter, r *http.Request)
 	createTenant(w http.ResponseWriter, r *http.Request)
 	getTenant(w http.ResponseWriter, r *http.Request)
@@ -83,6 +137,11 @@ type ServerInterface interface {
 	getBranding(w http.ResponseWriter, r *http.Request)
 	getSettings(w http.ResponseWriter, r *http.Request)
 	updateSettings(w http.ResponseWriter, r *http.Request)
+	requestCustomDomain(w http.ResponseWriter, r *http.Request)
+	getCustomDomain(w http.ResponseWriter, r *http.Request)
+	verifyCustomDomain(w http.ResponseWriter, r *http.Request)
+	activateCustomDomain(w http.ResponseWriter, r *http.Request)
+	deactivateCustomDomain(w http.ResponseWriter, r *http.Request)
 	resolveTenant(w http.ResponseWriter, r *http.Request)
 	getFeatureSnapshot(w http.ResponseWriter, r *http.Request)
 	setFeature(w http.ResponseWriter, r *http.Request)
@@ -91,6 +150,11 @@ type ServerInterface interface {
 
 // ClientInterface is the generated consumer stub for this service.
 type ClientInterface interface {
+	resolveOnboardingAdministrator(ctx context.Context) (*http.Response, error)
+	submitOnboardingRequest(ctx context.Context) (*http.Response, error)
+	listOnboardingRequests(ctx context.Context) (*http.Response, error)
+	approveOnboardingRequest(ctx context.Context) (*http.Response, error)
+	rejectOnboardingRequest(ctx context.Context) (*http.Response, error)
 	listTenants(ctx context.Context) (*http.Response, error)
 	createTenant(ctx context.Context) (*http.Response, error)
 	getTenant(ctx context.Context) (*http.Response, error)
@@ -99,6 +163,11 @@ type ClientInterface interface {
 	getBranding(ctx context.Context) (*http.Response, error)
 	getSettings(ctx context.Context) (*http.Response, error)
 	updateSettings(ctx context.Context) (*http.Response, error)
+	requestCustomDomain(ctx context.Context) (*http.Response, error)
+	getCustomDomain(ctx context.Context) (*http.Response, error)
+	verifyCustomDomain(ctx context.Context) (*http.Response, error)
+	activateCustomDomain(ctx context.Context) (*http.Response, error)
+	deactivateCustomDomain(ctx context.Context) (*http.Response, error)
 	resolveTenant(ctx context.Context) (*http.Response, error)
 	getFeatureSnapshot(ctx context.Context) (*http.Response, error)
 	setFeature(ctx context.Context) (*http.Response, error)

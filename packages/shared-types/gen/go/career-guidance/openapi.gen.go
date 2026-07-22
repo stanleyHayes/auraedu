@@ -30,7 +30,7 @@ type IngestMetricRequest struct {
 
 // GenerateGuidanceRequest generated from OpenAPI schema.
 type GenerateGuidanceRequest struct {
-	StudentId     string    `json:"student_id"`
+	StudentId     *string   `json:"student_id,omitempty"`
 	GuidanceTypes *[]string `json:"guidance_types,omitempty"`
 }
 

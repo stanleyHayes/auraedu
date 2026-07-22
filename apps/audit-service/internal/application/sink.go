@@ -11,7 +11,6 @@ import (
 	"github.com/auraedu/audit-service/internal/domain"
 	"github.com/auraedu/audit-service/internal/ports"
 	"github.com/auraedu/platform/tenancy"
-	"github.com/google/uuid"
 )
 
 // Sink is the audit use case: it turns a CloudEvent into an immutable AuditLog
@@ -77,25 +76,17 @@ func (s *Sink) Process(ctx context.Context, event tenancy.CloudEvent) error {
 	return nil
 }
 
-func extractTenantID(event tenancy.CloudEvent) (uuid.UUID, error) {
-	if event.TenantID != "" {
-		id, err := uuid.Parse(event.TenantID)
-		if err != nil {
-			return uuid.Nil, fmt.Errorf("audit sink: invalid tenant_id %q: %w", event.TenantID, err)
-		}
+func extractTenantID(event tenancy.CloudEvent) (string, error) {
+	if id := strings.TrimSpace(event.TenantID); id != "" {
 		return id, nil
 	}
 	var payload map[string]any
 	if err := json.Unmarshal(event.Data, &payload); err == nil {
-		if v, ok := payload["tenant_id"].(string); ok && v != "" {
-			id, err := uuid.Parse(v)
-			if err != nil {
-				return uuid.Nil, fmt.Errorf("audit sink: invalid payload tenant_id %q: %w", v, err)
-			}
-			return id, nil
+		if v, ok := payload["tenant_id"].(string); ok && strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v), nil
 		}
 	}
-	return uuid.Nil, tenancy.ErrMissingEventTenant
+	return "", tenancy.ErrMissingEventTenant
 }
 
 func extractActorIDFromPayload(data json.RawMessage) string {

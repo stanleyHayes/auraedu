@@ -59,7 +59,7 @@ func runMigrate(ctx context.Context) error {
 	if dsn == "" {
 		return fmt.Errorf("DATABASE_URL not set")
 	}
-	database, err := db.Open(ctx, db.Config{DSN: dsn, Migrations: "migrations"})
+	database, err := db.Open(ctx, db.Config{DSN: dsn, Migrations: config.Getenv("MIGRATIONS_PATH", "migrations")})
 	if err != nil {
 		return err
 	}

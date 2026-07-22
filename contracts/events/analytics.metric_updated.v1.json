@@ -18,7 +18,7 @@
       "const": "1.0"
     },
     "type": {
-      "const": "analytics.metric_updated"
+      "const": "analytics.metric_updated.v1"
     },
     "source": {
       "const": "analytics-service"
@@ -56,7 +56,23 @@
           "type": "string",
           "format": "date-time"
         }
+      },
+      "additionalProperties": false
+    }
+  },
+  "examples": [
+    {
+      "specversion": "1.0",
+      "type": "analytics.metric_updated.v1",
+      "source": "analytics-service",
+      "id": "example-id",
+      "time": "2026-07-19T10:00:00Z",
+      "tenant_id": "school-a",
+      "data": {
+        "metric_key": "example-metric.key",
+        "value": 1
       }
     }
-  }
+  ],
+  "additionalProperties": false
 }

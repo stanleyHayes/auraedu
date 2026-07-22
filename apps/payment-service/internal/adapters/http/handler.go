@@ -351,6 +351,8 @@ func (h *Handler) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 		httpx.TenantMismatch(w, r)
 	case errors.Is(err, domain.ErrUnauthorized):
 		httpx.Unauthorized(w, r, "invalid webhook signature")
+	case errors.Is(err, domain.ErrUnavailable):
+		httpx.RespondJSON(w, r, http.StatusServiceUnavailable, map[string]any{"error": "ownership_unavailable", "message": "payment ownership could not be verified"})
 	default:
 		httpx.RespondError(w, r, httpx.ErrorFrom(err))
 	}

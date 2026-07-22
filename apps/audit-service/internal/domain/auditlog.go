@@ -15,7 +15,7 @@ import (
 // exactly one tenant.
 type AuditLog struct {
 	ID            uuid.UUID       `json:"id"`
-	TenantID      uuid.UUID       `json:"tenant_id"`
+	TenantID      string          `json:"tenant_id"`
 	EventID       string          `json:"event_id"`
 	EventType     string          `json:"event_type"`
 	SourceService string          `json:"source_service"`
@@ -33,7 +33,7 @@ func (a AuditLog) Validate() error {
 	if a.ID == uuid.Nil {
 		return fmt.Errorf("%w: id is required", ErrValidation)
 	}
-	if a.TenantID == uuid.Nil {
+	if strings.TrimSpace(a.TenantID) == "" {
 		return fmt.Errorf("%w: tenant_id is required", ErrValidation)
 	}
 	if strings.TrimSpace(a.EventID) == "" {
@@ -74,7 +74,7 @@ func (b *AuditLogBuilder) ID(id uuid.UUID) *AuditLogBuilder {
 }
 
 // TenantID sets the tenant scope.
-func (b *AuditLogBuilder) TenantID(id uuid.UUID) *AuditLogBuilder {
+func (b *AuditLogBuilder) TenantID(id string) *AuditLogBuilder {
 	b.log.TenantID = id
 	return b
 }

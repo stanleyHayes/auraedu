@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/auraedu/file-service/internal/domain"
 	"github.com/auraedu/file-service/internal/ports"
@@ -43,12 +44,18 @@ func (s *LocalStorage) Save(ctx context.Context, tenantID, fileID string, r io.R
 	if tenantID == "" || fileID == "" {
 		return "", fmt.Errorf("tenant_id and file_id are required")
 	}
-	dir := filepath.Join(s.baseDir, tenantID)
+	dir, err := s.tenantRoot(tenantID)
+	if err != nil {
+		return "", err
+	}
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return "", fmt.Errorf("create tenant dir: %w", err)
 	}
-	path := filepath.Join(dir, fileID)
-	f, err := os.OpenFile(filepath.Clean(path), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	path, err := confinedPath(dir, filepath.Join(dir, fileID))
+	if err != nil {
+		return "", err
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600) //nolint:gosec // confinedPath proves the target remains under the tenant root.
 	if err != nil {
 		return "", fmt.Errorf("create file: %w", err)
 	}
@@ -66,11 +73,18 @@ func (s *LocalStorage) Save(ctx context.Context, tenantID, fileID string, r io.R
 // Open returns a reader for the stored object at path.
 func (s *LocalStorage) Open(ctx context.Context, tenantID, path string) (io.ReadCloser, error) {
 	_ = ctx
-	_ = tenantID
 	if path == "" {
 		return nil, fmt.Errorf("path is required")
 	}
-	f, err := os.Open(filepath.Clean(path))
+	root, err := s.tenantRoot(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	path, err = confinedPath(root, path)
+	if err != nil {
+		return nil, err
+	}
+	f, err := os.Open(path) //nolint:gosec // confinedPath proves the target remains under the tenant root.
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("file not found")
@@ -83,12 +97,53 @@ func (s *LocalStorage) Open(ctx context.Context, tenantID, path string) (io.Read
 // Delete removes the stored object at path.
 func (s *LocalStorage) Delete(ctx context.Context, tenantID, path string) error {
 	_ = ctx
-	_ = tenantID
 	if path == "" {
 		return nil
 	}
-	if err := os.Remove(filepath.Clean(path)); err != nil && !os.IsNotExist(err) {
+	root, err := s.tenantRoot(tenantID)
+	if err != nil {
+		return err
+	}
+	path, err = confinedPath(root, path)
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("remove file: %w", err)
 	}
 	return nil
+}
+
+func (s *LocalStorage) tenantRoot(tenantID string) (string, error) {
+	if tenantID == "" {
+		return "", fmt.Errorf("tenant_id is required")
+	}
+	base, err := filepath.Abs(s.baseDir)
+	if err != nil {
+		return "", fmt.Errorf("resolve storage root: %w", err)
+	}
+	root, err := filepath.Abs(filepath.Join(base, tenantID))
+	if err != nil {
+		return "", fmt.Errorf("resolve tenant storage root: %w", err)
+	}
+	if _, err := confinedPath(base, root); err != nil {
+		return "", fmt.Errorf("invalid tenant storage root: %w", err)
+	}
+	return root, nil
+}
+
+func confinedPath(root, candidate string) (string, error) {
+	root, err := filepath.Abs(filepath.Clean(root))
+	if err != nil {
+		return "", err
+	}
+	candidate, err = filepath.Abs(filepath.Clean(candidate))
+	if err != nil {
+		return "", err
+	}
+	rel, err := filepath.Rel(root, candidate)
+	if err != nil || rel == ".." || filepath.IsAbs(rel) || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("path escapes tenant storage root")
+	}
+	return candidate, nil
 }

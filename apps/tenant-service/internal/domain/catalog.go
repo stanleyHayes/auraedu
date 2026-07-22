@@ -1,5 +1,7 @@
 package domain
 
+import "github.com/auraedu/platform/flags"
+
 // FeatureCatalogEntry is a stable feature key + the plan tier that unlocks it
 // (spec §9, §16). This is the canonical catalog; adapters build per-tenant
 // snapshots from it, and entitlement checks read the plan from it.
@@ -11,39 +13,15 @@ type FeatureCatalogEntry struct {
 // FeatureCatalog returns the canonical feature catalog.
 // Adapters build per-tenant snapshots from it, and entitlement checks read the plan from it.
 func FeatureCatalog() []FeatureCatalogEntry {
-	return []FeatureCatalogEntry{
-		{"public_website", "starter"},
-		{"admissions", "growth"},
-		{"student_management", "starter"},
-		{"staff_management", "starter"},
-		{"parent_portal", "starter"},
-		{"student_portal", "growth"},
-		{"teacher_portal", "starter"},
-		{"attendance", "starter"},
-		{"assignments", "growth"},
-		{"assessments", "growth"},
-		{"cbt_exams", "professional"},
-		{"report_cards", "starter"},
-		{"fees", "growth"},
-		{"online_payments", "professional"},
-		{"timetable", "growth"},
-		{"library", "professional"},
-		{"hostel", "professional"},
-		{"transport", "professional"},
-		{"academic_management", "core"},
-		{"announcements", "starter"},
-		{"notifications", "starter"},
-		{"email_notifications", "starter"},
-		{"sms_notifications", "growth"},
-		{"whatsapp_notifications", "professional"},
-		{"analytics", "professional"},
-		{"ai_recommendations", "ai_plus"},
-		{"ai_predictions", "ai_plus"},
-		{"career_guidance", "ai_plus"},
-		{"billing", "core"},
-		{"file_management", "core"},
-		{"custom_domain", "professional"},
+	generated := flags.KnownFeatures()
+	catalog := make([]FeatureCatalogEntry, 0, len(generated))
+	for _, feature := range generated {
+		catalog = append(catalog, FeatureCatalogEntry{
+			Key:          feature.Key,
+			PlanRequired: feature.PlanRequired,
+		})
 	}
+	return catalog
 }
 
 // FeaturePlan returns the plan tier required for a feature key, and whether the key is known.

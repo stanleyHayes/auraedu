@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.auraedu.dev/events/lead.interaction_created.v1.json",
+  "title": "lead.interaction_created",
+  "description": "Emitted when a tenant-scoped CRM interaction is recorded.",
+  "type": "object",
+  "required": [
+    "specversion",
+    "type",
+    "source",
+    "id",
+    "time",
+    "tenant_id",
+    "data"
+  ],
+  "properties": {
+    "specversion": {
+      "const": "1.0"
+    },
+    "type": {
+      "const": "lead.interaction_created.v1"
+    },
+    "source": {
+      "const": "crm-service"
+    },
+    "subject": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "id": {
+      "type": "string"
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tenant_id": {
+      "type": "string"
+    },
+    "correlation_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "causation_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "datacontenttype": {
+      "const": "application/json"
+    },
+    "data": {
+      "type": "object",
+      "required": [
+        "interaction_id",
+        "lead_id",
+        "channel",
+        "direction",
+        "actor_type",
+        "occurred_at"
+      ],
+      "properties": {
+        "interaction_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "lead_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "channel": {
+          "type": "string"
+        },
+        "direction": {
+          "enum": [
+            "inbound",
+            "outbound"
+          ]
+        },
+        "actor_type": {
+          "enum": [
+            "prospect",
+            "staff",
+            "ai",
+            "system"
+          ]
+        },
+        "occurred_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "specversion": "1.0",
+      "type": "lead.interaction_created.v1",
+      "source": "crm-service",
+      "id": "example-id",
+      "time": "2026-07-19T10:00:00Z",
+      "tenant_id": "school-a",
+      "data": {
+        "interaction_id": "11111111-1111-4111-8111-111111111111",
+        "lead_id": "11111111-1111-4111-8111-111111111111",
+        "channel": "example-channel",
+        "direction": "inbound",
+        "actor_type": "prospect",
+        "occurred_at": "2026-07-19T10:00:00Z"
+      }
+    }
+  ]
+}

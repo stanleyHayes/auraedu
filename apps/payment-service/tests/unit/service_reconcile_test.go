@@ -19,21 +19,21 @@ func newDevService(pRepo *fakePaymentRepo, txRepo *fakeTxRepo, wRepo *fakeWebhoo
 	return application.NewService(pRepo, txRepo, wRepo,
 		application.WithPublisher(pub),
 		application.WithPaymentProvider(prov),
-		application.WithFeatureGate(enabledGates(unitTenantA, application.FeaturePayments)),
+		application.WithFeatureGate(enabledGates()),
 	)
 }
 
-func webhookPayload(ref, tenantID string) []byte {
-	return []byte(`{"reference":"` + ref + `","tenant_id":"` + tenantID + `"}`)
+func webhookPayload(tenantID string) []byte {
+	return []byte(`{"reference":"ref-1","tenant_id":"` + tenantID + `"}`)
 }
 
 func TestProcessWebhook_DuplicateDeliveryAppliesOnce(t *testing.T) {
 	pRepo, txRepo, wRepo, pub := newFakePaymentRepo(), &fakeTxRepo{}, &fakeWebhookRepo{}, &fakePublisher{}
 	prov := &stubProvider{ref: "ref-1", verifyStatus: string(domain.PaymentStatusSuccess)}
 	svc := newDevService(pRepo, txRepo, wRepo, pub, prov)
-	p := seedProcessingPayment(t, svc, unitTenantA)
+	p := seedProcessingPayment(t, svc)
 
-	req := application.ProcessWebhookRequest{Provider: "paystack", Payload: webhookPayload("ref-1", unitTenantA)}
+	req := application.ProcessWebhookRequest{Provider: "paystack", Payload: webhookPayload(unitTenantA)}
 	if _, err := svc.ProcessWebhook(context.Background(), req); err != nil {
 		t.Fatalf("first delivery: %v", err)
 	}
@@ -67,10 +67,10 @@ func TestProcessWebhook_LateFailureDoesNotRegressSuccess(t *testing.T) {
 	pRepo, txRepo, wRepo, pub := newFakePaymentRepo(), &fakeTxRepo{}, &fakeWebhookRepo{}, &fakePublisher{}
 	prov := &stubProvider{ref: "ref-1", verifyStatus: string(domain.PaymentStatusSuccess)}
 	svc := newDevService(pRepo, txRepo, wRepo, pub, prov)
-	seedProcessingPayment(t, svc, unitTenantA)
+	seedProcessingPayment(t, svc)
 
 	if _, err := svc.ProcessWebhook(context.Background(), application.ProcessWebhookRequest{
-		Provider: "paystack", Payload: webhookPayload("ref-1", unitTenantA),
+		Provider: "paystack", Payload: webhookPayload(unitTenantA),
 	}); err != nil {
 		t.Fatalf("first webhook: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestProcessWebhook_LateFailureDoesNotRegressSuccess(t *testing.T) {
 	// must not regress the successful payment.
 	prov.verifyStatus = string(domain.PaymentStatusFailed)
 	got, err := svc.ProcessWebhook(context.Background(), application.ProcessWebhookRequest{
-		Provider: "paystack", Payload: webhookPayload("ref-1", unitTenantA),
+		Provider: "paystack", Payload: webhookPayload(unitTenantA),
 	})
 	if err != nil {
 		t.Fatalf("late failure webhook: %v", err)
@@ -96,7 +96,7 @@ func TestVerifyPayment_ReconcilesAndIsIdempotent(t *testing.T) {
 	pRepo, txRepo, wRepo, pub := newFakePaymentRepo(), &fakeTxRepo{}, &fakeWebhookRepo{}, &fakePublisher{}
 	prov := &stubProvider{ref: "ref-1", verifyStatus: string(domain.PaymentStatusSuccess)}
 	svc := newDevService(pRepo, txRepo, wRepo, pub, prov)
-	p := seedProcessingPayment(t, svc, unitTenantA)
+	p := seedProcessingPayment(t, svc)
 
 	ctx := tenantCtx(unitTenantA)
 	actor := unitActor(unitTenantA, application.PermInitiate)
@@ -142,11 +142,11 @@ func TestVerifyPayment_FailedThenCorrectedToSuccess(t *testing.T) {
 	pRepo, txRepo, wRepo, pub := newFakePaymentRepo(), &fakeTxRepo{}, &fakeWebhookRepo{}, &fakePublisher{}
 	prov := &stubProvider{ref: "ref-1", verifyStatus: string(domain.PaymentStatusFailed)}
 	svc := newDevService(pRepo, txRepo, wRepo, pub, prov)
-	p := seedProcessingPayment(t, svc, unitTenantA)
+	p := seedProcessingPayment(t, svc)
 
 	// Webhook reports failure first.
 	if _, err := svc.ProcessWebhook(context.Background(), application.ProcessWebhookRequest{
-		Provider: "paystack", Payload: webhookPayload("ref-1", unitTenantA),
+		Provider: "paystack", Payload: webhookPayload(unitTenantA),
 	}); err != nil {
 		t.Fatalf("failure webhook: %v", err)
 	}
@@ -176,7 +176,7 @@ func TestVerifyPayment_FailureTransition(t *testing.T) {
 	pRepo, txRepo, wRepo, pub := newFakePaymentRepo(), &fakeTxRepo{}, &fakeWebhookRepo{}, &fakePublisher{}
 	prov := &stubProvider{ref: "ref-1", verifyStatus: string(domain.PaymentStatusFailed)}
 	svc := newDevService(pRepo, txRepo, wRepo, pub, prov)
-	p := seedProcessingPayment(t, svc, unitTenantA)
+	p := seedProcessingPayment(t, svc)
 
 	got, err := svc.VerifyPayment(tenantCtx(unitTenantA), unitActor(unitTenantA, application.PermInitiate), p.ID)
 	if err != nil {
@@ -221,7 +221,7 @@ func TestVerifyPayment_TenantScoping(t *testing.T) {
 		application.WithPaymentProvider(prov),
 		application.WithFeatureGate(gates),
 	)
-	p := seedProcessingPayment(t, svc, unitTenantA)
+	p := seedProcessingPayment(t, svc)
 
 	// A tenant-B actor (valid in its own tenant) cannot see tenant A's payment:
 	// the tenant-scoped lookup finds nothing and the provider is never called.
@@ -244,7 +244,7 @@ func TestVerifyPayment_RequiresPermission(t *testing.T) {
 	pRepo, txRepo, wRepo, pub := newFakePaymentRepo(), &fakeTxRepo{}, &fakeWebhookRepo{}, &fakePublisher{}
 	prov := &stubProvider{ref: "ref-1", verifyStatus: string(domain.PaymentStatusSuccess)}
 	svc := newDevService(pRepo, txRepo, wRepo, pub, prov)
-	p := seedProcessingPayment(t, svc, unitTenantA)
+	p := seedProcessingPayment(t, svc)
 
 	_, err := svc.VerifyPayment(tenantCtx(unitTenantA), unitActor(unitTenantA, application.PermRead), p.ID)
 	if !errors.Is(err, domain.ErrForbidden) {
@@ -256,12 +256,12 @@ func TestProcessWebhook_TenantIsolation(t *testing.T) {
 	pRepo, txRepo, wRepo, pub := newFakePaymentRepo(), &fakeTxRepo{}, &fakeWebhookRepo{}, &fakePublisher{}
 	prov := &stubProvider{ref: "ref-1", verifyStatus: string(domain.PaymentStatusSuccess)}
 	svc := newDevService(pRepo, txRepo, wRepo, pub, prov)
-	p := seedProcessingPayment(t, svc, unitTenantA)
+	p := seedProcessingPayment(t, svc)
 
 	// A webhook claiming tenant B for a reference owned by tenant A finds nothing and
 	// must not touch tenant A's payment.
 	_, err := svc.ProcessWebhook(context.Background(), application.ProcessWebhookRequest{
-		Provider: "paystack", Payload: webhookPayload("ref-1", unitTenantB),
+		Provider: "paystack", Payload: webhookPayload(unitTenantB),
 	})
 	if !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("expected not found for cross-tenant reference, got %v", err)

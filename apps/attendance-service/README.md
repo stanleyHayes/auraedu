@@ -19,4 +19,8 @@ REST: `GET/POST /api/v1/attendance`, `GET/PATCH/DELETE /api/v1/attendance/{atten
 idempotent upsert on `(tenant_id, student_id, academic_year_id, date)`).
 Events: `attendance.marked.v1`, `attendance.updated.v1`, `attendance.deleted.v1`.
 
+Attendance writes and their promised integration events commit atomically through a
+FORCE-RLS transactional outbox. Run `attendance-service worker` alongside the API to
+publish pending events to JetStream with stable event IDs and bounded retries.
+
 Every action enforces: authenticated → tenant → RBAC (`attendance.read` / `attendance.mark`) → feature-flag (`attendance`) → ownership.

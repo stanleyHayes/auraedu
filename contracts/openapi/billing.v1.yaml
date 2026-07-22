@@ -4,6 +4,8 @@ info:
   version: 1.0.0
   description: >
     SaaS plans, subscriptions, and invoices (spec \u00a77). Owned by lane L2 (EP-22). Feature flag: billing.
+  contact:
+    name: AuraEDU Engineering
 servers:
   - url: /api/v1
 tags:
@@ -12,9 +14,23 @@ tags:
   - name: invoices
 
 paths:
-    /plans:
+    /public/billing/plans:
+      get:
+            operationId: listPublicPlans
+            description: Executes the list public plans workflow within this AuraEDU API boundary.
+            tags: ['plans']
+            summary: List the active public SaaS plan catalogue
+            security: []
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/PlanList' }
+    /billing/plans:
       get:
             operationId: listPlans
+            description: Executes the list plans workflow within this AuraEDU API boundary.
             tags: ['plans']
             summary: List SaaS plans
             parameters:
@@ -29,9 +45,62 @@ paths:
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
-    /subscriptions:
+      post:
+        operationId: createPlan
+        description: Executes the create plan workflow within this AuraEDU API boundary.
+        tags: ['plans']
+        summary: Create a SaaS plan
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }]
+        requestBody:
+          required: true
+          content: { application/json: { schema: { $ref: '#/components/schemas/CreatePlan' } } }
+        responses:
+          '201': { description: Created plan, content: { application/json: { schema: { $ref: '#/components/schemas/Plan' } } } }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+    /billing/plans/{plan_id}:
+      get:
+        operationId: getPlan
+        description: Executes the get plan workflow within this AuraEDU API boundary.
+        tags: ['plans']
+        summary: Get a SaaS plan
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/PlanId' }]
+        responses:
+          '200': { description: Plan, content: { application/json: { schema: { $ref: '#/components/schemas/Plan' } } } }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+      patch:
+        operationId: updatePlan
+        description: Executes the update plan workflow within this AuraEDU API boundary.
+        tags: ['plans']
+        summary: Update a SaaS plan
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/PlanId' }]
+        requestBody:
+          required: true
+          content: { application/json: { schema: { $ref: '#/components/schemas/UpdatePlan' } } }
+        responses:
+          '200': { description: Updated plan, content: { application/json: { schema: { $ref: '#/components/schemas/Plan' } } } }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+      delete:
+        operationId: deletePlan
+        description: Executes the delete plan workflow within this AuraEDU API boundary.
+        tags: ['plans']
+        summary: Delete a SaaS plan
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/PlanId' }]
+        responses:
+          '204': { description: Plan deleted }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+    /billing/subscriptions:
       get:
             operationId: listSubscriptions
+            description: Executes the list subscriptions workflow within this AuraEDU API boundary.
             tags: ['subscriptions']
             summary: List tenant subscriptions
             parameters:
@@ -49,29 +118,84 @@ paths:
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
       post:
-            operationId: createSubscription
-            tags: ['subscriptions']
-            summary: Create or update subscription
-            parameters:
-              - $ref: '#/components/parameters/TenantHeader'
-            requestBody:
-              required: true
-              content:
-                application/json:
-                  schema: { $ref: '#/components/schemas/CreateSubscription' }
-            responses:
-              '201':
-                description: OK
-                content:
-                  application/json:
-                    schema: { $ref: '#/components/schemas/Subscription' }
-              '403': { $ref: '#/components/responses/Forbidden' }
-              '404': { $ref: '#/components/responses/NotFound' }
-              '422': { $ref: '#/components/responses/ValidationError' }
-              '401': { $ref: '#/components/responses/Unauthorized' }
-    /saas-invoices:
+        operationId: createSubscription
+        description: Executes the create subscription workflow within this AuraEDU API boundary.
+        tags: ['subscriptions']
+        summary: Create a subscription
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateSubscription' }
+        responses:
+          '201':
+            description: Created subscription
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/Subscription' }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+    /billing/subscriptions/{subscription_id}:
+      get:
+        operationId: getSubscription
+        description: Executes the get subscription workflow within this AuraEDU API boundary.
+        tags: ['subscriptions']
+        summary: Get a tenant subscription
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/SubscriptionId' }]
+        responses:
+          '200': { description: Subscription, content: { application/json: { schema: { $ref: '#/components/schemas/Subscription' } } } }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+      patch:
+        operationId: updateSubscription
+        description: Executes the update subscription workflow within this AuraEDU API boundary.
+        tags: ['subscriptions']
+        summary: Update a tenant subscription
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/SubscriptionId' }]
+        requestBody:
+          required: true
+          content: { application/json: { schema: { $ref: '#/components/schemas/UpdateSubscription' } } }
+        responses:
+          '200': { description: Updated subscription, content: { application/json: { schema: { $ref: '#/components/schemas/Subscription' } } } }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+      delete:
+        operationId: deleteSubscription
+        description: Executes the delete subscription workflow within this AuraEDU API boundary.
+        tags: ['subscriptions']
+        summary: Delete a tenant subscription
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/SubscriptionId' }]
+        responses:
+          '204': { description: Subscription deleted }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+    /billing/subscriptions/{subscription_id}/change-plan:
+      post:
+        operationId: changeSubscriptionPlan
+        description: Executes the change subscription plan workflow within this AuraEDU API boundary.
+        tags: ['subscriptions']
+        summary: Change a tenant subscription plan
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/SubscriptionId' }]
+        requestBody:
+          required: true
+          content: { application/json: { schema: { $ref: '#/components/schemas/ChangePlan' } } }
+        responses:
+          '200': { description: Updated subscription, content: { application/json: { schema: { $ref: '#/components/schemas/Subscription' } } } }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+    /billing/invoices:
       get:
             operationId: listSaasInvoices
+            description: Executes the list saas invoices workflow within this AuraEDU API boundary.
             tags: ['invoices']
             summary: List SaaS invoices
             parameters:
@@ -88,11 +212,97 @@ paths:
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
+      post:
+        operationId: createSaasInvoice
+        description: Executes the create saas invoice workflow within this AuraEDU API boundary.
+        tags: ['invoices']
+        summary: Create a SaaS invoice
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }]
+        requestBody:
+          required: true
+          content: { application/json: { schema: { $ref: '#/components/schemas/CreateSaasInvoice' } } }
+        responses:
+          '201': { description: Created invoice, content: { application/json: { schema: { $ref: '#/components/schemas/SaasInvoice' } } } }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+    /billing/invoices/{invoice_id}:
+      get:
+        operationId: getSaasInvoice
+        description: Executes the get saas invoice workflow within this AuraEDU API boundary.
+        tags: ['invoices']
+        summary: Get a SaaS invoice
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/InvoiceId' }]
+        responses:
+          '200': { description: Invoice, content: { application/json: { schema: { $ref: '#/components/schemas/SaasInvoice' } } } }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+      patch:
+        operationId: updateSaasInvoice
+        description: Executes the update saas invoice workflow within this AuraEDU API boundary.
+        tags: ['invoices']
+        summary: Update a SaaS invoice
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/InvoiceId' }]
+        requestBody:
+          required: true
+          content: { application/json: { schema: { $ref: '#/components/schemas/UpdateSaasInvoice' } } }
+        responses:
+          '200': { description: Updated invoice, content: { application/json: { schema: { $ref: '#/components/schemas/SaasInvoice' } } } }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+      delete:
+        operationId: deleteSaasInvoice
+        description: Executes the delete saas invoice workflow within this AuraEDU API boundary.
+        tags: ['invoices']
+        summary: Delete a SaaS invoice
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/InvoiceId' }]
+        responses:
+          '204': { description: Invoice deleted }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+    /billing/invoices/{invoice_id}/pay:
+      post:
+        operationId: markSaasInvoicePaid
+        description: Executes the mark saas invoice paid workflow within this AuraEDU API boundary.
+        tags: ['invoices']
+        summary: Mark a SaaS invoice as paid
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/InvoiceId' }]
+        responses:
+          '200': { description: Paid invoice, content: { application/json: { schema: { $ref: '#/components/schemas/SaasInvoice' } } } }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+    /billing/invoices/{invoice_id}/void:
+      post:
+        operationId: markSaasInvoiceVoid
+        description: Executes the mark saas invoice void workflow within this AuraEDU API boundary.
+        tags: ['invoices']
+        summary: Mark a SaaS invoice as void
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/InvoiceId' }]
+        responses:
+          '200': { description: Void invoice, content: { application/json: { schema: { $ref: '#/components/schemas/SaasInvoice' } } } }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
 
 components:
   parameters:
-    TenantId:
-      name: tenant_id
+    PlanId:
+      name: plan_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    SubscriptionId:
+      name: subscription_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    InvoiceId:
+      name: invoice_id
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -121,39 +331,104 @@ components:
         request_id: { type: string }
     Plan:
         type: object
-        required: [id, key, name]
+        required: [id, code, name, price_cents, currency, billing_interval, features, status]
         properties:
           id: { type: string, format: uuid }
-          key: { type: string }
+          code: { type: string }
           name: { type: string }
+          description: { type: [string, 'null'] }
           features: { type: array, items: { type: string } }
-          price_monthly: { type: [number, 'null'], minimum: 0 }
+          price_cents: { type: integer, minimum: 0 }
+          currency: { type: string, minLength: 3, maxLength: 3 }
+          billing_interval: { type: string, enum: [monthly, yearly] }
+          status: { type: string, enum: [active, archived] }
+          created_at: { type: string, format: date-time }
+          updated_at: { type: string, format: date-time }
+    CreatePlan:
+        type: object
+        required: [name, code, price_cents, currency, billing_interval, features]
+        properties:
+          name: { type: string }
+          code: { type: string }
+          description: { type: [string, 'null'] }
+          price_cents: { type: integer, minimum: 0 }
+          currency: { type: string, minLength: 3, maxLength: 3 }
+          billing_interval: { type: string, enum: [monthly, yearly] }
+          features: { type: array, items: { type: string } }
+    UpdatePlan:
+        type: object
+        properties:
+          name: { type: string }
+          code: { type: string }
+          description: { type: [string, 'null'] }
+          price_cents: { type: integer, minimum: 0 }
+          currency: { type: string, minLength: 3, maxLength: 3 }
+          billing_interval: { type: string, enum: [monthly, yearly] }
+          features: { type: array, items: { type: string } }
+          status: { type: string, enum: [active, archived] }
     Subscription:
         type: object
-        required: [id, tenant_id, plan_key, status]
+        required: [id, tenant_id, plan_id, status, current_period_start, current_period_end, created_at, updated_at]
         properties:
           id: { type: string, format: uuid }
-          tenant_id: { type: string, format: uuid }
-          plan_key: { type: string }
-          status: { type: string, enum: [active, canceled, past_due] }
+          tenant_id: { type: string }
+          plan_id: { type: string, format: uuid }
+          status: { type: string, enum: [trialing, active, past_due, cancelled] }
           current_period_start: { type: string, format: date-time }
           current_period_end: { type: string, format: date-time }
+          trial_ends_at: { type: [string, 'null'], format: date-time }
+          cancelled_at: { type: [string, 'null'], format: date-time }
+          created_at: { type: string, format: date-time }
+          updated_at: { type: string, format: date-time }
     CreateSubscription:
         type: object
-        required: [tenant_id, plan_key]
+        required: [plan_id]
         properties:
-          tenant_id: { type: string, format: uuid }
-          plan_key: { type: string }
-          billing_email: { type: [string, 'null'], format: email }
+          plan_id: { type: string, format: uuid }
+          status: { type: string, enum: [trialing, active, past_due, cancelled] }
+          current_period_start: { type: string, format: date-time }
+          current_period_end: { type: string, format: date-time }
+          trial_ends_at: { type: [string, 'null'], format: date-time }
+    UpdateSubscription:
+        type: object
+        properties:
+          status: { type: string, enum: [trialing, active, past_due, cancelled] }
+          current_period_start: { type: string, format: date-time }
+          current_period_end: { type: string, format: date-time }
+          trial_ends_at: { type: [string, 'null'], format: date-time }
+          cancelled_at: { type: [string, 'null'], format: date-time }
+    ChangePlan:
+        type: object
+        required: [plan_id]
+        properties:
+          plan_id: { type: string, format: uuid }
     SaasInvoice:
         type: object
-        required: [id, tenant_id, amount, status]
+        required: [id, tenant_id, subscription_id, amount_cents, status, created_at, updated_at]
         properties:
           id: { type: string, format: uuid }
-          tenant_id: { type: string, format: uuid }
-          amount: { type: number, minimum: 0 }
-          status: { type: string, enum: [draft, open, paid, void] }
-          due_date: { type: [string, 'null'], format: date }
+          tenant_id: { type: string }
+          subscription_id: { type: string, format: uuid }
+          amount_cents: { type: integer, minimum: 0 }
+          status: { type: string, enum: [draft, open, paid, uncollectible, void] }
+          due_date: { type: [string, 'null'], format: date-time }
+          paid_at: { type: [string, 'null'], format: date-time }
+          created_at: { type: string, format: date-time }
+          updated_at: { type: string, format: date-time }
+    CreateSaasInvoice:
+        type: object
+        required: [subscription_id, amount_cents]
+        properties:
+          subscription_id: { type: string, format: uuid }
+          amount_cents: { type: integer, minimum: 0 }
+          due_date: { type: [string, 'null'], format: date-time }
+    UpdateSaasInvoice:
+        type: object
+        properties:
+          amount_cents: { type: integer, minimum: 0 }
+          status: { type: string, enum: [draft, open, paid, uncollectible, void] }
+          due_date: { type: [string, 'null'], format: date-time }
+          paid_at: { type: [string, 'null'], format: date-time }
     PlanList:
         type: object
         properties:
@@ -207,4 +482,3 @@ components:
 
 security:
   - bearerAuth: []
-

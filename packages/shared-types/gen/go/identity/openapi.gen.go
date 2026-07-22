@@ -9,8 +9,24 @@ import (
 
 // LoginRequest generated from OpenAPI schema.
 type LoginRequest struct {
-	Identifier string `json:"identifier"`
-	Password   string `json:"password"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+// MFAChallenge generated from OpenAPI schema.
+type MFAChallenge struct {
+	Status         string  `json:"status"`
+	ChallengeToken string  `json:"challenge_token"`
+	Secret         *string `json:"secret,omitempty"`
+	OtpauthUri     *string `json:"otpauth_uri,omitempty"`
+	User           User    `json:"user"`
+}
+
+// MFAVerifyRequest generated from OpenAPI schema.
+type MFAVerifyRequest struct {
+	ChallengeToken string  `json:"challenge_token"`
+	Code           string  `json:"code"`
+	SetupSecret    *string `json:"setup_secret,omitempty"`
 }
 
 // RefreshRequest generated from OpenAPI schema.
@@ -18,96 +34,157 @@ type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-// LogoutRequest generated from OpenAPI schema.
-type LogoutRequest struct {
-	RefreshToken string `json:"refresh_token"`
-}
-
 // TokenPair generated from OpenAPI schema.
 type TokenPair struct {
-	AccessToken  string  `json:"access_token"`
-	RefreshToken string  `json:"refresh_token"`
-	ExpiresIn    int     `json:"expires_in"`
-	TokenType    *string `json:"token_type,omitempty"`
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	TokenType    string `json:"token_type"`
+	ExpiresAt    string `json:"expires_at"`
+	User         User   `json:"user"`
+}
+
+// CurrentIdentity generated from OpenAPI schema.
+type CurrentIdentity struct {
+	UserId        string   `json:"user_id"`
+	TenantId      string   `json:"tenant_id"`
+	Role          string   `json:"role"`
+	Permissions   []string `json:"permissions"`
+	FeaturesHash  string   `json:"features_hash"`
+	PlatformAdmin bool     `json:"platform_admin"`
 }
 
 // User generated from OpenAPI schema.
 type User struct {
-	Id        string  `json:"id"`
-	TenantId  string  `json:"tenant_id"`
-	Email     string  `json:"email"`
-	Username  *string `json:"username,omitempty"`
-	Role      string  `json:"role"`
-	Status    string  `json:"status"`
-	CreatedAt *string `json:"created_at,omitempty"`
-	UpdatedAt *string `json:"updated_at,omitempty"`
+	Id          string   `json:"id"`
+	Email       string   `json:"email"`
+	Name        string   `json:"name"`
+	TenantId    string   `json:"tenant_id"`
+	Role        string   `json:"role"`
+	Permissions []string `json:"permissions"`
+	Status      string   `json:"status"`
 }
 
-// CreateUser generated from OpenAPI schema.
-type CreateUser struct {
-	Email    string  `json:"email"`
-	Username *string `json:"username,omitempty"`
-	Role     string  `json:"role"`
-	Password *string `json:"password,omitempty"`
+// CreateUserRequest generated from OpenAPI schema.
+type CreateUserRequest struct {
+	TenantId    *string   `json:"tenant_id,omitempty"`
+	Email       string    `json:"email"`
+	Name        string    `json:"name"`
+	Role        string    `json:"role"`
+	Permissions *[]string `json:"permissions,omitempty"`
+	Password    *string   `json:"password,omitempty"`
 }
 
-// UpdateUser generated from OpenAPI schema.
-type UpdateUser struct {
-	Email    *string `json:"email,omitempty"`
-	Username *string `json:"username,omitempty"`
-	Role     *string `json:"role,omitempty"`
-	Status   *string `json:"status,omitempty"`
+// UpdateUserRequest generated from OpenAPI schema.
+type UpdateUserRequest struct {
+	Name        *string   `json:"name,omitempty"`
+	Role        *string   `json:"role,omitempty"`
+	Permissions *[]string `json:"permissions,omitempty"`
+	Status      *string   `json:"status,omitempty"`
 }
 
-// RoleAssignment generated from OpenAPI schema.
-type RoleAssignment struct {
+// RoleAssignmentRequest generated from OpenAPI schema.
+type RoleAssignmentRequest struct {
 	Role        string    `json:"role"`
 	Permissions *[]string `json:"permissions,omitempty"`
 }
 
-// Role generated from OpenAPI schema.
-type Role struct {
-	Key         string    `json:"key"`
-	Name        string    `json:"name"`
+// ForgotPasswordRequest generated from OpenAPI schema.
+type ForgotPasswordRequest struct {
+	Email string `json:"email"`
+}
+
+// ResetPasswordRequest generated from OpenAPI schema.
+type ResetPasswordRequest struct {
+	Token       string `json:"token"`
+	NewPassword string `json:"new_password"`
+}
+
+// InviteUserRequest generated from OpenAPI schema.
+type InviteUserRequest struct {
+	TenantId    *string   `json:"tenant_id,omitempty"`
+	Email       string    `json:"email"`
+	Role        string    `json:"role"`
 	Permissions *[]string `json:"permissions,omitempty"`
+}
+
+// AcceptInviteRequest generated from OpenAPI schema.
+type AcceptInviteRequest struct {
+	Name     string `json:"name"`
+	Password string `json:"password"`
+}
+
+// InviteReceipt generated from OpenAPI schema.
+type InviteReceipt struct {
+	Status string `json:"status"`
+}
+
+// StatusResponse generated from OpenAPI schema.
+type StatusResponse struct {
+	Status  string  `json:"status"`
+	Message *string `json:"message,omitempty"`
 }
 
 // UserList generated from OpenAPI schema.
 type UserList struct {
-	Data       *[]User `json:"data,omitempty"`
-	NextCursor *string `json:"next_cursor,omitempty"`
+	Data       []User  `json:"data"`
+	NextCursor *string `json:"next_cursor"`
+}
+
+// PermissionList generated from OpenAPI schema.
+type PermissionList struct {
+	Data []string `json:"data"`
 }
 
 // RoleList generated from OpenAPI schema.
 type RoleList struct {
-	Data       *[]Role `json:"data,omitempty"`
-	NextCursor *string `json:"next_cursor,omitempty"`
+	Data []struct {
+		Role  string `json:"role"`
+		Scope string `json:"scope"`
+	} `json:"data"`
 }
 
 // ServerInterface is implemented by the service HTTP adapter.
 type ServerInterface interface {
 	login(w http.ResponseWriter, r *http.Request)
+	verifyMFA(w http.ResponseWriter, r *http.Request)
 	refreshToken(w http.ResponseWriter, r *http.Request)
 	logout(w http.ResponseWriter, r *http.Request)
 	revokeSession(w http.ResponseWriter, r *http.Request)
+	getCurrentIdentity(w http.ResponseWriter, r *http.Request)
+	requestPasswordReset(w http.ResponseWriter, r *http.Request)
+	resetPassword(w http.ResponseWriter, r *http.Request)
 	listUsers(w http.ResponseWriter, r *http.Request)
 	createUser(w http.ResponseWriter, r *http.Request)
 	getUser(w http.ResponseWriter, r *http.Request)
 	updateUser(w http.ResponseWriter, r *http.Request)
+	deleteUser(w http.ResponseWriter, r *http.Request)
 	assignRole(w http.ResponseWriter, r *http.Request)
+	inviteUser(w http.ResponseWriter, r *http.Request)
+	acceptInvite(w http.ResponseWriter, r *http.Request)
+	acceptPublicInvite(w http.ResponseWriter, r *http.Request)
+	listPermissions(w http.ResponseWriter, r *http.Request)
 	listRoles(w http.ResponseWriter, r *http.Request)
 }
 
 // ClientInterface is the generated consumer stub for this service.
 type ClientInterface interface {
 	login(ctx context.Context) (*http.Response, error)
+	verifyMFA(ctx context.Context) (*http.Response, error)
 	refreshToken(ctx context.Context) (*http.Response, error)
 	logout(ctx context.Context) (*http.Response, error)
 	revokeSession(ctx context.Context) (*http.Response, error)
+	getCurrentIdentity(ctx context.Context) (*http.Response, error)
+	requestPasswordReset(ctx context.Context) (*http.Response, error)
+	resetPassword(ctx context.Context) (*http.Response, error)
 	listUsers(ctx context.Context) (*http.Response, error)
 	createUser(ctx context.Context) (*http.Response, error)
 	getUser(ctx context.Context) (*http.Response, error)
 	updateUser(ctx context.Context) (*http.Response, error)
+	deleteUser(ctx context.Context) (*http.Response, error)
 	assignRole(ctx context.Context) (*http.Response, error)
+	inviteUser(ctx context.Context) (*http.Response, error)
+	acceptInvite(ctx context.Context) (*http.Response, error)
+	acceptPublicInvite(ctx context.Context) (*http.Response, error)
+	listPermissions(ctx context.Context) (*http.Response, error)
 	listRoles(ctx context.Context) (*http.Response, error)
 }

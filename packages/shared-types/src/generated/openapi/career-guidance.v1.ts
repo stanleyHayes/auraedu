@@ -9,7 +9,10 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Service health check */
+        /**
+         * Service health check
+         * @description Executes the health check workflow within this AuraEDU API boundary.
+         */
         get: operations["healthCheck"];
         put?: never;
         post?: never;
@@ -28,7 +31,10 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Ingest a single approved learning metric */
+        /**
+         * Ingest a single approved learning metric
+         * @description Executes the ingest feature store metric workflow within this AuraEDU API boundary.
+         */
         post: operations["ingestFeatureStoreMetric"];
         delete?: never;
         options?: never;
@@ -43,10 +49,16 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List career guidance for a student */
+        /**
+         * List career guidance for a student
+         * @description Executes the list guidance workflow within this AuraEDU API boundary.
+         */
         get: operations["listGuidance"];
         put?: never;
-        /** Generate career guidance for a student */
+        /**
+         * Generate career guidance for a student
+         * @description Executes the generate guidance workflow within this AuraEDU API boundary.
+         */
         post: operations["generateGuidance"];
         delete?: never;
         options?: never;
@@ -61,7 +73,10 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get guidance by ID */
+        /**
+         * Get guidance by ID
+         * @description Executes the get guidance workflow within this AuraEDU API boundary.
+         */
         get: operations["getGuidance"];
         put?: never;
         post?: never;
@@ -78,7 +93,10 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get explainability details for guidance */
+        /**
+         * Get explainability details for guidance
+         * @description Executes the explain guidance workflow within this AuraEDU API boundary.
+         */
         get: operations["explainGuidance"];
         put?: never;
         post?: never;
@@ -97,7 +115,10 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Approve guidance */
+        /**
+         * Approve guidance
+         * @description Executes the approve guidance workflow within this AuraEDU API boundary.
+         */
         post: operations["approveGuidance"];
         delete?: never;
         options?: never;
@@ -114,7 +135,10 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Reject guidance */
+        /**
+         * Reject guidance
+         * @description Executes the reject guidance workflow within this AuraEDU API boundary.
+         */
         post: operations["rejectGuidance"];
         delete?: never;
         options?: never;
@@ -160,7 +184,7 @@ export type components = {
         };
         GenerateGuidanceRequest: {
             /** Format: uuid */
-            student_id: string;
+            student_id?: string;
             guidance_types?: string[];
         };
         Guidance: {
@@ -325,8 +349,9 @@ export interface operations {
     };
     listGuidance: {
         parameters: {
-            query: {
-                student_id: string;
+            query?: {
+                /** @description Required for parent/teacher/admin callers; inferred from the authenticated student identity. */
+                student_id?: string;
                 guidance_type?: string;
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];

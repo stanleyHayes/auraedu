@@ -1,5 +1,7 @@
 # AuraEDU code ownership — enforces lane boundaries (AGENTS.md §lanes).
-# Replace @auraedu/* teams with real GitHub teams once the org is set up.
+@stanleyHayes
+@hayfordstanley
+# Replace @stanleyHayes/* teams with real GitHub teams once the org is set up.
 
 # L0 Platform — shared libs, contracts, tooling
 /platform/                      @auraedu/platform

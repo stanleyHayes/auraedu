@@ -1,0 +1,51 @@
+openapi: 3.1.0
+info:
+  title: AuraEDU Academic Internal API
+  version: 1.0.0
+  description: Authenticated private teacher-to-class scope resolution.
+  contact:
+    name: AuraEDU Engineering
+tags:
+  - name: teacher-class-scope
+
+servers: [{ url: / }]
+
+paths:
+  /internal/v1/teacher-class-scope:
+    get:
+      operationId: resolveTeacherClassScope
+      description: Executes the resolve teacher class scope workflow within this AuraEDU API boundary.
+      tags: ['teacher-class-scope']
+      summary: Resolve the classes assigned to an active teacher identity
+      parameters:
+        - name: X-Tenant-ID
+          in: header
+          required: true
+          schema: { type: string }
+        - name: user_id
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Assigned class identifiers
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [class_ids]
+                properties:
+                  class_ids:
+                    type: array
+                    items: { type: string, format: uuid }
+        '401': { description: Invalid service credentials }
+        '403': { description: Identity is not an active teacher }
+        '404': { description: No linked teacher identity }
+        '503': { description: Staff identity service unavailable }
+components:
+  securitySchemes:
+    serviceBearer:
+      type: http
+      scheme: bearer
+security:
+  - serviceBearer: []

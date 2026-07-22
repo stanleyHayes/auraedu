@@ -8,16 +8,15 @@ import (
 	"github.com/auraedu/audit-service/internal/adapters/memory"
 	"github.com/auraedu/audit-service/internal/application"
 	"github.com/auraedu/platform/tenancy"
-	"github.com/google/uuid"
 )
 
 func TestSink_Process(t *testing.T) {
 	repo := memory.NewRepository()
 	sink := application.NewSink(repo)
 
-	tenantID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	tenantID := "school-a"
 	ctx := tenancy.WithContext(context.Background(), tenancy.TenantContext{
-		TenantID: tenantID.String(),
+		TenantID: tenantID,
 		ActorID:  "user-123",
 	})
 
@@ -27,7 +26,7 @@ func TestSink_Process(t *testing.T) {
 		Source:      "student-service",
 		ID:          "evt-1",
 		Time:        "2024-01-01T00:00:00Z",
-		TenantID:    tenantID.String(),
+		TenantID:    tenantID,
 		Data:        json.RawMessage(`{"id":"stu-1"}`),
 		Subject:     "stu-1",
 	}
@@ -36,7 +35,7 @@ func TestSink_Process(t *testing.T) {
 		t.Fatalf("process: %v", err)
 	}
 
-	logs, _, err := repo.List(ctx, tenantID.String(), 10, "")
+	logs, _, err := repo.List(ctx, tenantID, 10, "")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -82,9 +81,9 @@ func TestSink_Process_ActorFromPayload(t *testing.T) {
 	repo := memory.NewRepository()
 	sink := application.NewSink(repo)
 
-	tenantID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	tenantID := "school-a"
 	ctx := tenancy.WithContext(context.Background(), tenancy.TenantContext{
-		TenantID: tenantID.String(),
+		TenantID: tenantID,
 	})
 
 	event := tenancy.CloudEvent{
@@ -93,7 +92,7 @@ func TestSink_Process_ActorFromPayload(t *testing.T) {
 		Source:      "student-service",
 		ID:          "evt-1",
 		Time:        "2024-01-01T00:00:00Z",
-		TenantID:    tenantID.String(),
+		TenantID:    tenantID,
 		Data:        json.RawMessage(`{"actorid":"user-456"}`),
 		Subject:     "stu-2",
 	}
@@ -102,7 +101,7 @@ func TestSink_Process_ActorFromPayload(t *testing.T) {
 		t.Fatalf("process: %v", err)
 	}
 
-	logs, _, err := repo.List(ctx, tenantID.String(), 10, "")
+	logs, _, err := repo.List(ctx, tenantID, 10, "")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}

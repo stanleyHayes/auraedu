@@ -38,3 +38,17 @@ func TestWarnOnceFallbackNilArgs(t *testing.T) {
 		t.Fatal("expected nil fallback to behave like an empty static snapshot")
 	}
 }
+
+func TestWarnOnceFailClosed(t *testing.T) {
+	var buf bytes.Buffer
+	log := slog.New(slog.NewTextHandler(&buf, nil))
+	g := WarnOnceFailClosed(log)
+
+	if g.IsEnabled(context.Background(), "upshs", "fees") {
+		t.Fatal("fail-closed fallback must disable every feature")
+	}
+	g.IsEnabled(context.Background(), "upshs", "fees")
+	if n := strings.Count(buf.String(), "failing closed"); n != 1 {
+		t.Fatalf("expected exactly one fail-closed warning, got %d", n)
+	}
+}

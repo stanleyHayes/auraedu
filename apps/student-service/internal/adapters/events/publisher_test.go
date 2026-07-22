@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/auraedu/platform/eventbus"
+	"github.com/auraedu/platform/testkit"
 	"github.com/auraedu/student-service/internal/domain"
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
@@ -115,10 +116,7 @@ func asString(t *testing.T, m map[string]any, key string) string {
 
 // assertContractConformance validates the emitted event against the parts of the
 // contract the bus can guarantee: required envelope/data keys, const values, and
-// declared uuid/date/date-time formats. The "type" const is checked separately:
-// contracts name the base type ("student.enrolled") while the bus convention —
-// followed by every publisher and subscriber in this repo — versions it
-// ("student.enrolled.v1"), so the subject and type carry the .v1 suffix.
+// declared uuid/date/date-time formats.
 func assertContractConformance(t *testing.T, schema map[string]any, event map[string]any) {
 	t.Helper()
 	for _, key := range stringSlice(t, schema["required"]) {
@@ -133,7 +131,7 @@ func assertContractConformance(t *testing.T, schema map[string]any, event map[st
 			continue
 		}
 		got, present := event[key]
-		if c, ok := prop["const"].(string); ok && present && key != "type" {
+		if c, ok := prop["const"].(string); ok && present {
 			if got != c {
 				t.Errorf("envelope key %q: expected const %q, got %v", key, c, got)
 			}
@@ -205,11 +203,7 @@ func publishOne(t *testing.T, pub *Publisher, js *fakeJS, eventType string, stud
 	if want := "AURA." + eventType; msg.Subject != want {
 		t.Fatalf("subject: expected %q, got %q", want, msg.Subject)
 	}
-	var event map[string]any
-	if err := json.Unmarshal(msg.Data, &event); err != nil {
-		t.Fatalf("unmarshal published event: %v", err)
-	}
-	return event
+	return testkit.AssertEventContract(t, eventType, msg.Data)
 }
 
 func assertEnvelope(t *testing.T, event map[string]any, eventType string, student *domain.Student) {
@@ -264,32 +258,16 @@ func TestPublisher_StudentEnrolled_ConformsToContract(t *testing.T) {
 	}
 }
 
-// TestPublisher_StudentEnrolled_WithoutClassIDs documents the current create-flow gap:
-// class_id/academic_year_id are required by the contract but only emitted when the
-// caller supplies them. Enrollment records (CreateEnrollment in the OpenAPI contract)
-// are not implemented yet, so class-less creates omit both keys rather than
-// fabricating placeholders.
-func TestPublisher_StudentEnrolled_WithoutClassIDs(t *testing.T) {
+func TestPublisher_StudentCreatedWithoutEnrollmentConformsToContract(t *testing.T) {
 	pub, js := newTestPublisher(t)
 	student := newTestStudent(t)
 
-	event := publishOne(t, pub, js, "student.enrolled.v1", student, map[string]any{
-		"enrollment_date": student.CreatedAt.UTC().Format(time.DateOnly),
-	})
+	event := publishOne(t, pub, js, "student.created.v1", student, nil)
 
-	assertEnvelope(t, event, "student.enrolled.v1", student)
+	assertEnvelope(t, event, "student.created.v1", student)
 	data := objectAt(t, event, "data")
 	if got := data["student_id"]; got != student.ID {
 		t.Errorf("data.student_id: expected %q, got %v", student.ID, got)
-	}
-	if _, ok := data["class_id"]; ok {
-		t.Errorf("data.class_id should be omitted when unknown, got %v", data["class_id"])
-	}
-	if _, ok := data["academic_year_id"]; ok {
-		t.Errorf("data.academic_year_id should be omitted when unknown, got %v", data["academic_year_id"])
-	}
-	if _, err := time.Parse(time.DateOnly, asString(t, data, "enrollment_date")); err != nil {
-		t.Errorf("data.enrollment_date: invalid date %v", data["enrollment_date"])
 	}
 }
 

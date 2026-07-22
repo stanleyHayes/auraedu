@@ -86,9 +86,15 @@ linters:
       tab-width: 1
     misspell:
       locale: US
-      ignore-words:
+      ignore-rules:
         - cancelled
         - cancelling
+        # Ghanaian education uses British English in public contracts and UI.
+        - catalogue
+        - programme
+        - programmes
+        - responsable
+        - enrol
     nakedret:
       max-func-lines: 30
     nestif:

@@ -4,22 +4,69 @@ import (
 	"context"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/auraedu/notification-service/internal/domain"
 	"github.com/auraedu/notification-service/internal/ports"
 )
 
+func (r *fakeMessageRepo) ClaimDue(_ context.Context, _ int, _ time.Duration) ([]*domain.Message, error) {
+	return nil, nil
+}
+
+func (r *fakeMessageRepo) CancelByApplication(_ context.Context, tenantID, applicationID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, message := range r.messages {
+		if message.TenantID == tenantID && message.Status == string(domain.MessageStatusPending) && message.Metadata["application_id"] == applicationID {
+			message.Status = string(domain.MessageStatusCancelled)
+		}
+	}
+	return nil
+}
+
+func (r *fakeMessageRepo) NextJourneyDeliveryAllowedAt(context.Context, string, string, string, time.Duration, int) (*time.Time, error) {
+	return nil, nil
+}
+
 // In-memory repository fakes for application-layer unit tests. They scope every
 // lookup by tenantID, mirroring the Postgres adapters' tenant contract.
 
 type fakeMessageRepo struct {
-	mu       sync.Mutex
-	messages map[string]*domain.Message
-	creates  int
+	mu           sync.Mutex
+	messages     map[string]*domain.Message
+	suppressions map[string]bool
+	feedback     []ports.DeliveryFeedback
+	creates      int
 }
 
 func newFakeMessageRepo() *fakeMessageRepo {
-	return &fakeMessageRepo{messages: map[string]*domain.Message{}}
+	return &fakeMessageRepo{messages: map[string]*domain.Message{}, suppressions: map[string]bool{}}
+}
+
+func (r *fakeMessageRepo) IsEmailSuppressed(_ context.Context, tenantID, addressHash string) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.suppressions[tenantID+"/"+addressHash], nil
+}
+
+func (r *fakeMessageRepo) ApplyDeliveryFeedback(_ context.Context, feedback ports.DeliveryFeedback) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, existing := range r.feedback {
+		if existing.ID == feedback.ID {
+			return false, nil
+		}
+	}
+	r.feedback = append(r.feedback, feedback)
+	return true, nil
+}
+
+func (r *fakeMessageRepo) SuppressEmail(_ context.Context, tenantID, addressHash, _ string, _ string, _ time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.suppressions[tenantID+"/"+addressHash] = true
+	return nil
 }
 
 func (r *fakeMessageRepo) Create(_ context.Context, tenantID string, m *domain.Message) error {
@@ -195,10 +242,10 @@ func (r *fakeProcessedEventRepo) Release(_ context.Context, tenantID, eventID st
 	return nil
 }
 
-func (r *fakeProcessedEventRepo) claimed(tenantID, eventID string) bool {
+func (r *fakeProcessedEventRepo) claimed(eventID string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	_, ok := r.claims[tenantID+"/"+eventID]
+	_, ok := r.claims[workerTenant+"/"+eventID]
 	return ok
 }
 
@@ -237,6 +284,18 @@ func (r *fakeAnnouncementRepo) List(_ context.Context, tenantID string, filter p
 		}
 		if filter.Audience != "" && a.Audience != filter.Audience {
 			continue
+		}
+		if len(filter.Audiences) > 0 {
+			allowed := false
+			for _, audience := range filter.Audiences {
+				if a.Audience == audience {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				continue
+			}
 		}
 		out = append(out, a)
 	}

@@ -11,7 +11,10 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Request a signed Cloudinary upload */
+        /**
+         * Request a signed Cloudinary upload
+         * @description Executes the request signed upload workflow within this AuraEDU API boundary.
+         */
         post: operations["requestSignedUpload"];
         delete?: never;
         options?: never;
@@ -26,10 +29,17 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List files */
+        /**
+         * List files
+         * @description Executes the list files workflow within this AuraEDU API boundary.
+         */
         get: operations["listFiles"];
         put?: never;
-        post?: never;
+        /**
+         * Upload a file directly
+         * @description Executes the upload file workflow within this AuraEDU API boundary.
+         */
+        post: operations["uploadFile"];
         delete?: never;
         options?: never;
         head?: never;
@@ -45,7 +55,10 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Finalize a signed Cloudinary upload */
+        /**
+         * Finalize a signed Cloudinary upload
+         * @description Executes the complete signed upload workflow within this AuraEDU API boundary.
+         */
         post: operations["completeSignedUpload"];
         delete?: never;
         options?: never;
@@ -60,12 +73,42 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get a file */
+        /**
+         * Get a file
+         * @description Executes the get file workflow within this AuraEDU API boundary.
+         */
         get: operations["getFile"];
         put?: never;
         post?: never;
-        /** Delete a file */
+        /**
+         * Delete a file
+         * @description Executes the delete file workflow within this AuraEDU API boundary.
+         */
         delete: operations["deleteFile"];
+        options?: never;
+        head?: never;
+        /**
+         * Update file metadata and lifecycle state
+         * @description Executes the update file workflow within this AuraEDU API boundary.
+         */
+        patch: operations["updateFile"];
+        trace?: never;
+    };
+    "/files/{file_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download tenant-owned file bytes
+         * @description Executes the download file workflow within this AuraEDU API boundary.
+         */
+        get: operations["downloadFile"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -98,7 +141,10 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get per-day file usage for the tenant */
+        /**
+         * Get per-day file usage for the tenant
+         * @description Executes the get file usage workflow within this AuraEDU API boundary.
+         */
         get: operations["getFileUsage"];
         put?: never;
         post?: never;
@@ -115,7 +161,10 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get a Cloudinary delivery or transform URL */
+        /**
+         * Get a Cloudinary delivery or transform URL
+         * @description Executes the get file delivery url workflow within this AuraEDU API boundary.
+         */
         get: operations["getFileDeliveryURL"];
         put?: never;
         post?: never;
@@ -159,15 +208,36 @@ export type components = {
         File: {
             /** Format: uuid */
             id: string;
-            /** Format: uuid */
             tenant_id: string;
-            public_id: string;
-            secure_url: string;
+            original_filename: string;
+            storage_path: string;
             /** @enum {string} */
-            resource_type?: "image" | "raw" | "video";
-            folder?: string;
-            /** Format: uuid */
-            uploaded_by?: string | null;
+            storage_backend: "local" | "cloudinary";
+            content_type: string;
+            size_bytes: number;
+            checksum: string;
+            owner_id: string;
+            purpose: string;
+            /** @enum {string} */
+            status: "pending" | "active" | "archived" | "deleted";
+            secure_url?: string;
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        UpdateFile: {
+            original_filename?: string;
+            content_type?: string;
+            purpose?: string;
+            /** @enum {string} */
+            status?: "pending" | "active" | "archived" | "deleted";
+            metadata?: {
+                [key: string]: unknown;
+            };
         };
         FileList: {
             data?: components["schemas"]["File"][];
@@ -256,7 +326,7 @@ export type components = {
         };
     };
     parameters: {
-        TenantId: string;
+        FileId: string;
         /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
         TenantHeader: string;
         Limit: number;
@@ -329,6 +399,43 @@ export interface operations {
             422: components["responses"]["ValidationError"];
         };
     };
+    uploadFile: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                    owner_id?: string;
+                    purpose?: string;
+                    /** @description JSON object encoded as a form field */
+                    metadata?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Uploaded file */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["File"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
     completeSignedUpload: {
         parameters: {
             query?: never;
@@ -337,7 +444,7 @@ export interface operations {
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                file_id: components["parameters"]["FileId"];
             };
             cookie?: never;
         };
@@ -375,7 +482,7 @@ export interface operations {
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                file_id: components["parameters"]["FileId"];
             };
             cookie?: never;
         };
@@ -404,7 +511,7 @@ export interface operations {
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                file_id: components["parameters"]["FileId"];
             };
             cookie?: never;
         };
@@ -421,6 +528,69 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationError"];
+        };
+    };
+    updateFile: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                file_id: components["parameters"]["FileId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateFile"];
+            };
+        };
+        responses: {
+            /** @description Updated file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["File"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    downloadFile: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                file_id: components["parameters"]["FileId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description File bytes */
+            200: {
+                headers: {
+                    "Content-Disposition"?: string;
+                    "X-Content-Type-Options"?: "nosniff";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     cloudinaryWebhook: {
@@ -487,7 +657,7 @@ export interface operations {
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                file_id: components["parameters"]["FileId"];
             };
             cookie?: never;
         };

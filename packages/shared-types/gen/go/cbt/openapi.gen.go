@@ -9,74 +9,106 @@ import (
 
 // Exam generated from OpenAPI schema.
 type Exam struct {
-	Id              string  `json:"id"`
-	TenantId        string  `json:"tenant_id"`
-	Title           string  `json:"title"`
-	SubjectId       string  `json:"subject_id"`
-	DurationMinutes *int    `json:"duration_minutes,omitempty"`
-	QuestionCount   *int    `json:"question_count,omitempty"`
-	StartsAt        *string `json:"starts_at,omitempty"`
-	EndsAt          *string `json:"ends_at,omitempty"`
+	Id              string    `json:"id"`
+	TenantId        string    `json:"tenant_id"`
+	Title           string    `json:"title"`
+	SubjectId       string    `json:"subject_id"`
+	AcademicYearId  *string   `json:"academic_year_id,omitempty"`
+	DurationMinutes *int      `json:"duration_minutes,omitempty"`
+	QuestionIds     *[]string `json:"question_ids,omitempty"`
+	StartAt         *string   `json:"start_at,omitempty"`
+	EndAt           *string   `json:"end_at,omitempty"`
+	Status          *string   `json:"status,omitempty"`
 }
 
 // CreateExam generated from OpenAPI schema.
 type CreateExam struct {
-	Title           string    `json:"title"`
-	SubjectId       string    `json:"subject_id"`
+	Title           string   `json:"title"`
+	AcademicYearId  string   `json:"academic_year_id"`
+	SubjectId       string   `json:"subject_id"`
+	DurationMinutes int      `json:"duration_minutes"`
+	QuestionIds     []string `json:"question_ids"`
+	StartAt         *string  `json:"start_at,omitempty"`
+	EndAt           *string  `json:"end_at,omitempty"`
+}
+
+// UpdateExam generated from OpenAPI schema.
+type UpdateExam struct {
+	Title           *string   `json:"title,omitempty"`
 	DurationMinutes *int      `json:"duration_minutes,omitempty"`
 	QuestionIds     *[]string `json:"question_ids,omitempty"`
-	StartsAt        *string   `json:"starts_at,omitempty"`
-	EndsAt          *string   `json:"ends_at,omitempty"`
+	StartAt         *string   `json:"start_at,omitempty"`
+	EndAt           *string   `json:"end_at,omitempty"`
+	Status          *string   `json:"status,omitempty"`
 }
 
 // ExamSession generated from OpenAPI schema.
 type ExamSession struct {
-	Id        string  `json:"id"`
-	ExamId    string  `json:"exam_id"`
-	StudentId string  `json:"student_id"`
-	StartedAt string  `json:"started_at"`
-	ExpiresAt *string `json:"expires_at,omitempty"`
+	Id            string `json:"id"`
+	ExamSessionId string `json:"exam_session_id"`
+	StudentId     string `json:"student_id"`
+	Status        string `json:"status"`
 }
 
 // Submission generated from OpenAPI schema.
 type Submission struct {
-	Id        string `json:"id"`
-	ExamId    string `json:"exam_id"`
-	StudentId string `json:"student_id"`
-	Answers   []struct {
-		QuestionId     *string `json:"question_id,omitempty"`
-		SelectedOption *string `json:"selected_option,omitempty"`
-		TextAnswer     *string `json:"text_answer,omitempty"`
-	} `json:"answers"`
-	Score       *float64 `json:"score,omitempty"`
-	MaxScore    *float64 `json:"max_score,omitempty"`
-	SubmittedAt *string  `json:"submitted_at,omitempty"`
+	Id            string                 `json:"id"`
+	ExamSessionId string                 `json:"exam_session_id"`
+	StudentId     string                 `json:"student_id"`
+	Answers       map[string]interface{} `json:"answers"`
+	Status        string                 `json:"status"`
+	Score         *float64               `json:"score,omitempty"`
+	MaxScore      *float64               `json:"max_score,omitempty"`
+	SubmittedAt   *string                `json:"submitted_at,omitempty"`
 }
 
-// CreateSubmission generated from OpenAPI schema.
-type CreateSubmission struct {
-	ExamId    string `json:"exam_id"`
-	StudentId string `json:"student_id"`
-	Answers   []struct {
-		QuestionId     *string `json:"question_id,omitempty"`
-		SelectedOption *string `json:"selected_option,omitempty"`
-		TextAnswer     *string `json:"text_answer,omitempty"`
-	} `json:"answers"`
+// SubmitAnswers generated from OpenAPI schema.
+type SubmitAnswers struct {
+	Answers map[string]interface{} `json:"answers"`
 }
 
-// QuestionBank generated from OpenAPI schema.
-type QuestionBank struct {
-	Id            string  `json:"id"`
-	TenantId      string  `json:"tenant_id"`
-	Name          string  `json:"name"`
-	SubjectId     *string `json:"subject_id,omitempty"`
-	QuestionCount *int    `json:"question_count,omitempty"`
+// ExamQuestion generated from OpenAPI schema.
+type ExamQuestion struct {
+	Id           string    `json:"id"`
+	QuestionText string    `json:"question_text"`
+	QuestionType string    `json:"question_type"`
+	Options      *[]string `json:"options,omitempty"`
+	Marks        int       `json:"marks"`
 }
 
-// CreateQuestionBank generated from OpenAPI schema.
-type CreateQuestionBank struct {
-	Name      string  `json:"name"`
-	SubjectId *string `json:"subject_id,omitempty"`
+// Question generated from OpenAPI schema.
+type Question struct {
+	Id             string    `json:"id"`
+	TenantId       string    `json:"tenant_id"`
+	AcademicYearId string    `json:"academic_year_id"`
+	SubjectId      string    `json:"subject_id"`
+	QuestionText   string    `json:"question_text"`
+	QuestionType   string    `json:"question_type"`
+	Options        *[]string `json:"options,omitempty"`
+	CorrectAnswer  string    `json:"correct_answer"`
+	Marks          int       `json:"marks"`
+	Status         string    `json:"status"`
+}
+
+// CreateQuestion generated from OpenAPI schema.
+type CreateQuestion struct {
+	AcademicYearId string    `json:"academic_year_id"`
+	SubjectId      string    `json:"subject_id"`
+	QuestionText   string    `json:"question_text"`
+	QuestionType   string    `json:"question_type"`
+	Options        *[]string `json:"options,omitempty"`
+	CorrectAnswer  string    `json:"correct_answer"`
+	Marks          int       `json:"marks"`
+}
+
+// UpdateQuestion generated from OpenAPI schema.
+type UpdateQuestion struct {
+	QuestionText  *string   `json:"question_text,omitempty"`
+	QuestionType  *string   `json:"question_type,omitempty"`
+	Options       *[]string `json:"options,omitempty"`
+	CorrectAnswer *string   `json:"correct_answer,omitempty"`
+	Marks         *int      `json:"marks,omitempty"`
+	Status        *string   `json:"status,omitempty"`
 }
 
 // ExamList generated from OpenAPI schema.
@@ -85,10 +117,16 @@ type ExamList struct {
 	NextCursor *string `json:"next_cursor,omitempty"`
 }
 
-// QuestionBankList generated from OpenAPI schema.
-type QuestionBankList struct {
-	Data       *[]QuestionBank `json:"data,omitempty"`
-	NextCursor *string         `json:"next_cursor,omitempty"`
+// QuestionList generated from OpenAPI schema.
+type QuestionList struct {
+	Data       *[]Question `json:"data,omitempty"`
+	NextCursor *string     `json:"next_cursor,omitempty"`
+}
+
+// SubmissionList generated from OpenAPI schema.
+type SubmissionList struct {
+	Data       *[]Submission `json:"data,omitempty"`
+	NextCursor *string       `json:"next_cursor,omitempty"`
 }
 
 // ServerInterface is implemented by the service HTTP adapter.
@@ -96,10 +134,19 @@ type ServerInterface interface {
 	listExams(w http.ResponseWriter, r *http.Request)
 	createExam(w http.ResponseWriter, r *http.Request)
 	getExam(w http.ResponseWriter, r *http.Request)
+	updateExam(w http.ResponseWriter, r *http.Request)
+	deleteExam(w http.ResponseWriter, r *http.Request)
 	startExamSession(w http.ResponseWriter, r *http.Request)
-	submitExam(w http.ResponseWriter, r *http.Request)
-	listQuestionBanks(w http.ResponseWriter, r *http.Request)
-	createQuestionBank(w http.ResponseWriter, r *http.Request)
+	listSubmissions(w http.ResponseWriter, r *http.Request)
+	getSubmission(w http.ResponseWriter, r *http.Request)
+	getSubmissionQuestions(w http.ResponseWriter, r *http.Request)
+	submitAnswers(w http.ResponseWriter, r *http.Request)
+	gradeSubmission(w http.ResponseWriter, r *http.Request)
+	listQuestions(w http.ResponseWriter, r *http.Request)
+	createQuestion(w http.ResponseWriter, r *http.Request)
+	getQuestion(w http.ResponseWriter, r *http.Request)
+	updateQuestion(w http.ResponseWriter, r *http.Request)
+	deleteQuestion(w http.ResponseWriter, r *http.Request)
 }
 
 // ClientInterface is the generated consumer stub for this service.
@@ -107,8 +154,17 @@ type ClientInterface interface {
 	listExams(ctx context.Context) (*http.Response, error)
 	createExam(ctx context.Context) (*http.Response, error)
 	getExam(ctx context.Context) (*http.Response, error)
+	updateExam(ctx context.Context) (*http.Response, error)
+	deleteExam(ctx context.Context) (*http.Response, error)
 	startExamSession(ctx context.Context) (*http.Response, error)
-	submitExam(ctx context.Context) (*http.Response, error)
-	listQuestionBanks(ctx context.Context) (*http.Response, error)
-	createQuestionBank(ctx context.Context) (*http.Response, error)
+	listSubmissions(ctx context.Context) (*http.Response, error)
+	getSubmission(ctx context.Context) (*http.Response, error)
+	getSubmissionQuestions(ctx context.Context) (*http.Response, error)
+	submitAnswers(ctx context.Context) (*http.Response, error)
+	gradeSubmission(ctx context.Context) (*http.Response, error)
+	listQuestions(ctx context.Context) (*http.Response, error)
+	createQuestion(ctx context.Context) (*http.Response, error)
+	getQuestion(ctx context.Context) (*http.Response, error)
+	updateQuestion(ctx context.Context) (*http.Response, error)
+	deleteQuestion(ctx context.Context) (*http.Response, error)
 }

@@ -1,0 +1,22 @@
+name: observability-gates
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  observability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GOFLAGS: -mod=readonly
+      GOTOOLCHAIN: local
+      AURA_OBSERVABILITY_CONTAINER_VALIDATE: "1"
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with: { go-version: '1.26.5' }
+      - name: Validate metrics, traces, dashboards and alerts
+        run: ./tools/ci/run-observability-tests.sh

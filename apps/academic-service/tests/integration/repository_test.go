@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/auraedu/academic-service/internal/adapters/postgres"
@@ -17,10 +18,12 @@ const tenantB = "22222222-2222-2222-2222-222222222222"
 
 // repos bundles the four Postgres repository implementations under test.
 type repos struct {
-	years    ports.AcademicYearRepository
-	terms    ports.TermRepository
-	classes  ports.ClassRepository
-	subjects ports.SubjectRepository
+	years     ports.AcademicYearRepository
+	terms     ports.TermRepository
+	classes   ports.ClassRepository
+	subjects  ports.SubjectRepository
+	timetable ports.TimetableRepository
+	grading   ports.GradingScaleRepository
 }
 
 func newRepos(t *testing.T) repos {
@@ -28,10 +31,114 @@ func newRepos(t *testing.T) repos {
 	ctx := context.Background()
 	tdb := testkit.NewPostgres(ctx, t, "../../migrations")
 	return repos{
-		years:    postgres.NewRepository(tdb.DB),
-		terms:    postgres.NewTermRepository(tdb.DB),
-		classes:  postgres.NewClassRepository(tdb.DB),
-		subjects: postgres.NewSubjectRepository(tdb.DB),
+		years:     postgres.NewRepository(tdb.DB),
+		terms:     postgres.NewTermRepository(tdb.DB),
+		classes:   postgres.NewClassRepository(tdb.DB),
+		subjects:  postgres.NewSubjectRepository(tdb.DB),
+		timetable: postgres.NewTimetableRepository(tdb.DB),
+		grading:   postgres.NewGradingScaleRepository(tdb.DB),
+	}
+}
+
+func TestRepository_AcademicLifecycleAndOutboxAreAtomic(t *testing.T) {
+	ctx := withTenant(context.Background(), tenantA)
+	tdb := testkit.NewPostgres(context.Background(), t, "../../migrations")
+	repo := postgres.NewRepository(tdb.DB)
+	year, err := domain.NewAcademicYear(tenantA, "Durable Year", "DY", "2026-09-01", "2027-07-31", false)
+	if err != nil {
+		t.Fatalf("new durable year: %v", err)
+	}
+	mutation := ports.AcademicMutation{Kind: ports.AcademicMutationYearCreate, Year: year}
+	if err := repo.CommitAcademicLifecycle(ctx, tenantA, mutation, "academic.year_created.v1", ports.YearEventData(year, nil)); err != nil {
+		t.Fatal(err)
+	}
+	items, err := repo.ClaimPendingAcademicEvents(context.Background(), 10)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("items=%+v err=%v", items, err)
+	}
+	rollback, err := domain.NewAcademicYear(tenantA, "Rollback", "RB", "2027-09-01", "2028-07-31", false)
+	if err != nil {
+		t.Fatalf("new rollback year: %v", err)
+	}
+	if _, err := tdb.DB.Pool().Exec(context.Background(), `DROP TABLE academic_outbox`); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CommitAcademicLifecycle(ctx, tenantA, ports.AcademicMutation{Kind: ports.AcademicMutationYearCreate, Year: rollback}, "academic.year_created.v1", ports.YearEventData(rollback, nil)); err == nil {
+		t.Fatal("expected outbox failure")
+	}
+	if _, err := repo.GetByID(ctx, tenantA, rollback.ID); err == nil {
+		t.Fatal("year mutation must roll back")
+	}
+}
+
+func TestGradingScaleRepositoryTenantIsolationAndLifecycle(t *testing.T) {
+	r := newRepos(t)
+	ctxA := withTenant(context.Background(), tenantA)
+	scale, err := domain.NewGradingScale(tenantA, "Standard", []domain.GradeRange{
+		{Min: 0, Max: 59.99, Grade: "C"},
+		{Min: 60, Max: 79.99, Grade: "B"},
+		{Min: 80, Max: 100, Grade: "A"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.grading.Create(ctxA, tenantA, scale); err != nil {
+		t.Fatalf("create grading scale: %v", err)
+	}
+	if _, err := r.grading.GetByID(withTenant(context.Background(), tenantB), tenantB, scale.ID); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("cross-tenant get: %v", err)
+	}
+	items, _, err := r.grading.List(ctxA, tenantA, 25, "")
+	if err != nil || len(items) != 1 {
+		t.Fatalf("list: len=%d err=%v", len(items), err)
+	}
+	name := "Revised"
+	if _, err := scale.ApplyUpdate(&name, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.grading.Update(ctxA, tenantA, scale); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if err := r.grading.Delete(ctxA, tenantA, scale.ID); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if _, err := r.grading.GetByID(ctxA, tenantA, scale.ID); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("deleted get: %v", err)
+	}
+}
+
+func TestTimetableRepositoryScopeAndOverlapProtection(t *testing.T) {
+	ctx := withTenant(context.Background(), tenantA)
+	r := newRepos(t)
+	year := mustCreateYear(ctx, t, r.years, "2026/27", "2026-09-01", "2027-07-31")
+	term := mustCreateTerm(ctx, t, r.terms, year.ID, "Term 1", "2026-09-01", "2026-12-15")
+	class := mustCreateClass(ctx, t, r.classes, year.ID, "Form 1A")
+	subject := mustCreateSubject(ctx, t, r.subjects, "Mathematics", nil)
+	entry, err := domain.NewTimetableEntry(tenantA, class.ID, term.ID, subject.ID, nil, 1, "08:00", "09:00", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.timetable.Create(ctx, tenantA, entry); err != nil {
+		t.Fatalf("create timetable: %v", err)
+	}
+	overlap, err := domain.NewTimetableEntry(tenantA, class.ID, term.ID, subject.ID, nil, 1, "08:30", "09:30", nil)
+	if err != nil {
+		t.Fatalf("new overlapping timetable: %v", err)
+	}
+	if err := r.timetable.Create(ctx, tenantA, overlap); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("expected overlap conflict, got %v", err)
+	}
+	list, err := r.timetable.List(ctx, tenantA, ports.TimetableFilter{ClassIDs: []string{class.ID}, Status: "active", Limit: 10})
+	if err != nil || len(list) != 1 {
+		t.Fatalf("class-scoped timetable: len=%d err=%v", len(list), err)
+	}
+	empty, err := r.timetable.List(ctx, tenantA, ports.TimetableFilter{ClassIDs: []string{}, Limit: 10})
+	if err != nil || len(empty) != 0 {
+		t.Fatalf("empty scope must fail closed: len=%d err=%v", len(empty), err)
+	}
+	otherTenant, err := r.timetable.List(withTenant(context.Background(), tenantB), tenantB, ports.TimetableFilter{Limit: 10})
+	if err != nil || len(otherTenant) != 0 {
+		t.Fatalf("tenant isolation failed: len=%d err=%v", len(otherTenant), err)
 	}
 }
 
@@ -342,6 +449,32 @@ func TestClassRepository_CreateAndGet_NullableFieldsEmpty(t *testing.T) {
 	}
 	if got.ClassTeacherID != nil || got.Capacity != nil {
 		t.Fatalf("expected null teacher/capacity round-trip, got %+v", got)
+	}
+}
+
+func TestClassRepository_ListIDsByTeacher(t *testing.T) {
+	ctx := withTenant(context.Background(), tenantA)
+	r := newRepos(t)
+	y := mustCreateYear(ctx, t, r.years, "2025/26", "2025-09-01", "2026-07-31")
+	teacher := "33333333-3333-4333-8333-333333333333"
+	other := "44444444-4444-4444-8444-444444444444"
+	assigned, err := domain.NewClass(tenantA, y.ID, "Class 1A", &teacher, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unassigned, err := domain.NewClass(tenantA, y.ID, "Class 1B", &other, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.classes.Create(ctx, tenantA, assigned); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.classes.Create(ctx, tenantA, unassigned); err != nil {
+		t.Fatal(err)
+	}
+	ids, err := r.classes.ListIDsByTeacher(ctx, tenantA, teacher)
+	if err != nil || len(ids) != 1 || ids[0] != assigned.ID {
+		t.Fatalf("ids=%v err=%v", ids, err)
 	}
 }
 

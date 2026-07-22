@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/url"
 	"strings"
 	"time"
 
@@ -29,6 +30,9 @@ const (
 
 // FeatureFileManagement is the feature flag key for file management.
 const FeatureFileManagement = "file_management"
+
+// MaxUploadSize is enforced for proxied and direct uploads.
+const MaxUploadSize int64 = 32 << 20
 
 // Service holds the file use cases. Tenant scope + RBAC + feature-flag checks belong
 // here (agent_plan §5), never in HTTP handlers.
@@ -155,14 +159,14 @@ func (s *Service) Create(ctx context.Context, actor auth.Actor, req CreateFileRe
 	if err := file.Validate(); err != nil {
 		return nil, err
 	}
-	if err := s.repo.Create(ctx, tenantID, file); err != nil {
+	if err := s.persistFileLifecycle(ctx, tenantID, file, ports.FileMutationCreate, "file.uploaded.v1", nil); err != nil {
+		if cleanupErr := s.storage.Delete(ctx, tenantID, file.StoragePath); cleanupErr != nil {
+			slog.Default().ErrorContext(ctx, "failed to compensate orphaned upload", "file_id", file.ID, "err", cleanupErr)
+		}
 		return nil, err
 	}
 	if err := s.repo.RecordStorage(ctx, tenantID, int64(len(req.Data))); err != nil {
 		slog.Default().ErrorContext(ctx, "failed to record storage", "tenant_id", tenantID, "bytes", len(req.Data), "err", err)
-	}
-	if err := s.pub.Publish(ctx, "file.uploaded.v1", file, nil); err != nil {
-		slog.Default().ErrorContext(ctx, "failed to publish event", "event_type", "file.uploaded.v1", "err", err)
 	}
 	return file, nil
 }
@@ -205,11 +209,8 @@ func (s *Service) Update(ctx context.Context, actor auth.Actor, id string, req U
 	if err := file.Validate(); err != nil {
 		return nil, err
 	}
-	if err := s.repo.Update(ctx, tenantID, file); err != nil {
+	if err := s.persistFileLifecycle(ctx, tenantID, file, ports.FileMutationUpdate, "file.updated.v1", map[string]any{"changed_fields": changed}); err != nil {
 		return nil, err
-	}
-	if err := s.pub.Publish(ctx, "file.updated.v1", file, map[string]any{"changed_fields": changed}); err != nil {
-		slog.Default().ErrorContext(ctx, "failed to publish event", "event_type", "file.updated.v1", "err", err)
 	}
 	return file, nil
 }
@@ -224,16 +225,13 @@ func (s *Service) Delete(ctx context.Context, actor auth.Actor, id string) error
 	if err != nil {
 		return err
 	}
+	if _, ok := s.repo.(ports.LifecycleRepository); ok {
+		return s.persistFileLifecycle(ctx, tenantID, file, ports.FileMutationDelete, "file.deleted.v1", nil)
+	}
 	if err := s.storage.Delete(ctx, tenantID, file.StoragePath); err != nil {
 		return fmt.Errorf("%w: %w", domain.ErrStorage, err)
 	}
-	if err := s.repo.Delete(ctx, tenantID, id); err != nil {
-		return err
-	}
-	if err := s.pub.Publish(ctx, "file.deleted.v1", file, nil); err != nil {
-		slog.Default().ErrorContext(ctx, "failed to publish event", "event_type", "file.deleted.v1", "err", err)
-	}
-	return nil
+	return s.persistFileLifecycle(ctx, tenantID, file, ports.FileMutationDelete, "file.deleted.v1", nil)
 }
 
 // RequestSignedUpload creates a pending file record and returns signed upload parameters.
@@ -245,6 +243,11 @@ func (s *Service) RequestSignedUpload(ctx context.Context, actor auth.Actor, req
 	if strings.TrimSpace(req.Folder) == "" || strings.TrimSpace(req.FileName) == "" {
 		return nil, domain.ErrValidation
 	}
+	folder, err := canonicalUploadFolder(tenantID, req.Folder)
+	if err != nil {
+		return nil, err
+	}
+	req.Folder = folder
 	if req.ResourceType == "" {
 		req.ResourceType = "raw"
 	}
@@ -288,7 +291,7 @@ func (s *Service) CompleteSignedUpload(ctx context.Context, actor auth.Actor, fi
 	if err != nil {
 		return nil, err
 	}
-	if fileID == "" || strings.TrimSpace(req.PublicID) == "" || strings.TrimSpace(req.SecureURL) == "" || req.SizeBytes < 0 {
+	if fileID == "" || strings.TrimSpace(req.PublicID) == "" || strings.TrimSpace(req.SecureURL) == "" || req.SizeBytes < 0 || req.SizeBytes > MaxUploadSize {
 		return nil, domain.ErrValidation
 	}
 
@@ -300,6 +303,9 @@ func (s *Service) CompleteSignedUpload(ctx context.Context, actor auth.Actor, fi
 		return nil, domain.ErrNotFound
 	}
 	if file.StoragePath != req.PublicID {
+		return nil, domain.ErrValidation
+	}
+	if !validCloudinarySecureURL(req.SecureURL, req.PublicID) {
 		return nil, domain.ErrValidation
 	}
 
@@ -318,14 +324,11 @@ func (s *Service) CompleteSignedUpload(ctx context.Context, actor auth.Actor, fi
 	if err := file.Validate(); err != nil {
 		return nil, err
 	}
-	if err := s.repo.Update(ctx, tenantID, file); err != nil {
+	if err := s.persistFileLifecycle(ctx, tenantID, file, ports.FileMutationUpdate, "file.uploaded.v1", nil); err != nil {
 		return nil, err
 	}
 	if err := s.repo.RecordStorage(ctx, tenantID, req.SizeBytes); err != nil {
 		slog.Default().ErrorContext(ctx, "failed to record storage", "tenant_id", tenantID, "bytes", req.SizeBytes, "err", err)
-	}
-	if err := s.pub.Publish(ctx, "file.uploaded.v1", file, nil); err != nil {
-		slog.Default().ErrorContext(ctx, "failed to publish event", "event_type", "file.uploaded.v1", "err", err)
 	}
 	return file, nil
 }
@@ -343,6 +346,9 @@ func (s *Service) ProcessCloudinaryWebhook(ctx context.Context, timestamp int64,
 	if err != nil {
 		return err
 	}
+	if payload.Bytes < 0 || payload.Bytes > MaxUploadSize || (payload.SecureURL != "" && !validCloudinarySecureURL(payload.SecureURL, payload.PublicID)) {
+		return domain.ErrValidation
+	}
 
 	ctx = tenancy.WithContext(ctx, tenancy.TenantContext{
 		TenantID:  payload.TenantID,
@@ -353,6 +359,9 @@ func (s *Service) ProcessCloudinaryWebhook(ctx context.Context, timestamp int64,
 	if err != nil {
 		return err
 	}
+	if file.StorageBackend != string(domain.BackendCloudinary) || file.StoragePath != payload.PublicID {
+		return domain.ErrValidation
+	}
 
 	changed := applyWebhookUpdate(file, payload)
 	if !changed {
@@ -362,16 +371,61 @@ func (s *Service) ProcessCloudinaryWebhook(ctx context.Context, timestamp int64,
 	if err := file.Validate(); err != nil {
 		return err
 	}
-	if err := s.repo.Update(ctx, payload.TenantID, file); err != nil {
+	if err := s.persistFileLifecycle(ctx, payload.TenantID, file, ports.FileMutationUpdate, "file.uploaded.v1", nil); err != nil {
 		return err
 	}
 	if err := s.repo.RecordStorage(ctx, payload.TenantID, payload.Bytes); err != nil {
 		slog.Default().ErrorContext(ctx, "failed to record storage", "tenant_id", payload.TenantID, "bytes", payload.Bytes, "err", err)
 	}
-	if err := s.pub.Publish(ctx, "file.uploaded.v1", file, nil); err != nil {
-		slog.Default().ErrorContext(ctx, "failed to publish event", "event_type", "file.uploaded.v1", "err", err)
+	return nil
+}
+
+func (s *Service) persistFileLifecycle(ctx context.Context, tenantID string, file *domain.FileUpload, mutation, eventType string, meta map[string]any) error {
+	if durable, ok := s.repo.(ports.LifecycleRepository); ok {
+		return durable.CommitFileLifecycle(ctx, tenantID, file, mutation, eventType, ports.FileEventData(file, meta))
+	}
+	var err error
+	switch mutation {
+	case ports.FileMutationCreate:
+		err = s.repo.Create(ctx, tenantID, file)
+	case ports.FileMutationUpdate:
+		err = s.repo.Update(ctx, tenantID, file)
+	case ports.FileMutationDelete:
+		err = s.repo.Delete(ctx, tenantID, file.ID)
+	default:
+		err = fmt.Errorf("file: unsupported lifecycle mutation %q", mutation)
+	}
+	if err != nil {
+		return err
+	}
+	if err := s.pub.Publish(ctx, eventType, file, meta); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish file lifecycle event", "event_type", eventType, "err", err)
 	}
 	return nil
+}
+
+func canonicalUploadFolder(tenantID, folder string) (string, error) {
+	folder = strings.Trim(strings.TrimSpace(folder), "/")
+	if folder == "" || strings.Contains(folder, "\\") {
+		return "", domain.ErrValidation
+	}
+	for _, segment := range strings.Split(folder, "/") {
+		if segment == "" || segment == "." || segment == ".." {
+			return "", domain.ErrValidation
+		}
+	}
+	if folder != tenantID && !strings.HasPrefix(folder, tenantID+"/") {
+		folder = tenantID + "/" + folder
+	}
+	return folder, nil
+}
+
+func validCloudinarySecureURL(rawURL, publicID string) bool {
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Scheme != "https" || !strings.EqualFold(parsed.Hostname(), "res.cloudinary.com") || parsed.User != nil {
+		return false
+	}
+	return strings.Contains(parsed.EscapedPath(), "/"+url.PathEscape(publicID)) || strings.Contains(parsed.Path, "/"+publicID)
 }
 
 type webhookPayload struct {
@@ -394,11 +448,16 @@ func parseWebhookPayload(body []byte) (webhookPayload, error) {
 		return webhookPayload{}, domain.ErrValidation
 	}
 	parts := strings.Split(payload.PublicID, "/")
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+	if len(parts) < 2 {
 		return webhookPayload{}, domain.ErrValidation
 	}
+	for _, part := range parts {
+		if part == "" || part == "." || part == ".." || strings.Contains(part, "\\") {
+			return webhookPayload{}, domain.ErrValidation
+		}
+	}
 	payload.TenantID = parts[0]
-	payload.FileID = parts[1]
+	payload.FileID = parts[len(parts)-1]
 	return payload, nil
 }
 

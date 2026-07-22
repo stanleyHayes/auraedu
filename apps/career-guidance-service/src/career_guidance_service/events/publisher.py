@@ -1,15 +1,27 @@
 """CloudEvent publisher for generated career guidance."""
 
-import json
+from __future__ import annotations
+
 import uuid
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from career_guidance_service.config import settings
+from career_guidance_service.events.envelope import encode_event
 from career_guidance_service.events.transport import get_transport
 
 if TYPE_CHECKING:
     from career_guidance_service.models import Guidance
+
+
+def guidance_event_data(item: Guidance) -> dict[str, Any]:
+    """Build the contract-owned data object for every publication path."""
+    return {
+        "student_id": item.student_id,
+        "guidance_type": item.guidance_type,
+        "confidence": item.confidence,
+        "explanation": item.explanation,
+    }
 
 
 async def publish_guidance(
@@ -30,11 +42,6 @@ async def publish_guidance(
             "tenant_id": tenant_id,
             "datacontenttype": "application/json",
             "subject": f"students/{item.student_id}",
-            "data": {
-                "student_id": item.student_id,
-                "guidance_type": item.guidance_type,
-                "confidence": item.confidence,
-                "explanation": item.explanation,
-            },
+            "data": guidance_event_data(item),
         }
-        await transport.publish("ai.guidance_generated.v1", json.dumps(event).encode())
+        await transport.publish("ai.guidance_generated.v1", encode_event(event))

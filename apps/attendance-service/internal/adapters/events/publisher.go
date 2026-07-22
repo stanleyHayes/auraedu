@@ -27,31 +27,27 @@ func (p *Publisher) Publish(ctx context.Context, eventType string, record *domai
 	if p == nil || p.bus == nil {
 		return nil
 	}
-	data := map[string]any{
-		"attendance_id":    record.ID,
-		"student_id":       record.StudentID,
-		"academic_year_id": record.AcademicYearID,
-		"date":             record.Date.String(),
-		"status":           record.Status,
-		"marked_by":        record.MarkedBy,
-	}
-	if record.ClassID != nil {
-		data["class_id"] = *record.ClassID
-	}
-	if record.SubjectID != nil {
-		data["subject_id"] = *record.SubjectID
-	}
-	if record.Reason != nil {
-		data["reason"] = *record.Reason
-	}
-	for k, v := range meta {
-		data[k] = v
-	}
+	data := ports.AttendanceEventData(record, meta)
 	event, err := tenancy.NewCloudEvent(eventType, "attendance-service", "", record.TenantID, data)
 	if err != nil {
 		return fmt.Errorf("attendance: build event: %w", err)
 	}
 	event.Subject = record.ID
+	event.Time = time.Now().UTC().Format(time.RFC3339)
+	return p.bus.Publish(ctx, event)
+}
+func (p *Publisher) PublishWithID(ctx context.Context, eventID, eventType, tenantID string, data map[string]any) error {
+	if p == nil || p.bus == nil {
+		return nil
+	}
+	event, err := tenancy.NewCloudEvent(eventType, "attendance-service", eventID, tenantID, data)
+	if err != nil {
+		return fmt.Errorf("attendance: build outbox event: %w", err)
+	}
+	if id, ok := data["attendance_id"].(string); ok && id != "" {
+		event.Subject = id
+	}
+	event.IdempotencyKey = eventID
 	event.Time = time.Now().UTC().Format(time.RFC3339)
 	return p.bus.Publish(ctx, event)
 }

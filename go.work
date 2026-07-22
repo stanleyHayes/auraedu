@@ -6,6 +6,8 @@ toolchain go1.26.5
 
 use (
 	./apps/academic-service
+	./apps/admissions-service
+	./apps/ai-orchestrator-service
 	./apps/analytics-service
 	./apps/api-gateway
 	./apps/assessment-service
@@ -13,9 +15,14 @@ use (
 	./apps/audit-service
 	./apps/billing-service
 	./apps/cbt-service
+	./apps/campaign-service
+	./apps/content-service
+	./apps/crm-service
 	./apps/fees-service
 	./apps/file-service
 	./apps/identity-service
+	./apps/knowledge-service
+	./apps/market-intelligence-service
 	./apps/notification-service
 	./apps/payment-service
 	./apps/report-service
@@ -25,4 +32,9 @@ use (
 	./apps/website-service
 	./platform
 	./tools/seed
+	./tools/loadtest
+	./tools/isolationtest
+	./tools/providerprobe
+	./tools/twilioprobe
+	./tools/vercelprobe
 )

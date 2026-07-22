@@ -1,4 +1,9 @@
-# AuraEDU Microservices Multi-Tenant SaaS Platform Specification
+# Legacy AuraEDU Platform Specification
+
+> **Status: superseded as the primary source of truth.** This document is retained as migration
+> evidence. The living product and engineering authority is the
+> [AuraEDU Engineering Handbook](docs/README.md), with navigation in
+> [docs/SUMMARY.md](docs/SUMMARY.md). Current delivery state remains in [agent_plan.md](agent_plan.md).
 
 **Version:** 2.0  
 **Prepared for:** Stanley Asoku Hayford  

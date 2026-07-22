@@ -11,7 +11,9 @@ import (
 
 	"github.com/auraedu/cbt-service/internal/domain"
 	"github.com/auraedu/cbt-service/internal/ports"
+	"github.com/auraedu/platform/auth"
 	"github.com/auraedu/platform/db"
+	"github.com/auraedu/platform/tenancy"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -24,7 +26,11 @@ type Repository struct {
 	db *db.DB
 }
 
-var _ ports.Repository = (*Repository)(nil)
+var (
+	_ ports.Repository          = (*Repository)(nil)
+	_ ports.LifecycleRepository = (*Repository)(nil)
+	_ ports.OutboxRepository    = (*Repository)(nil)
+)
 
 // NewRepository creates a Postgres-backed CBT repository.
 func NewRepository(database *db.DB) *Repository { return &Repository{db: database} }
@@ -538,4 +544,182 @@ func uuidSliceToStringSlice(ids []uuid.UUID) []string {
 		out = append(out, u.String())
 	}
 	return out
+}
+
+func (r *Repository) CommitCBTLifecycle(ctx context.Context, tenantID string, mutation ports.LifecycleMutation, events []ports.LifecycleEvent) error {
+	if len(events) == 0 {
+		return errors.New("cbt: lifecycle events are required")
+	}
+	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		if err := applyCBTMutation(ctx, tx, tenantID, mutation); err != nil {
+			return err
+		}
+		return enqueueCBTEvents(ctx, tx, tenantID, events)
+	})
+}
+
+func applyCBTMutation(ctx context.Context, tx pgx.Tx, tenantID string, mutation ports.LifecycleMutation) error {
+	switch mutation.Kind {
+	case ports.CBTMutationQuestionCreate, ports.CBTMutationQuestionUpdate, ports.CBTMutationQuestionDelete:
+		return applyQuestionMutation(ctx, tx, tenantID, mutation)
+	case ports.CBTMutationExamCreate, ports.CBTMutationExamUpdate, ports.CBTMutationExamDelete:
+		return applyExamMutation(ctx, tx, tenantID, mutation)
+	case ports.CBTMutationSubmissionUpdate:
+		return applySubmissionMutation(ctx, tx, tenantID, mutation.Submission)
+	default:
+		return fmt.Errorf("cbt: unsupported lifecycle mutation %q", mutation.Kind)
+	}
+}
+
+func applyQuestionMutation(ctx context.Context, tx pgx.Tx, tenantID string, mutation ports.LifecycleMutation) error {
+	question := mutation.Question
+	if question == nil {
+		return errors.New("cbt: question lifecycle requires question")
+	}
+	if mutation.Kind == ports.CBTMutationQuestionDelete {
+		_, err := tx.Exec(ctx, `
+			UPDATE cbt_questions SET deleted_at=now()
+			WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL`, question.ID, tenantID)
+		return err
+	}
+	options, err := json.Marshal(question.Options)
+	if err != nil {
+		return err
+	}
+	if mutation.Kind == ports.CBTMutationQuestionCreate {
+		_, err = tx.Exec(ctx, `
+			INSERT INTO cbt_questions(
+				id,tenant_id,academic_year_id,subject_id,question_text,question_type,
+				options,correct_answer,marks,status,created_at,updated_at
+			) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+			question.ID, tenantID, question.AcademicYearID, question.SubjectID,
+			question.QuestionText, question.QuestionType, options, question.CorrectAnswer,
+			question.Marks, question.Status, question.CreatedAt, question.UpdatedAt)
+		return err
+	}
+	_, err = tx.Exec(ctx, `
+		UPDATE cbt_questions SET academic_year_id=$3,subject_id=$4,
+			question_text=$5,question_type=$6,options=$7,correct_answer=$8,
+			marks=$9,status=$10,updated_at=$11
+		WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL`,
+		question.ID, tenantID, question.AcademicYearID, question.SubjectID,
+		question.QuestionText, question.QuestionType, options, question.CorrectAnswer,
+		question.Marks, question.Status, question.UpdatedAt)
+	return err
+}
+
+func applyExamMutation(ctx context.Context, tx pgx.Tx, tenantID string, mutation ports.LifecycleMutation) error {
+	exam := mutation.Exam
+	if exam == nil {
+		return errors.New("cbt: exam lifecycle requires exam")
+	}
+	if mutation.Kind == ports.CBTMutationExamDelete {
+		_, err := tx.Exec(ctx, `
+			UPDATE cbt_exam_sessions SET deleted_at=now()
+			WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL`, exam.ID, tenantID)
+		return err
+	}
+	questionIDs, err := stringSliceToUUIDSlice(exam.QuestionIDs)
+	if err != nil {
+		return err
+	}
+	if mutation.Kind == ports.CBTMutationExamCreate {
+		_, err = tx.Exec(ctx, `
+			INSERT INTO cbt_exam_sessions(
+				id,tenant_id,title,academic_year_id,subject_id,question_ids,
+				duration_minutes,start_at,end_at,status,created_at,updated_at
+			) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+			exam.ID, tenantID, exam.Title, exam.AcademicYearID, exam.SubjectID,
+			questionIDs, exam.DurationMinutes, exam.StartAt, exam.EndAt,
+			exam.Status, exam.CreatedAt, exam.UpdatedAt)
+		return err
+	}
+	_, err = tx.Exec(ctx, `
+		UPDATE cbt_exam_sessions SET title=$3,academic_year_id=$4,subject_id=$5,
+			question_ids=$6,duration_minutes=$7,start_at=$8,end_at=$9,
+			status=$10,updated_at=$11
+		WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL`,
+		exam.ID, tenantID, exam.Title, exam.AcademicYearID, exam.SubjectID,
+		questionIDs, exam.DurationMinutes, exam.StartAt, exam.EndAt, exam.Status, exam.UpdatedAt)
+	return err
+}
+
+func applySubmissionMutation(ctx context.Context, tx pgx.Tx, tenantID string, submission *domain.Submission) error {
+	if submission == nil {
+		return errors.New("cbt: submission lifecycle requires submission")
+	}
+	answers, err := json.Marshal(submission.Answers)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `
+		UPDATE cbt_submissions SET exam_session_id=$3,student_id=$4,answers=$5,
+			status=$6,score=$7,max_score=$8,submitted_at=$9,graded_at=$10,updated_at=$11
+		WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL`,
+		submission.ID, tenantID, submission.ExamSessionID, submission.StudentID,
+		answers, submission.Status, submission.Score, submission.MaxScore,
+		submission.SubmittedAt, submission.GradedAt, submission.UpdatedAt)
+	return err
+}
+
+func enqueueCBTEvents(ctx context.Context, tx pgx.Tx, tenantID string, events []ports.LifecycleEvent) error {
+	for _, event := range events {
+		payload, err := json.Marshal(event.Payload)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO cbt_outbox(id,tenant_id,event_type,payload)
+			VALUES($1,$2,$3,$4)`, uuid.NewString(), tenantID, event.EventType, payload); err != nil {
+			return fmt.Errorf("cbt: enqueue lifecycle event: %w", err)
+		}
+	}
+	return nil
+}
+
+func cbtOutboxContext(ctx context.Context) context.Context {
+	ctx = auth.WithActor(ctx, auth.Actor{Role: auth.RolePlatformSuperAdmin, PlatformAdmin: true})
+	return tenancy.WithContext(ctx, tenancy.TenantContext{TenantID: "__cbt_outbox__"})
+}
+
+func (r *Repository) ClaimPendingCBTEvents(ctx context.Context, limit int) ([]ports.OutboxEvent, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 25
+	}
+	items := make([]ports.OutboxEvent, 0, limit)
+	err := r.db.WithTx(cbtOutboxContext(ctx), func(ctx context.Context, tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			UPDATE cbt_outbox SET attempts=attempts+1,
+				next_attempt_at=now()+(LEAST(300,power(2,attempts))*interval '1 second')
+			WHERE id IN(
+				SELECT id FROM cbt_outbox
+				WHERE published_at IS NULL AND next_attempt_at<=now()
+				ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT $1
+			) RETURNING id::text,tenant_id,event_type,payload`, limit)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var item ports.OutboxEvent
+			if err := rows.Scan(&item.ID, &item.TenantID, &item.EventType, &item.Payload); err != nil {
+				return err
+			}
+			items = append(items, item)
+		}
+		return rows.Err()
+	})
+	return items, err
+}
+func (r *Repository) MarkCBTEventPublished(ctx context.Context, id string) error {
+	return r.db.WithTx(cbtOutboxContext(ctx), func(ctx context.Context, tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `UPDATE cbt_outbox SET published_at=now(),last_error=NULL WHERE id=$1`, id)
+		return err
+	})
+}
+func (r *Repository) MarkCBTEventFailed(ctx context.Context, id, message string) error {
+	return r.db.WithTx(cbtOutboxContext(ctx), func(ctx context.Context, tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `UPDATE cbt_outbox SET last_error=left($2,1000) WHERE id=$1`, id, message)
+		return err
+	})
 }

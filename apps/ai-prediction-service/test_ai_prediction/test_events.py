@@ -10,7 +10,7 @@ HEADERS = {
     "X-Actor-User": "teacher-1",
     "X-Actor-Role": "teacher",
     "X-Actor-Tenant": "tenant-a",
-    "X-Actor-Permissions": "predictions:read,predictions:write",
+    "X-Actor-Permissions": "ai.view_predictions,ai.approve_predictions",
 }
 
 

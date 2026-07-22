@@ -150,7 +150,14 @@ func (p *PaystackProvider) Verify(ctx context.Context, reference string) (string
 // do executes one API call: encodes the request body, authenticates, enforces the
 // response contract and maps failures to *Error. The secret key only appears in the
 // Authorization header and is never copied into errors.
-func (p *PaystackProvider) do(ctx context.Context, op, method, path string, body, out any) error {
+func (p *PaystackProvider) do(
+	ctx context.Context,
+	op string,
+	method string,
+	path string,
+	body any,
+	out any,
+) (returnErr error) {
 	var rdr io.Reader
 	if body != nil {
 		raw, err := json.Marshal(body)
@@ -171,7 +178,9 @@ func (p *PaystackProvider) do(ctx context.Context, op, method, path string, body
 	if err != nil {
 		return &Error{Op: op, Message: "transport error: " + err.Error()}
 	}
-	defer resp.Body.Close()
+	defer func() {
+		returnErr = errors.Join(returnErr, resp.Body.Close())
+	}()
 
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxPaystackResponseBytes))
 	if err != nil {

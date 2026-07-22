@@ -5,6 +5,8 @@ info:
   description: >
     Learning recommendations and intervention suggestions (spec \u00a715).
     Owned by lane L3 (EP-30). Feature flag: ai_recommendations.
+  contact:
+    name: AuraEDU Engineering
 servers:
   - url: /api/v1/ai/recommendations
 tags:
@@ -15,6 +17,7 @@ paths:
   /health:
     get:
       operationId: healthCheck
+      description: Executes the health check workflow within this AuraEDU API boundary.
       tags: ['recommendations']
       summary: Service health check
       security: []
@@ -32,6 +35,7 @@ paths:
   /feature-store/metrics:
     post:
       operationId: ingestFeatureStoreMetric
+      description: Executes the ingest feature store metric workflow within this AuraEDU API boundary.
       tags: ['feature-store']
       summary: Ingest a single approved learning metric (for tests/admins)
       parameters:
@@ -54,13 +58,15 @@ paths:
   /recommendations:
     get:
       operationId: listRecommendations
+      description: Executes the list recommendations workflow within this AuraEDU API boundary.
       tags: ['recommendations']
       summary: List recommendations for a student
       parameters:
         - $ref: '#/components/parameters/TenantHeader'
         - name: student_id
           in: query
-          required: true
+          required: false
+          description: Required for staff and parents; inferred from the authenticated student identity for student actors.
           schema: { type: string, format: uuid }
         - name: status
           in: query
@@ -79,6 +85,7 @@ paths:
 
     post:
       operationId: generateRecommendations
+      description: Executes the generate recommendations workflow within this AuraEDU API boundary.
       tags: ['recommendations']
       summary: Generate recommendations for a student
       parameters:
@@ -101,6 +108,7 @@ paths:
   /recommendations/{recommendation_id}:
     get:
       operationId: getRecommendation
+      description: Executes the get recommendation workflow within this AuraEDU API boundary.
       tags: ['recommendations']
       summary: Get a recommendation by ID
       parameters:
@@ -122,6 +130,7 @@ paths:
   /recommendations/{recommendation_id}/approve:
     post:
       operationId: approveRecommendation
+      description: Executes the approve recommendation workflow within this AuraEDU API boundary.
       tags: ['recommendations']
       summary: Approve a pending recommendation
       parameters:
@@ -149,6 +158,7 @@ paths:
   /recommendations/{recommendation_id}/reject:
     post:
       operationId: rejectRecommendation
+      description: Executes the reject recommendation workflow within this AuraEDU API boundary.
       tags: ['recommendations']
       summary: Reject a pending recommendation
       parameters:
@@ -176,6 +186,7 @@ paths:
   /recommendations/{recommendation_id}/override:
     post:
       operationId: overrideRecommendation
+      description: Executes the override recommendation workflow within this AuraEDU API boundary.
       tags: ['recommendations']
       summary: Override a recommendation with a teacher-crafted action
       parameters:
@@ -203,6 +214,7 @@ paths:
   /recommendations/{recommendation_id}/explain:
     get:
       operationId: explainRecommendation
+      description: Executes the explain recommendation workflow within this AuraEDU API boundary.
       tags: ['recommendations']
       summary: Get explainability details for a recommendation
       parameters:

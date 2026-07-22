@@ -1,5 +1,13 @@
-# shared-types
+# `@auraedu/shared-types`
 
-Types GENERATED from OpenAPI + event schemas (L0).
+Contract-derived TypeScript and Go types for AuraEDU OpenAPI documents, CloudEvents schemas, permissions, roles, features, and gateway runtime models.
 
-> Scaffold placeholder — implemented per its epic/story in [agent_plan.md](../../agent_plan.md).
+## Generated-code rule
+
+Files below `src/generated/` and `gen/go/` are generated artifacts. Never hand-edit them. Change the source contract under `contracts/`, then run:
+
+```sh
+make contracts
+```
+
+Import the root namespaces (`OpenAPI`, `Events`, `Authorization`, and `Features`) or a documented package subpath. A contract change is complete only when generation, drift checks, build, tests, and affected producer/consumer checks pass.

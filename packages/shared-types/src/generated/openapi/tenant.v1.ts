@@ -2,6 +2,106 @@
 // Do not edit by hand.
 
 export type paths = {
+    "/internal/v1/onboarding-requests/{request_id}/administrator": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resolve approved onboarding administrator (service-to-service only)
+         * @description Protected by the internal service bearer token; never exposed by the gateway.
+         */
+        get: operations["resolveOnboardingAdministrator"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/onboarding-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit a school onboarding request for platform review
+         * @description Public, idempotent intake only. This endpoint never provisions a tenant directly; a platform administrator must approve the request.
+         */
+        post: operations["submitOnboardingRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/super-admin/onboarding-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List onboarding requests (platform super admin only)
+         * @description Executes the list onboarding requests workflow within this AuraEDU API boundary.
+         */
+        get: operations["listOnboardingRequests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/super-admin/onboarding-requests/{request_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve an onboarding request and provision its tenant
+         * @description Executes the approve onboarding request workflow within this AuraEDU API boundary.
+         */
+        post: operations["approveOnboardingRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/super-admin/onboarding-requests/{request_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject an onboarding request
+         * @description Executes the reject onboarding request workflow within this AuraEDU API boundary.
+         */
+        post: operations["rejectOnboardingRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tenants": {
         parameters: {
             query?: never;
@@ -9,10 +109,16 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List tenants (platform super admin only) */
+        /**
+         * List tenants (platform super admin only)
+         * @description Executes the list tenants workflow within this AuraEDU API boundary.
+         */
         get: operations["listTenants"];
         put?: never;
-        /** Create a tenant (onboarding / sign-up funnel) */
+        /**
+         * Create a tenant (onboarding / sign-up funnel)
+         * @description Executes the create tenant workflow within this AuraEDU API boundary.
+         */
         post: operations["createTenant"];
         delete?: never;
         options?: never;
@@ -29,14 +135,21 @@ export type paths = {
             };
             cookie?: never;
         };
+        /** @description Executes the get tenant workflow within this AuraEDU API boundary. */
         get: operations["getTenant"];
         put?: never;
         post?: never;
-        /** Delete a tenant (platform super admin only) */
+        /**
+         * Delete a tenant (platform super admin only)
+         * @description Executes the delete tenant workflow within this AuraEDU API boundary.
+         */
         delete: operations["deleteTenant"];
         options?: never;
         head?: never;
-        /** Update a tenant (platform super admin only) */
+        /**
+         * Update a tenant (platform super admin only)
+         * @description Executes the update tenant workflow within this AuraEDU API boundary.
+         */
         patch: operations["updateTenant"];
         trace?: never;
     };
@@ -49,7 +162,10 @@ export type paths = {
             };
             cookie?: never;
         };
-        /** Public branding for a tenant */
+        /**
+         * Public branding for a tenant
+         * @description Executes the get branding workflow within this AuraEDU API boundary.
+         */
         get: operations["getBranding"];
         put?: never;
         post?: never;
@@ -68,15 +184,113 @@ export type paths = {
             };
             cookie?: never;
         };
-        /** Tenant operational settings */
+        /**
+         * Tenant operational settings
+         * @description Executes the get settings workflow within this AuraEDU API boundary.
+         */
         get: operations["getSettings"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        /** Update tenant operational settings */
+        /**
+         * Update tenant operational settings
+         * @description Executes the update settings workflow within this AuraEDU API boundary.
+         */
         patch: operations["updateSettings"];
+        trace?: never;
+    };
+    "/tenants/{code}/custom-domain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: components["parameters"]["TenantCode"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Read custom-domain verification state
+         * @description Executes the get custom domain workflow within this AuraEDU API boundary.
+         */
+        get: operations["getCustomDomain"];
+        put?: never;
+        /**
+         * Start DNS ownership verification for a custom domain
+         * @description Requires tenant scope, features.manage, an eligible plan, and the custom_domain feature.
+         */
+        post: operations["requestCustomDomain"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tenants/{code}/custom-domain/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: components["parameters"]["TenantCode"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify the DNS TXT ownership challenge
+         * @description Executes the verify custom domain workflow within this AuraEDU API boundary.
+         */
+        post: operations["verifyCustomDomain"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/super-admin/tenants/{code}/custom-domain/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: components["parameters"]["TenantCode"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Activate a verified domain after the platform provider reports valid TLS
+         * @description Executes the activate custom domain workflow within this AuraEDU API boundary.
+         */
+        post: operations["activateCustomDomain"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/super-admin/tenants/{code}/custom-domain/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: components["parameters"]["TenantCode"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deactivate an active custom domain after removing it from the platform provider
+         * @description Executes the deactivate custom domain workflow within this AuraEDU API boundary.
+         */
+        post: operations["deactivateCustomDomain"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/tenants/resolve": {
@@ -86,7 +300,10 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Resolve tenant by domain or subdomain */
+        /**
+         * Resolve tenant by domain or subdomain
+         * @description Executes the resolve tenant workflow within this AuraEDU API boundary.
+         */
         get: operations["resolveTenant"];
         put?: never;
         post?: never;
@@ -103,7 +320,10 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Feature-flag snapshot for the resolved tenant (loaded by web/mobile at startup) */
+        /**
+         * Feature-flag snapshot for the resolved tenant (loaded by web/mobile at startup)
+         * @description Executes the get feature snapshot workflow within this AuraEDU API boundary.
+         */
         get: operations["getFeatureSnapshot"];
         put?: never;
         post?: never;
@@ -123,7 +343,10 @@ export type paths = {
             cookie?: never;
         };
         get?: never;
-        /** Enable or disable a feature for the resolved tenant */
+        /**
+         * Enable or disable a feature for the resolved tenant
+         * @description Executes the set feature workflow within this AuraEDU API boundary.
+         */
         put: operations["setFeature"];
         post?: never;
         delete?: never;
@@ -143,7 +366,10 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Platform super admin override for a tenant feature */
+        /**
+         * Platform super admin override for a tenant feature
+         * @description Executes the super admin feature override workflow within this AuraEDU API boundary.
+         */
         post: operations["superAdminFeatureOverride"];
         delete?: never;
         options?: never;
@@ -155,6 +381,51 @@ export type paths = {
 export type webhooks = Record<string, never>;
 export type components = {
     schemas: {
+        OnboardingRequestCreate: {
+            school_name: string;
+            administrator_name: string;
+            /** Format: email */
+            email: string;
+            phone?: string | null;
+            country_code: string;
+            /** @enum {string} */
+            plan: "starter" | "growth" | "professional" | "ai_plus" | "enterprise";
+            priorities?: string | null;
+            privacy_notice_version: string;
+            /** @constant */
+            accepted_terms: true;
+            /** @description Honeypot; must be empty */
+            website?: string | null;
+        };
+        OnboardingRequestReceipt: {
+            /** Format: uuid */
+            request_id: string;
+            /** @constant */
+            status: "pending_review";
+            /** Format: date-time */
+            submitted_at: string;
+        };
+        OnboardingRequest: {
+            /** Format: uuid */
+            request_id: string;
+            school_name: string;
+            administrator_name: string;
+            /** Format: email */
+            email: string;
+            phone?: string | null;
+            country_code: string;
+            /** @enum {string} */
+            plan: "starter" | "growth" | "professional" | "ai_plus" | "enterprise";
+            priorities?: string | null;
+            /** @enum {string} */
+            status: "pending_review" | "approved" | "rejected" | "provisioning_failed";
+            tenant_code?: string | null;
+            decision_reason?: string | null;
+            /** Format: date-time */
+            submitted_at: string;
+            /** Format: date-time */
+            decided_at?: string | null;
+        };
         Tenant: {
             /** @example upshs */
             tenant_code: string;
@@ -173,7 +444,6 @@ export type components = {
             short?: string;
             /** @enum {string} */
             status?: "active" | "suspended" | "onboarding";
-            domain?: string | null;
             /** @enum {string} */
             plan?: "starter" | "growth" | "professional" | "ai_plus" | "enterprise";
             branding?: components["schemas"]["Branding"];
@@ -183,10 +453,25 @@ export type components = {
             short?: string | null;
             /** @enum {string} */
             status?: "active" | "suspended" | "onboarding";
-            domain?: string | null;
             /** @enum {string} */
             plan?: "starter" | "growth" | "professional" | "ai_plus" | "enterprise";
             branding?: components["schemas"]["Branding"];
+        };
+        CustomDomain: {
+            tenant_code: string;
+            hostname: string;
+            /** @enum {string} */
+            status: "pending_dns" | "verified" | "active" | "inactive";
+            txt_record_name: string;
+            /** @description Returned only when a new challenge is created; never persisted in cleartext */
+            verification_token?: string;
+            /** Format: date-time */
+            verified_at?: string | null;
+            /** Format: date-time */
+            activated_at?: string | null;
+            /** Format: date-time */
+            deactivated_at?: string | null;
+            provider_reference?: string | null;
         };
         Branding: {
             logo_url?: string | null;
@@ -265,6 +550,183 @@ export type components = {
 };
 export type $defs = Record<string, never>;
 export interface operations {
+    resolveOnboardingAdministrator: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Approved administrator details */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        tenant_code: string;
+                        administrator_name: string;
+                        /** Format: email */
+                        email: string;
+                    };
+                };
+            };
+            /** @description Invalid service credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Request not found or not approved */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    submitOnboardingRequest: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingRequestCreate"];
+            };
+        };
+        responses: {
+            /** @description Accepted for review */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingRequestReceipt"];
+                };
+            };
+            /** @description Idempotency key was reused with different content */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    listOnboardingRequests: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+                status?: "pending_review" | "approved" | "rejected" | "provisioning_failed";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["OnboardingRequest"][];
+                        next_cursor?: string | null;
+                    };
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    approveOnboardingRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    tenant_code: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Approved and provisioned */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingRequest"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description Request or tenant code conflicts with existing state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    rejectOnboardingRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Rejected */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingRequest"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description Request has already left pending review */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: components["responses"]["ValidationError"];
+        };
+    };
     listTenants: {
         parameters: {
             query?: {
@@ -502,6 +964,183 @@ export interface operations {
                 content?: never;
             };
             422: components["responses"]["ValidationError"];
+        };
+    };
+    getCustomDomain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: components["parameters"]["TenantCode"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current state; never returns the verification token */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomDomain"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description No registration */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    requestCustomDomain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: components["parameters"]["TenantCode"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @example school.edu.gh */
+                    hostname: string;
+                };
+            };
+        };
+        responses: {
+            /** @description DNS challenge created; the verification token is returned only in this response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomDomain"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description Domain already claimed or active */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    verifyCustomDomain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: components["parameters"]["TenantCode"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ownership verified; provider TLS activation is still required */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomDomain"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description The expected DNS value was not observed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description DNS resolver unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    activateCustomDomain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: components["parameters"]["TenantCode"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    provider_reference: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Domain is active for public resolution */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomDomain"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description DNS ownership is not verified */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deactivateCustomDomain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: components["parameters"]["TenantCode"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    provider_reference: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Domain no longer resolves through AuraEDU */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomDomain"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description Domain is not active */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     resolveTenant: {

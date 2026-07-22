@@ -27,14 +27,7 @@ func (p *Publisher) PublishPage(ctx context.Context, eventType string, page *dom
 	if p == nil || p.bus == nil {
 		return nil
 	}
-	data := map[string]any{
-		"page_id": page.ID,
-		"slug":    page.Slug,
-		"title":   page.Title,
-	}
-	for k, v := range meta {
-		data[k] = v
-	}
+	data := ports.PageEventData(page, meta)
 	event, err := tenancy.NewCloudEvent(eventType, "website-service", "", page.TenantID, data)
 	if err != nil {
 		return fmt.Errorf("website: build page event: %w", err)
@@ -49,19 +42,30 @@ func (p *Publisher) PublishSection(ctx context.Context, eventType string, sectio
 	if p == nil || p.bus == nil {
 		return nil
 	}
-	data := map[string]any{
-		"section_id": section.ID,
-		"page_id":    section.PageID,
-		"type":       section.Type,
-	}
-	for k, v := range meta {
-		data[k] = v
-	}
+	data := ports.SectionEventData(section, meta)
 	event, err := tenancy.NewCloudEvent(eventType, "website-service", "", section.TenantID, data)
 	if err != nil {
 		return fmt.Errorf("website: build section event: %w", err)
 	}
 	event.Subject = section.ID
+	event.Time = time.Now().UTC().Format(time.RFC3339)
+	return p.bus.Publish(ctx, event)
+}
+
+func (p *Publisher) PublishWithID(ctx context.Context, eventID, eventType, tenantID string, data map[string]any) error {
+	if p == nil || p.bus == nil {
+		return nil
+	}
+	event, err := tenancy.NewCloudEvent(eventType, "website-service", eventID, tenantID, data)
+	if err != nil {
+		return fmt.Errorf("website: build outbox event: %w", err)
+	}
+	if id, ok := data["section_id"].(string); ok && id != "" {
+		event.Subject = id
+	} else if id, ok := data["page_id"].(string); ok && id != "" {
+		event.Subject = id
+	}
+	event.IdempotencyKey = eventID
 	event.Time = time.Now().UTC().Format(time.RFC3339)
 	return p.bus.Publish(ctx, event)
 }

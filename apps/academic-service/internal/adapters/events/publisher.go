@@ -27,15 +27,7 @@ func (p *Publisher) PublishYear(ctx context.Context, eventType string, year *dom
 	if p == nil || p.bus == nil {
 		return nil
 	}
-	data := map[string]any{
-		"year_id":    year.ID,
-		"name":       year.Name,
-		"start_date": year.StartDate,
-		"end_date":   year.EndDate,
-	}
-	for k, v := range meta {
-		data[k] = v
-	}
+	data := ports.YearEventData(year, meta)
 	return p.publish(ctx, eventType, year.TenantID, year.ID, data)
 }
 
@@ -44,16 +36,7 @@ func (p *Publisher) PublishTerm(ctx context.Context, eventType string, term *dom
 	if p == nil || p.bus == nil {
 		return nil
 	}
-	data := map[string]any{
-		"term_id":          term.ID,
-		"academic_year_id": term.AcademicYearID,
-		"name":             term.Name,
-		"start_date":       term.StartDate,
-		"end_date":         term.EndDate,
-	}
-	for k, v := range meta {
-		data[k] = v
-	}
+	data := ports.TermEventData(term, meta)
 	return p.publish(ctx, eventType, term.TenantID, term.ID, data)
 }
 
@@ -63,14 +46,7 @@ func (p *Publisher) PublishClass(ctx context.Context, eventType string, class *d
 	if p == nil || p.bus == nil {
 		return nil
 	}
-	data := map[string]any{
-		"class_id":         class.ID,
-		"name":             class.Name,
-		"academic_year_id": class.AcademicYearID,
-	}
-	for k, v := range meta {
-		data[k] = v
-	}
+	data := ports.ClassEventData(class, meta)
 	return p.publish(ctx, eventType, class.TenantID, class.ID, data)
 }
 
@@ -80,15 +56,27 @@ func (p *Publisher) PublishSubject(ctx context.Context, eventType string, subjec
 	if p == nil || p.bus == nil {
 		return nil
 	}
-	data := map[string]any{
-		"subject_id": subject.ID,
-		"name":       subject.Name,
-		"code":       subject.Code,
-	}
-	for k, v := range meta {
-		data[k] = v
-	}
+	data := ports.SubjectEventData(subject, meta)
 	return p.publish(ctx, eventType, subject.TenantID, subject.ID, data)
+}
+
+func (p *Publisher) PublishWithID(ctx context.Context, eventID, eventType, tenantID string, data map[string]any) error {
+	if p == nil || p.bus == nil {
+		return nil
+	}
+	event, err := tenancy.NewCloudEvent(eventType, "academic-service", eventID, tenantID, data)
+	if err != nil {
+		return fmt.Errorf("academic: build outbox event: %w", err)
+	}
+	for _, key := range []string{"year_id", "term_id", "class_id", "subject_id"} {
+		if id, ok := data[key].(string); ok && id != "" {
+			event.Subject = id
+			break
+		}
+	}
+	event.IdempotencyKey = eventID
+	event.Time = time.Now().UTC().Format(time.RFC3339)
+	return p.bus.Publish(ctx, event)
 }
 
 func (p *Publisher) publish(ctx context.Context, eventType, tenantID, subjectID string, data map[string]any) error {

@@ -20,10 +20,8 @@ export default async function ParentNotificationsPage() {
 
   const announcements =
     announcementsResult.status === "fulfilled" ? (announcementsResult.value.data ?? []) : [];
-  const messages =
-    messagesResult.status === "fulfilled" ? (messagesResult.value.data ?? []) : [];
-  const failed =
-    announcementsResult.status === "rejected" && messagesResult.status === "rejected";
+  const messages = messagesResult.status === "fulfilled" ? (messagesResult.value.data ?? []) : [];
+  const failed = announcementsResult.status === "rejected" && messagesResult.status === "rejected";
 
   if (failed) {
     return (

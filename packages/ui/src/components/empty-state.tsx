@@ -21,7 +21,7 @@ export function EmptyState({ icon, title, description, actions, className }: Emp
     >
       <span
         aria-hidden="true"
-        className="absolute left-0 top-0 h-12 w-12 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--color-gold)]/10"
+        className="absolute left-0 top-0 h-12 w-12 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--color-signal)]/12"
       />
       <span
         aria-hidden="true"

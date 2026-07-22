@@ -3,10 +3,12 @@ package http
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
+	"mime"
 	"net/http"
 	"strconv"
 
@@ -17,9 +19,6 @@ import (
 	"github.com/auraedu/platform/httpx"
 	"github.com/auraedu/platform/tenancy"
 )
-
-// maxUploadSize caps multipart uploads at 32 MiB for this minimal implementation.
-const maxUploadSize = 32 << 20
 
 // Handler adapts HTTP to the file use cases. No business logic here (agent_plan §5).
 type Handler struct {
@@ -42,6 +41,28 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/files/{file_id}/download", h.download)
 	mux.HandleFunc("GET /api/v1/files/{file_id}/url", h.deliveryURL)
 	mux.HandleFunc("POST /api/v1/files/{file_id}/complete", h.completeSignedUpload)
+}
+
+// RegisterInternal exposes metadata only (never bytes or URLs) so another
+// private service can verify tenant ownership before storing a file reference.
+func (h *Handler) RegisterInternal(mux *http.ServeMux, token string) {
+	mux.HandleFunc("GET /internal/v1/files/{file_id}/ownership", func(w http.ResponseWriter, r *http.Request) {
+		provided := r.Header.Get("Authorization")
+		expected := "Bearer " + token
+		if token == "" || len(provided) != len(expected) || subtle.ConstantTimeCompare([]byte(provided), []byte(expected)) != 1 {
+			httpx.Unauthorized(w, r, "valid service credentials are required")
+			return
+		}
+		tenantID := r.Header.Get(tenancy.HeaderTenantID)
+		ctx := tenancy.WithContext(r.Context(), tenancy.TenantContext{TenantID: tenantID})
+		actor := auth.Actor{UserID: "admissions-service", TenantID: tenantID, Permissions: []string{application.PermRead}}
+		file, err := h.svc.Get(ctx, actor, r.PathValue("file_id"))
+		if err != nil {
+			h.writeErr(w, r, err)
+			return
+		}
+		httpx.RespondJSON(w, r, http.StatusOK, map[string]any{"file_id": file.ID, "owner_id": file.OwnerID, "status": file.Status, "content_type": file.ContentType})
+	})
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
@@ -78,7 +99,8 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := r.ParseMultipartForm(maxUploadSize); err != nil { //nolint:gosec // bounded by maxUploadSize constant (32 MiB)
+	r.Body = http.MaxBytesReader(w, r.Body, application.MaxUploadSize+(1<<20))
+	if err := r.ParseMultipartForm(application.MaxUploadSize); err != nil { //nolint:gosec // bounded by MaxBytesReader above
 		if errors.Is(err, http.ErrNotMultipart) {
 			httpx.ValidationError(w, r, map[string]any{"body": "multipart/form-data required"})
 			return
@@ -302,7 +324,9 @@ func (h *Handler) download(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", file.ContentType)
 	w.Header().Set("Content-Length", strconv.FormatInt(file.SizeBytes, 10))
-	w.Header().Set("Content-Disposition", "attachment; filename=\""+file.OriginalFilename+"\"")
+	disposition := mime.FormatMediaType("attachment", map[string]string{"filename": file.OriginalFilename})
+	w.Header().Set("Content-Disposition", disposition)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)
 	if _, err := io.Copy(w, rc); err != nil {
 		slog.Default().ErrorContext(ctx, "failed to stream download", "err", err)

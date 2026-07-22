@@ -1,0 +1,43 @@
+{
+  "name": "auraedu-growth-public",
+  "environment": "staging",
+  "base_url": "https://staging-api.auraedu.example",
+  "duration": "3m",
+  "concurrency": 20,
+  "rate_per_second": 15,
+  "min_requests_per_second": 13,
+  "timeout": "5s",
+  "max_error_rate": 0.01,
+  "p95_ms": 1000,
+  "p99_ms": 2000,
+  "required_tenant_count": 2,
+  "tenants": [{ "code": "school-a" }, { "code": "school-b" }],
+  "requests": [
+    {
+      "name": "programme-catalogue",
+      "method": "GET",
+      "path": "/api/v1/public/programmes",
+      "expected_status": [200]
+    },
+    {
+      "name": "lead-capture",
+      "method": "POST",
+      "path": "/api/v1/public/leads",
+      "expected_status": [200, 201],
+      "body": {
+        "first_name": "Performance",
+        "last_name": "Probe {sequence}",
+        "email": "perf-{tenant}-{sequence}@example.invalid",
+        "source": "performance_test",
+        "preferred_programme_ids": [],
+        "consent": {
+          "privacy_notice_version": "performance-test",
+          "email": false,
+          "sms": false,
+          "whatsapp": false,
+          "voice": false
+        }
+      }
+    }
+  ]
+}

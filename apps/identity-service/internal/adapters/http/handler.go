@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -23,6 +24,7 @@ func NewHandler(svc *application.Service) *Handler { return &Handler{svc: svc} }
 
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/auth/login", h.login)
+	mux.HandleFunc("POST /api/v1/auth/mfa/verify", h.verifyMFA)
 	mux.HandleFunc("POST /api/v1/auth/refresh", h.refresh)
 	mux.HandleFunc("POST /api/v1/auth/logout", h.logout)
 	mux.HandleFunc("DELETE /api/v1/auth/sessions/{session_id}", h.revokeSession)
@@ -39,6 +41,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 
 	mux.HandleFunc("POST /api/v1/users/invites", h.inviteUser)
 	mux.HandleFunc("POST /api/v1/users/invites/{token}/accept", h.acceptInvite)
+	mux.HandleFunc("POST /api/v1/public/invites/{token}/accept", h.acceptInvite)
 
 	mux.HandleFunc("GET /api/v1/permissions", h.listPermissions)
 	mux.HandleFunc("GET /api/v1/roles", h.listRoles)
@@ -59,11 +62,10 @@ type loginRequest struct {
 
 func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 	var body loginRequest
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeErr(w, http.StatusBadRequest, "validation_error", "invalid request body")
+	if !decodeJSON(w, r, &body) {
 		return
 	}
-	access, refresh, user, expires, err := h.svc.Login(r.Context(), body.Email, body.Password)
+	result, err := h.svc.LoginStart(h.ctx(r), body.Email, body.Password)
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalidCredentials) {
 			writeErr(w, http.StatusUnauthorized, "invalid_credentials", "invalid email or password")
@@ -72,6 +74,42 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "could not issue tokens")
 		return
 	}
+	if result.Status != "authenticated" {
+		response := map[string]any{
+			"status":          result.Status,
+			"challenge_token": result.ChallengeToken,
+			"user":            userDTO(result.User),
+		}
+		if result.Status == "mfa_setup_required" {
+			response["secret"] = result.Secret
+			response["otpauth_uri"] = result.OTPAuthURI
+		}
+		writeJSON(w, http.StatusAccepted, response)
+		return
+	}
+	writeTokenPair(w, result.AccessToken, result.RefreshToken, result.User, result.Expires)
+}
+
+type verifyMFARequest struct {
+	ChallengeToken string `json:"challenge_token"`
+	Code           string `json:"code"`
+	SetupSecret    string `json:"setup_secret,omitempty"`
+}
+
+func (h *Handler) verifyMFA(w http.ResponseWriter, r *http.Request) {
+	var body verifyMFARequest
+	if !decodeJSON(w, r, &body) {
+		return
+	}
+	access, refresh, user, expires, err := h.svc.CompleteMFA(h.ctx(r), body.ChallengeToken, body.Code, body.SetupSecret)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, "invalid_mfa_code", "invalid or expired authentication code")
+		return
+	}
+	writeTokenPair(w, access, refresh, user, expires)
+}
+
+func writeTokenPair(w http.ResponseWriter, access, refresh string, user domain.User, expires time.Time) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"access_token":  access,
 		"refresh_token": refresh,
@@ -87,8 +125,7 @@ type refreshRequest struct {
 
 func (h *Handler) refresh(w http.ResponseWriter, r *http.Request) {
 	var body refreshRequest
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeErr(w, http.StatusBadRequest, "validation_error", "invalid request body")
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 	access, refreshToken, user, expires, err := h.svc.Refresh(r.Context(), body.RefreshToken)
@@ -111,8 +148,7 @@ type logoutRequest struct {
 
 func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
 	var body logoutRequest
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeErr(w, http.StatusBadRequest, "validation_error", "invalid request body")
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 	if err := h.svc.Logout(h.ctx(r), h.actor(r), body.RefreshToken); err != nil {
@@ -157,11 +193,10 @@ type forgotPasswordRequest struct {
 
 func (h *Handler) forgotPassword(w http.ResponseWriter, r *http.Request) {
 	var body forgotPasswordRequest
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeErr(w, http.StatusBadRequest, "validation_error", "invalid request body")
+	if !decodeJSON(w, r, &body) {
 		return
 	}
-	if err := h.svc.RequestPasswordReset(r.Context(), body.Email); err != nil {
+	if err := h.svc.RequestPasswordReset(h.ctx(r), body.Email); err != nil {
 		writeErr(w, mapStatus(err), codeFor(err), err.Error())
 		return
 	}
@@ -175,11 +210,10 @@ type resetPasswordRequest struct {
 
 func (h *Handler) resetPassword(w http.ResponseWriter, r *http.Request) {
 	var body resetPasswordRequest
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeErr(w, http.StatusBadRequest, "validation_error", "invalid request body")
+	if !decodeJSON(w, r, &body) {
 		return
 	}
-	if err := h.svc.ResetPassword(r.Context(), body.Token, body.NewPassword); err != nil {
+	if err := h.svc.ResetPassword(h.ctx(r), body.Token, body.NewPassword); err != nil {
 		writeErr(w, mapStatus(err), codeFor(err), err.Error())
 		return
 	}
@@ -206,8 +240,7 @@ type createUserRequest struct {
 
 func (h *Handler) createUser(w http.ResponseWriter, r *http.Request) {
 	var body createUserRequest
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeErr(w, http.StatusBadRequest, "validation_error", "invalid request body")
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 	u, err := h.svc.CreateUser(h.ctx(r), h.actor(r), application.CreateUserInput{
@@ -243,8 +276,7 @@ type updateUserRequest struct {
 
 func (h *Handler) updateUser(w http.ResponseWriter, r *http.Request) {
 	var body updateUserRequest
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeErr(w, http.StatusBadRequest, "validation_error", "invalid request body")
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 	u, err := h.svc.UpdateUser(h.ctx(r), h.actor(r), r.PathValue("id"), application.UpdateUserInput{
@@ -275,8 +307,7 @@ type assignRoleRequest struct {
 
 func (h *Handler) assignRole(w http.ResponseWriter, r *http.Request) {
 	var body assignRoleRequest
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeErr(w, http.StatusBadRequest, "validation_error", "invalid request body")
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 	u, err := h.svc.AssignRole(h.ctx(r), h.actor(r), r.PathValue("id"), body.Role, body.Permissions)
@@ -296,11 +327,10 @@ type inviteRequest struct {
 
 func (h *Handler) inviteUser(w http.ResponseWriter, r *http.Request) {
 	var body inviteRequest
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeErr(w, http.StatusBadRequest, "validation_error", "invalid request body")
+	if !decodeJSON(w, r, &body) {
 		return
 	}
-	token, err := h.svc.InviteUser(h.ctx(r), h.actor(r), application.InviteInput{
+	_, err := h.svc.InviteUser(h.ctx(r), h.actor(r), application.InviteInput{
 		TenantID:    body.TenantID,
 		Email:       body.Email,
 		Role:        body.Role,
@@ -310,7 +340,7 @@ func (h *Handler) inviteUser(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, mapStatus(err), codeFor(err), err.Error())
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"invite_token": token})
+	writeJSON(w, http.StatusAccepted, map[string]any{"status": "delivery_queued"})
 }
 
 type acceptInviteRequest struct {
@@ -320,8 +350,7 @@ type acceptInviteRequest struct {
 
 func (h *Handler) acceptInvite(w http.ResponseWriter, r *http.Request) {
 	var body acceptInviteRequest
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeErr(w, http.StatusBadRequest, "validation_error", "invalid request body")
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 	u, err := h.svc.AcceptInvite(r.Context(), r.PathValue("token"), body.Name, body.Password)
@@ -334,39 +363,18 @@ func (h *Handler) acceptInvite(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) listPermissions(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"data": []string{
-			"features.manage", "users.read", "users.create", "users.update", "roles.assign",
-			"students.read", "students.create", "students.update", "students.delete",
-			"staff.read", "staff.create", "staff.update",
-			"academic.read", "academic.manage",
-			"attendance.read", "attendance.mark",
-			"assessments.read", "assessments.record_scores", "assessments.manage",
-			"reports.read", "reports.publish",
-			"fees.read", "fees.manage",
-			"payments.read", "payments.initiate",
-			"notifications.read", "notifications.send", "notifications.manage",
-			"website.read", "website.manage",
-			"files.read", "files.upload", "files.delete",
-			"analytics.view",
-			"billing.read", "billing.manage",
-			"cbt.read", "cbt.author", "cbt.take", "cbt.grade",
-			"audit.read",
-		},
+		"data": auth.KnownPermissions(),
 	})
 }
 
 func (h *Handler) listRoles(w http.ResponseWriter, _ *http.Request) {
+	roles := auth.KnownRoles()
+	data := make([]map[string]string, 0, len(roles))
+	for _, role := range roles {
+		data = append(data, map[string]string{"role": role.Name, "scope": role.Scope})
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"data": []map[string]string{
-			{"role": "platform_super_admin", "scope": "all_tenants"},
-			{"role": "school_admin", "scope": "single_tenant"},
-			{"role": "principal", "scope": "single_tenant"},
-			{"role": "academic_head", "scope": "single_tenant"},
-			{"role": "accountant", "scope": "single_tenant"},
-			{"role": "teacher", "scope": "assigned_classes_subjects"},
-			{"role": "parent", "scope": "own_children"},
-			{"role": "student", "scope": "own_records"},
-		},
+		"data": data,
 	})
 }
 
@@ -402,6 +410,25 @@ func writeErr(w http.ResponseWriter, code int, errCode, msg string) {
 	writeJSON(w, code, map[string]string{"code": errCode, "message": msg})
 }
 
+const maxJSONBodyBytes = 64 << 10
+
+// decodeJSON applies the same production-safe parsing rules to every command:
+// bounded bodies, no silently ignored fields, and exactly one JSON value.
+func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodyBytes)
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(dst); err != nil {
+		writeErr(w, http.StatusBadRequest, "validation_error", "invalid request body")
+		return false
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		writeErr(w, http.StatusBadRequest, "validation_error", "request body must contain one JSON object")
+		return false
+	}
+	return true
+}
+
 func codeFor(err error) string {
 	switch {
 	case errors.Is(err, domain.ErrForbidden):
@@ -416,6 +443,8 @@ func codeFor(err error) string {
 		return "unauthorized"
 	case errors.Is(err, domain.ErrInvalidCredentials):
 		return "invalid_credentials"
+	case errors.Is(err, domain.ErrUnavailable):
+		return "service_unavailable"
 	default:
 		return "internal"
 	}
@@ -433,6 +462,8 @@ func mapStatus(err error) int {
 		return http.StatusConflict
 	case errors.Is(err, domain.ErrExpiredToken), errors.Is(err, domain.ErrInvalidCredentials):
 		return http.StatusUnauthorized
+	case errors.Is(err, domain.ErrUnavailable):
+		return http.StatusServiceUnavailable
 	default:
 		return http.StatusInternalServerError
 	}

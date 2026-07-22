@@ -29,13 +29,7 @@ func (p *Publisher) Publish(ctx context.Context, eventType string, student *doma
 	if p == nil || p.bus == nil {
 		return nil
 	}
-	data := map[string]any{}
-	if student != nil {
-		data["student_id"] = student.ID
-	}
-	for k, v := range meta {
-		data[k] = v
-	}
+	data := ports.StudentEventData(student, meta)
 
 	tenantID := ""
 	if student != nil {
@@ -62,6 +56,26 @@ func (p *Publisher) Publish(ctx context.Context, eventType string, student *doma
 			event.Subject = v
 		}
 	}
+	event.Time = time.Now().UTC().Format(time.RFC3339)
+	return p.bus.Publish(ctx, event)
+}
+
+func (p *Publisher) PublishWithID(ctx context.Context, eventID, eventType, tenantID string, data map[string]any) error {
+	if p == nil || p.bus == nil {
+		return nil
+	}
+	event, err := tenancy.NewCloudEvent(eventType, "student-service", eventID, tenantID, data)
+	if err != nil {
+		return fmt.Errorf("student: build outbox event: %w", err)
+	}
+	studentID, studentOK := data["student_id"].(string)
+	guardianID, guardianOK := data["guardian_id"].(string)
+	if studentOK && studentID != "" {
+		event.Subject = studentID
+	} else if guardianOK && guardianID != "" {
+		event.Subject = guardianID
+	}
+	event.IdempotencyKey = eventID
 	event.Time = time.Now().UTC().Format(time.RFC3339)
 	return p.bus.Publish(ctx, event)
 }

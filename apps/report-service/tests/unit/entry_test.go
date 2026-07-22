@@ -6,9 +6,9 @@ import (
 	"github.com/auraedu/report-service/internal/domain"
 )
 
-func scoreEntry(t *testing.T, cardID, subjectID, sourceKey string, score float64, max *float64) *domain.ScoreEntry {
+func scoreEntry(t *testing.T, subjectID, sourceKey string, score float64, maximum *float64) *domain.ScoreEntry {
 	t.Helper()
-	e, err := domain.NewScoreEntry(tenantA, cardID, studentA, subjectID, sourceKey, "evt-1", score, max)
+	e, err := domain.NewScoreEntry(tenantA, "card", studentA, subjectID, sourceKey, "evt-1", score, maximum)
 	if err != nil {
 		t.Fatalf("new score entry: %v", err)
 	}
@@ -49,9 +49,9 @@ func TestNewAttendanceEntry_Validation(t *testing.T) {
 func TestAggregateScores_GroupsPerSubject(t *testing.T) {
 	max100 := 100.0
 	entries := []*domain.ScoreEntry{
-		scoreEntry(t, "card", subject1, "a1", 40, &max100),
-		scoreEntry(t, "card", subject1, "a2", 32, &max100),
-		scoreEntry(t, "card", "bbbbbbbb-0000-0000-0000-000000000000", "a3", 9, nil),
+		scoreEntry(t, subject1, "a1", 40, &max100),
+		scoreEntry(t, subject1, "a2", 32, &max100),
+		scoreEntry(t, "bbbbbbbb-0000-0000-0000-000000000000", "a3", 9, nil),
 	}
 	got := domain.AggregateScores(entries)
 	if len(got) != 2 {
@@ -76,7 +76,7 @@ func TestAggregateScores_GroupsPerSubject(t *testing.T) {
 }
 
 func TestAggregateScores_NoSubjectFallsBackToAssessment(t *testing.T) {
-	entries := []*domain.ScoreEntry{scoreEntry(t, "card", "", assessment1, 55, nil)}
+	entries := []*domain.ScoreEntry{scoreEntry(t, "", assessment1, 55, nil)}
 	got := domain.AggregateScores(entries)
 	if len(got) != 1 {
 		t.Fatalf("expected 1 group, got %d", len(got))
@@ -85,7 +85,7 @@ func TestAggregateScores_NoSubjectFallsBackToAssessment(t *testing.T) {
 		t.Fatalf("unexpected fallback label: %q", got[0].Label)
 	}
 	if _, ok := got[0].Percentage(); ok {
-		t.Fatal("no max score: percentage must be unavailable")
+		t.Fatal("no maximum score: percentage must be unavailable")
 	}
 }
 

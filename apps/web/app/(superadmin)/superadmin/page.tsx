@@ -1,11 +1,20 @@
 import Link from "next/link";
-import { Building2, CreditCard, Receipt, ScrollText, HeartPulse } from "lucide-react";
+import {
+  Building2,
+  CircleAlert,
+  CreditCard,
+  HeartPulse,
+  Receipt,
+  ScrollText,
+  ShieldCheck,
+} from "lucide-react";
 import { StatCard, Button, Reveal, Watermark } from "@auraedu/ui";
 import { createGatewayClient } from "@auraedu/api-client";
-import { publicApiUrl, tenantHeaderName } from "@auraedu/config";
+import { gatewayInternalUrl, tenantHeaderName } from "@auraedu/config";
 import type { OpenAPI } from "@auraedu/shared-types";
 import { createServerClient, getCurrentToken } from "@/lib/api";
 import { requireAuth } from "@/lib/auth";
+import { summarizePlatformHealth, type PlatformHealthReport } from "@/lib/system-health";
 
 type Tenant = OpenAPI.tenant_v1.components["schemas"]["Tenant"];
 
@@ -14,6 +23,16 @@ interface PlatformStats {
   activeSubscriptions: number | null;
   students: number | null;
   staff: number | null;
+}
+
+async function loadPlatformHealth() {
+  try {
+    const client = await createServerClient();
+    const report = await client.get<PlatformHealthReport>("/api/v1/platform/health");
+    return { report, summary: summarizePlatformHealth(report) };
+  } catch {
+    return null;
+  }
 }
 
 async function loadPlatformStats(): Promise<PlatformStats> {
@@ -46,7 +65,7 @@ async function loadPlatformStats(): Promise<PlatformStats> {
   await Promise.all(
     tenants.map(async (t) => {
       const client = createGatewayClient({
-        baseUrl: publicApiUrl,
+        baseUrl: gatewayInternalUrl,
         tenantHeader: tenantHeaderName,
         getToken: () => token,
         getTenantCode: () => t.tenant_code,
@@ -79,7 +98,7 @@ async function loadPlatformStats(): Promise<PlatformStats> {
 
 export default async function SuperAdminDashboard() {
   await requireAuth();
-  const stats = await loadPlatformStats();
+  const [stats, health] = await Promise.all([loadPlatformStats(), loadPlatformHealth()]);
 
   return (
     <div className="relative space-y-8">
@@ -87,7 +106,7 @@ export default async function SuperAdminDashboard() {
         Console
       </Watermark>
       <Reveal>
-        <section className="card card-hover rounded-[var(--radius-md)] p-6">
+        <section className="portal-hero card card-hover p-6 sm:p-8">
           <h2 className="font-heading text-xl font-extrabold tracking-tight">
             Welcome to the platform console
           </h2>
@@ -107,27 +126,15 @@ export default async function SuperAdminDashboard() {
 
       <Reveal delay={80}>
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            label="Tenants"
-            value={stats.activeTenants ?? "—"}
-            unit="active"
-          />
+          <StatCard label="Tenants" value={stats.activeTenants ?? "—"} unit="active" />
           <StatCard
             label="Subscriptions"
             value={stats.activeSubscriptions ?? "—"}
             unit="active"
             tone="ok"
           />
-          <StatCard
-            label="Students"
-            value={stats.students ?? "—"}
-            unit="enrolled"
-          />
-          <StatCard
-            label="Staff"
-            value={stats.staff ?? "—"}
-            unit="members"
-          />
+          <StatCard label="Students" value={stats.students ?? "—"} unit="enrolled" />
+          <StatCard label="Staff" value={stats.staff ?? "—"} unit="members" />
         </section>
       </Reveal>
 
@@ -166,10 +173,40 @@ export default async function SuperAdminDashboard() {
         </Reveal>
         <Reveal delay={160}>
           <div className="card card-hover h-full rounded-[var(--radius-md)] p-5">
-            <h3 className="font-sans font-semibold tracking-tight">Platform notices</h3>
-            <p className="mt-4 text-sm text-[var(--muted-foreground)]">
-              Notices and alerts will appear here once the platform health feed is wired.
-            </p>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="font-sans font-semibold tracking-tight">Platform readiness</h3>
+              {health?.report.status === "healthy" ? (
+                <ShieldCheck className="size-5 text-[var(--color-ok)]" />
+              ) : (
+                <CircleAlert className="size-5 text-[var(--color-warn)]" />
+              )}
+            </div>
+            {health ? (
+              <>
+                <p className="mt-4 text-3xl font-black capitalize tracking-tight">
+                  {health.report.status}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
+                  {health.summary.healthy} of {health.report.checks.length} private services are
+                  ready.
+                  {health.summary.degraded > 0 ? ` ${health.summary.degraded} degraded.` : ""}
+                  {health.summary.unreachable > 0
+                    ? ` ${health.summary.unreachable} unreachable.`
+                    : ""}
+                </p>
+              </>
+            ) : (
+              <p className="mt-4 text-sm leading-6 text-[var(--muted-foreground)]">
+                The live readiness report is unavailable. Open System health for details and retry
+                guidance.
+              </p>
+            )}
+            <Link
+              href="/superadmin/system-health"
+              className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-[var(--primary)] hover:underline"
+            >
+              Open live health report <HeartPulse className="size-4" />
+            </Link>
           </div>
         </Reveal>
       </section>

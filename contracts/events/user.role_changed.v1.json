@@ -1,25 +1,79 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://contracts.auraedu.dev/events/user.role_changed.v1.json",
   "type": "object",
-  "required": ["specversion", "type", "source", "id", "tenant_id", "data"],
+  "required": [
+    "specversion",
+    "type",
+    "source",
+    "id",
+    "time",
+    "tenant_id",
+    "data"
+  ],
   "properties": {
-    "specversion": { "const": "1.0" },
-    "type": { "const": "user.role_changed.v1" },
-    "source": { "type": "string" },
-    "id": { "type": "string", "format": "uuid" },
-    "tenant_id": { "type": "string" },
-    "datacontenttype": { "const": "application/json" },
+    "specversion": {
+      "const": "1.0"
+    },
+    "type": {
+      "const": "user.role_changed.v1"
+    },
+    "source": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tenant_id": {
+      "type": "string"
+    },
+    "datacontenttype": {
+      "const": "application/json"
+    },
     "data": {
       "type": "object",
-      "required": ["user_id", "new_role"],
+      "required": [
+        "user_id",
+        "new_role"
+      ],
       "properties": {
-        "user_id": { "type": "string" },
-        "previous_role": { "type": "string" },
-        "new_role": { "type": "string" },
-        "permissions": { "type": "array", "items": { "type": "string" } }
+        "user_id": {
+          "type": "string"
+        },
+        "previous_role": {
+          "type": "string"
+        },
+        "new_role": {
+          "type": "string"
+        },
+        "permissions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       },
       "additionalProperties": false
     }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "examples": [
+    {
+      "specversion": "1.0",
+      "type": "user.role_changed.v1",
+      "source": "example-source",
+      "id": "11111111-1111-4111-8111-111111111111",
+      "time": "2026-07-20T10:00:00Z",
+      "tenant_id": "school-a",
+      "data": {
+        "user_id": "example-user.id",
+        "new_role": "example-new.role"
+      }
+    }
+  ]
 }

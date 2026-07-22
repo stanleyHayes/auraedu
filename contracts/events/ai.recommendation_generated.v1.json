@@ -55,7 +55,12 @@
         },
         "status": {
           "type": "string",
-          "enum": ["pending", "approved", "rejected", "overridden"]
+          "enum": [
+            "pending",
+            "approved",
+            "rejected",
+            "overridden"
+          ]
         },
         "confidence": {
           "type": [
@@ -71,7 +76,23 @@
             "null"
           ]
         }
+      },
+      "additionalProperties": false
+    }
+  },
+  "examples": [
+    {
+      "specversion": "1.0",
+      "type": "ai.recommendation_generated.v1",
+      "source": "ai-recommendation-service",
+      "id": "example-id",
+      "time": "2026-07-19T10:00:00Z",
+      "tenant_id": "school-a",
+      "data": {
+        "student_id": "11111111-1111-4111-8111-111111111111",
+        "recommendation_type": "example-recommendation.type"
       }
     }
-  }
+  ],
+  "additionalProperties": false
 }

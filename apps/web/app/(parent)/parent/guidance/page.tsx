@@ -1,34 +1,40 @@
 import { Compass, MapPinned } from "lucide-react";
 import { PageHeader, EmptyState } from "@auraedu/ui";
 import type { OpenAPI } from "@auraedu/shared-types";
-import { createServerClient, getSession } from "@/lib/api";
+import { createServerClient } from "@/lib/api";
 
 type Guidance = OpenAPI.career_guidance_v1.components["schemas"]["Guidance"];
+type GuardianChildren = OpenAPI.student_v1.components["schemas"]["GuardianChildren"];
+
+interface GuidanceRow {
+  guidance: Guidance;
+  studentName: string;
+}
 
 export default async function ParentGuidancePage() {
-  const session = await getSession();
-  let guidance: Guidance[] = [];
+  let guidance: GuidanceRow[] = [];
   let error: string | null = null;
 
-  // student_id is required by the contract; without a session there is nothing
-  // to query, so fall through to the empty state.
-  if (session?.user_id) {
-    try {
-      const client = await createServerClient();
-      // NOTE: student_id is the identity user id until the backend exposes an
-      // actor→student-record mapping for guardians' children.
-      const list = await client.get<
-        OpenAPI.career_guidance_v1.components["schemas"]["GuidanceList"]
-      >(`/api/v1/ai/career-guidance?student_id=${session.user_id}`);
-      guidance = list.data ?? [];
-    } catch {
-      error = "Could not load guidance right now.";
-    }
+  try {
+    const client = await createServerClient();
+    const family = await client.get<GuardianChildren>("/api/v1/guardians/me/children");
+    const lists = await Promise.all(
+      family.students.map(async (student) => {
+        const list = await client.get<
+          OpenAPI.career_guidance_v1.components["schemas"]["GuidanceList"]
+        >(`/api/v1/ai/career-guidance?student_id=${encodeURIComponent(student.id)}`);
+        return (list.data ?? []).map((item) => ({
+          guidance: item,
+          studentName: `${student.first_name} ${student.last_name}`,
+        }));
+      }),
+    );
+    guidance = lists.flat();
+  } catch {
+    error = "Could not load guidance right now.";
   }
 
-  // The list endpoint has no server-side status filter, so only approved
-  // guidance is shown here.
-  const approved = guidance.filter((g) => g.status === "approved");
+  const approved = guidance.filter(({ guidance: item }) => item.status === "approved");
 
   return (
     <div className="space-y-6">
@@ -51,7 +57,7 @@ export default async function ParentGuidancePage() {
         />
       ) : (
         <ul className="space-y-3">
-          {approved.map((item) => (
+          {approved.map(({ guidance: item, studentName }) => (
             <li
               key={item.id}
               className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-4"
@@ -65,7 +71,7 @@ export default async function ParentGuidancePage() {
                     </p>
                   ) : null}
                   <p className="mt-1 text-xs capitalize text-[var(--muted-foreground)]">
-                    {item.guidance_type.replace(/_/g, " ")}
+                    {studentName} · {item.guidance_type.replace(/_/g, " ")}
                   </p>
                 </div>
                 <span className="shrink-0 text-xs text-[var(--muted-foreground)]">

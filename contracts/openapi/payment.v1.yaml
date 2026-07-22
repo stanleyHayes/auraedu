@@ -4,6 +4,8 @@ info:
   version: 1.0.0
   description: >
     Payment gateway integrations, transactions, and webhooks (spec \u00a77). Owned by lane L2 (EP-17). Feature flag: online_payments.
+  contact:
+    name: AuraEDU Engineering
 servers:
   - url: /api/v1
 tags:
@@ -12,36 +14,46 @@ tags:
   - name: webhooks
 
 paths:
-    /payments/initiate:
+    /payments:
+      get:
+        operationId: listPayments
+        description: Executes the list payments workflow within this AuraEDU API boundary.
+        tags: ['payments']
+        summary: List payments
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/Limit'
+          - $ref: '#/components/parameters/Cursor'
+          - { name: status, in: query, schema: { type: string, enum: [pending, processing, success, failed, cancelled] } }
+          - { name: provider, in: query, schema: { type: string, enum: [paystack, flutterwave, mock] } }
+          - { name: invoice_id, in: query, schema: { type: string } }
+        responses:
+          '200': { description: Payments, content: { application/json: { schema: { $ref: '#/components/schemas/PaymentList' } } } }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
       post:
-            operationId: initiatePayment
-            tags: ['payments']
-            summary: Initiate a payment
-            parameters:
-              - $ref: '#/components/parameters/TenantHeader'
-            requestBody:
-              required: true
-              content:
-                application/json:
-                  schema: { $ref: '#/components/schemas/InitiatePaymentRequest' }
-            responses:
-              '201':
-                description: OK
-                content:
-                  application/json:
-                    schema: { $ref: '#/components/schemas/Payment' }
-              '403': { $ref: '#/components/responses/Forbidden' }
-              '404': { $ref: '#/components/responses/NotFound' }
-              '422': { $ref: '#/components/responses/ValidationError' }
-              '401': { $ref: '#/components/responses/Unauthorized' }
+        operationId: createPayment
+        description: Executes the create payment workflow within this AuraEDU API boundary.
+        tags: ['payments']
+        summary: Create a payment
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }]
+        requestBody:
+          required: true
+          content: { application/json: { schema: { $ref: '#/components/schemas/CreatePayment' } } }
+        responses:
+          '201': { description: Created payment, content: { application/json: { schema: { $ref: '#/components/schemas/Payment' } } } }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '422': { $ref: '#/components/responses/ValidationError' }
     /payments/{payment_id}:
       get:
             operationId: getPayment
+            description: Executes the get payment workflow within this AuraEDU API boundary.
             tags: ['payments']
             summary: Get payment status
             parameters:
               - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/TenantId'
+              - $ref: '#/components/parameters/PaymentId'
             responses:
               '200':
                 description: OK
@@ -52,13 +64,65 @@ paths:
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
-    /transactions:
+      patch:
+        operationId: updatePayment
+        description: Executes the update payment workflow within this AuraEDU API boundary.
+        tags: ['payments']
+        summary: Update a payment
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/PaymentId' }]
+        requestBody:
+          required: true
+          content: { application/json: { schema: { $ref: '#/components/schemas/UpdatePayment' } } }
+        responses:
+          '200': { description: Updated payment, content: { application/json: { schema: { $ref: '#/components/schemas/Payment' } } } }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+      delete:
+        operationId: deletePayment
+        description: Executes the delete payment workflow within this AuraEDU API boundary.
+        tags: ['payments']
+        summary: Delete a payment
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/PaymentId' }]
+        responses:
+          '204': { description: Payment deleted }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+    /payments/{payment_id}/initiate:
+      post:
+        operationId: initiatePayment
+        description: Executes the initiate payment workflow within this AuraEDU API boundary.
+        tags: ['payments']
+        summary: Initiate provider checkout for an existing payment
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/PaymentId' }]
+        responses:
+          '200': { description: Initiated payment, content: { application/json: { schema: { $ref: '#/components/schemas/Payment' } } } }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+    /payments/{payment_id}/verify:
       get:
-            operationId: listTransactions
+        operationId: verifyPayment
+        description: Executes the verify payment workflow within this AuraEDU API boundary.
+        tags: ['payments']
+        summary: Reconcile a payment with its provider
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/PaymentId' }]
+        responses:
+          '200': { description: Verified payment, content: { application/json: { schema: { $ref: '#/components/schemas/Payment' } } } }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+    /payments/{payment_id}/transactions:
+      get:
+            operationId: listPaymentTransactions
+            description: Executes the list payment transactions workflow within this AuraEDU API boundary.
             tags: ['transactions']
-            summary: List transactions
+            summary: List transactions for a payment
             parameters:
               - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/PaymentId'
               - $ref: '#/components/parameters/Limit'
               - $ref: '#/components/parameters/Cursor'
             responses:
@@ -71,25 +135,71 @@ paths:
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
+    /transactions/{transaction_id}:
+      get:
+        operationId: getTransaction
+        description: Executes the get transaction workflow within this AuraEDU API boundary.
+        tags: ['transactions']
+        summary: Get a transaction
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/TransactionId' }]
+        responses:
+          '200': { description: Transaction, content: { application/json: { schema: { $ref: '#/components/schemas/Transaction' } } } }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+    /webhook-events:
+      get:
+        operationId: listWebhookEvents
+        description: Executes the list webhook events workflow within this AuraEDU API boundary.
+        tags: ['webhooks']
+        summary: List retained webhook events
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/Limit' }, { $ref: '#/components/parameters/Cursor' }]
+        responses:
+          '200': { description: Webhook events, content: { application/json: { schema: { $ref: '#/components/schemas/WebhookEventList' } } } }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+      post:
+        operationId: createWebhookEvent
+        description: Executes the create webhook event workflow within this AuraEDU API boundary.
+        tags: ['webhooks']
+        summary: Record a webhook event through the authenticated API
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }]
+        requestBody:
+          required: true
+          content: { application/json: { schema: { $ref: '#/components/schemas/CreateWebhookEvent' } } }
+        responses:
+          '201': { description: Webhook event, content: { application/json: { schema: { $ref: '#/components/schemas/WebhookEvent' } } } }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+    /webhook-events/{event_id}:
+      get:
+        operationId: getWebhookEvent
+        description: Executes the get webhook event workflow within this AuraEDU API boundary.
+        tags: ['webhooks']
+        summary: Get a retained webhook event
+        parameters: [{ $ref: '#/components/parameters/TenantHeader' }, { $ref: '#/components/parameters/EventId' }]
+        responses:
+          '200': { description: Webhook event, content: { application/json: { schema: { $ref: '#/components/schemas/WebhookEvent' } } } }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
     /webhooks/{provider}:
       post:
             operationId: receiveWebhook
+            description: Executes the receive webhook workflow within this AuraEDU API boundary.
             tags: ['webhooks']
             summary: Receive provider webhook
             parameters:
               - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/TenantId'
+              - $ref: '#/components/parameters/Provider'
             requestBody:
               required: true
               content:
                 application/json:
                   schema: { $ref: '#/components/schemas/WebhookPayload' }
             responses:
-              '201':
-                description: OK
-                content:
-                  application/json:
-                    schema: { $ref: '#/components/schemas/WebhookEvent' }
+              '204': { description: Webhook accepted }
               '403': { $ref: '#/components/responses/Forbidden' }
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
@@ -98,11 +208,26 @@ paths:
 
 components:
   parameters:
-    TenantId:
-      name: tenant_id
+    PaymentId:
+      name: payment_id
       in: path
       required: true
       schema: { type: string, format: uuid }
+    TransactionId:
+      name: transaction_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    EventId:
+      name: event_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Provider:
+      name: provider
+      in: path
+      required: true
+      schema: { type: string, enum: [paystack, flutterwave, mock] }
     TenantHeader:
       name: X-Tenant-Code
       in: header
@@ -126,35 +251,62 @@ components:
         code: { type: string, enum: [forbidden, feature_disabled, tenant_mismatch, validation_error, not_found, unauthorized] }
         message: { type: string }
         request_id: { type: string }
-    InitiatePaymentRequest:
-        type: object
-        required: [invoice_id, amount, gateway]
-        properties:
-          invoice_id: { type: string, format: uuid }
-          amount: { type: number, minimum: 0 }
-          gateway: { type: string, enum: [paystack, flutterwave] }
-          callback_url: { type: [string, 'null'] }
     Payment:
-        type: object
-        required: [id, tenant_id, invoice_id, amount, status]
-        properties:
-          id: { type: string, format: uuid }
-          tenant_id: { type: string, format: uuid }
-          invoice_id: { type: string, format: uuid }
-          amount: { type: number, minimum: 0 }
-          gateway: { type: string }
-          status: { type: string, enum: [pending, success, failed] }
-          reference: { type: [string, 'null'] }
+      type: object
+      required: [id, tenant_id, invoice_id, amount_cents, currency, provider, status, initiated_at, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string, description: Canonical tenant identifier resolved by the gateway. }
+        invoice_id: { type: string, format: uuid }
+        amount_cents: { type: integer, minimum: 1 }
+        currency: { type: string, minLength: 3, maxLength: 3, example: GHS }
+        provider: { type: string, enum: [paystack, flutterwave, mock] }
+        provider_reference: { type: [string, 'null'] }
+        status: { type: string, enum: [pending, processing, success, failed, cancelled] }
+        metadata: { type: object, additionalProperties: true }
+        initiated_at: { type: string, format: date-time }
+        completed_at: { type: [string, 'null'], format: date-time }
+        checkout_url: { type: [string, 'null'], format: uri, description: Ephemeral HTTPS checkout URL returned only by initiation. }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    CreatePayment:
+      type: object
+      required: [invoice_id, amount_cents, provider]
+      properties:
+        invoice_id: { type: string, format: uuid }
+        amount_cents: { type: integer, minimum: 1 }
+        currency: { type: string, minLength: 3, maxLength: 3, default: GHS }
+        provider: { type: string, enum: [paystack, flutterwave, mock] }
+        metadata: { type: object, additionalProperties: true }
+    UpdatePayment:
+      type: object
+      minProperties: 1
+      properties:
+        amount_cents: { type: integer, minimum: 1 }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        provider: { type: string, enum: [paystack, flutterwave, mock] }
+        provider_reference: { type: [string, 'null'] }
+        status: { type: string, enum: [pending, processing, success, failed, cancelled] }
+        metadata: { type: object, additionalProperties: true }
+        completed_at: { type: [string, 'null'], format: date-time }
+    PaymentList:
+      type: object
+      required: [data, next_cursor]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Payment' } }
+        next_cursor: { type: [string, 'null'] }
     Transaction:
-        type: object
-        required: [id, tenant_id, payment_id, amount]
-        properties:
-          id: { type: string, format: uuid }
-          tenant_id: { type: string, format: uuid }
-          payment_id: { type: string, format: uuid }
-          amount: { type: number, minimum: 0 }
-          gateway_reference: { type: [string, 'null'] }
-          recorded_at: { type: string, format: date-time }
+      type: object
+      required: [id, tenant_id, payment_id, type, status, amount_cents, reference, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string }
+        payment_id: { type: string, format: uuid }
+        type: { type: string, enum: [debit, credit, refund] }
+        status: { type: string, enum: [pending, success, failed] }
+        amount_cents: { type: integer, minimum: 0 }
+        reference: { type: string }
+        created_at: { type: string, format: date-time }
     WebhookPayload:
         type: object
         additionalProperties: true
@@ -162,18 +314,38 @@ components:
           event: { type: string }
           data: { type: object, additionalProperties: true }
     WebhookEvent:
-        type: object
-        required: [id, provider, event]
-        properties:
-          id: { type: string, format: uuid }
-          provider: { type: string }
-          event: { type: string }
-          processed: { type: boolean }
+      type: object
+      required: [id, provider, event_type, payload, processed, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string }
+        provider: { type: string, enum: [paystack, flutterwave, mock] }
+        event_type: { type: string }
+        payload: { type: object, additionalProperties: true }
+        signature: { type: [string, 'null'], writeOnly: true }
+        processed: { type: boolean }
+        processed_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+    CreateWebhookEvent:
+      type: object
+      required: [provider, event_type, payload]
+      properties:
+        provider: { type: string, enum: [paystack, flutterwave, mock] }
+        event_type: { type: string }
+        payload: { type: object, additionalProperties: true }
+        signature: { type: [string, 'null'], writeOnly: true }
     TransactionList:
-        type: object
-        properties:
-          data: { type: array, items: { $ref: '#/components/schemas/Transaction' } }
-          next_cursor: { type: [string, 'null'] }
+      type: object
+      required: [data, next_cursor]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Transaction' } }
+        next_cursor: { type: [string, 'null'] }
+    WebhookEventList:
+      type: object
+      required: [data, next_cursor]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/WebhookEvent' } }
+        next_cursor: { type: [string, 'null'] }
 
   responses:
     Unauthorized:
@@ -212,4 +384,3 @@ components:
 
 security:
   - bearerAuth: []
-

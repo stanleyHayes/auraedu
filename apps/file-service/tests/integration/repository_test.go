@@ -2,6 +2,9 @@ package integration
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/auraedu/file-service/internal/adapters/postgres"
@@ -9,8 +12,77 @@ import (
 	"github.com/auraedu/file-service/internal/ports"
 	"github.com/auraedu/platform/tenancy"
 	"github.com/auraedu/platform/testkit"
+	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
+
+func TestFileLifecycleCommitsEventsAndDeferredCleanup(t *testing.T) {
+	ctx := withTenant(context.Background(), tenantA)
+	tdb := testkit.NewPostgres(context.Background(), t, "../../migrations")
+	repo := postgres.NewRepository(tdb.DB)
+	file, err := domain.NewFileUpload(tenantA, "proof.pdf", "application/pdf", "user-1", "report", 100, "checksum")
+	if err != nil {
+		t.Fatal(err)
+	}
+	file.StoragePath = "/tmp/proof-" + file.ID
+	file.Status = string(domain.StatusActive)
+	if err := repo.CommitFileLifecycle(ctx, tenantA, file, ports.FileMutationCreate, "file.uploaded.v1", ports.FileEventData(file, nil)); err != nil {
+		t.Fatal(err)
+	}
+	name := "renamed.pdf"
+	changed, err := file.ApplyUpdate(&name, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CommitFileLifecycle(ctx, tenantA, file, ports.FileMutationUpdate, "file.updated.v1", ports.FileEventData(file, map[string]any{"changed_fields": changed})); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CommitFileLifecycle(ctx, tenantA, file, ports.FileMutationDelete, "file.deleted.v1", ports.FileEventData(file, nil)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.GetByID(ctx, tenantA, file.ID); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("deleted file remained: %v", err)
+	}
+	outbox, err := repo.ClaimPendingFileEvents(context.Background(), 10)
+	if err != nil || len(outbox) != 3 {
+		t.Fatalf("outbox=%+v err=%v", outbox, err)
+	}
+	counts := map[string]int{}
+	for _, item := range outbox {
+		counts[item.EventType]++
+		var payload map[string]any
+		if err := json.Unmarshal(item.Payload, &payload); err != nil || payload["file_id"] != file.ID {
+			t.Fatalf("payload=%+v err=%v", payload, err)
+		}
+		if item.EventType == "file.deleted.v1" && item.CleanupPath != file.StoragePath {
+			t.Fatalf("cleanup path=%q", item.CleanupPath)
+		}
+	}
+	if counts["file.uploaded.v1"] != 1 || counts["file.updated.v1"] != 1 || counts["file.deleted.v1"] != 1 {
+		t.Fatalf("counts=%+v", counts)
+	}
+}
+
+func TestFileLifecycleRollsBackWithoutOutbox(t *testing.T) {
+	ctx := withTenant(context.Background(), tenantA)
+	tdb := testkit.NewPostgres(context.Background(), t, "../../migrations")
+	repo := postgres.NewRepository(tdb.DB)
+	file, err := domain.NewFileUpload(tenantA, "rollback.pdf", "application/pdf", "user-1", "report", 100, "checksum")
+	if err != nil {
+		t.Fatal(err)
+	}
+	file.StoragePath = "/tmp/" + file.ID
+	file.Status = string(domain.StatusActive)
+	if _, err := tdb.DB.Pool().Exec(context.Background(), `DROP TABLE file_outbox`); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CommitFileLifecycle(ctx, tenantA, file, ports.FileMutationCreate, "file.uploaded.v1", ports.FileEventData(file, nil)); err == nil {
+		t.Fatal("create must fail without outbox")
+	}
+	if _, err := repo.GetByID(ctx, tenantA, file.ID); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("mutation escaped rollback: %v", err)
+	}
+}
 
 const tenantA = "11111111-1111-1111-1111-111111111111"
 const tenantB = "22222222-2222-2222-2222-222222222222"
@@ -135,5 +207,62 @@ func TestRepository_TenantIsolation(t *testing.T) {
 	}
 	if len(list) != 0 {
 		t.Fatalf("tenant B should see 0 file uploads, got %d", len(list))
+	}
+}
+
+func TestFileUsageRLSWithRuntimeRole(t *testing.T) {
+	ctx := context.Background()
+	tdb := testkit.NewPostgres(ctx, t, "../../migrations")
+	_, err := tdb.DB.Pool().Exec(ctx, `
+		CREATE ROLE file_runtime LOGIN PASSWORD 'runtime-test';
+		GRANT USAGE ON SCHEMA public TO file_runtime;
+		GRANT SELECT, INSERT ON file_usage TO file_runtime;
+		INSERT INTO file_usage (tenant_id, date, bytes_stored) VALUES
+			('upshs', CURRENT_DATE, 100),
+			('aboom-ame-zion-c', CURRENT_DATE, 200);
+	`)
+	if err != nil {
+		t.Fatalf("seed runtime RLS probe: %v", err)
+	}
+
+	runtimeDSN := strings.Replace(tdb.DSN, "test:test@", "file_runtime:runtime-test@", 1)
+	runtime, err := pgxpool.New(ctx, runtimeDSN)
+	if err != nil {
+		t.Fatalf("open runtime pool: %v", err)
+	}
+	defer runtime.Close()
+
+	tx, err := runtime.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin runtime read: %v", err)
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, "SELECT set_config('app.tenant_id', $1, true)", "upshs"); err != nil {
+		t.Fatalf("set runtime tenant: %v", err)
+	}
+	var count int
+	if err := tx.QueryRow(ctx, `SELECT count(*) FROM file_usage`).Scan(&count); err != nil {
+		t.Fatalf("query runtime usage: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected runtime tenant to see one usage row, got %d", count)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit runtime read: %v", err)
+	}
+
+	crossTx, err := runtime.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin cross-tenant write: %v", err)
+	}
+	defer crossTx.Rollback(ctx) //nolint:errcheck // Cleanup is best effort after the test's expected policy rejection.
+	if _, err := crossTx.Exec(ctx, "SELECT set_config('app.tenant_id', $1, true)", "upshs"); err != nil {
+		t.Fatalf("set cross-tenant context: %v", err)
+	}
+	if _, err := crossTx.Exec(ctx, `
+		INSERT INTO file_usage (tenant_id, date, bytes_stored)
+		VALUES ('aboom-ame-zion-c', CURRENT_DATE - 1, 300)
+	`); err == nil {
+		t.Fatal("expected cross-tenant usage write to be denied by RLS")
 	}
 }

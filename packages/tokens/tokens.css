@@ -1,11 +1,11 @@
-/* AuraEDU design tokens — "Navy, Maroon & Parchment".
+/* AuraEDU design tokens — "Cobalt, Midnight & Signal".
    Tailwind v4 @theme layer. Hex values mirror packages/tokens/src/index.ts for mobile. */
 @import "tailwindcss";
 
 @theme {
   /* ---- typography ---- */
   --font-sans: var(--font-outfit), ui-sans-serif, system-ui, "Helvetica Neue", Arial, sans-serif;
-  --font-heading: var(--font-fraunces), ui-serif, Georgia, "Times New Roman", serif;
+  --font-heading: var(--font-outfit), ui-sans-serif, system-ui, "Helvetica Neue", Arial, sans-serif;
   --font-mono: var(--font-spline-mono), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
   --text-xs: 0.75rem;
@@ -26,46 +26,52 @@
   --radius-2xl: 20px;
   --radius-full: 9999px;
 
-  /* ---- brand slots — DEFAULT = deep maroon; tenants override --color-brand ---- */
-  --color-brand: #7b1113;
-  --color-brand-deep: #4a0a0c;
-  --color-brand-tint: #f3ded9;
+  /* ---- brand slots — DEFAULT = systems cobalt; tenants override --color-brand ---- */
+  --color-brand: #1557ff;
+  --color-brand-deep: #0b3fc7;
+  --color-brand-tint: #e8efff;
   --color-brand-contrast: #ffffff;
-  --color-brand-secondary: #001b50;
+  /* The brand lifted far enough to read as text on the dark card. The web app
+     recomputes this per tenant; this default covers the tenant-less shell. */
+  --color-brand-on-dark: #7aa2ff;
+  --color-brand-secondary: #061631;
 
   /* ---- accent palette borrowed from NADAA / UPOSA / xtiitch ---- */
-  --color-navy: #001b50;
-  --color-navy-soft: #002870;
-  --color-navy-muted: #1e3a66;
-  --color-gold: #c58b2c;
-  --color-gold-soft: #d4af37;
-  --color-gold-muted: #e8d5a3;
-  --color-cream: #fdfcf7;
-  --color-parchment: #f7f5ee;
-  --color-wine: #800020;
-  --color-burgundy: #6b0f1a;
-  --color-oxblood: #4a0404;
-  --color-forest: #1e7d52;
+  --color-navy: #061631;
+  --color-navy-soft: #0c2857;
+  --color-navy-muted: #31466b;
+  --color-gold: #f7b62c;
+  --color-gold-soft: #ffd36b;
+  --color-gold-muted: #f8e4ae;
+  --color-cream: #f7f9fc;
+  --color-parchment: #f2f6fc;
+  --color-wine: #1557ff;
+  --color-burgundy: #0b3fc7;
+  --color-oxblood: #061631;
+  --color-forest: #087f8c;
+  --color-teal-bright: #63d5da;
+  --color-signal: #b7f500;
+  --color-coral: #f46c2f;
 
   /* ---- warm ink neutrals ---- */
-  --color-ink-950: #15111a;
-  --color-ink-900: #1f1c18;
-  --color-ink-800: #2a2722;
-  --color-ink-700: #3d3831;
-  --color-ink-600: #56514a;
-  --color-ink-400: #8a837a;
-  --color-ink-200: #bfb8ad;
+  --color-ink-950: #061631;
+  --color-ink-900: #0b1d3a;
+  --color-ink-800: #162b4c;
+  --color-ink-700: #263b5c;
+  --color-ink-600: #405473;
+  --color-ink-400: #71819a;
+  --color-ink-200: #b6c1d1;
 
   /* ---- parchment paper neutrals ---- */
-  --color-paper-50: #fdfcf7;
+  --color-paper-50: #f7f9fc;
   --color-paper-100: #ffffff;
-  --color-paper-200: #f5f3ec;
-  --color-paper-300: #e8e4da;
-  --color-paper-400: #d6d1c4;
+  --color-paper-200: #f2f6fc;
+  --color-paper-300: #dbe3ed;
+  --color-paper-400: #c6d1df;
 
   /* ---- status ---- */
-  --color-ok: #1e7d52;
-  --color-warn: #b5740b;
+  --color-ok: #07876f;
+  --color-warn: #c47800;
   --color-crit: #b42318;
 
   /* ---- motion ---- */

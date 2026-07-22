@@ -27,15 +27,28 @@ func (p *Publisher) Publish(ctx context.Context, eventType string, file *domain.
 	if p == nil || p.bus == nil {
 		return nil
 	}
-	data := map[string]any{"file_id": file.ID}
-	for k, v := range meta {
-		data[k] = v
-	}
+	data := ports.FileEventData(file, meta)
 	event, err := tenancy.NewCloudEvent(eventType, "file-service", "", file.TenantID, data)
 	if err != nil {
 		return fmt.Errorf("file: build event: %w", err)
 	}
 	event.Subject = file.ID
+	event.Time = time.Now().UTC().Format(time.RFC3339)
+	return p.bus.Publish(ctx, event)
+}
+
+func (p *Publisher) PublishWithID(ctx context.Context, eventID, eventType, tenantID string, data map[string]any) error {
+	if p == nil || p.bus == nil {
+		return nil
+	}
+	event, err := tenancy.NewCloudEvent(eventType, "file-service", eventID, tenantID, data)
+	if err != nil {
+		return fmt.Errorf("file: build outbox event: %w", err)
+	}
+	if fileID, ok := data["file_id"].(string); ok && fileID != "" {
+		event.Subject = fileID
+	}
+	event.IdempotencyKey = eventID
 	event.Time = time.Now().UTC().Format(time.RFC3339)
 	return p.bus.Publish(ctx, event)
 }

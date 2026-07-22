@@ -15,27 +15,28 @@ import (
 	"github.com/auraedu/payment-service/internal/application"
 	"github.com/auraedu/payment-service/internal/domain"
 	"github.com/auraedu/platform/tenancy"
+	"github.com/google/uuid"
 )
 
-const (
-	paystackSecret    = "sk_test_webhook_secret"
-	flutterwaveSecret = "flw_verif_hash_secret"
+var (
+	paystackSecret    = uuid.NewString()
+	flutterwaveSecret = uuid.NewString()
 )
 
 func newSecureService(pRepo *fakePaymentRepo, txRepo *fakeTxRepo, wRepo *fakeWebhookRepo, pub *fakePublisher, prov *stubProvider) *application.Service {
 	return application.NewService(pRepo, txRepo, wRepo,
 		application.WithPublisher(pub),
 		application.WithPaymentProvider(prov),
-		application.WithFeatureGate(enabledGates(unitTenantA, application.FeaturePayments)),
+		application.WithFeatureGate(enabledGates()),
 		application.WithWebhookSecrets(paystackSecret, flutterwaveSecret),
 	)
 }
 
 // seedProcessingPayment creates + initiates a payment so provider reference ref exists.
-func seedProcessingPayment(t *testing.T, svc *application.Service, tenantID string) *domain.Payment {
+func seedProcessingPayment(t *testing.T, svc *application.Service) *domain.Payment {
 	t.Helper()
-	ctx := tenancy.WithContext(context.Background(), tenancy.TenantContext{TenantID: tenantID})
-	p, err := svc.CreatePayment(ctx, unitActor(tenantID, application.PermManage), application.CreatePaymentRequest{
+	ctx := tenancy.WithContext(context.Background(), tenancy.TenantContext{TenantID: unitTenantA})
+	p, err := svc.CreatePayment(ctx, unitActor(unitTenantA, application.PermManage), application.CreatePaymentRequest{
 		InvoiceID:   unitInvoice,
 		AmountCents: 10000,
 		Currency:    "GHS",
@@ -44,7 +45,7 @@ func seedProcessingPayment(t *testing.T, svc *application.Service, tenantID stri
 	if err != nil {
 		t.Fatalf("create payment: %v", err)
 	}
-	p, err = svc.InitiatePayment(ctx, unitActor(tenantID, application.PermInitiate), p.ID)
+	p, err = svc.InitiatePayment(ctx, unitActor(unitTenantA, application.PermInitiate), p.ID)
 	if err != nil {
 		t.Fatalf("initiate payment: %v", err)
 	}
@@ -61,7 +62,7 @@ func TestProcessWebhook_PaystackValidSignatureAccepted(t *testing.T) {
 	pRepo, txRepo, wRepo, pub := newFakePaymentRepo(), &fakeTxRepo{}, &fakeWebhookRepo{}, &fakePublisher{}
 	prov := &stubProvider{ref: "ref-1", verifyStatus: string(domain.PaymentStatusSuccess)}
 	svc := newSecureService(pRepo, txRepo, wRepo, pub, prov)
-	seedProcessingPayment(t, svc, unitTenantA)
+	seedProcessingPayment(t, svc)
 
 	payload := []byte(`{"event":"charge.success","data":{"reference":"ref-1","metadata":{"tenant_id":"` + unitTenantA + `"}}}`)
 	_, err := svc.ProcessWebhook(context.Background(), application.ProcessWebhookRequest{
@@ -117,9 +118,9 @@ func TestProcessWebhook_NoSecretConfigured_DevModeAccepts(t *testing.T) {
 	svc := application.NewService(pRepo, txRepo, wRepo,
 		application.WithPublisher(pub),
 		application.WithPaymentProvider(prov),
-		application.WithFeatureGate(enabledGates(unitTenantA, application.FeaturePayments)),
+		application.WithFeatureGate(enabledGates()),
 	)
-	seedProcessingPayment(t, svc, unitTenantA)
+	seedProcessingPayment(t, svc)
 
 	payload := []byte(`{"reference":"ref-1","tenant_id":"` + unitTenantA + `"}`)
 	if _, err := svc.ProcessWebhook(context.Background(), application.ProcessWebhookRequest{
@@ -187,7 +188,12 @@ func TestWebhookHandler_InvalidSignatureReturns401(t *testing.T) {
 
 	payload := `{"reference":"ref-1","tenant_id":"` + unitTenantA + `"}`
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/paystack", strings.NewReader(payload))
+	req := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"/api/v1/webhooks/paystack",
+		strings.NewReader(payload),
+	)
 	req.Header.Set("X-Paystack-Signature", "deadbeef")
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -197,7 +203,12 @@ func TestWebhookHandler_InvalidSignatureReturns401(t *testing.T) {
 
 	// Same body with the correct signature passes verification (404 here because no
 	// payment matches — proof the request got past the signature check).
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/paystack", strings.NewReader(payload))
+	req = httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"/api/v1/webhooks/paystack",
+		strings.NewReader(payload),
+	)
 	req.Header.Set("X-Paystack-Signature", paystackSignature(paystackSecret, []byte(payload)))
 	rec = httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)

@@ -33,18 +33,14 @@ interface TenantFormProps {
 
 export function TenantForm({ mode, tenantCode, initial, onSuccess }: TenantFormProps) {
   const isEdit = mode === "edit";
-  const action = isEdit
-    ? updateTenantAction.bind(null, tenantCode!)
-    : createTenantAction;
+  const action = isEdit ? updateTenantAction.bind(null, tenantCode!) : createTenantAction;
 
   const [state, formAction, pending] = React.useActionState<TenantActionResult, FormData>(
     action,
     {},
   );
 
-  const [logoUrl, setLogoUrl] = React.useState<string | null>(
-    initial?.branding?.logo_url ?? null,
-  );
+  const [logoUrl, setLogoUrl] = React.useState<string | null>(initial?.branding?.logo_url ?? null);
 
   React.useEffect(() => {
     if (state.success && onSuccess) {
@@ -71,17 +67,18 @@ export function TenantForm({ mode, tenantCode, initial, onSuccess }: TenantFormP
 
         <div className="space-y-1.5">
           <Label htmlFor="name">School name</Label>
-          <Input id="name" name="name" defaultValue={initial?.name} required placeholder="Union Preparatory School" />
+          <Input
+            id="name"
+            name="name"
+            defaultValue={initial?.name}
+            required
+            placeholder="Union Preparatory School"
+          />
         </div>
 
         <div className="space-y-1.5">
           <Label htmlFor="short">Short name</Label>
           <Input id="short" name="short" defaultValue={initial?.short} placeholder="UPSHS" />
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="domain">Custom domain</Label>
-          <Input id="domain" name="domain" defaultValue={initial?.domain ?? ""} placeholder="upshs.auraedu.com" />
         </div>
 
         <div className="space-y-1.5">
@@ -112,7 +109,7 @@ export function TenantForm({ mode, tenantCode, initial, onSuccess }: TenantFormP
             id="brand_primary"
             name="brand_primary"
             type="color"
-            defaultValue={initial?.branding?.brand?.primary ?? "#C6402F"}
+            defaultValue={initial?.branding?.brand?.primary ?? "#1557FF"}
             className="h-11 w-full rounded-[var(--radius-sm)] border border-border bg-surface px-2 py-1"
           />
         </div>
@@ -123,14 +120,19 @@ export function TenantForm({ mode, tenantCode, initial, onSuccess }: TenantFormP
             id="brand_secondary"
             name="brand_secondary"
             type="color"
-            defaultValue={initial?.branding?.brand?.secondary ?? "#2456A6"}
+            defaultValue={initial?.branding?.brand?.secondary ?? "#087F8C"}
             className="h-11 w-full rounded-[var(--radius-sm)] border border-border bg-surface px-2 py-1"
           />
         </div>
       </div>
 
       <input type="hidden" name="logo_url" value={logoUrl ?? ""} />
-      <LogoUploader tenantCode={initial?.tenant_code ?? tenantCode ?? "new"} value={logoUrl} onChange={setLogoUrl} disabled={pending} />
+      <LogoUploader
+        tenantCode={initial?.tenant_code ?? tenantCode ?? "new"}
+        value={logoUrl}
+        onChange={setLogoUrl}
+        disabled={pending}
+      />
 
       {state.error ? (
         <p className="rounded-[var(--radius-sm)] bg-destructive/10 px-3 py-2 text-sm text-destructive">

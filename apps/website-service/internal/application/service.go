@@ -58,6 +58,67 @@ func NewService(repo ports.Repository, opts ...Option) *Service {
 	return s
 }
 
+func pageEvents(page *domain.Page, events ...struct {
+	eventType string
+	meta      map[string]any
+}) []ports.LifecycleEvent {
+	out := make([]ports.LifecycleEvent, 0, len(events))
+	for _, event := range events {
+		out = append(out, ports.LifecycleEvent{EventType: event.eventType, Payload: ports.PageEventData(page, event.meta)})
+	}
+	return out
+}
+
+func sectionEvents(section *domain.Section, eventType string, meta map[string]any) []ports.LifecycleEvent {
+	return []ports.LifecycleEvent{{EventType: eventType, Payload: ports.SectionEventData(section, meta)}}
+}
+
+func (s *Service) commitPage(ctx context.Context, tenantID, mutation string, page *domain.Page, events []ports.LifecycleEvent) error {
+	if repo, ok := s.repo.(ports.LifecycleRepository); ok {
+		return repo.CommitWebsiteLifecycle(ctx, tenantID, mutation, page, nil, events)
+	}
+	var err error
+	switch mutation {
+	case ports.WebsiteMutationPageCreate:
+		err = s.repo.CreatePage(ctx, tenantID, page)
+	case ports.WebsiteMutationPageUpdate:
+		err = s.repo.UpdatePage(ctx, tenantID, page)
+	case ports.WebsiteMutationPageDelete:
+		if err = s.repo.DeleteSectionsByPage(ctx, tenantID, page.ID); err == nil {
+			err = s.repo.DeletePage(ctx, tenantID, page.ID)
+		}
+	}
+	if err != nil {
+		return err
+	}
+	for _, event := range events {
+		s.publishPage(ctx, event.EventType, page, event.Payload)
+	}
+	return nil
+}
+
+func (s *Service) commitSection(ctx context.Context, tenantID, mutation string, section *domain.Section, events []ports.LifecycleEvent) error {
+	if repo, ok := s.repo.(ports.LifecycleRepository); ok {
+		return repo.CommitWebsiteLifecycle(ctx, tenantID, mutation, nil, section, events)
+	}
+	var err error
+	switch mutation {
+	case ports.WebsiteMutationSectionCreate:
+		err = s.repo.CreateSection(ctx, tenantID, section)
+	case ports.WebsiteMutationSectionUpdate:
+		err = s.repo.UpdateSection(ctx, tenantID, section)
+	case ports.WebsiteMutationSectionDelete:
+		err = s.repo.DeleteSection(ctx, tenantID, section.ID)
+	}
+	if err != nil {
+		return err
+	}
+	for _, event := range events {
+		s.publishSection(ctx, event.EventType, section, event.Payload)
+	}
+	return nil
+}
+
 // Page request/response types.
 
 type CreatePageRequest struct {
@@ -121,12 +182,18 @@ func (s *Service) CreatePage(ctx context.Context, actor auth.Actor, req CreatePa
 	if err := page.Validate(); err != nil {
 		return nil, err
 	}
-	if err := s.repo.CreatePage(ctx, tenantID, page); err != nil {
-		return nil, err
-	}
-	s.publishPage(ctx, "website.page_created.v1", page, nil)
+	events := pageEvents(page, struct {
+		eventType string
+		meta      map[string]any
+	}{"website.page_created.v1", nil})
 	if page.IsPublished() {
-		s.publishPage(ctx, "website.page_published.v1", page, nil)
+		events = append(events, pageEvents(page, struct {
+			eventType string
+			meta      map[string]any
+		}{"website.page_published.v1", nil})...)
+	}
+	if err := s.commitPage(ctx, tenantID, ports.WebsiteMutationPageCreate, page, events); err != nil {
+		return nil, err
 	}
 	return page, nil
 }
@@ -183,13 +250,19 @@ func (s *Service) UpdatePage(ctx context.Context, actor auth.Actor, id string, r
 	if err := page.Validate(); err != nil {
 		return nil, err
 	}
-	if err := s.repo.UpdatePage(ctx, tenantID, page); err != nil {
-		return nil, err
-	}
 	eventMeta := map[string]any{"changed_fields": changed}
-	s.publishPage(ctx, "website.page_updated.v1", page, eventMeta)
+	events := pageEvents(page, struct {
+		eventType string
+		meta      map[string]any
+	}{"website.page_updated.v1", eventMeta})
 	if !wasPublished && page.IsPublished() {
-		s.publishPage(ctx, "website.page_published.v1", page, nil)
+		events = append(events, pageEvents(page, struct {
+			eventType string
+			meta      map[string]any
+		}{"website.page_published.v1", nil})...)
+	}
+	if err := s.commitPage(ctx, tenantID, ports.WebsiteMutationPageUpdate, page, events); err != nil {
+		return nil, err
 	}
 	return page, nil
 }
@@ -204,14 +277,10 @@ func (s *Service) DeletePage(ctx context.Context, actor auth.Actor, id string) e
 	if err != nil {
 		return err
 	}
-	if err := s.repo.DeleteSectionsByPage(ctx, tenantID, id); err != nil {
-		return err
-	}
-	if err := s.repo.DeletePage(ctx, tenantID, id); err != nil {
-		return err
-	}
-	s.publishPage(ctx, "website.page_deleted.v1", page, nil)
-	return nil
+	return s.commitPage(ctx, tenantID, ports.WebsiteMutationPageDelete, page, pageEvents(page, struct {
+		eventType string
+		meta      map[string]any
+	}{"website.page_deleted.v1", nil}))
 }
 
 // Section use cases.
@@ -240,10 +309,9 @@ func (s *Service) CreateSection(ctx context.Context, actor auth.Actor, req Creat
 	if err := section.Validate(); err != nil {
 		return nil, err
 	}
-	if err := s.repo.CreateSection(ctx, tenantID, section); err != nil {
+	if err := s.commitSection(ctx, tenantID, ports.WebsiteMutationSectionCreate, section, sectionEvents(section, "website.section_created.v1", nil)); err != nil {
 		return nil, err
 	}
-	s.publishSection(ctx, "website.section_created.v1", section, nil)
 	return section, nil
 }
 
@@ -292,11 +360,11 @@ func (s *Service) UpdateSection(ctx context.Context, actor auth.Actor, id string
 	if err := section.Validate(); err != nil {
 		return nil, err
 	}
-	if err := s.repo.UpdateSection(ctx, tenantID, section); err != nil {
+	eventMeta := map[string]any{"changed_fields": changed}
+	events := sectionEvents(section, "website.section_updated.v1", eventMeta)
+	if err := s.commitSection(ctx, tenantID, ports.WebsiteMutationSectionUpdate, section, events); err != nil {
 		return nil, err
 	}
-	eventMeta := map[string]any{"changed_fields": changed}
-	s.publishSection(ctx, "website.section_updated.v1", section, eventMeta)
 	return section, nil
 }
 
@@ -310,11 +378,7 @@ func (s *Service) DeleteSection(ctx context.Context, actor auth.Actor, id string
 	if err != nil {
 		return err
 	}
-	if err := s.repo.DeleteSection(ctx, tenantID, id); err != nil {
-		return err
-	}
-	s.publishSection(ctx, "website.section_deleted.v1", section, nil)
-	return nil
+	return s.commitSection(ctx, tenantID, ports.WebsiteMutationSectionDelete, section, sectionEvents(section, "website.section_deleted.v1", nil))
 }
 
 // Access helpers.

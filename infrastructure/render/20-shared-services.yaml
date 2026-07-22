@@ -22,3 +22,99 @@ services:
       name: nats-jetstream
       mountPath: /data
       sizeGB: 10
+
+  - name: nats-backup
+    type: cron
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    schedule: "15 2 * * *"
+    dockerfilePath: ./infrastructure/docker/nats-backup.Dockerfile
+    dockerContext: .
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - infrastructure/docker/nats-backup.Dockerfile
+        - tools/dr/nats-backup/**
+        - render.yaml
+    envVars:
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - key: DR_BACKUP_JOB_TIMEOUT
+        value: 4h
+      - key: DR_BACKUP_HTTP_TIMEOUT
+        value: 2m
+      - fromGroup: auraedu-dr-secrets
+
+  - name: postgres-backup
+    type: cron
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    schedule: "17 * * * *"
+    dockerfilePath: ./infrastructure/docker/postgres-backup.Dockerfile
+    dockerContext: .
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - infrastructure/docker/postgres-backup.Dockerfile
+        - tools/dr/postgres-backup/**
+        - render.yaml
+    envVars:
+      - key: POSTGRES_DATABASES
+        value: identity,tenant,student,staff,academic,attendance,assessment,report,fees,payment,notification,website,file,analytics,billing,cbt,audit,crm,knowledge,assistant,campaign,admissions,intelligence,ai
+      - key: POSTGRES_IDENTITY_DATABASE_URL
+        fromDatabase: { name: identity-db, property: connectionString }
+      - key: POSTGRES_TENANT_DATABASE_URL
+        fromDatabase: { name: tenant-db, property: connectionString }
+      - key: POSTGRES_STUDENT_DATABASE_URL
+        fromDatabase: { name: student-db, property: connectionString }
+      - key: POSTGRES_STAFF_DATABASE_URL
+        fromDatabase: { name: staff-db, property: connectionString }
+      - key: POSTGRES_ACADEMIC_DATABASE_URL
+        fromDatabase: { name: academic-db, property: connectionString }
+      - key: POSTGRES_ATTENDANCE_DATABASE_URL
+        fromDatabase: { name: attendance-db, property: connectionString }
+      - key: POSTGRES_ASSESSMENT_DATABASE_URL
+        fromDatabase: { name: assessment-db, property: connectionString }
+      - key: POSTGRES_REPORT_DATABASE_URL
+        fromDatabase: { name: report-db, property: connectionString }
+      - key: POSTGRES_FEES_DATABASE_URL
+        fromDatabase: { name: fees-db, property: connectionString }
+      - key: POSTGRES_PAYMENT_DATABASE_URL
+        fromDatabase: { name: payment-db, property: connectionString }
+      - key: POSTGRES_NOTIFICATION_DATABASE_URL
+        fromDatabase: { name: notification-db, property: connectionString }
+      - key: POSTGRES_WEBSITE_DATABASE_URL
+        fromDatabase: { name: website-db, property: connectionString }
+      - key: POSTGRES_FILE_DATABASE_URL
+        fromDatabase: { name: file-db, property: connectionString }
+      - key: POSTGRES_ANALYTICS_DATABASE_URL
+        fromDatabase: { name: analytics-db, property: connectionString }
+      - key: POSTGRES_BILLING_DATABASE_URL
+        fromDatabase: { name: billing-db, property: connectionString }
+      - key: POSTGRES_CBT_DATABASE_URL
+        fromDatabase: { name: cbt-db, property: connectionString }
+      - key: POSTGRES_AUDIT_DATABASE_URL
+        fromDatabase: { name: audit-db, property: connectionString }
+      - key: POSTGRES_CRM_DATABASE_URL
+        fromDatabase: { name: crm-db, property: connectionString }
+      - key: POSTGRES_KNOWLEDGE_DATABASE_URL
+        fromDatabase: { name: knowledge-db, property: connectionString }
+      - key: POSTGRES_ASSISTANT_DATABASE_URL
+        fromDatabase: { name: assistant-db, property: connectionString }
+      - key: POSTGRES_CAMPAIGN_DATABASE_URL
+        fromDatabase: { name: campaign-db, property: connectionString }
+      - key: POSTGRES_ADMISSIONS_DATABASE_URL
+        fromDatabase: { name: admissions-db, property: connectionString }
+      - key: POSTGRES_INTELLIGENCE_DATABASE_URL
+        fromDatabase: { name: intelligence-db, property: connectionString }
+      - key: POSTGRES_AI_DATABASE_URL
+        fromDatabase: { name: ai-db, property: connectionString }
+      - key: DR_POSTGRES_BACKUP_JOB_TIMEOUT
+        value: 55m
+      - key: DR_BACKUP_HTTP_TIMEOUT
+        value: 2m
+      - fromGroup: auraedu-dr-secrets

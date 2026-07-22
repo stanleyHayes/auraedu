@@ -202,6 +202,19 @@ func (r *fakeClassRepo) List(_ context.Context, tenantID string, limit int, _ st
 	return out, "", nil
 }
 
+func (r *fakeClassRepo) ListIDsByTeacher(_ context.Context, tenantID, staffID string) ([]string, error) {
+	r.db.mu.Lock()
+	defer r.db.mu.Unlock()
+	ids := []string{}
+	for _, c := range r.db.classes {
+		if c.TenantID == tenantID && c.ClassTeacherID != nil && *c.ClassTeacherID == staffID {
+			ids = append(ids, c.ID)
+		}
+	}
+	sort.Strings(ids)
+	return ids, nil
+}
+
 func (r *fakeClassRepo) Update(_ context.Context, tenantID string, c *domain.Class) error {
 	r.db.mu.Lock()
 	defer r.db.mu.Unlock()
@@ -322,7 +335,7 @@ func (p *capturePublisher) PublishSubject(_ context.Context, eventType string, s
 
 // ---- helpers ----------------------------------------------------------------
 
-func newTestService(tenantID string) (*application.Service, *fakeDB, *capturePublisher) {
+func newTestService(tenantID string) (*application.Service, *fakeDB, *capturePublisher) { //nolint:unparam // Shared helper keeps tenant intent explicit.
 	db := newFakeDB()
 	pub := &capturePublisher{}
 	gates := flags.NewStaticSnapshot()
@@ -335,6 +348,167 @@ func newTestService(tenantID string) (*application.Service, *fakeDB, *capturePub
 	return svc, db, pub
 }
 
+type fixedTeacherResolver struct {
+	staffID string
+	err     error
+}
+
+type fixedAssignmentResolver struct {
+	staffID  string
+	classIDs []string
+	err      error
+}
+
+func (r fixedAssignmentResolver) ResolveTeacher(context.Context, string, string) (string, error) {
+	return r.staffID, r.err
+}
+
+func (r fixedAssignmentResolver) ResolveTeacherAssignments(context.Context, string, string) (string, []string, error) {
+	return r.staffID, r.classIDs, r.err
+}
+
+func (r fixedTeacherResolver) ResolveTeacher(context.Context, string, string) (string, error) {
+	return r.staffID, r.err
+}
+
+func mustCreateFakeClass(t *testing.T, db *fakeDB, class *domain.Class) {
+	t.Helper()
+	if err := (&fakeClassRepo{db}).Create(context.Background(), svcTenantA, class); err != nil {
+		t.Fatalf("create fake class: %v", err)
+	}
+}
+
+func mustNewClass(t *testing.T, yearID, name string, teacherID *string) *domain.Class {
+	t.Helper()
+	class, err := domain.NewClass(svcTenantA, yearID, name, teacherID, nil)
+	if err != nil {
+		t.Fatalf("new class: %v", err)
+	}
+	return class
+}
+
+func TestService_ResolveTeacherClassScope(t *testing.T) {
+	_, db, _ := newTestService(svcTenantA)
+	teacherID := "33333333-3333-4333-8333-333333333333"
+	year := seedYear(t, db, svcTenantA)
+	assigned, err := domain.NewClass(svcTenantA, year.ID, "Class 1A", &teacherID, nil)
+	if err != nil {
+		t.Fatalf("new assigned class: %v", err)
+	}
+	unassignedTeacher := "44444444-4444-4444-8444-444444444444"
+	unassigned, err := domain.NewClass(svcTenantA, year.ID, "Class 1B", &unassignedTeacher, nil)
+	if err != nil {
+		t.Fatalf("new unassigned class: %v", err)
+	}
+	mustCreateFakeClass(t, db, assigned)
+	mustCreateFakeClass(t, db, unassigned)
+
+	svc := application.NewService(
+		&fakeYearRepo{db}, &fakeTermRepo{db}, &fakeClassRepo{db}, &fakeSubjectRepo{db},
+		application.WithTeacherIdentityResolver(fixedTeacherResolver{staffID: teacherID}),
+	)
+	ids, err := svc.ResolveTeacherClassScope(context.Background(), svcTenantA, "user-1")
+	if err != nil || len(ids) != 1 || ids[0] != assigned.ID {
+		t.Fatalf("class_ids=%v err=%v", ids, err)
+	}
+}
+
+func TestService_ResolveTeacherClassScopeUnionsExplicitAssignments(t *testing.T) {
+	_, db, _ := newTestService(svcTenantA)
+	teacherID := "33333333-3333-4333-8333-333333333333"
+	year := seedYear(t, db, svcTenantA)
+	owned, err := domain.NewClass(svcTenantA, year.ID, "Class 1A", &teacherID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustCreateFakeClass(t, db, owned)
+	explicitID := "55555555-5555-4555-8555-555555555555"
+	svc := application.NewService(
+		&fakeYearRepo{db}, &fakeTermRepo{db}, &fakeClassRepo{db}, &fakeSubjectRepo{db},
+		application.WithTeacherIdentityResolver(fixedAssignmentResolver{staffID: teacherID, classIDs: []string{owned.ID, explicitID}}),
+	)
+	ids, err := svc.ResolveTeacherClassScope(context.Background(), svcTenantA, "user-1")
+	if err != nil || len(ids) != 2 || ids[0] != owned.ID || ids[1] != explicitID {
+		t.Fatalf("class_ids=%v err=%v", ids, err)
+	}
+}
+
+func TestService_ResolveTeacherClassScopeFailsClosed(t *testing.T) {
+	svc, _, _ := newTestService(svcTenantA)
+	if _, err := svc.ResolveTeacherClassScope(context.Background(), svcTenantA, "user-1"); !errors.Is(err, domain.ErrUnavailable) {
+		t.Fatalf("unconfigured=%v", err)
+	}
+}
+
+func TestService_TeacherClassReadsAreAssignedOnly(t *testing.T) {
+	_, db, _ := newTestService(svcTenantA)
+	teacherID := "33333333-3333-4333-8333-333333333333"
+	year := seedYear(t, db, svcTenantA)
+	assigned := mustNewClass(t, year.ID, "Class 1A", &teacherID)
+	otherTeacher := "44444444-4444-4444-8444-444444444444"
+	other := mustNewClass(t, year.ID, "Class 1B", &otherTeacher)
+	mustCreateFakeClass(t, db, assigned)
+	mustCreateFakeClass(t, db, other)
+	gates := flags.NewStaticSnapshot()
+	gates.Set(svcTenantA, application.FeatureAcademicManagement, true)
+	svc := application.NewService(
+		&fakeYearRepo{db}, &fakeTermRepo{db}, &fakeClassRepo{db}, &fakeSubjectRepo{db},
+		application.WithFeatureGate(gates),
+		application.WithTeacherIdentityResolver(fixedTeacherResolver{staffID: teacherID}),
+	)
+	teacher := svcActor(svcTenantA, application.PermRead)
+	teacher.Role = "teacher"
+	classes, _, err := svc.ListClasses(svcCtx(svcTenantA), teacher, 20, "")
+	if err != nil || len(classes) != 1 || classes[0].ID != assigned.ID {
+		t.Fatalf("classes=%+v err=%v", classes, err)
+	}
+	if _, err := svc.GetClass(svcCtx(svcTenantA), teacher, other.ID); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("unassigned get=%v", err)
+	}
+}
+
+func TestService_LearnerClassReadsAreLinkedOnly(t *testing.T) {
+	_, db, _ := newTestService(svcTenantA)
+	year := seedYear(t, db, svcTenantA)
+	linked := mustNewClass(t, year.ID, "Class 1A", nil)
+	other := mustNewClass(t, year.ID, "Class 1B", nil)
+	mustCreateFakeClass(t, db, linked)
+	mustCreateFakeClass(t, db, other)
+	gates := flags.NewStaticSnapshot()
+	gates.Set(svcTenantA, application.FeatureAcademicManagement, true)
+	svc := application.NewService(
+		&fakeYearRepo{db}, &fakeTermRepo{db}, &fakeClassRepo{db}, &fakeSubjectRepo{db},
+		application.WithFeatureGate(gates),
+		application.WithLearnerScopeResolver(classScopeStub{ids: []string{linked.ID}}),
+	)
+
+	for _, role := range []string{"student", "parent"} {
+		t.Run(role, func(t *testing.T) {
+			actor := svcActor(svcTenantA, application.PermRead)
+			actor.Role = role
+			classes, _, err := svc.ListClasses(svcCtx(svcTenantA), actor, 20, "")
+			if err != nil || len(classes) != 1 || classes[0].ID != linked.ID {
+				t.Fatalf("classes=%+v err=%v", classes, err)
+			}
+			if _, err := svc.GetClass(svcCtx(svcTenantA), actor, other.ID); !errors.Is(err, domain.ErrNotFound) {
+				t.Fatalf("unlinked get=%v", err)
+			}
+		})
+	}
+}
+
+func TestService_LearnerClassReadsFailClosedWithoutResolver(t *testing.T) {
+	svc, _, _ := newTestService(svcTenantA)
+	actor := svcActor(svcTenantA, application.PermRead)
+	actor.Role = "parent"
+	if _, _, err := svc.ListClasses(svcCtx(svcTenantA), actor, 20, ""); !errors.Is(err, domain.ErrUnavailable) {
+		t.Fatalf("list error=%v", err)
+	}
+	if _, err := svc.GetClass(svcCtx(svcTenantA), actor, "class-1"); !errors.Is(err, domain.ErrUnavailable) {
+		t.Fatalf("get error=%v", err)
+	}
+}
+
 func svcCtx(tenantID string) context.Context {
 	return tenancy.WithContext(context.Background(), tenancy.TenantContext{TenantID: tenantID})
 }
@@ -344,7 +518,7 @@ func svcActor(tenantID string, perms ...string) auth.Actor {
 }
 
 // seedYear inserts an academic year directly into the fake repo (bypassing use cases).
-func seedYear(t *testing.T, db *fakeDB, tenantID string) *domain.AcademicYear {
+func seedYear(t *testing.T, db *fakeDB, tenantID string) *domain.AcademicYear { //nolint:unparam // Shared helper keeps tenant intent explicit.
 	t.Helper()
 	y, err := domain.NewAcademicYear(tenantID, "2025/26", "", "2025-09-01", "2026-07-31", false)
 	if err != nil {
@@ -427,13 +601,13 @@ func TestService_CreateTerm_UnknownAcademicYear(t *testing.T) {
 }
 
 func TestService_CreateTerm_CrossTenantAcademicYear(t *testing.T) {
-	svc, db, _ := newTestService(svcTenantA)
+	_, db, _ := newTestService(svcTenantA)
 	year := seedYear(t, db, svcTenantA)
 
 	// Tenant B must not attach a term to tenant A's academic year.
 	gates := flags.NewStaticSnapshot()
 	gates.Set(svcTenantB, application.FeatureAcademicManagement, true)
-	svc = application.NewService(
+	svc := application.NewService(
 		&fakeYearRepo{db}, &fakeTermRepo{db}, &fakeClassRepo{db}, &fakeSubjectRepo{db},
 		application.WithFeatureGate(gates),
 	)
@@ -447,6 +621,48 @@ func TestService_CreateTerm_CrossTenantAcademicYear(t *testing.T) {
 	})
 	if !errors.Is(err, domain.ErrValidation) {
 		t.Fatalf("expected validation error for cross-tenant academic year, got %v", err)
+	}
+}
+
+func TestService_TermDatesMustRemainWithinAcademicYear(t *testing.T) {
+	svc, db, _ := newTestService(svcTenantA)
+	ctx := svcCtx(svcTenantA)
+	actor := svcActor(svcTenantA, application.PermManage)
+	year := seedYear(t, db, svcTenantA)
+
+	for _, dates := range []struct {
+		name  string
+		start string
+		end   string
+	}{
+		{name: "starts before year", start: "2025-08-31", end: "2025-12-20"},
+		{name: "ends after year", start: "2026-04-01", end: "2026-08-01"},
+	} {
+		t.Run(dates.name, func(t *testing.T) {
+			_, err := svc.CreateTerm(ctx, actor, application.CreateTermRequest{
+				AcademicYearID: year.ID,
+				Name:           "Boundary term",
+				StartDate:      dates.start,
+				EndDate:        dates.end,
+			})
+			if !errors.Is(err, domain.ErrValidation) {
+				t.Fatalf("expected year-boundary validation, got %v", err)
+			}
+		})
+	}
+
+	term, err := svc.CreateTerm(ctx, actor, application.CreateTermRequest{
+		AcademicYearID: year.ID,
+		Name:           "Term 3",
+		StartDate:      "2026-04-01",
+		EndDate:        "2026-07-15",
+	})
+	if err != nil {
+		t.Fatalf("create valid term: %v", err)
+	}
+	outOfBounds := "2026-08-01"
+	if _, err := svc.UpdateTerm(ctx, actor, term.ID, application.UpdateTermRequest{EndDate: &outOfBounds}); !errors.Is(err, domain.ErrValidation) {
+		t.Fatalf("expected update boundary validation, got %v", err)
 	}
 }
 

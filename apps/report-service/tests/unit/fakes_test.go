@@ -2,8 +2,11 @@ package unit
 
 import (
 	"context"
+	"io"
 	"sort"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/auraedu/report-service/internal/domain"
 	"github.com/auraedu/report-service/internal/ports"
@@ -19,6 +22,7 @@ type fakeRepo struct {
 	cards      map[string]*domain.ReportCard
 	scores     map[string]*domain.ScoreEntry      // key: cardID|sourceKey
 	attendance map[string]*domain.AttendanceEntry // key: cardID|date
+	jobs       map[string]*domain.GenerationJob
 
 	// failNextCreateWithConflict simulates a concurrent auto-create losing the
 	// unique-index race exactly once.
@@ -34,7 +38,72 @@ func newFakeRepo() *fakeRepo {
 		cards:      map[string]*domain.ReportCard{},
 		scores:     map[string]*domain.ScoreEntry{},
 		attendance: map[string]*domain.AttendanceEntry{},
+		jobs:       map[string]*domain.GenerationJob{},
 	}
+}
+
+func (f *fakeRepo) EnqueueReportGeneration(_ context.Context, tenantID, reportCardID string) (*domain.ReportCard, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	card, ok := f.cards[reportCardID]
+	if !ok || card.TenantID != tenantID {
+		return nil, domain.ErrNotFound
+	}
+	if card.Status != string(domain.ReportCardStatusDraft) && card.Status != string(domain.ReportCardStatusPublished) {
+		return nil, domain.ErrConflict
+	}
+	card.SetGenerating()
+	f.jobs[reportCardID] = &domain.GenerationJob{ReportCardID: reportCardID, TenantID: tenantID, NextAttemptAt: time.Now().UTC()}
+	return card, nil
+}
+
+func (f *fakeRepo) ClaimReportGeneration(_ context.Context, lease time.Duration) (*domain.GenerationJob, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for id, job := range f.jobs {
+		if job.LeaseExpires != nil && job.LeaseExpires.After(time.Now()) {
+			continue
+		}
+		job.Attempts++
+		expires := time.Now().Add(lease)
+		job.LeaseExpires = &expires
+		f.jobs[id] = job
+		jobCopy := *job
+		return &jobCopy, nil
+	}
+	return nil, domain.ErrNotFound
+}
+
+func (f *fakeRepo) CompleteReportGeneration(_ context.Context, job *domain.GenerationJob, storagePath string) (*domain.ReportCard, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	card, ok := f.cards[job.ReportCardID]
+	if !ok || card.TenantID != job.TenantID || card.Status != string(domain.ReportCardStatusGenerating) {
+		return nil, domain.ErrConflict
+	}
+	card.SetPublished(storagePath)
+	delete(f.jobs, job.ReportCardID)
+	return card, nil
+}
+
+func (f *fakeRepo) RetryReportGeneration(_ context.Context, job *domain.GenerationJob, _ string, maxAttempts int) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	terminal := job.Attempts >= maxAttempts
+	if terminal {
+		if card := f.cards[job.ReportCardID]; card != nil {
+			status := string(domain.ReportCardStatusDraft)
+			if _, err := card.ApplyUpdate(nil, nil, nil, &status); err != nil {
+				return false, err
+			}
+		}
+		delete(f.jobs, job.ReportCardID)
+		return true, nil
+	}
+	if queued := f.jobs[job.ReportCardID]; queued != nil {
+		queued.LeaseExpires = nil
+	}
+	return false, nil
 }
 
 func (f *fakeRepo) CreateReportTemplate(_ context.Context, tenantID string, t *domain.ReportTemplate) error {
@@ -113,16 +182,32 @@ func (f *fakeRepo) GetReportCardByID(_ context.Context, tenantID, id string) (*d
 	return c, nil
 }
 
-func (f *fakeRepo) ListReportCards(_ context.Context, tenantID string, _ ports.ReportCardListFilter) ([]*domain.ReportCard, string, error) {
+func (f *fakeRepo) ListReportCards(_ context.Context, tenantID string, filter ports.ReportCardListFilter) ([]*domain.ReportCard, string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	var out []*domain.ReportCard
 	for _, c := range f.cards {
-		if c.TenantID == tenantID {
-			out = append(out, c)
+		if c.TenantID != tenantID || (filter.Status != "" && c.Status != filter.Status) {
+			continue
 		}
+		if filter.StudentID != "" && c.StudentID != filter.StudentID {
+			continue
+		}
+		if filter.StudentIDs != nil && !containsString(filter.StudentIDs, c.StudentID) {
+			continue
+		}
+		out = append(out, c)
 	}
 	return out, "", nil
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func (f *fakeRepo) UpdateReportCard(_ context.Context, tenantID string, c *domain.ReportCard) error {
@@ -143,6 +228,20 @@ func (f *fakeRepo) DeleteReportCard(_ context.Context, tenantID, id string) erro
 	}
 	delete(f.cards, id)
 	return nil
+}
+
+func (f *fakeRepo) ListTranscriptReportCards(_ context.Context, tenantID, studentID string) ([]*domain.ReportCard, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []*domain.ReportCard
+	for _, card := range f.cards {
+		if card.TenantID == tenantID && card.StudentID == studentID && card.DeletedAt == nil &&
+			(card.Status == string(domain.ReportCardStatusPublished) || card.Status == string(domain.ReportCardStatusArchived)) {
+			out = append(out, card)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
+	return out, nil
 }
 
 // FindDraftReportCard mirrors the Postgres semantics: with a non-empty termID,
@@ -257,22 +356,34 @@ func (f *fakePDFGenerator) GenerateReportCard(_ context.Context, doc *domain.Rep
 	return []byte("%PDF-1.7 fake"), nil
 }
 
-type publishedEvent struct {
-	eventType string
-	card      *domain.ReportCard
-	template  *domain.ReportTemplate
+type fakeReportStorage struct {
+	objects map[string]string
+	fail    error
 }
 
-type fakePublisher struct {
-	events []publishedEvent
+func newFakeReportStorage() *fakeReportStorage {
+	return &fakeReportStorage{objects: map[string]string{}}
 }
 
-func (f *fakePublisher) PublishReportTemplate(_ context.Context, eventType string, t *domain.ReportTemplate, _ map[string]any) error {
-	f.events = append(f.events, publishedEvent{eventType: eventType, template: t})
-	return nil
+func (f *fakeReportStorage) Save(_ context.Context, tenantID, objectKey string, content []byte) (string, error) {
+	if f.fail != nil {
+		return "", f.fail
+	}
+	path := tenantID + "/" + objectKey
+	f.objects[path] = string(content)
+	return path, nil
 }
 
-func (f *fakePublisher) PublishReportCard(_ context.Context, eventType string, c *domain.ReportCard, _ map[string]any) error {
-	f.events = append(f.events, publishedEvent{eventType: eventType, card: c})
-	return nil
+func (f *fakeReportStorage) Open(_ context.Context, tenantID, storagePath string) (io.ReadCloser, error) {
+	if f.fail != nil {
+		return nil, f.fail
+	}
+	if !strings.HasPrefix(storagePath, tenantID+"/") {
+		return nil, domain.ErrForbidden
+	}
+	content, ok := f.objects[storagePath]
+	if !ok {
+		return nil, domain.ErrNotFound
+	}
+	return io.NopCloser(strings.NewReader(content)), nil
 }

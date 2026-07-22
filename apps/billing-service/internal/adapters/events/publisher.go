@@ -27,15 +27,7 @@ func (p *Publisher) PublishSubscription(ctx context.Context, eventType string, s
 	if p == nil || p.bus == nil {
 		return nil
 	}
-	data := map[string]any{
-		"subscription_id": s.ID,
-		"tenant_id":       s.TenantID,
-		"plan_id":         s.PlanID,
-		"status":          s.Status,
-	}
-	for k, v := range meta {
-		data[k] = v
-	}
+	data := ports.SubscriptionEventData(s, meta)
 	event, err := tenancy.NewCloudEvent(eventType, "billing-service", "", s.TenantID, data)
 	if err != nil {
 		return fmt.Errorf("billing: build subscription event: %w", err)
@@ -50,17 +42,19 @@ func (p *Publisher) PublishPlan(ctx context.Context, eventType string, plan *dom
 	if p == nil || p.bus == nil {
 		return nil
 	}
-	data := map[string]any{
-		"plan_id":     plan.ID,
-		"plan_code":   plan.Code,
-		"name":        plan.Name,
-		"price_cents": plan.PriceCents,
-		"currency":    plan.Currency,
+	data := ports.PlanEventData(plan, meta)
+	rawTenantID, exists := meta["tenant_id"]
+	if !exists {
+		return fmt.Errorf("billing: build plan event: tenant_id is required")
 	}
-	for k, v := range meta {
-		data[k] = v
+	tenantID, ok := rawTenantID.(string)
+	if !ok {
+		return fmt.Errorf("billing: build plan event: tenant_id must be a string")
 	}
-	event, err := tenancy.NewCloudEvent(eventType, "billing-service", "", "", data)
+	if tenantID == "" {
+		return fmt.Errorf("billing: build plan event: tenant_id is required")
+	}
+	event, err := tenancy.NewCloudEvent(eventType, "billing-service", "", tenantID, data)
 	if err != nil {
 		return fmt.Errorf("billing: build plan event: %w", err)
 	}
@@ -74,21 +68,33 @@ func (p *Publisher) PublishInvoice(ctx context.Context, eventType string, i *dom
 	if p == nil || p.bus == nil {
 		return nil
 	}
-	data := map[string]any{
-		"invoice_id":      i.ID,
-		"tenant_id":       i.TenantID,
-		"subscription_id": i.SubscriptionID,
-		"amount_cents":    i.AmountCents,
-		"status":          i.Status,
-	}
-	for k, v := range meta {
-		data[k] = v
-	}
+	data := ports.InvoiceEventData(i, meta)
 	event, err := tenancy.NewCloudEvent(eventType, "billing-service", "", i.TenantID, data)
 	if err != nil {
 		return fmt.Errorf("billing: build invoice event: %w", err)
 	}
 	event.Subject = i.ID
+	event.Time = time.Now().UTC().Format(time.RFC3339)
+	return p.bus.Publish(ctx, event)
+}
+
+// PublishWithID publishes a durable outbox event using its stable ID for both
+// CloudEvent identity and JetStream deduplication.
+func (p *Publisher) PublishWithID(ctx context.Context, eventID, eventType, tenantID string, data map[string]any) error {
+	if p == nil || p.bus == nil {
+		return nil
+	}
+	event, err := tenancy.NewCloudEvent(eventType, "billing-service", eventID, tenantID, data)
+	if err != nil {
+		return fmt.Errorf("billing: build outbox event: %w", err)
+	}
+	for _, key := range []string{"subscription_id", "invoice_id", "plan_id"} {
+		if subject, ok := data[key].(string); ok && subject != "" {
+			event.Subject = subject
+			break
+		}
+	}
+	event.IdempotencyKey = eventID
 	event.Time = time.Now().UTC().Format(time.RFC3339)
 	return p.bus.Publish(ctx, event)
 }

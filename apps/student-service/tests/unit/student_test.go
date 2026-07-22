@@ -50,7 +50,7 @@ func TestStudent_ApplyUpdate(t *testing.T) {
 	}
 	first := "Augusta"
 	status := string(domain.StatusGraduated)
-	changed, err := e.ApplyUpdate(&first, nil, &status)
+	changed, err := e.ApplyUpdate(&first, nil, &status, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -62,6 +62,25 @@ func TestStudent_ApplyUpdate(t *testing.T) {
 	}
 	if e.Status != status {
 		t.Fatalf("status not updated: got %q", e.Status)
+	}
+}
+
+func TestStudent_ApplyUpdateLinksAndClearsIdentity(t *testing.T) {
+	e, err := domain.NewStudent("tenant-1", "Ada", "Lovelace")
+	if err != nil {
+		t.Fatal(err)
+	}
+	userID := "33333333-3333-4333-8333-333333333333"
+	if _, err := e.ApplyUpdate(nil, nil, nil, &userID); err != nil || e.UserID == nil || *e.UserID != userID {
+		t.Fatalf("identity link failed: user_id=%v err=%v", e.UserID, err)
+	}
+	empty := ""
+	if _, err := e.ApplyUpdate(nil, nil, nil, &empty); err != nil || e.UserID != nil {
+		t.Fatalf("identity unlink failed: user_id=%v err=%v", e.UserID, err)
+	}
+	invalid := "not-a-uuid"
+	if _, err := e.ApplyUpdate(nil, nil, nil, &invalid); err == nil {
+		t.Fatal("invalid identity link must be rejected")
 	}
 }
 

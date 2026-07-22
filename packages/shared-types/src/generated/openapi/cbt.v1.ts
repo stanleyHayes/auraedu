@@ -9,10 +9,16 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List exams */
+        /**
+         * List exams
+         * @description Executes the list exams workflow within this AuraEDU API boundary.
+         */
         get: operations["listExams"];
         put?: never;
-        /** Create an exam */
+        /**
+         * Create an exam
+         * @description Executes the create exam workflow within this AuraEDU API boundary.
+         */
         post: operations["createExam"];
         delete?: never;
         options?: never;
@@ -27,17 +33,28 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get an exam */
+        /**
+         * Get an exam
+         * @description Executes the get exam workflow within this AuraEDU API boundary.
+         */
         get: operations["getExam"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete an exam
+         * @description Executes the delete exam workflow within this AuraEDU API boundary.
+         */
+        delete: operations["deleteExam"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update an exam
+         * @description Executes the update exam workflow within this AuraEDU API boundary.
+         */
+        patch: operations["updateExam"];
         trace?: never;
     };
-    "/exams/{exam_id}/sessions": {
+    "/exams/{exam_id}/start": {
         parameters: {
             query?: never;
             header?: never;
@@ -46,7 +63,10 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Start an exam session */
+        /**
+         * Start an exam session
+         * @description Executes the start exam session workflow within this AuraEDU API boundary.
+         */
         post: operations["startExamSession"];
         delete?: never;
         options?: never;
@@ -61,32 +81,149 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List submissions visible to the actor
+         * @description Executes the list submissions workflow within this AuraEDU API boundary.
+         */
+        get: operations["listSubmissions"];
         put?: never;
-        /** Submit an exam */
-        post: operations["submitExam"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/question-banks": {
+    "/submissions/{submission_id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List question banks */
-        get: operations["listQuestionBanks"];
+        /**
+         * Get a submission visible to the actor
+         * @description Executes the get submission workflow within this AuraEDU API boundary.
+         */
+        get: operations["getSubmission"];
         put?: never;
-        /** Create a question bank */
-        post: operations["createQuestionBank"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/submissions/{submission_id}/questions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get answer-safe questions for the authenticated student's active attempt
+         * @description Executes the get submission questions workflow within this AuraEDU API boundary.
+         */
+        get: operations["getSubmissionQuestions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/submissions/{submission_id}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit and auto-grade the authenticated student's attempt
+         * @description Executes the submit answers workflow within this AuraEDU API boundary.
+         */
+        post: operations["submitAnswers"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/submissions/{submission_id}/grade": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grade a submitted attempt
+         * @description Executes the grade submission workflow within this AuraEDU API boundary.
+         */
+        post: operations["gradeSubmission"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/questions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List question banks
+         * @description Executes the list questions workflow within this AuraEDU API boundary.
+         */
+        get: operations["listQuestions"];
+        put?: never;
+        /**
+         * Create a question bank
+         * @description Executes the create question workflow within this AuraEDU API boundary.
+         */
+        post: operations["createQuestion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/questions/{question_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a question
+         * @description Executes the get question workflow within this AuraEDU API boundary.
+         */
+        get: operations["getQuestion"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a question
+         * @description Executes the delete question workflow within this AuraEDU API boundary.
+         */
+        delete: operations["deleteQuestion"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a question
+         * @description Executes the update question workflow within this AuraEDU API boundary.
+         */
+        patch: operations["updateQuestion"];
         trace?: never;
     };
 };
@@ -107,87 +244,132 @@ export type components = {
             title: string;
             /** Format: uuid */
             subject_id: string;
+            /** Format: uuid */
+            academic_year_id?: string;
             duration_minutes?: number;
-            question_count?: number;
+            question_ids?: string[];
             /** Format: date-time */
-            starts_at?: string | null;
+            start_at?: string | null;
             /** Format: date-time */
-            ends_at?: string | null;
+            end_at?: string | null;
+            /** @enum {string} */
+            status?: "draft" | "published" | "active" | "closed" | "archived";
         };
         CreateExam: {
             title: string;
             /** Format: uuid */
+            academic_year_id: string;
+            /** Format: uuid */
             subject_id: string;
+            duration_minutes: number;
+            question_ids: string[];
+            /** Format: date-time */
+            start_at?: string | null;
+            /** Format: date-time */
+            end_at?: string | null;
+        };
+        UpdateExam: {
+            title?: string;
             duration_minutes?: number;
             question_ids?: string[];
             /** Format: date-time */
-            starts_at?: string | null;
+            start_at?: string | null;
             /** Format: date-time */
-            ends_at?: string | null;
+            end_at?: string | null;
+            /** @enum {string} */
+            status?: "draft" | "published" | "active" | "closed" | "archived";
         };
         ExamSession: {
             /** Format: uuid */
             id: string;
             /** Format: uuid */
-            exam_id: string;
+            exam_session_id: string;
             /** Format: uuid */
             student_id: string;
-            /** Format: date-time */
-            started_at: string;
-            /** Format: date-time */
-            expires_at?: string;
+            /** @enum {string} */
+            status: "in_progress" | "submitted" | "graded";
         };
         Submission: {
             /** Format: uuid */
             id: string;
             /** Format: uuid */
-            exam_id: string;
+            exam_session_id: string;
             /** Format: uuid */
             student_id: string;
             answers: {
-                /** Format: uuid */
-                question_id?: string;
-                selected_option?: string | null;
-                text_answer?: string | null;
-            }[];
+                [key: string]: string;
+            };
+            /** @enum {string} */
+            status: "in_progress" | "submitted" | "graded";
             score?: number | null;
             max_score?: number | null;
             /** Format: date-time */
             submitted_at?: string;
         };
-        CreateSubmission: {
-            /** Format: uuid */
-            exam_id: string;
-            /** Format: uuid */
-            student_id: string;
+        SubmitAnswers: {
             answers: {
-                /** Format: uuid */
-                question_id?: string;
-                selected_option?: string | null;
-                text_answer?: string | null;
-            }[];
+                [key: string]: string;
+            };
         };
-        QuestionBank: {
+        ExamQuestion: {
+            /** Format: uuid */
+            id: string;
+            question_text: string;
+            /** @enum {string} */
+            question_type: "multiple_choice" | "true_false" | "short_answer";
+            options?: string[];
+            marks: number;
+        };
+        Question: {
             /** Format: uuid */
             id: string;
             /** Format: uuid */
             tenant_id: string;
-            name: string;
             /** Format: uuid */
-            subject_id?: string | null;
-            question_count?: number;
+            academic_year_id: string;
+            /** Format: uuid */
+            subject_id: string;
+            question_text: string;
+            /** @enum {string} */
+            question_type: "multiple_choice" | "true_false" | "short_answer";
+            options?: string[];
+            correct_answer: string;
+            marks: number;
+            /** @enum {string} */
+            status: "draft" | "published" | "archived";
         };
-        CreateQuestionBank: {
-            name: string;
+        CreateQuestion: {
             /** Format: uuid */
-            subject_id?: string | null;
+            academic_year_id: string;
+            /** Format: uuid */
+            subject_id: string;
+            question_text: string;
+            /** @enum {string} */
+            question_type: "multiple_choice" | "true_false" | "short_answer";
+            options?: string[];
+            correct_answer: string;
+            marks: number;
+        };
+        UpdateQuestion: {
+            question_text?: string;
+            /** @enum {string} */
+            question_type?: "multiple_choice" | "true_false" | "short_answer";
+            options?: string[];
+            correct_answer?: string;
+            marks?: number;
+            /** @enum {string} */
+            status?: "draft" | "published" | "archived";
         };
         ExamList: {
             data?: components["schemas"]["Exam"][];
             next_cursor?: string | null;
         };
-        QuestionBankList: {
-            data?: components["schemas"]["QuestionBank"][];
+        QuestionList: {
+            data?: components["schemas"]["Question"][];
+            next_cursor?: string | null;
+        };
+        SubmissionList: {
+            data?: components["schemas"]["Submission"][];
             next_cursor?: string | null;
         };
     };
@@ -248,9 +430,11 @@ export type components = {
         };
     };
     parameters: {
-        TenantId: string;
+        ExamId: string;
+        QuestionId: string;
         /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
         TenantHeader: string;
+        SubmissionId: string;
         Limit: number;
         Cursor: string;
     };
@@ -329,13 +513,72 @@ export interface operations {
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                exam_id: components["parameters"]["ExamId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
             /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Exam"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    deleteExam: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                exam_id: components["parameters"]["ExamId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exam deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateExam: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                exam_id: components["parameters"]["ExamId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateExam"];
+            };
+        };
+        responses: {
+            /** @description Updated exam */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -358,7 +601,7 @@ export interface operations {
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                exam_id: components["parameters"]["ExamId"];
             };
             cookie?: never;
         };
@@ -379,38 +622,7 @@ export interface operations {
             422: components["responses"]["ValidationError"];
         };
     };
-    submitExam: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
-                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateSubmission"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Submission"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            422: components["responses"]["ValidationError"];
-        };
-    };
-    listQuestionBanks: {
+    listSubmissions: {
         parameters: {
             query?: {
                 limit?: components["parameters"]["Limit"];
@@ -431,7 +643,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["QuestionBankList"];
+                    "application/json": components["schemas"]["SubmissionList"];
                 };
             };
             401: components["responses"]["Unauthorized"];
@@ -440,7 +652,156 @@ export interface operations {
             422: components["responses"]["ValidationError"];
         };
     };
-    createQuestionBank: {
+    getSubmission: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                submission_id: components["parameters"]["SubmissionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Submission */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Submission"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getSubmissionQuestions: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                submission_id: components["parameters"]["SubmissionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data?: components["schemas"]["ExamQuestion"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    submitAnswers: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                submission_id: components["parameters"]["SubmissionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitAnswers"];
+            };
+        };
+        responses: {
+            /** @description Graded submission */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Submission"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    gradeSubmission: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                submission_id: components["parameters"]["SubmissionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Graded submission */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Submission"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    listQuestions: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    createQuestion: {
         parameters: {
             query?: never;
             header?: {
@@ -452,7 +813,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CreateQuestionBank"];
+                "application/json": components["schemas"]["CreateQuestion"];
             };
         };
         responses: {
@@ -462,7 +823,94 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["QuestionBank"];
+                    "application/json": components["schemas"]["Question"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getQuestion: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                question_id: components["parameters"]["QuestionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Question */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Question"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteQuestion: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                question_id: components["parameters"]["QuestionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Question deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateQuestion: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                question_id: components["parameters"]["QuestionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateQuestion"];
+            };
+        };
+        responses: {
+            /** @description Updated question */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Question"];
                 };
             };
             401: components["responses"]["Unauthorized"];

@@ -11,12 +11,12 @@ export interface AcademicActionResult {
 
 type CreateClass = OpenAPI.academic_v1.components["schemas"]["CreateClass"];
 type CreateSubject = OpenAPI.academic_v1.components["schemas"]["CreateSubject"];
-
-// The academic.v1 contract does not declare update schemas yet; the service
-// accepts partial create payloads on PATCH (empty string clears optional text,
-// null/absent leaves the field unchanged).
-type UpdateClass = Partial<Pick<CreateClass, "name" | "class_teacher_id" | "capacity">>;
-type UpdateSubject = Partial<CreateSubject>;
+type CreateAcademicYear = OpenAPI.academic_v1.components["schemas"]["CreateAcademicYear"];
+type UpdateAcademicYear = OpenAPI.academic_v1.components["schemas"]["UpdateAcademicYear"];
+type CreateTerm = OpenAPI.academic_v1.components["schemas"]["CreateTerm"];
+type UpdateTerm = OpenAPI.academic_v1.components["schemas"]["UpdateTerm"];
+type UpdateClass = OpenAPI.academic_v1.components["schemas"]["UpdateClass"];
+type UpdateSubject = OpenAPI.academic_v1.components["schemas"]["UpdateSubject"];
 
 function field(formData: FormData, key: string): string {
   return String((formData.get(key) as string | null) ?? "").trim();
@@ -27,6 +27,120 @@ function parseCapacity(raw: string): number | null | undefined {
   const value = Number(raw);
   if (!Number.isInteger(value) || value <= 0) return undefined;
   return value;
+}
+
+function validDateRange(startDate: string, endDate: string): boolean {
+  return Boolean(startDate && endDate && endDate > startDate);
+}
+
+export async function createAcademicYearAction(
+  _prev: AcademicActionResult,
+  formData: FormData,
+): Promise<AcademicActionResult> {
+  const name = field(formData, "name");
+  const startDate = field(formData, "start_date");
+  const endDate = field(formData, "end_date");
+  if (!name) return { error: "Academic year name is required." };
+  if (!validDateRange(startDate, endDate)) {
+    return { error: "The end date must be after the start date." };
+  }
+  const body: CreateAcademicYear = {
+    name,
+    code: field(formData, "code") || null,
+    start_date: startDate,
+    end_date: endDate,
+    is_current: formData.get("is_current") === "on",
+  };
+  try {
+    const client = await createServerClient();
+    await client.post("/api/v1/academic-years", body);
+    revalidatePath("/admin/academic-years");
+    return { success: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to create academic year." };
+  }
+}
+
+export async function updateAcademicYearAction(
+  id: string,
+  _prev: AcademicActionResult,
+  formData: FormData,
+): Promise<AcademicActionResult> {
+  const name = field(formData, "name");
+  const code = field(formData, "code");
+  const startDate = field(formData, "start_date");
+  const endDate = field(formData, "end_date");
+  if (!name || !code) return { error: "Academic year name and code are required." };
+  if (!validDateRange(startDate, endDate)) {
+    return { error: "The end date must be after the start date." };
+  }
+  const body: UpdateAcademicYear = {
+    name,
+    code,
+    start_date: startDate,
+    end_date: endDate,
+    status: field(formData, "status") as UpdateAcademicYear["status"],
+    is_current: formData.get("is_current") === "on",
+  };
+  try {
+    const client = await createServerClient();
+    await client.patch(`/api/v1/academic-years/${encodeURIComponent(id)}`, body);
+    revalidatePath("/admin/academic-years");
+    return { success: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to update academic year." };
+  }
+}
+
+export async function createTermAction(
+  _prev: AcademicActionResult,
+  formData: FormData,
+): Promise<AcademicActionResult> {
+  const academicYearId = field(formData, "academic_year_id");
+  const name = field(formData, "name");
+  const startDate = field(formData, "start_date");
+  const endDate = field(formData, "end_date");
+  if (!academicYearId || !name) return { error: "Academic year and term name are required." };
+  if (!validDateRange(startDate, endDate)) {
+    return { error: "The end date must be after the start date." };
+  }
+  const body: CreateTerm = {
+    academic_year_id: academicYearId,
+    name,
+    start_date: startDate,
+    end_date: endDate,
+  };
+  try {
+    const client = await createServerClient();
+    await client.post("/api/v1/terms", body);
+    revalidatePath("/admin/academic-years");
+    return { success: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to create term." };
+  }
+}
+
+export async function updateTermAction(
+  id: string,
+  _prev: AcademicActionResult,
+  formData: FormData,
+): Promise<AcademicActionResult> {
+  const name = field(formData, "name");
+  const startDate = field(formData, "start_date");
+  const endDate = field(formData, "end_date");
+  if (!name) return { error: "Term name is required." };
+  if (!validDateRange(startDate, endDate)) {
+    return { error: "The end date must be after the start date." };
+  }
+  const body: UpdateTerm = { name, start_date: startDate, end_date: endDate };
+  try {
+    const client = await createServerClient();
+    await client.patch(`/api/v1/terms/${encodeURIComponent(id)}`, body);
+    revalidatePath("/admin/academic-years");
+    return { success: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to update term." };
+  }
 }
 
 export async function createClassAction(

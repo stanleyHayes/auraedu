@@ -20,6 +20,7 @@ export const ADMIN_ROLES = new Set(["school_admin", "platform_super_admin", "sup
 export const TEACHER_ROLES = new Set(["teacher", "school_admin", "super_admin"]);
 export const PARENT_ROLES = new Set(["parent", "school_admin", "super_admin"]);
 export const STUDENT_ROLES = new Set(["student", "school_admin", "super_admin"]);
+export const APPLICANT_ROLES = new Set(["applicant", "school_admin", "super_admin"]);
 
 export function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
@@ -123,6 +124,9 @@ export function isParent(session: UserSession): boolean {
 export function isStudent(session: UserSession): boolean {
   return STUDENT_ROLES.has(session.role);
 }
+export function isApplicant(session: UserSession): boolean {
+  return APPLICANT_ROLES.has(session.role);
+}
 
 export function roleHomePath(role: string): string {
   if (SUPER_ADMIN_ROLES.has(role)) return "/superadmin";
@@ -130,5 +134,6 @@ export function roleHomePath(role: string): string {
   if (TEACHER_ROLES.has(role)) return "/teacher";
   if (PARENT_ROLES.has(role)) return "/parent";
   if (STUDENT_ROLES.has(role)) return "/student";
+  if (APPLICANT_ROLES.has(role)) return "/applicant";
   return "/login";
 }

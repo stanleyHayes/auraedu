@@ -4,6 +4,7 @@ package events
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/auraedu/identity-service/internal/ports"
 	"github.com/auraedu/platform/eventbus"
@@ -28,6 +29,12 @@ func (p *Publisher) Publish(ctx context.Context, e ports.Event) error {
 	event, err := tenancy.NewCloudEvent(e.Type, e.Source, e.ID, e.TenantID, e.Data)
 	if err != nil {
 		return fmt.Errorf("identity: build event %q: %w", e.Type, err)
+	}
+	// The caller-supplied event id is stable for transactional-outbox retries;
+	// use it as JetStream's deduplication key as well.
+	event.IdempotencyKey = e.ID
+	if !e.Time.IsZero() {
+		event.Time = e.Time.UTC().Format(time.RFC3339)
 	}
 	return p.bus.Publish(ctx, event)
 }

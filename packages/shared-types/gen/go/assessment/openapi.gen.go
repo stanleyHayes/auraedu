@@ -31,6 +31,16 @@ type CreateAssessment struct {
 	ScheduledAt *string  `json:"scheduled_at,omitempty"`
 }
 
+// UpdateAssessment generated from OpenAPI schema.
+type UpdateAssessment struct {
+	Title       *string `json:"title,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Type        *string `json:"type,omitempty"`
+	MaxScore    *int    `json:"max_score,omitempty"`
+	DueDate     *string `json:"due_date,omitempty"`
+	Status      *string `json:"status,omitempty"`
+}
+
 // Score generated from OpenAPI schema.
 type Score struct {
 	Id           string   `json:"id"`
@@ -46,6 +56,18 @@ type CreateScore struct {
 	StudentId string   `json:"student_id"`
 	Score     float64  `json:"score"`
 	MaxScore  *float64 `json:"max_score,omitempty"`
+}
+
+// UpdateScore generated from OpenAPI schema.
+type UpdateScore struct {
+	Score *int    `json:"score,omitempty"`
+	Notes *string `json:"notes,omitempty"`
+}
+
+// ScoreList generated from OpenAPI schema.
+type ScoreList struct {
+	Data       *[]Score `json:"data,omitempty"`
+	NextCursor *string  `json:"next_cursor,omitempty"`
 }
 
 // Assignment generated from OpenAPI schema.
@@ -122,7 +144,13 @@ type ServerInterface interface {
 	listAssessments(w http.ResponseWriter, r *http.Request)
 	createAssessment(w http.ResponseWriter, r *http.Request)
 	getAssessment(w http.ResponseWriter, r *http.Request)
+	updateAssessment(w http.ResponseWriter, r *http.Request)
+	deleteAssessment(w http.ResponseWriter, r *http.Request)
+	listScores(w http.ResponseWriter, r *http.Request)
 	recordScore(w http.ResponseWriter, r *http.Request)
+	getScore(w http.ResponseWriter, r *http.Request)
+	updateScore(w http.ResponseWriter, r *http.Request)
+	deleteScore(w http.ResponseWriter, r *http.Request)
 	listAssignments(w http.ResponseWriter, r *http.Request)
 	createAssignment(w http.ResponseWriter, r *http.Request)
 	getAssignment(w http.ResponseWriter, r *http.Request)
@@ -137,7 +165,13 @@ type ClientInterface interface {
 	listAssessments(ctx context.Context) (*http.Response, error)
 	createAssessment(ctx context.Context) (*http.Response, error)
 	getAssessment(ctx context.Context) (*http.Response, error)
+	updateAssessment(ctx context.Context) (*http.Response, error)
+	deleteAssessment(ctx context.Context) (*http.Response, error)
+	listScores(ctx context.Context) (*http.Response, error)
 	recordScore(ctx context.Context) (*http.Response, error)
+	getScore(ctx context.Context) (*http.Response, error)
+	updateScore(ctx context.Context) (*http.Response, error)
+	deleteScore(ctx context.Context) (*http.Response, error)
 	listAssignments(ctx context.Context) (*http.Response, error)
 	createAssignment(ctx context.Context) (*http.Response, error)
 	getAssignment(ctx context.Context) (*http.Response, error)

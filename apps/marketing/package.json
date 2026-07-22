@@ -9,12 +9,14 @@
     "start": "next start --port 3001",
     "typecheck": "next typegen && tsc --noEmit",
     "lint": "eslint .",
-    "test": "echo \"no tests yet\""
+    "test": "node --test test/*.test.ts"
   },
   "dependencies": {
     "@auraedu/api-client": "workspace:*",
     "@auraedu/tokens": "workspace:*",
     "@auraedu/ui": "workspace:*",
+    "framer-motion": "^12.42.2",
+    "lucide-react": "^1.24.0",
     "next": "^16.2.10",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"

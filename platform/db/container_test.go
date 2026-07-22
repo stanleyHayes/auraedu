@@ -14,7 +14,7 @@ import (
 func startPostgresContainer(ctx context.Context, t *testing.T) string {
 	t.Helper()
 
-	ctr, err := postgres.Run(ctx, "postgres:17-alpine",
+	ctr, err := postgres.Run(ctx, "postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193",
 		postgres.WithDatabase("test"),
 		postgres.WithUsername("test"),
 		postgres.WithPassword("test"),

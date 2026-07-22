@@ -1,0 +1,88 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://contracts.auraedu.dev/events/assistant.question_unanswered.v1.json",
+  "type": "object",
+  "required": [
+    "specversion",
+    "type",
+    "source",
+    "id",
+    "time",
+    "tenant_id",
+    "data"
+  ],
+  "properties": {
+    "specversion": {
+      "const": "1.0"
+    },
+    "type": {
+      "const": "assistant.question_unanswered.v1"
+    },
+    "source": {
+      "type": "string"
+    },
+    "subject": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tenant_id": {
+      "type": "string"
+    },
+    "datacontenttype": {
+      "const": "application/json"
+    },
+    "data": {
+      "type": "object",
+      "required": [
+        "session_id",
+        "message_id",
+        "locale",
+        "created_at"
+      ],
+      "properties": {
+        "session_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "message_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "locale": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "specversion": "1.0",
+      "type": "assistant.question_unanswered.v1",
+      "source": "example-source",
+      "subject": "11111111-1111-4111-8111-111111111111",
+      "id": "11111111-1111-4111-8111-111111111111",
+      "time": "2026-07-20T10:00:00Z",
+      "tenant_id": "school-a",
+      "data": {
+        "session_id": "11111111-1111-4111-8111-111111111111",
+        "message_id": "11111111-1111-4111-8111-111111111111",
+        "locale": "example-locale",
+        "created_at": "2026-07-19T10:00:00Z"
+      }
+    }
+  ]
+}

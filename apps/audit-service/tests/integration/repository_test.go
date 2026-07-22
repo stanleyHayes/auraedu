@@ -15,8 +15,8 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-const tenantA = "11111111-1111-1111-1111-111111111111"
-const tenantB = "22222222-2222-2222-2222-222222222222"
+const tenantA = "school-a"
+const tenantB = "school-b"
 
 func newRepo(t *testing.T) ports.Repository {
 	t.Helper()
@@ -32,7 +32,7 @@ func withTenant(ctx context.Context, tenantID string) context.Context {
 func mustInsert(ctx context.Context, t *testing.T, repo ports.Repository, eventType, subject string) *domain.AuditLog {
 	t.Helper()
 	log, err := domain.NewAuditLogBuilder().
-		TenantID(uuid.MustParse(tenantA)).
+		TenantID(tenantA).
 		EventID(uuid.NewString()).
 		EventType(eventType).
 		SourceService("test-service").
@@ -124,7 +124,7 @@ func TestRepository_ListAllCrossTenant(t *testing.T) {
 	mustInsert(withTenant(ctx, tenantA), t, repo, "student.created.v1", "stu-a")
 
 	logB, err := domain.NewAuditLogBuilder().
-		TenantID(uuid.MustParse(tenantB)).
+		TenantID(tenantB).
 		EventID(uuid.NewString()).
 		EventType("invoice.created.v1").
 		SourceService("test-service").

@@ -33,20 +33,55 @@ func (r *Repository) UpsertMetric(ctx context.Context, tenantID string, m *domai
 		return err
 	}
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		dims, err := json.Marshal(m.Dimensions)
-		if err != nil {
-			return fmt.Errorf("analytics: marshal dimensions: %w", err)
-		}
+		return upsertMetricTx(ctx, tx, tenantID, m)
+	})
+}
 
-		var sampleCount *int64
-		if m.Unit == domain.UnitAverage {
-			if m.SampleCount != nil {
-				v := *m.SampleCount
-				sampleCount = &v
+// ApplyMetricEvent atomically deduplicates one CloudEvent and applies every
+// metric derived from it. If any metric write fails, the event claim rolls
+// back too so JetStream can safely redeliver the complete projection.
+func (r *Repository) ApplyMetricEvent(ctx context.Context, tenantID, eventID, eventType string, metrics []*domain.Metric) error {
+	if strings.TrimSpace(eventID) == "" || strings.TrimSpace(eventType) == "" {
+		return fmt.Errorf("analytics: event id and type are required")
+	}
+	for _, metric := range metrics {
+		if metric == nil {
+			return fmt.Errorf("analytics: metric event contains a nil metric")
+		}
+		if err := metric.Validate(); err != nil {
+			return err
+		}
+	}
+	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, `
+			INSERT INTO analytics_processed_events (tenant_id,event_id,event_type)
+			VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, tenantID, eventID, eventType)
+		if err != nil {
+			return fmt.Errorf("analytics: record processed metric event: %w", err)
+		}
+		if tag.RowsAffected() == 0 {
+			return nil
+		}
+		for _, metric := range metrics {
+			if err := upsertMetricTx(ctx, tx, tenantID, metric); err != nil {
+				return err
 			}
 		}
+		return nil
+	})
+}
 
-		_, err = tx.Exec(ctx, `
+func upsertMetricTx(ctx context.Context, tx pgx.Tx, tenantID string, m *domain.Metric) error {
+	dims, err := json.Marshal(m.Dimensions)
+	if err != nil {
+		return fmt.Errorf("analytics: marshal dimensions: %w", err)
+	}
+	var sampleCount *int64
+	if m.Unit == domain.UnitAverage && m.SampleCount != nil {
+		v := *m.SampleCount
+		sampleCount = &v
+	}
+	_, err = tx.Exec(ctx, `
 			INSERT INTO metrics (
 				id, tenant_id, metric_name, bucket_date, value, unit, dimensions, sample_count, created_at, updated_at
 			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
@@ -73,11 +108,181 @@ func (r *Repository) UpsertMetric(ctx context.Context, tenantID string, m *domai
 				END,
 				updated_at = EXCLUDED.updated_at
 		`, m.ID, tenantID, m.MetricName, m.BucketDate.String(), m.Value, string(m.Unit), dims, sampleCount, m.CreatedAt, m.UpdatedAt)
+	if err != nil {
+		return fmt.Errorf("analytics: upsert metric: %w", err)
+	}
+	return nil
+}
+
+// ApplyGrowthEvent atomically deduplicates, attributes and counts one Growth event.
+func (r *Repository) ApplyGrowthEvent(ctx context.Context, tenantID string, event domain.GrowthEvent) error {
+	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		claimed, err := claimGrowthEvent(ctx, tx, tenantID, event)
 		if err != nil {
-			return fmt.Errorf("analytics: upsert metric: %w", err)
+			return err
+		}
+		if !claimed {
+			return nil
+		}
+		if err := storeGrowthAttribution(ctx, tx, tenantID, event); err != nil {
+			return err
+		}
+		if err := storeGrowthFact(ctx, tx, tenantID, event); err != nil {
+			return err
+		}
+		if err := hydrateGrowthAttribution(ctx, tx, tenantID, &event); err != nil {
+			return err
+		}
+		metric, err := domain.NewMetric(
+			tenantID, "growth.funnel."+event.Stage, event.BucketDate, 1, domain.UnitCount, growthDimensions(event),
+		)
+		if err != nil {
+			return err
+		}
+		if err := upsertMetricTx(ctx, tx, tenantID, metric); err != nil {
+			return err
+		}
+		// Preserve the EP-56 metric key used by existing smoke checks and clients.
+		if event.Stage == domain.GrowthLeads {
+			legacy, err := domain.NewMetric(tenantID, "growth.leads.count", event.BucketDate, 1, domain.UnitCount, nil)
+			if err != nil {
+				return err
+			}
+			return upsertMetricTx(ctx, tx, tenantID, legacy)
 		}
 		return nil
 	})
+}
+
+func claimGrowthEvent(ctx context.Context, tx pgx.Tx, tenantID string, event domain.GrowthEvent) (bool, error) {
+	tag, err := tx.Exec(ctx, `
+		INSERT INTO analytics_processed_events (tenant_id,event_id,event_type)
+		VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, tenantID, event.EventID, event.EventType)
+	if err != nil {
+		return false, fmt.Errorf("analytics: record processed event: %w", err)
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
+func storeGrowthAttribution(ctx context.Context, tx pgx.Tx, tenantID string, event domain.GrowthEvent) error {
+	if event.Stage == domain.GrowthLeads {
+		_, err := tx.Exec(ctx, `
+			INSERT INTO growth_lead_attribution (tenant_id,lead_id,source,campaign_id,created_at)
+			VALUES ($1,$2,NULLIF($3,''),NULLIF($4,'')::uuid,$5)
+			ON CONFLICT (tenant_id,lead_id) DO UPDATE
+			SET source=EXCLUDED.source,campaign_id=EXCLUDED.campaign_id`,
+			tenantID, event.LeadID, event.Source, event.CampaignID, event.OccurredAt)
+		if err != nil {
+			return fmt.Errorf("analytics: store lead attribution: %w", err)
+		}
+	}
+	if event.ApplicationID == "" {
+		return nil
+	}
+	_, err := tx.Exec(ctx, `
+		INSERT INTO growth_application_attribution (
+			tenant_id,application_id,lead_id,programme_id,intake_id,started_at
+		) VALUES ($1,$2,NULLIF($3,'')::uuid,$4,NULLIF($5,'')::uuid,$6)
+		ON CONFLICT (tenant_id,application_id) DO UPDATE SET
+		lead_id=COALESCE(EXCLUDED.lead_id,growth_application_attribution.lead_id),
+		programme_id=EXCLUDED.programme_id,
+		intake_id=COALESCE(EXCLUDED.intake_id,growth_application_attribution.intake_id)`,
+		tenantID, event.ApplicationID, event.LeadID, event.ProgrammeID, event.IntakeID, event.OccurredAt)
+	if err != nil {
+		return fmt.Errorf("analytics: store application attribution: %w", err)
+	}
+	return nil
+}
+
+func storeGrowthFact(ctx context.Context, tx pgx.Tx, tenantID string, event domain.GrowthEvent) error {
+	_, err := tx.Exec(ctx, `
+		INSERT INTO growth_event_facts (
+			tenant_id,event_id,event_type,stage,bucket_date,lead_id,application_id,
+			programme_id,intake_id,source,campaign_id,occurred_at
+		) VALUES (
+			$1,$2,$3,$4,$5,NULLIF($6,'')::uuid,NULLIF($7,'')::uuid,
+			NULLIF($8,'')::uuid,NULLIF($9,'')::uuid,NULLIF($10,''),NULLIF($11,'')::uuid,$12
+		)`, tenantID, event.EventID, event.EventType, event.Stage, event.BucketDate,
+		event.LeadID, event.ApplicationID, event.ProgrammeID, event.IntakeID,
+		event.Source, event.CampaignID, event.OccurredAt)
+	if err != nil {
+		return fmt.Errorf("analytics: store growth event fact: %w", err)
+	}
+	return nil
+}
+
+func hydrateGrowthAttribution(
+	ctx context.Context,
+	tx pgx.Tx,
+	tenantID string,
+	event *domain.GrowthEvent,
+) error {
+	if event.Source == "" && event.LeadID != "" {
+		err := tx.QueryRow(ctx, `
+			SELECT source,COALESCE(campaign_id::text,'')
+			FROM growth_lead_attribution WHERE tenant_id=$1 AND lead_id=$2`,
+			tenantID, event.LeadID).Scan(&event.Source, &event.CampaignID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("analytics: load lead attribution: %w", err)
+		}
+	}
+	if event.Source == "" && event.ApplicationID != "" {
+		err := tx.QueryRow(ctx, `
+			SELECT COALESCE(l.source,''),COALESCE(l.campaign_id::text,'')
+			FROM growth_application_attribution a
+			LEFT JOIN growth_lead_attribution l
+				ON l.tenant_id=a.tenant_id AND l.lead_id=a.lead_id
+			WHERE a.tenant_id=$1 AND a.application_id=$2`, tenantID, event.ApplicationID).
+			Scan(&event.Source, &event.CampaignID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("analytics: load application attribution: %w", err)
+		}
+	}
+	return nil
+}
+
+func growthDimensions(event domain.GrowthEvent) domain.Dimensions {
+	dimensions := domain.Dimensions{}
+	values := map[string]string{
+		"source": event.Source, "campaign_id": event.CampaignID,
+		"programme_id": event.ProgrammeID, "intake_id": event.IntakeID,
+	}
+	for key, value := range values {
+		if value != "" {
+			dimensions[key] = value
+		}
+	}
+	return dimensions
+}
+
+func (r *Repository) GrowthRollups(ctx context.Context, tenantID, fromDate, toDate string) ([]domain.GrowthRollup, error) {
+	var out []domain.GrowthRollup
+	err := r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `SELECT f.stage,
+			COALESCE(NULLIF(f.source,''),l.source,''),
+			COALESCE(COALESCE(f.campaign_id,l.campaign_id)::text,''),
+			COALESCE(COALESCE(f.programme_id,a.programme_id)::text,''),
+			COALESCE(COALESCE(f.intake_id,a.intake_id)::text,''),
+			COUNT(*)
+			FROM growth_event_facts f
+			LEFT JOIN growth_application_attribution a ON a.tenant_id=f.tenant_id AND a.application_id=f.application_id
+			LEFT JOIN growth_lead_attribution l ON l.tenant_id=f.tenant_id AND l.lead_id=COALESCE(f.lead_id,a.lead_id)
+			WHERE f.tenant_id=$1 AND f.bucket_date BETWEEN $2 AND $3
+			GROUP BY 1,2,3,4,5 ORDER BY 1,2,4`, tenantID, fromDate, toDate)
+		if err != nil {
+			return fmt.Errorf("analytics: growth rollups: %w", err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var item domain.GrowthRollup
+			if err := rows.Scan(&item.Stage, &item.Source, &item.CampaignID, &item.ProgrammeID, &item.IntakeID, &item.Value); err != nil {
+				return err
+			}
+			out = append(out, item)
+		}
+		return rows.Err()
+	})
+	return out, err
 }
 
 func (r *Repository) ListMetrics(ctx context.Context, tenantID string, filter ports.ListFilter) ([]*domain.Metric, string, error) {
@@ -127,6 +332,10 @@ func listQuery(ctx context.Context, tx pgx.Tx, tenantID string, filter ports.Lis
 	if filter.DimensionKey != "" && filter.DimensionValue != "" {
 		args = append(args, filter.DimensionKey, filter.DimensionValue)
 		where += fmt.Sprintf(" AND dimensions->>$%d = $%d", len(args)-1, len(args))
+	}
+	if filter.StudentIDs != nil {
+		args = append(args, filter.StudentIDs)
+		where += fmt.Sprintf(" AND dimensions->>'student_id' = ANY($%d::text[])", len(args))
 	}
 
 	if filter.Cursor != "" {

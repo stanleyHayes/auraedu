@@ -8,4 +8,5 @@ var (
 	ErrMissingTenant = errors.New("academic: tenant context required")
 	ErrForbidden     = errors.New("academic: forbidden")
 	ErrConflict      = errors.New("academic: conflict")
+	ErrUnavailable   = errors.New("academic: dependency unavailable")
 )

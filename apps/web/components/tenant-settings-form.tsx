@@ -3,10 +3,7 @@
 import * as React from "react";
 import type { OpenAPI } from "@auraedu/shared-types";
 import { Button, Input, Label, Select } from "@auraedu/ui";
-import {
-  updateTenantSettingsAction,
-  type TenantActionResult,
-} from "@/lib/tenant-actions";
+import { updateTenantSettingsAction, type TenantActionResult } from "@/lib/tenant-actions";
 
 interface TenantSettingsFormProps {
   tenantCode: string;
@@ -25,17 +22,31 @@ export function TenantSettingsForm({ tenantCode, initial }: TenantSettingsFormPr
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="locale">Locale</Label>
-          <Input id="locale" name="locale" defaultValue={initial?.locale ?? "en-GH"} placeholder="en-GH" />
+          <Input
+            id="locale"
+            name="locale"
+            defaultValue={initial?.locale ?? "en-GH"}
+            placeholder="en-GH"
+          />
         </div>
 
         <div className="space-y-1.5">
           <Label htmlFor="timezone">Timezone</Label>
-          <Input id="timezone" name="timezone" defaultValue={initial?.timezone ?? "Africa/Accra"} placeholder="Africa/Accra" />
+          <Input
+            id="timezone"
+            name="timezone"
+            defaultValue={initial?.timezone ?? "Africa/Accra"}
+            placeholder="Africa/Accra"
+          />
         </div>
 
         <div className="space-y-1.5">
           <Label htmlFor="date_format">Date format</Label>
-          <Select id="date_format" name="date_format" defaultValue={initial?.date_format ?? "DD/MM/YYYY"}>
+          <Select
+            id="date_format"
+            name="date_format"
+            defaultValue={initial?.date_format ?? "DD/MM/YYYY"}
+          >
             <option value="DD/MM/YYYY">DD/MM/YYYY</option>
             <option value="MM/DD/YYYY">MM/DD/YYYY</option>
             <option value="YYYY-MM-DD">YYYY-MM-DD</option>

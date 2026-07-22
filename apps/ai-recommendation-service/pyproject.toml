@@ -11,6 +11,8 @@ dependencies = [
     "pydantic-settings>=2.14.2",
     "nats-py>=2.15.0",
     "greenlet>=3.5.3",
+    "pyyaml>=6.0.3",
+    "prometheus-client>=0.25.0",
 ]
 
 [build-system]

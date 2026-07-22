@@ -1,4 +1,4 @@
-import { publicApiUrl, tenantHeaderName } from "@auraedu/config";
+import { gatewayInternalUrl, tenantHeaderName } from "@auraedu/config";
 
 export type WebsiteSectionContent = Record<string, unknown> | string | null;
 
@@ -57,7 +57,7 @@ export async function fetchWebsitePages(
   tenantCode: string,
   { status }: { status?: string } = {},
 ): Promise<WebsitePage[]> {
-  const url = new URL("/api/v1/website/pages", publicApiUrl);
+  const url = new URL("/api/v1/website/pages", gatewayInternalUrl);
   if (status) url.searchParams.set("status", status);
 
   try {
@@ -77,7 +77,7 @@ export async function fetchPageBySlug(
   tenantCode: string,
   slug: string,
 ): Promise<WebsitePage | null> {
-  const url = new URL(`/api/v1/website/pages/by-slug/${encodeURIComponent(slug)}`, publicApiUrl);
+  const url = new URL(`/api/v1/website/page-slugs/${encodeURIComponent(slug)}`, gatewayInternalUrl);
 
   try {
     const res = await fetch(url, {
@@ -94,7 +94,10 @@ export async function fetchPageBySlug(
 }
 
 async function fetchSections(tenantCode: string, pageId: string): Promise<WebsiteSection[]> {
-  const url = new URL(`/api/v1/website/pages/${encodeURIComponent(pageId)}/sections`, publicApiUrl);
+  const url = new URL(
+    `/api/v1/website/pages/${encodeURIComponent(pageId)}/sections`,
+    gatewayInternalUrl,
+  );
 
   try {
     const res = await fetch(url, {

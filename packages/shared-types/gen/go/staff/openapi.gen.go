@@ -15,8 +15,11 @@ type Staff struct {
 	LastName  string  `json:"last_name"`
 	StaffType string  `json:"staff_type"`
 	Email     *string `json:"email,omitempty"`
-	StaffCode *string `json:"staff_code,omitempty"`
-	CreatedAt *string `json:"created_at,omitempty"`
+	UserId    *string `json:"user_id,omitempty"`
+	StaffCode string  `json:"staff_code"`
+	Status    string  `json:"status"`
+	CreatedAt string  `json:"created_at"`
+	UpdatedAt string  `json:"updated_at"`
 }
 
 // CreateStaff generated from OpenAPI schema.
@@ -25,6 +28,7 @@ type CreateStaff struct {
 	LastName  string  `json:"last_name"`
 	StaffType string  `json:"staff_type"`
 	Email     *string `json:"email,omitempty"`
+	UserId    *string `json:"user_id,omitempty"`
 }
 
 // UpdateStaff generated from OpenAPI schema.
@@ -33,16 +37,19 @@ type UpdateStaff struct {
 	LastName  *string `json:"last_name,omitempty"`
 	StaffType *string `json:"staff_type,omitempty"`
 	Email     *string `json:"email,omitempty"`
+	UserId    *string `json:"user_id,omitempty"`
+	Status    *string `json:"status,omitempty"`
 }
 
 // StaffAssignment generated from OpenAPI schema.
 type StaffAssignment struct {
 	Id         string  `json:"id"`
+	TenantId   string  `json:"tenant_id"`
 	StaffId    string  `json:"staff_id"`
-	ClassId    *string `json:"class_id,omitempty"`
+	ClassId    string  `json:"class_id"`
 	SubjectId  *string `json:"subject_id,omitempty"`
 	Role       *string `json:"role,omitempty"`
-	AssignedAt *string `json:"assigned_at,omitempty"`
+	AssignedAt string  `json:"assigned_at"`
 }
 
 // CreateStaffAssignment generated from OpenAPI schema.
@@ -70,8 +77,10 @@ type ServerInterface interface {
 	createStaff(w http.ResponseWriter, r *http.Request)
 	getStaff(w http.ResponseWriter, r *http.Request)
 	updateStaff(w http.ResponseWriter, r *http.Request)
+	deleteStaff(w http.ResponseWriter, r *http.Request)
 	listStaffAssignments(w http.ResponseWriter, r *http.Request)
 	createStaffAssignment(w http.ResponseWriter, r *http.Request)
+	deleteStaffAssignment(w http.ResponseWriter, r *http.Request)
 }
 
 // ClientInterface is the generated consumer stub for this service.
@@ -80,6 +89,8 @@ type ClientInterface interface {
 	createStaff(ctx context.Context) (*http.Response, error)
 	getStaff(ctx context.Context) (*http.Response, error)
 	updateStaff(ctx context.Context) (*http.Response, error)
+	deleteStaff(ctx context.Context) (*http.Response, error)
 	listStaffAssignments(ctx context.Context) (*http.Response, error)
 	createStaffAssignment(ctx context.Context) (*http.Response, error)
+	deleteStaffAssignment(ctx context.Context) (*http.Response, error)
 }

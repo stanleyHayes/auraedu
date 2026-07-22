@@ -38,6 +38,7 @@ func NewReverseProxy(registry ServiceRegistry, log *slog.Logger) (*ReverseProxy,
 
 type ActorContext struct {
 	UserID      string
+	TenantID    string
 	Role        string
 	Permissions string
 	Platform    bool
@@ -73,6 +74,12 @@ func rewriteForRoute(target *url.URL) func(*httputil.ProxyRequest) {
 
 		pr.Out.Header.Set("X-Forwarded-Host", pr.In.Host)
 		pr.Out.Header.Set("X-Forwarded-Proto", scheme(pr.In))
+		// X-Actor-* headers are an internal gateway-to-service trust boundary.
+		// Never forward client-supplied values, including on public routes.
+		pr.Out.Header.Del("X-Actor-User")
+		pr.Out.Header.Del("X-Actor-Tenant")
+		pr.Out.Header.Del("X-Actor-Role")
+		pr.Out.Header.Del("X-Actor-Permissions")
 		if rid := RequestIDFrom(pr.In.Context()); rid != "" {
 			pr.Out.Header.Set("X-Request-Id", rid)
 		}

@@ -14,9 +14,10 @@ type InvoiceStatus string
 const (
 	InvoiceStatusDraft     InvoiceStatus = "draft"
 	InvoiceStatusPending   InvoiceStatus = "pending"
+	InvoiceStatusPartial   InvoiceStatus = "partial"
 	InvoiceStatusPaid      InvoiceStatus = "paid"
 	InvoiceStatusOverdue   InvoiceStatus = "overdue"
-	InvoiceStatusCancelled InvoiceStatus = "cancelled" //nolint:misspell // domain uses British spelling for status
+	InvoiceStatusCancelled InvoiceStatus = "cancelled"
 )
 
 // Invoice is the aggregate root for a student fee invoice.
@@ -94,9 +95,8 @@ func (i Invoice) Validate() error {
 		return fmt.Errorf("%w: balance_cents must be between 0 and amount_cents", ErrValidation)
 	}
 	if !isValidInvoiceStatus(InvoiceStatus(i.Status)) {
-		//nolint:misspell // domain uses British spelling for status
 		return fmt.Errorf(
-			"%w: status must be draft, pending, paid, overdue or cancelled", ErrValidation,
+			"%w: status must be draft, pending, partial, paid, overdue or cancelled", ErrValidation,
 		)
 	}
 	return nil
@@ -136,9 +136,8 @@ func (i *Invoice) ApplyUpdate(p InvoicePatch) ([]string, error) {
 	}
 	if p.Status != nil {
 		if !isValidInvoiceStatus(InvoiceStatus(*p.Status)) {
-			//nolint:misspell // domain uses British spelling for status
 			return nil, fmt.Errorf(
-				"%w: status must be draft, pending, paid, overdue or cancelled", ErrValidation,
+				"%w: status must be draft, pending, partial, paid, overdue or cancelled", ErrValidation,
 			)
 		}
 		oldStatus := i.Status
@@ -178,7 +177,7 @@ func contains(slice []string, item string) bool {
 
 func isValidInvoiceStatus(s InvoiceStatus) bool {
 	switch s {
-	case InvoiceStatusDraft, InvoiceStatusPending, InvoiceStatusPaid, InvoiceStatusOverdue, InvoiceStatusCancelled:
+	case InvoiceStatusDraft, InvoiceStatusPending, InvoiceStatusPartial, InvoiceStatusPaid, InvoiceStatusOverdue, InvoiceStatusCancelled:
 		return true
 	}
 	return false

@@ -1,6 +1,5 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { BookOpen } from "lucide-react";
 import { StudentShell } from "@/components/student-shell";
 import { fetchTenantBranding, getTenantCodeFromHeaders, STUDENT_NAV } from "@/lib/tenant";
 import { requireAuth, isStudent } from "@/lib/auth";
@@ -18,7 +17,9 @@ export default async function StudentLayout({ children }: { children: React.Reac
   ]);
 
   const routeFeature = checkRouteFeature(pathname, tenant.features);
-  const guardedChildren = routeFeature.enabled ? children : (
+  const guardedChildren = routeFeature.enabled ? (
+    children
+  ) : (
     <FeatureDisabled feature={routeFeature.feature!} />
   );
 
@@ -32,6 +33,7 @@ export default async function StudentLayout({ children }: { children: React.Reac
   }
 
   const user = {
+    id: session.user_id ?? session.sub,
     name: session.name ?? session.email ?? "Student",
     email: session.email ?? "",
     role: session.role,
@@ -46,17 +48,7 @@ export default async function StudentLayout({ children }: { children: React.Reac
   };
 
   return (
-    <StudentShell
-      tenant={tenant}
-      navGroups={STUDENT_NAV}
-      showMobileMenu
-      user={user}
-      page={{
-        icon: <BookOpen className="size-7" />,
-        title: "Student Portal",
-        description: "Your timetable, assignments, results, and learning resources.",
-      }}
-    >
+    <StudentShell tenant={tenant} navGroups={STUDENT_NAV} showMobileMenu user={user}>
       {guardedChildren}
     </StudentShell>
   );

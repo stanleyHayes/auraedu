@@ -2,15 +2,18 @@
 // Do not edit by hand.
 
 export type paths = {
-    "/plans": {
+    "/public/billing/plans": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List SaaS plans */
-        get: operations["listPlans"];
+        /**
+         * List the active public SaaS plan catalogue
+         * @description Executes the list public plans workflow within this AuraEDU API boundary.
+         */
+        get: operations["listPublicPlans"];
         put?: never;
         post?: never;
         delete?: never;
@@ -19,17 +22,75 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/subscriptions": {
+    "/billing/plans": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List tenant subscriptions */
+        /**
+         * List SaaS plans
+         * @description Executes the list plans workflow within this AuraEDU API boundary.
+         */
+        get: operations["listPlans"];
+        put?: never;
+        /**
+         * Create a SaaS plan
+         * @description Executes the create plan workflow within this AuraEDU API boundary.
+         */
+        post: operations["createPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/billing/plans/{plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a SaaS plan
+         * @description Executes the get plan workflow within this AuraEDU API boundary.
+         */
+        get: operations["getPlan"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a SaaS plan
+         * @description Executes the delete plan workflow within this AuraEDU API boundary.
+         */
+        delete: operations["deletePlan"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a SaaS plan
+         * @description Executes the update plan workflow within this AuraEDU API boundary.
+         */
+        patch: operations["updatePlan"];
+        trace?: never;
+    };
+    "/billing/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List tenant subscriptions
+         * @description Executes the list subscriptions workflow within this AuraEDU API boundary.
+         */
         get: operations["listSubscriptions"];
         put?: never;
-        /** Create or update subscription */
+        /**
+         * Create a subscription
+         * @description Executes the create subscription workflow within this AuraEDU API boundary.
+         */
         post: operations["createSubscription"];
         delete?: never;
         options?: never;
@@ -37,17 +98,140 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/saas-invoices": {
+    "/billing/subscriptions/{subscription_id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List SaaS invoices */
-        get: operations["listSaasInvoices"];
+        /**
+         * Get a tenant subscription
+         * @description Executes the get subscription workflow within this AuraEDU API boundary.
+         */
+        get: operations["getSubscription"];
         put?: never;
         post?: never;
+        /**
+         * Delete a tenant subscription
+         * @description Executes the delete subscription workflow within this AuraEDU API boundary.
+         */
+        delete: operations["deleteSubscription"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a tenant subscription
+         * @description Executes the update subscription workflow within this AuraEDU API boundary.
+         */
+        patch: operations["updateSubscription"];
+        trace?: never;
+    };
+    "/billing/subscriptions/{subscription_id}/change-plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change a tenant subscription plan
+         * @description Executes the change subscription plan workflow within this AuraEDU API boundary.
+         */
+        post: operations["changeSubscriptionPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/billing/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List SaaS invoices
+         * @description Executes the list saas invoices workflow within this AuraEDU API boundary.
+         */
+        get: operations["listSaasInvoices"];
+        put?: never;
+        /**
+         * Create a SaaS invoice
+         * @description Executes the create saas invoice workflow within this AuraEDU API boundary.
+         */
+        post: operations["createSaasInvoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/billing/invoices/{invoice_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a SaaS invoice
+         * @description Executes the get saas invoice workflow within this AuraEDU API boundary.
+         */
+        get: operations["getSaasInvoice"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a SaaS invoice
+         * @description Executes the delete saas invoice workflow within this AuraEDU API boundary.
+         */
+        delete: operations["deleteSaasInvoice"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a SaaS invoice
+         * @description Executes the update saas invoice workflow within this AuraEDU API boundary.
+         */
+        patch: operations["updateSaasInvoice"];
+        trace?: never;
+    };
+    "/billing/invoices/{invoice_id}/pay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark a SaaS invoice as paid
+         * @description Executes the mark saas invoice paid workflow within this AuraEDU API boundary.
+         */
+        post: operations["markSaasInvoicePaid"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/billing/invoices/{invoice_id}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark a SaaS invoice as void
+         * @description Executes the mark saas invoice void workflow within this AuraEDU API boundary.
+         */
+        post: operations["markSaasInvoiceVoid"];
         delete?: never;
         options?: never;
         head?: never;
@@ -67,41 +251,125 @@ export type components = {
         Plan: {
             /** Format: uuid */
             id: string;
-            key: string;
+            code: string;
             name: string;
+            description?: string | null;
+            features: string[];
+            price_cents: number;
+            currency: string;
+            /** @enum {string} */
+            billing_interval: "monthly" | "yearly";
+            /** @enum {string} */
+            status: "active" | "archived";
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            updated_at?: string;
+        };
+        CreatePlan: {
+            name: string;
+            code: string;
+            description?: string | null;
+            price_cents: number;
+            currency: string;
+            /** @enum {string} */
+            billing_interval: "monthly" | "yearly";
+            features: string[];
+        };
+        UpdatePlan: {
+            name?: string;
+            code?: string;
+            description?: string | null;
+            price_cents?: number;
+            currency?: string;
+            /** @enum {string} */
+            billing_interval?: "monthly" | "yearly";
             features?: string[];
-            price_monthly?: number | null;
+            /** @enum {string} */
+            status?: "active" | "archived";
         };
         Subscription: {
             /** Format: uuid */
             id: string;
-            /** Format: uuid */
             tenant_id: string;
-            plan_key: string;
+            /** Format: uuid */
+            plan_id: string;
             /** @enum {string} */
-            status: "active" | "canceled" | "past_due";
+            status: "trialing" | "active" | "past_due" | "cancelled";
+            /** Format: date-time */
+            current_period_start: string;
+            /** Format: date-time */
+            current_period_end: string;
+            /** Format: date-time */
+            trial_ends_at?: string | null;
+            /** Format: date-time */
+            cancelled_at?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        CreateSubscription: {
+            /** Format: uuid */
+            plan_id: string;
+            /** @enum {string} */
+            status?: "trialing" | "active" | "past_due" | "cancelled";
             /** Format: date-time */
             current_period_start?: string;
             /** Format: date-time */
             current_period_end?: string;
+            /** Format: date-time */
+            trial_ends_at?: string | null;
         };
-        CreateSubscription: {
+        UpdateSubscription: {
+            /** @enum {string} */
+            status?: "trialing" | "active" | "past_due" | "cancelled";
+            /** Format: date-time */
+            current_period_start?: string;
+            /** Format: date-time */
+            current_period_end?: string;
+            /** Format: date-time */
+            trial_ends_at?: string | null;
+            /** Format: date-time */
+            cancelled_at?: string | null;
+        };
+        ChangePlan: {
             /** Format: uuid */
-            tenant_id: string;
-            plan_key: string;
-            /** Format: email */
-            billing_email?: string | null;
+            plan_id: string;
         };
         SaasInvoice: {
             /** Format: uuid */
             id: string;
-            /** Format: uuid */
             tenant_id: string;
-            amount: number;
+            /** Format: uuid */
+            subscription_id: string;
+            amount_cents: number;
             /** @enum {string} */
-            status: "draft" | "open" | "paid" | "void";
-            /** Format: date */
+            status: "draft" | "open" | "paid" | "uncollectible" | "void";
+            /** Format: date-time */
             due_date?: string | null;
+            /** Format: date-time */
+            paid_at?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        CreateSaasInvoice: {
+            /** Format: uuid */
+            subscription_id: string;
+            amount_cents: number;
+            /** Format: date-time */
+            due_date?: string | null;
+        };
+        UpdateSaasInvoice: {
+            amount_cents?: number;
+            /** @enum {string} */
+            status?: "draft" | "open" | "paid" | "uncollectible" | "void";
+            /** Format: date-time */
+            due_date?: string | null;
+            /** Format: date-time */
+            paid_at?: string | null;
         };
         PlanList: {
             data?: components["schemas"]["Plan"][];
@@ -173,7 +441,9 @@ export type components = {
         };
     };
     parameters: {
-        TenantId: string;
+        PlanId: string;
+        SubscriptionId: string;
+        InvoiceId: string;
         /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
         TenantHeader: string;
         Limit: number;
@@ -185,6 +455,26 @@ export type components = {
 };
 export type $defs = Record<string, never>;
 export interface operations {
+    listPublicPlans: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanList"];
+                };
+            };
+        };
+    };
     listPlans: {
         parameters: {
             query?: never;
@@ -204,6 +494,123 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlanList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    createPlan: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePlan"];
+            };
+        };
+        responses: {
+            /** @description Created plan */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Plan"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getPlan: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                plan_id: components["parameters"]["PlanId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Plan */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Plan"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deletePlan: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                plan_id: components["parameters"]["PlanId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Plan deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updatePlan: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                plan_id: components["parameters"]["PlanId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePlan"];
+            };
+        };
+        responses: {
+            /** @description Updated plan */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Plan"];
                 };
             };
             401: components["responses"]["Unauthorized"];
@@ -258,8 +665,127 @@ export interface operations {
             };
         };
         responses: {
-            /** @description OK */
+            /** @description Created subscription */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Subscription"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getSubscription: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                subscription_id: components["parameters"]["SubscriptionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Subscription */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Subscription"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteSubscription: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                subscription_id: components["parameters"]["SubscriptionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Subscription deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateSubscription: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                subscription_id: components["parameters"]["SubscriptionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSubscription"];
+            };
+        };
+        responses: {
+            /** @description Updated subscription */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Subscription"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    changeSubscriptionPlan: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                subscription_id: components["parameters"]["SubscriptionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangePlan"];
+            };
+        };
+        responses: {
+            /** @description Updated subscription */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -301,6 +827,179 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationError"];
+        };
+    };
+    createSaasInvoice: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSaasInvoice"];
+            };
+        };
+        responses: {
+            /** @description Created invoice */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SaasInvoice"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getSaasInvoice: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                invoice_id: components["parameters"]["InvoiceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Invoice */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SaasInvoice"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteSaasInvoice: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                invoice_id: components["parameters"]["InvoiceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Invoice deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateSaasInvoice: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                invoice_id: components["parameters"]["InvoiceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSaasInvoice"];
+            };
+        };
+        responses: {
+            /** @description Updated invoice */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SaasInvoice"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    markSaasInvoicePaid: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                invoice_id: components["parameters"]["InvoiceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paid invoice */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SaasInvoice"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    markSaasInvoiceVoid: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                invoice_id: components["parameters"]["InvoiceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Void invoice */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SaasInvoice"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
 }

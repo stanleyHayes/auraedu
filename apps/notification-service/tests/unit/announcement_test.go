@@ -230,3 +230,35 @@ func TestAnnouncementCRUD_TenantScoping(t *testing.T) {
 		t.Fatalf("expected not-found after delete, got %v", err)
 	}
 }
+
+func TestAnnouncementReadsAreScopedToRoleAudience(t *testing.T) {
+	svc, _, _ := newAnnouncementService()
+	ctx := announcementCtx(announceTenantA)
+	manager := announceActor(announceTenantA, application.PermManage, application.PermRead)
+	all, err := svc.CreateAnnouncement(ctx, manager, application.CreateAnnouncementRequest{Title: "Everyone", Body: "All", Audience: "all"})
+	if err != nil {
+		t.Fatalf("create all-audience announcement: %v", err)
+	}
+	guardians, err := svc.CreateAnnouncement(ctx, manager, application.CreateAnnouncementRequest{Title: "Parents", Body: "Guardian only", Audience: "guardians"})
+	if err != nil {
+		t.Fatalf("create guardian announcement: %v", err)
+	}
+	staff, err := svc.CreateAnnouncement(ctx, manager, application.CreateAnnouncementRequest{Title: "Staff", Body: "Staff only", Audience: "staff"})
+	if err != nil {
+		t.Fatalf("create staff announcement: %v", err)
+	}
+	parent := auth.Actor{UserID: "parent-1", TenantID: announceTenantA, Role: "parent", Permissions: []string{application.PermRead}}
+	list, _, err := svc.ListAnnouncements(ctx, parent, ports.AnnouncementFilter{Limit: 20})
+	if err != nil || len(list) != 2 {
+		t.Fatalf("parent audience list=%+v err=%v", list, err)
+	}
+	if _, err = svc.GetAnnouncement(ctx, parent, staff.ID); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("parent read staff announcement=%v", err)
+	}
+	if _, err = svc.GetAnnouncement(ctx, parent, all.ID); err != nil {
+		t.Fatalf("parent read all announcement=%v", err)
+	}
+	if _, err = svc.GetAnnouncement(ctx, parent, guardians.ID); err != nil {
+		t.Fatalf("parent read guardian announcement=%v", err)
+	}
+}

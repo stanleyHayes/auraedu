@@ -3,9 +3,43 @@ package ports
 
 import (
 	"context"
+	"encoding/json"
+	"time"
 
 	"github.com/auraedu/report-service/internal/domain"
 )
+
+// OutboxEvent is a durable integration event claimed by the worker. ID is
+// stable across retries and becomes both the CloudEvent ID and idempotency key.
+type OutboxEvent struct {
+	ID        string
+	TenantID  string
+	EventType string
+	Payload   json.RawMessage
+	CreatedAt time.Time
+}
+
+// OutboxRepository dispatches events written in the same transaction as the
+// aggregate transition that produced them.
+type OutboxRepository interface {
+	ClaimPendingReportEvents(context.Context, int) ([]OutboxEvent, error)
+	MarkReportEventPublished(context.Context, string) error
+	MarkReportEventFailed(context.Context, string, string) error
+}
+
+const (
+	ReportMutationCreate = "create"
+	ReportMutationUpdate = "update"
+	ReportMutationDelete = "delete"
+)
+
+// LifecycleRepository atomically commits an aggregate mutation and the event
+// that describes it. Production repositories should implement this boundary;
+// simpler adapters may rely on the application service's legacy fallback.
+type LifecycleRepository interface {
+	CommitReportTemplateLifecycle(context.Context, string, *domain.ReportTemplate, string, string, map[string]any) error
+	CommitReportCardLifecycle(context.Context, string, *domain.ReportCard, string, string, map[string]any) error
+}
 
 // Repository persists ReportTemplate and ReportCard aggregates. Implementations
 // MUST scope every query by tenantID (defense-in-depth with Postgres RLS).
@@ -23,6 +57,15 @@ type Repository interface {
 	ListReportCards(ctx context.Context, tenantID string, filter ReportCardListFilter) ([]*domain.ReportCard, string, error)
 	UpdateReportCard(ctx context.Context, tenantID string, c *domain.ReportCard) error
 	DeleteReportCard(ctx context.Context, tenantID, id string) error
+	ListTranscriptReportCards(ctx context.Context, tenantID, studentID string) ([]*domain.ReportCard, error)
+
+	// Durable PDF generation queue. Enqueue atomically moves the card to
+	// generating; claim is platform-scoped and lease-based so crashed workers
+	// are recovered; completion/failure update job and card in one transaction.
+	EnqueueReportGeneration(ctx context.Context, tenantID, reportCardID string) (*domain.ReportCard, error)
+	ClaimReportGeneration(ctx context.Context, lease time.Duration) (*domain.GenerationJob, error)
+	CompleteReportGeneration(ctx context.Context, job *domain.GenerationJob, storagePath string) (*domain.ReportCard, error)
+	RetryReportGeneration(ctx context.Context, job *domain.GenerationJob, message string, maxAttempts int) (terminal bool, err error)
 
 	// FindDraftReportCard returns the DRAFT report card for a student and period
 	// (term). With a non-empty termID, cards whose term is NULL (period not yet
@@ -41,6 +84,10 @@ type Repository interface {
 	ListAttendanceEntries(ctx context.Context, tenantID, reportCardID string) ([]*domain.AttendanceEntry, error)
 }
 
+type LearnerScopeResolver interface {
+	Resolve(context.Context, string, string, string) ([]string, error)
+}
+
 // ReportTemplateListFilter carries cursor pagination and optional equality filters.
 type ReportTemplateListFilter struct {
 	Limit          int
@@ -56,5 +103,6 @@ type ReportCardListFilter struct {
 	AcademicYearID string
 	Status         string
 	StudentID      string
+	StudentIDs     []string
 	TemplateID     string
 }

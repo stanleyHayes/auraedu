@@ -36,9 +36,10 @@ export default async function TeacherClassesPage() {
   }
 
   try {
-    const res = await client.get<OpenAPI.staff_v1.components["schemas"]["StaffList"]>(
-      "/api/v1/staff?limit=100",
-    );
+    const res =
+      await client.get<OpenAPI.staff_v1.components["schemas"]["StaffList"]>(
+        "/api/v1/staff?limit=100",
+      );
     staff = res.data ?? [];
   } catch {
     staff = [];
@@ -80,7 +81,8 @@ export default async function TeacherClassesPage() {
             {
               key: "teacher",
               header: "Class teacher",
-              cell: (c) => (c.class_teacher_id ? (teacherName.get(c.class_teacher_id) ?? "—") : "—"),
+              cell: (c) =>
+                c.class_teacher_id ? (teacherName.get(c.class_teacher_id) ?? "—") : "—",
             },
             {
               key: "capacity",

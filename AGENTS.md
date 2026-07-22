@@ -34,5 +34,5 @@ Never build against another service's code or DB. Author/modify the contract
 - **Every story:** references its `AURA-x.y` key in branch/commit/PR and meets the Definition of Done.
 
 ## Where things are
-- Plan & backlog: `agent_plan.md` · Design: `DESIGN_SYSTEM.md` · Product spec: `AuraEDU_Microservices_Multi_Tenant_SaaS_Specification.md`.
+- Engineering handbook: `docs/README.md` + `docs/SUMMARY.md` · Plan & backlog: `agent_plan.md` · Design: `DESIGN_SYSTEM.md` · Legacy source: `AuraEDU_Microservices_Multi_Tenant_SaaS_Specification.md`.
 - Feature flag keys: `contracts/features/features.yaml` · Permissions: `contracts/permissions/permissions.yaml` · Events: `contracts/events/`.

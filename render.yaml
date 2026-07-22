@@ -2,7 +2,7 @@
 # Spec: https://render.com/docs/blueprint-spec
 #
 # Topology:
-#   web    → api-gateway (public), web (Next portals+school sites), marketing (auraedu.com)
+#   web    → api-gateway only; both Next.js frontends deploy to Vercel
 #   pserv  → every domain/AI service (internal only, reached via the gateway) + NATS JetStream
 #   worker → report/notification/analytics/AI background consumers (add per service)
 #   cron   → scheduled jobs (spec cron)
@@ -19,6 +19,14 @@ envVarGroups:
         value: info
       - key: OTEL_EXPORTER_OTLP_ENDPOINT
         value: "" # set to Grafana Cloud / collector endpoint in the dashboard
+      - key: OTEL_EXPORTER_OTLP_PROTOCOL
+        value: grpc
+      - key: OTEL_TRACES_SAMPLER_ARG
+        value: "0.1"
+      - key: OTEL_RESOURCE_ATTRIBUTES
+        value: deployment.environment.name=production
+      - key: METRICS_BEARER_TOKEN
+        generateValue: true
       - key: ENVIRONMENT
         value: production
 
@@ -26,11 +34,80 @@ envVarGroups:
     envVars:
       - key: JWT_SIGNING_KEY
         generateValue: true # 256-bit; Identity signs, Gateway verifies
-      - key: CLOUDINARY_CLOUD_NAME
-        sync: false # set in the dashboard
-      - key: CLOUDINARY_API_KEY
+      - key: INTERNAL_SERVICE_TOKEN
+        generateValue: true
+      - key: CLOUDINARY_URL
+        sync: false # cloudinary://api_key:api_secret@cloud_name
+
+  - name: auraedu-identity-secrets
+    envVars:
+      - key: MFA_ENCRYPTION_KEY
+        generateValue: true # Identity-only encryption key for TOTP secrets at rest
+
+  - name: auraedu-notification-secrets
+    envVars:
+      - key: SMTP_PASSWORD
+        sync: false # legacy SMTP fallback only
+      - key: RESEND_API_KEY
+        sync: false # restricted sending key; entered once when the Blueprint is created
+      - key: NOTIFICATION_UNSUBSCRIBE_SIGNING_KEY
+        generateValue: true # shared by notification HTTP + worker; never exposed to browsers
+      - key: EXPO_ACCESS_TOKEN
         sync: false
-      - key: CLOUDINARY_API_SECRET
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_SMS_FROM
+        sync: false # E.164 sender; may be replaced by TWILIO_MESSAGING_SERVICE_SID
+      - key: TWILIO_MESSAGING_SERVICE_SID
+        sync: false
+      - key: TWILIO_WHATSAPP_FROM
+        sync: false # approved WhatsApp sender in E.164 form
+
+  - name: auraedu-notification-webhook-secrets
+    envVars:
+      - key: RESEND_WEBHOOK_SECRET
+        sync: false # whsec_... signing secret; HTTP service only, never the worker
+
+  - name: auraedu-content-secrets
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false # restricted server-side key for governed content drafts only
+
+  # Recovery credentials are intentionally isolated from application services.
+  # The bucket must have Object Lock enabled before these values are supplied.
+  - name: auraedu-dr-secrets
+    envVars:
+      - key: DR_BACKUP_S3_ENDPOINT
+        sync: false # e.g. https://s3.eu-central-1.amazonaws.com
+      - key: DR_BACKUP_S3_REGION
+        value: eu-central-1
+      - key: DR_BACKUP_S3_BUCKET
+        sync: false
+      - key: DR_BACKUP_S3_PREFIX
+        value: auraedu
+      - key: DR_BACKUP_S3_ACCESS_KEY_ID
+        sync: false # write-only recovery principal; never shared with apps
+      - key: DR_BACKUP_S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: DR_BACKUP_RETENTION_DAYS
+        value: "35"
+      - key: DR_BACKUP_HEARTBEAT_URL
+        sync: false
+      - key: DR_BACKUP_HEARTBEAT_TOKEN
+        sync: false
+      - key: DR_BACKUP_ALERT_URL
+        sync: false
+      - key: DR_BACKUP_ALERT_TOKEN
+        sync: false
+      - key: DR_POSTGRES_BACKUP_HEARTBEAT_URL
+        sync: false
+      - key: DR_POSTGRES_BACKUP_HEARTBEAT_TOKEN
+        sync: false
+      - key: DR_POSTGRES_BACKUP_ALERT_URL
+        sync: false
+      - key: DR_POSTGRES_BACKUP_ALERT_TOKEN
         sync: false
 
 databases:
@@ -41,91 +118,151 @@ databases:
     region: frankfurt
     databaseName: identity
     postgresMajorVersion: "18"
+    ipAllowList: [] # private network only; public ingress is denied
   - name: tenant-db
     plan: basic-1gb
     region: frankfurt
     databaseName: tenant
     postgresMajorVersion: "18"
+    ipAllowList: [] # private network only; public ingress is denied
   - name: student-db
     plan: basic-1gb
     region: frankfurt
     databaseName: student
     postgresMajorVersion: "18"
+    ipAllowList: [] # private network only; public ingress is denied
   - name: staff-db
     plan: basic-1gb
     region: frankfurt
     databaseName: staff
     postgresMajorVersion: "18"
+    ipAllowList: [] # private network only; public ingress is denied
   - name: academic-db
     plan: basic-1gb
     region: frankfurt
     databaseName: academic
     postgresMajorVersion: "18"
+    ipAllowList: [] # private network only; public ingress is denied
   - name: attendance-db
     plan: basic-1gb
     region: frankfurt
     databaseName: attendance
     postgresMajorVersion: "18"
+    ipAllowList: [] # private network only; public ingress is denied
   - name: assessment-db
     plan: basic-1gb
     region: frankfurt
     databaseName: assessment
     postgresMajorVersion: "18"
+    ipAllowList: [] # private network only; public ingress is denied
   - name: report-db
     plan: basic-1gb
     region: frankfurt
     databaseName: report
     postgresMajorVersion: "18"
+    ipAllowList: [] # private network only; public ingress is denied
   - name: fees-db
     plan: basic-1gb
     region: frankfurt
     databaseName: fees
     postgresMajorVersion: "18"
+    ipAllowList: [] # private network only; public ingress is denied
   - name: payment-db
     plan: basic-1gb
     region: frankfurt
     databaseName: payment
     postgresMajorVersion: "18"
+    ipAllowList: [] # private network only; public ingress is denied
   - name: notification-db
     plan: basic-1gb
     region: frankfurt
     databaseName: notification
     postgresMajorVersion: "18"
+    ipAllowList: [] # private network only; public ingress is denied
   - name: website-db
     plan: basic-1gb
     region: frankfurt
     databaseName: website
     postgresMajorVersion: "18"
+    ipAllowList: [] # private network only; public ingress is denied
   - name: file-db
     plan: basic-1gb
     region: frankfurt
     databaseName: file
     postgresMajorVersion: "18"
+    ipAllowList: [] # private network only; public ingress is denied
   - name: analytics-db
     plan: basic-1gb
     region: frankfurt
     databaseName: analytics
     postgresMajorVersion: "18"
+    ipAllowList: [] # private network only; public ingress is denied
   - name: billing-db
     plan: basic-1gb
     region: frankfurt
     databaseName: billing
     postgresMajorVersion: "18"
+    ipAllowList: [] # private network only; public ingress is denied
   - name: cbt-db
     plan: basic-1gb
     region: frankfurt
     databaseName: cbt
     postgresMajorVersion: "18"
+    ipAllowList: [] # private network only; public ingress is denied
   - name: audit-db
     plan: basic-1gb
     region: frankfurt
     databaseName: audit
     postgresMajorVersion: "18"
+    ipAllowList: [] # private network only; public ingress is denied
+  - name: crm-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: crm
+    postgresMajorVersion: "18"
+    ipAllowList: [] # private network only; public ingress is denied
+  - name: knowledge-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: knowledge
+    postgresMajorVersion: "18"
+    ipAllowList: [] # private network only; public ingress is denied
+  - name: assistant-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: assistant
+    postgresMajorVersion: "18"
+    ipAllowList: [] # private network only; public ingress is denied
+  - name: campaign-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: campaign
+    postgresMajorVersion: "18"
+    ipAllowList: [] # private network only; public ingress is denied
+  - name: content-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: content
+    postgresMajorVersion: "18"
+    ipAllowList: [] # private network only; public ingress is denied
+  - name: admissions-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: admissions
+    postgresMajorVersion: "18"
+    ipAllowList: [] # private network only; public ingress is denied
+  - name: intelligence-db
+    plan: basic-1gb
+    region: frankfurt
+    databaseName: intelligence
+    postgresMajorVersion: "18"
+    ipAllowList: [] # private network only; public ingress is denied
   - name: ai-db
     plan: basic-1gb
     region: frankfurt
     databaseName: ai
     postgresMajorVersion: "18"
+    ipAllowList: [] # private network only; public ingress is denied
 
 services:
   # ---- Shared cache (Redis/Valkey) ----------------------------------------
@@ -145,10 +282,119 @@ services:
     dockerfilePath: ./infrastructure/docker/nats.Dockerfile
     dockerContext: .
     healthCheckPath: /healthz
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - infrastructure/docker/nats.Dockerfile
+        - render.yaml
     disk:
       name: nats-jetstream
       mountPath: /data
       sizeGB: 10
+
+  # Independent daily JetStream account backup. The job fails unless the
+  # artifact is encrypted, compliance-locked off-site and the monitor accepts
+  # its success heartbeat; explicit failure alerts use a separate endpoint.
+  - name: nats-backup
+    type: cron
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    schedule: "15 2 * * *"
+    dockerfilePath: ./infrastructure/docker/nats-backup.Dockerfile
+    dockerContext: .
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - infrastructure/docker/nats-backup.Dockerfile
+        - tools/dr/nats-backup/**
+        - render.yaml
+    envVars:
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - key: DR_BACKUP_JOB_TIMEOUT
+        value: 4h
+      - key: DR_BACKUP_HTTP_TIMEOUT
+        value: 2m
+      - fromGroup: auraedu-dr-secrets
+
+  # Hourly logical exports are independent of each database provider's PITR.
+  # Every service database must export and validate before the dedicated
+  # heartbeat is accepted; immutable partial results remain available on error.
+  - name: postgres-backup
+    type: cron
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    schedule: "17 * * * *"
+    dockerfilePath: ./infrastructure/docker/postgres-backup.Dockerfile
+    dockerContext: .
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - infrastructure/docker/postgres-backup.Dockerfile
+        - tools/dr/postgres-backup/**
+        - render.yaml
+    envVars:
+      - key: POSTGRES_DATABASES
+        value: identity,tenant,student,staff,academic,attendance,assessment,report,fees,payment,notification,website,file,analytics,billing,cbt,audit,crm,knowledge,assistant,campaign,content,admissions,intelligence,ai
+      - key: POSTGRES_IDENTITY_DATABASE_URL
+        fromDatabase: { name: identity-db, property: connectionString }
+      - key: POSTGRES_TENANT_DATABASE_URL
+        fromDatabase: { name: tenant-db, property: connectionString }
+      - key: POSTGRES_STUDENT_DATABASE_URL
+        fromDatabase: { name: student-db, property: connectionString }
+      - key: POSTGRES_STAFF_DATABASE_URL
+        fromDatabase: { name: staff-db, property: connectionString }
+      - key: POSTGRES_ACADEMIC_DATABASE_URL
+        fromDatabase: { name: academic-db, property: connectionString }
+      - key: POSTGRES_ATTENDANCE_DATABASE_URL
+        fromDatabase: { name: attendance-db, property: connectionString }
+      - key: POSTGRES_ASSESSMENT_DATABASE_URL
+        fromDatabase: { name: assessment-db, property: connectionString }
+      - key: POSTGRES_REPORT_DATABASE_URL
+        fromDatabase: { name: report-db, property: connectionString }
+      - key: POSTGRES_FEES_DATABASE_URL
+        fromDatabase: { name: fees-db, property: connectionString }
+      - key: POSTGRES_PAYMENT_DATABASE_URL
+        fromDatabase: { name: payment-db, property: connectionString }
+      - key: POSTGRES_NOTIFICATION_DATABASE_URL
+        fromDatabase: { name: notification-db, property: connectionString }
+      - key: POSTGRES_WEBSITE_DATABASE_URL
+        fromDatabase: { name: website-db, property: connectionString }
+      - key: POSTGRES_FILE_DATABASE_URL
+        fromDatabase: { name: file-db, property: connectionString }
+      - key: POSTGRES_ANALYTICS_DATABASE_URL
+        fromDatabase: { name: analytics-db, property: connectionString }
+      - key: POSTGRES_BILLING_DATABASE_URL
+        fromDatabase: { name: billing-db, property: connectionString }
+      - key: POSTGRES_CBT_DATABASE_URL
+        fromDatabase: { name: cbt-db, property: connectionString }
+      - key: POSTGRES_AUDIT_DATABASE_URL
+        fromDatabase: { name: audit-db, property: connectionString }
+      - key: POSTGRES_CRM_DATABASE_URL
+        fromDatabase: { name: crm-db, property: connectionString }
+      - key: POSTGRES_KNOWLEDGE_DATABASE_URL
+        fromDatabase: { name: knowledge-db, property: connectionString }
+      - key: POSTGRES_ASSISTANT_DATABASE_URL
+        fromDatabase: { name: assistant-db, property: connectionString }
+      - key: POSTGRES_CAMPAIGN_DATABASE_URL
+        fromDatabase: { name: campaign-db, property: connectionString }
+      - key: POSTGRES_CONTENT_DATABASE_URL
+        fromDatabase: { name: content-db, property: connectionString }
+      - key: POSTGRES_ADMISSIONS_DATABASE_URL
+        fromDatabase: { name: admissions-db, property: connectionString }
+      - key: POSTGRES_INTELLIGENCE_DATABASE_URL
+        fromDatabase: { name: intelligence-db, property: connectionString }
+      - key: POSTGRES_AI_DATABASE_URL
+        fromDatabase: { name: ai-db, property: connectionString }
+      - key: DR_POSTGRES_BACKUP_JOB_TIMEOUT
+        value: 55m
+      - key: DR_BACKUP_HTTP_TIMEOUT
+        value: 2m
+      - fromGroup: auraedu-dr-secrets
 
   # ---- API Gateway (the only public backend) -------------------------------
   - name: api-gateway
@@ -176,6 +422,10 @@ services:
         fromService:
           name: auraedu-cache
           property: connectionString
+      - key: GATEWAY_CORS_ORIGINS
+        value: https://auraedugh.vercel.app
+      - key: GATEWAY_TRUSTED_PROXY
+        value: render
       - key: IDENTITY_HOSTPORT
         fromService:
           name: identity-service
@@ -264,8 +514,80 @@ services:
         fromService:
           name: audit-service
           property: hostport
-      - key: JWT_SIGNING_KEY
-        fromGroup: auraedu-secrets
+      - key: SERVICE_CRM_URL
+        fromService:
+          name: crm-service
+          property: hostport
+      - key: SERVICE_KNOWLEDGE_URL
+        fromService:
+          name: knowledge-service
+          property: hostport
+      - key: SERVICE_AI_ORCHESTRATOR_URL
+        fromService:
+          name: ai-orchestrator-service
+          property: hostport
+      - key: SERVICE_CAMPAIGN_URL
+        fromService:
+          name: campaign-service
+          property: hostport
+      - key: SERVICE_CONTENT_URL
+        fromService:
+          name: content-service
+          property: hostport
+      - key: SERVICE_ADMISSIONS_URL
+        fromService:
+          name: admissions-service
+          property: hostport
+      - key: SERVICE_MARKET_INTELLIGENCE_URL
+        fromService:
+          name: market-intelligence-service
+          property: hostport
+      - fromGroup: auraedu-secrets
+      - fromGroup: auraedu-shared-config
+
+  - name: identity-worker
+    type: worker
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/identity-service/Dockerfile
+    dockerContext: .
+    startCommand: /app worker
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/identity-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: identity-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
+          property: hostport
+      - key: SERVICE_NOTIFICATION_URL
+        fromService:
+          name: notification-service
+          property: hostport
+      - key: AUTH_CLEANUP_INTERVAL
+        value: 1h
+      - key: AUTH_CLEANUP_BATCH_SIZE
+        value: "1000"
+      - key: AUTH_REFRESH_RETENTION_AFTER_EXPIRY
+        value: 24h
+      - key: AUTH_PASSWORD_RESET_RETENTION
+        value: 720h
+      - key: AUTH_INVITE_RETENTION
+        value: 2160h
+      - key: AUTH_PUBLISHED_OUTBOX_RETENTION
+        value: 720h
+      - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
 
   # ---- Identity Service (private) ------------------------------------------
@@ -291,12 +613,20 @@ services:
         fromService:
           name: auraedu-cache
           property: connectionString
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
+          property: hostport
       - key: NATS_URL
         fromService:
           name: nats
           property: hostport
-      - key: JWT_SIGNING_KEY
-        fromGroup: auraedu-secrets
+      - key: SERVICE_NOTIFICATION_URL
+        fromService:
+          name: notification-service
+          property: hostport
+      - fromGroup: auraedu-secrets
+      - fromGroup: auraedu-identity-secrets
       - fromGroup: auraedu-shared-config
 
   # ---- Tenant Service (private) — schools, branding, FEATURE FLAGS ---------
@@ -308,6 +638,31 @@ services:
     dockerfilePath: ./apps/tenant-service/Dockerfile
     dockerContext: .
     healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/tenant-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tenant-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - fromGroup: auraedu-secrets
+      - fromGroup: auraedu-shared-config
+
+  - name: tenant-worker
+    type: worker
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/tenant-service/Dockerfile
+    dockerContext: .
+    startCommand: /app worker
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -347,6 +702,39 @@ services:
         fromService:
           name: nats
           property: hostport
+      - key: SERVICE_ACADEMIC_URL
+        fromService:
+          name: academic-service
+          property: hostport
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
+          property: hostport
+      - fromGroup: auraedu-secrets
+      - fromGroup: auraedu-shared-config
+
+  - name: student-worker
+    type: worker
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/student-service/Dockerfile
+    dockerContext: .
+    startCommand: /app worker
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/student-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: student-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
       - fromGroup: auraedu-shared-config
 
   # ---- Academic Service (private) — years, terms, classes, subjects ---------
@@ -372,6 +760,39 @@ services:
         fromService:
           name: nats
           property: hostport
+      - key: SERVICE_STAFF_URL
+        fromService:
+          name: staff-service
+          property: hostport
+      - key: SERVICE_STUDENT_URL
+        fromService:
+          name: student-service
+          property: hostport
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
+          property: hostport
+      - fromGroup: auraedu-secrets
+      - fromGroup: auraedu-shared-config
+
+  - name: academic-worker
+    type: worker
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/academic-service/Dockerfile
+    dockerContext: .
+    startCommand: /app worker
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/academic-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase: { name: academic-db, property: connectionString }
+      - key: NATS_URL
+        fromService: { name: nats, property: hostport }
       - fromGroup: auraedu-shared-config
 
   # ---- Staff Service (private) — teaching & non-teaching staff --------------
@@ -383,6 +804,35 @@ services:
     dockerfilePath: ./apps/staff-service/Dockerfile
     dockerContext: .
     healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/staff-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: staff-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
+          property: hostport
+      - fromGroup: auraedu-secrets
+      - fromGroup: auraedu-shared-config
+
+  - name: staff-worker
+    type: worker
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/staff-service/Dockerfile
+    dockerContext: .
+    startCommand: /app worker
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
@@ -422,6 +872,39 @@ services:
         fromService:
           name: nats
           property: hostport
+      - key: SERVICE_STUDENT_URL
+        fromService:
+          name: student-service
+          property: hostport
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
+          property: hostport
+      - fromGroup: auraedu-secrets
+      - fromGroup: auraedu-shared-config
+
+  - name: attendance-worker
+    type: worker
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/attendance-service/Dockerfile
+    dockerContext: .
+    startCommand: /app worker
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/attendance-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: attendance-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
       - fromGroup: auraedu-shared-config
 
   # ---- Assessment Service (private) — assessments, assignments, gradebook ---
@@ -447,6 +930,35 @@ services:
         fromService:
           name: nats
           property: hostport
+      - key: SERVICE_STUDENT_URL
+        fromService:
+          name: student-service
+          property: hostport
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
+          property: hostport
+      - fromGroup: auraedu-secrets
+      - fromGroup: auraedu-shared-config
+
+  - name: assessment-worker
+    type: worker
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/assessment-service/Dockerfile
+    dockerContext: .
+    startCommand: /app worker
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/assessment-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase: { name: assessment-db, property: connectionString }
+      - key: NATS_URL
+        fromService: { name: nats, property: hostport }
       - fromGroup: auraedu-shared-config
 
   # ---- Report Service (private) — report cards & templates (+ worker) -------
@@ -464,6 +976,8 @@ services:
         - apps/report-service/**
         - platform/**
     envVars:
+      - key: REPORT_STORAGE_BACKEND
+        value: cloudinary
       - key: DATABASE_URL
         fromDatabase:
           name: report-db
@@ -472,6 +986,15 @@ services:
         fromService:
           name: nats
           property: hostport
+      - key: SERVICE_STUDENT_URL
+        fromService:
+          name: student-service
+          property: hostport
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
+          property: hostport
+      - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
 
   - name: report-worker
@@ -488,6 +1011,8 @@ services:
         - apps/report-service/**
         - platform/**
     envVars:
+      - key: REPORT_STORAGE_BACKEND
+        value: cloudinary
       - key: DATABASE_URL
         fromDatabase:
           name: report-db
@@ -496,6 +1021,15 @@ services:
         fromService:
           name: nats
           property: hostport
+      - key: SERVICE_STUDENT_URL
+        fromService:
+          name: student-service
+          property: hostport
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
+          property: hostport
+      - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
 
   # ---- Fees Service (private) — fee structures & invoices --------------------
@@ -521,6 +1055,44 @@ services:
         fromService:
           name: nats
           property: hostport
+      - key: SERVICE_STUDENT_URL
+        fromService:
+          name: student-service
+          property: hostport
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
+          property: hostport
+      - fromGroup: auraedu-secrets
+      - fromGroup: auraedu-shared-config
+
+  - name: fees-worker
+    type: worker
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/fees-service/Dockerfile
+    dockerContext: .
+    autoDeployTrigger: checksPass
+    startCommand: /app worker
+    buildFilter:
+      paths:
+        - apps/fees-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fees-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
+          property: hostport
+      - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
 
   # ---- Payment Service (private) — online payments (Paystack/mock) ----------
@@ -538,6 +1110,12 @@ services:
         - apps/payment-service/**
         - platform/**
     envVars:
+      - key: PAYMENTS_PROVIDER
+        value: paystack
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: PAYSTACK_WEBHOOK_SECRET
+        sync: false
       - key: DATABASE_URL
         fromDatabase:
           name: payment-db
@@ -546,8 +1124,40 @@ services:
         fromService:
           name: nats
           property: hostport
-      # PAYMENTS_PROVIDER defaults to mock; set paystack + PAYSTACK_SECRET_KEY
-      # (auraedu-secrets) in the dashboard for real charges.
+      - key: SERVICE_FEES_URL
+        fromService:
+          name: fees-service
+          type: pserv
+          property: hostport
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
+          property: hostport
+      - fromGroup: auraedu-secrets
+      - fromGroup: auraedu-shared-config
+
+  - name: payment-worker
+    type: worker
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/payment-service/Dockerfile
+    dockerContext: .
+    startCommand: /app worker
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/payment-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: payment-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
       - fromGroup: auraedu-shared-config
 
   # ---- Notification Service (private) — email/SMS/in-app (+ worker) ---------
@@ -565,6 +1175,18 @@ services:
         - apps/notification-service/**
         - platform/**
     envVars:
+      - key: PUBLIC_APP_URL
+        value: https://auraedugh.vercel.app
+      - key: NOTIFICATION_PROVIDER
+        value: resend
+      - key: RESEND_FROM_EMAIL
+        value: onboarding@resend.dev
+      - key: RESEND_FROM_NAME
+        value: AuraEDU
+      - key: RESEND_API_BASE
+        value: https://api.resend.com
+      - key: TWILIO_STATUS_CALLBACK_URL
+        value: https://auraedugh.vercel.app/api/v1/webhooks/twilio
       - key: DATABASE_URL
         fromDatabase:
           name: notification-db
@@ -573,6 +1195,13 @@ services:
         fromService:
           name: nats
           property: hostport
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
+          property: hostport
+      - fromGroup: auraedu-secrets
+      - fromGroup: auraedu-notification-secrets
+      - fromGroup: auraedu-notification-webhook-secrets
       - fromGroup: auraedu-shared-config
 
   - name: notification-worker
@@ -589,6 +1218,18 @@ services:
         - apps/notification-service/**
         - platform/**
     envVars:
+      - key: PUBLIC_APP_URL
+        value: https://auraedugh.vercel.app
+      - key: NOTIFICATION_PROVIDER
+        value: resend
+      - key: RESEND_FROM_EMAIL
+        value: onboarding@resend.dev
+      - key: RESEND_FROM_NAME
+        value: AuraEDU
+      - key: RESEND_API_BASE
+        value: https://api.resend.com
+      - key: TWILIO_STATUS_CALLBACK_URL
+        value: https://auraedugh.vercel.app/api/v1/webhooks/twilio
       - key: DATABASE_URL
         fromDatabase:
           name: notification-db
@@ -597,6 +1238,16 @@ services:
         fromService:
           name: nats
           property: hostport
+      - key: SERVICE_CRM_URL
+        fromService:
+          name: crm-service
+          property: hostport
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
+          property: hostport
+      - fromGroup: auraedu-secrets
+      - fromGroup: auraedu-notification-secrets
       - fromGroup: auraedu-shared-config
 
   # ---- Billing Service (private) — subscriptions & plan gating (+ worker) ---
@@ -621,6 +1272,10 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          property: hostport
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
           property: hostport
       - fromGroup: auraedu-shared-config
 
@@ -671,6 +1326,10 @@ services:
         fromService:
           name: nats
           property: hostport
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
+          property: hostport
       - fromGroup: auraedu-shared-config
 
   - name: website-worker
@@ -694,6 +1353,10 @@ services:
       - key: NATS_URL
         fromService:
           name: nats
+          property: hostport
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
           property: hostport
       - fromGroup: auraedu-shared-config
 
@@ -720,6 +1383,15 @@ services:
         fromService:
           name: nats
           property: hostport
+      - key: SERVICE_STUDENT_URL
+        fromService:
+          name: student-service
+          property: hostport
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
+          property: hostport
+      - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
 
   - name: analytics-worker
@@ -770,56 +1442,39 @@ services:
         fromService:
           name: nats
           property: hostport
+      - key: SERVICE_STUDENT_URL
+        fromService:
+          name: student-service
+          property: hostport
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
+          property: hostport
+      - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
 
-  # ---- Web app: portals + per-school public sites (public) -----------------
-  - name: web
-    type: web
+  - name: cbt-worker
+    type: worker
     runtime: docker
     region: frankfurt
     plan: starter
-    dockerfilePath: ./apps/web/Dockerfile
+    dockerfilePath: ./apps/cbt-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /api/health
+    startCommand: /app worker
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
-        - apps/web/**
-        - packages/**
-        - pnpm-lock.yaml
-        - package.json
-        - turbo.json
-        - pnpm-workspace.yaml
+        - apps/cbt-service/**
+        - platform/**
     envVars:
-      - key: NEXT_PUBLIC_API_URL
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cbt-db
+          property: connectionString
+      - key: NATS_URL
         fromService:
-          name: api-gateway
-          property: url
-      - fromGroup: auraedu-shared-config
-
-  # ---- Company marketing site: auraedu.com (public) ------------------------
-  - name: marketing
-    type: web
-    runtime: docker
-    region: frankfurt
-    plan: starter
-    dockerfilePath: ./apps/marketing/Dockerfile
-    dockerContext: .
-    healthCheckPath: /api/health
-    autoDeployTrigger: checksPass
-    buildFilter:
-      paths:
-        - apps/marketing/**
-        - packages/**
-        - pnpm-lock.yaml
-        - package.json
-        - turbo.json
-        - pnpm-workspace.yaml
-    envVars:
-      - key: NEXT_PUBLIC_API_URL
-        fromService:
-          name: api-gateway
-          property: url
+          name: nats
+          property: hostport
       - fromGroup: auraedu-shared-config
 
   # ---- Worker / Cron patterns ----------------------------------------------
@@ -881,22 +1536,32 @@ services:
     plan: starter
     dockerfilePath: ./apps/ai-recommendation-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
+    healthCheckPath: /ready
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
         - apps/ai-recommendation-service/**
+        - contracts/features/features.yaml
         - pyproject.toml
         - uv.lock
     envVars:
-      - key: DATABASE_URL
+      - key: AI_REC_DATABASE_URL
         fromDatabase:
           name: ai-db
           property: connectionString
-      - key: NATS_HOST
+      - key: AI_REC_NATS_HOST
         fromService:
           name: nats
           property: host
+      - key: AI_REC_STUDENT_SERVICE_URL
+        fromService:
+          name: student-service
+          property: hostport
+      - key: AI_REC_TENANT_SERVICE_URL
+        fromService:
+          name: tenant-service
+          property: hostport
+      - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
 
   - name: ai-prediction-service
@@ -906,11 +1571,12 @@ services:
     plan: starter
     dockerfilePath: ./apps/ai-prediction-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
+    healthCheckPath: /ready
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
         - apps/ai-prediction-service/**
+        - contracts/features/features.yaml
         - pyproject.toml
         - uv.lock
     envVars:
@@ -922,6 +1588,15 @@ services:
         fromService:
           name: nats
           property: host
+      - key: AI_PRED_STUDENT_SERVICE_URL
+        fromService:
+          name: student-service
+          property: hostport
+      - key: AI_PRED_TENANT_SERVICE_URL
+        fromService:
+          name: tenant-service
+          property: hostport
+      - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
 
   - name: career-guidance-service
@@ -931,11 +1606,12 @@ services:
     plan: starter
     dockerfilePath: ./apps/career-guidance-service/Dockerfile
     dockerContext: .
-    healthCheckPath: /health
+    healthCheckPath: /ready
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
         - apps/career-guidance-service/**
+        - contracts/features/features.yaml
         - pyproject.toml
         - uv.lock
     envVars:
@@ -947,6 +1623,15 @@ services:
         fromService:
           name: nats
           property: host
+      - key: AI_GUIDANCE_STUDENT_SERVICE_URL
+        fromService:
+          name: student-service
+          property: hostport
+      - key: AI_GUIDANCE_TENANT_SERVICE_URL
+        fromService:
+          name: tenant-service
+          property: hostport
+      - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
 
   # ---- File Service (private) -----------------------------------------------
@@ -973,7 +1658,39 @@ services:
           name: nats
           property: hostport
       - key: CLOUDINARY_URL
-        fromGroup: auraedu-secrets
+        sync: false
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
+          property: hostport
+      - fromGroup: auraedu-secrets
+      - fromGroup: auraedu-shared-config
+
+  - name: file-worker
+    type: worker
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/file-service/Dockerfile
+    dockerContext: .
+    autoDeployTrigger: checksPass
+    startCommand: /app worker
+    buildFilter:
+      paths:
+        - apps/file-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: file-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - key: CLOUDINARY_URL
+        sync: false
+      - fromGroup: auraedu-secrets
       - fromGroup: auraedu-shared-config
   # ---- Audit Service (private) ----------------------------------------------
   - name: audit-service
@@ -1000,6 +1717,447 @@ services:
           property: hostport
       - fromGroup: auraedu-shared-config
 
+  # ---- Growth CRM Service (private) -----------------------------------------
+  - name: crm-service
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/crm-service/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/crm-service/**
+        - contracts/features/features.yaml
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: crm-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
+          property: hostport
+      - key: FEATURES_REGISTRY
+        value: /contracts/features.yaml
+      - fromGroup: auraedu-secrets
+      - fromGroup: auraedu-shared-config
+
+  - name: crm-worker
+    type: worker
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/crm-service/Dockerfile
+    dockerContext: .
+    startCommand: /app worker
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/crm-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: crm-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - fromGroup: auraedu-shared-config
+
+  # ---- Growth Knowledge Service (private) -----------------------------------
+  - name: knowledge-service
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/knowledge-service/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/knowledge-service/**
+        - contracts/features/features.yaml
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: knowledge-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
+          property: hostport
+      - key: FEATURES_REGISTRY
+        value: /contracts/features.yaml
+      - fromGroup: auraedu-secrets
+      - fromGroup: auraedu-shared-config
+
+  - name: knowledge-worker
+    type: worker
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/knowledge-service/Dockerfile
+    dockerContext: .
+    startCommand: /app worker
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/knowledge-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: knowledge-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - fromGroup: auraedu-shared-config
+
+  # ---- Website Admissions AI Orchestrator (private) -------------------------
+  - name: ai-orchestrator-service
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/ai-orchestrator-service/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/ai-orchestrator-service/**
+        - contracts/features/features.yaml
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: assistant-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
+          property: hostport
+      - key: SERVICE_KNOWLEDGE_URL
+        fromService:
+          name: knowledge-service
+          property: hostport
+      - key: SERVICE_CRM_URL
+        fromService:
+          name: crm-service
+          property: hostport
+      - key: FEATURES_REGISTRY
+        value: /contracts/features.yaml
+      - fromGroup: auraedu-secrets
+      - fromGroup: auraedu-shared-config
+
+  - name: ai-orchestrator-worker
+    type: worker
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/ai-orchestrator-service/Dockerfile
+    dockerContext: .
+    startCommand: /app worker
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/ai-orchestrator-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: assistant-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - fromGroup: auraedu-shared-config
+
+  # ---- Growth Campaign Control (private) -----------------------------------
+  - name: campaign-service
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/campaign-service/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/campaign-service/**
+        - contracts/features/features.yaml
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: campaign-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
+          property: hostport
+      - key: SERVICE_FILE_URL
+        fromService:
+          name: file-service
+          property: hostport
+      - key: FEATURES_REGISTRY
+        value: /contracts/features.yaml
+      - fromGroup: auraedu-secrets
+      - fromGroup: auraedu-shared-config
+
+  - name: campaign-worker
+    type: worker
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/campaign-service/Dockerfile
+    dockerContext: .
+    startCommand: /app worker
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/campaign-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: campaign-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - fromGroup: auraedu-shared-config
+
+  # ---- Growth AI Content Studio (private) ---------------------------------
+  - name: content-service
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/content-service/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/content-service/**
+        - contracts/features/features.yaml
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: content-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
+          property: hostport
+      - key: FEATURES_REGISTRY
+        value: /contracts/features.yaml
+      - key: OPENAI_BASE_URL
+        value: https://api.openai.com
+      - key: CONTENT_AI_MODEL
+        value: gpt-5.6-sol
+      - fromGroup: auraedu-secrets
+      - fromGroup: auraedu-content-secrets
+      - fromGroup: auraedu-shared-config
+
+  - name: content-worker
+    type: worker
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/content-service/Dockerfile
+    dockerContext: .
+    startCommand: /app worker
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/content-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: content-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - fromGroup: auraedu-shared-config
+
+  # ---- Growth Admissions Conversion (private) ------------------------------
+  - name: admissions-service
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/admissions-service/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/admissions-service/**
+        - contracts/features/features.yaml
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: admissions-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
+          property: hostport
+      - key: SERVICE_FILE_URL
+        fromService:
+          name: file-service
+          property: hostport
+      - key: FEATURES_REGISTRY
+        value: /contracts/features.yaml
+      - fromGroup: auraedu-secrets
+      - fromGroup: auraedu-shared-config
+
+  - name: admissions-worker
+    type: worker
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/admissions-service/Dockerfile
+    dockerContext: .
+    startCommand: /app worker
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/admissions-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: admissions-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - fromGroup: auraedu-shared-config
+
+  # ---- Growth Reputation + Competitor Intelligence (private) ---------------
+  - name: market-intelligence-service
+    type: pserv
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/market-intelligence-service/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/market-intelligence-service/**
+        - contracts/features/features.yaml
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: intelligence-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - key: SERVICE_TENANT_URL
+        fromService:
+          name: tenant-service
+          property: hostport
+      - key: FEATURES_REGISTRY
+        value: /contracts/features.yaml
+      - fromGroup: auraedu-secrets
+      - fromGroup: auraedu-shared-config
+
+  - name: market-intelligence-worker
+    type: worker
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./apps/market-intelligence-service/Dockerfile
+    dockerContext: .
+    startCommand: /app worker
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/market-intelligence-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: intelligence-db
+          property: connectionString
+      - key: NATS_URL
+        fromService:
+          name: nats
+          property: hostport
+      - fromGroup: auraedu-shared-config
+
+  - name: assistant-retention-cleanup
+    type: cron
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    schedule: "0 3 * * *"
+    dockerfilePath: ./apps/ai-orchestrator-service/Dockerfile
+    dockerContext: .
+    startCommand: /app cleanup
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/ai-orchestrator-service/**
+        - platform/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: assistant-db
+          property: connectionString
+      - fromGroup: auraedu-shared-config
+
   - name: audit-worker
     type: worker
     runtime: docker
@@ -1008,7 +2166,7 @@ services:
     dockerfilePath: ./apps/audit-service/Dockerfile
     dockerContext: .
     autoDeployTrigger: checksPass
-    startCommand: /worker
+    startCommand: /app worker
     buildFilter:
       paths:
         - apps/audit-service/**

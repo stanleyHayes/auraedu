@@ -2,24 +2,7 @@
 // Do not edit by hand.
 
 export type paths = {
-    "/messages": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List messages */
-        get: operations["listMessages"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/messages/send": {
+    "/webhooks/resend": {
         parameters: {
             query?: never;
             header?: never;
@@ -28,7 +11,109 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Send a message */
+        /** @description Verifies a signed Resend/Svix callback, stores it replay-safely, and updates privacy-minimized delivery state and suppressions. */
+        post: operations["processResendDeliveryWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhooks/twilio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Verifies a signed Twilio status callback, stores it replay-safely, and updates privacy-minimized SMS or WhatsApp delivery state. */
+        post: operations["processTwilioDeliveryWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/email-preferences/unsubscribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Applies a signed, privacy-minimized email opt-out without requiring an account or exposing the recipient address. */
+        post: operations["unsubscribeEmail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List tenant messages
+         * @description Executes the list messages workflow within this AuraEDU API boundary.
+         */
+        get: operations["listMessages"];
+        put?: never;
+        /**
+         * Create a pending message
+         * @description Executes the create message workflow within this AuraEDU API boundary.
+         */
+        post: operations["createMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/messages/{message_id}": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                message_id: components["parameters"]["MessageId"];
+            };
+            cookie?: never;
+        };
+        /** @description Executes the get message workflow within this AuraEDU API boundary. */
+        get: operations["getMessage"];
+        put?: never;
+        post?: never;
+        /** @description Executes the delete message workflow within this AuraEDU API boundary. */
+        delete: operations["deleteMessage"];
+        options?: never;
+        head?: never;
+        /** @description Executes the update message workflow within this AuraEDU API boundary. */
+        patch: operations["updateMessage"];
+        trace?: never;
+    };
+    "/messages/{message_id}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deliver an existing pending message
+         * @description Executes the send message workflow within this AuraEDU API boundary.
+         */
         post: operations["sendMessage"];
         delete?: never;
         options?: never;
@@ -36,17 +121,17 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/templates": {
+    "/notification-templates": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List templates */
+        /** @description Executes the list templates workflow within this AuraEDU API boundary. */
         get: operations["listTemplates"];
         put?: never;
-        /** Create a template */
+        /** @description Executes the create template workflow within this AuraEDU API boundary. */
         post: operations["createTemplate"];
         delete?: never;
         options?: never;
@@ -54,22 +139,70 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/subscriptions": {
+    "/notification-templates/{template_id}": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                template_id: components["parameters"]["TemplateId"];
+            };
+            cookie?: never;
+        };
+        /** @description Executes the get template workflow within this AuraEDU API boundary. */
+        get: operations["getTemplate"];
+        put?: never;
+        post?: never;
+        /** @description Executes the delete template workflow within this AuraEDU API boundary. */
+        delete: operations["deleteTemplate"];
+        options?: never;
+        head?: never;
+        /** @description Executes the update template workflow within this AuraEDU API boundary. */
+        patch: operations["updateTemplate"];
+        trace?: never;
+    };
+    "/notification-subscriptions": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List subscriptions */
+        /** @description Executes the list subscriptions workflow within this AuraEDU API boundary. */
         get: operations["listSubscriptions"];
         put?: never;
-        /** Create a subscription */
+        /** @description Executes the create subscription workflow within this AuraEDU API boundary. */
         post: operations["createSubscription"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/notification-subscriptions/{subscription_id}": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                subscription_id: components["parameters"]["SubscriptionId"];
+            };
+            cookie?: never;
+        };
+        /** @description Executes the get subscription workflow within this AuraEDU API boundary. */
+        get: operations["getSubscription"];
+        put?: never;
+        post?: never;
+        /** @description Executes the delete subscription workflow within this AuraEDU API boundary. */
+        delete: operations["deleteSubscription"];
+        options?: never;
+        head?: never;
+        /** @description Executes the update subscription workflow within this AuraEDU API boundary. */
+        patch: operations["updateSubscription"];
         trace?: never;
     };
     "/announcements": {
@@ -79,11 +212,117 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List announcements */
+        /** @description Executes the list announcements workflow within this AuraEDU API boundary. */
         get: operations["listAnnouncements"];
         put?: never;
-        /** Create an announcement and publish it to the in-app inbox */
+        /**
+         * Publish an announcement to the role-scoped in-app inbox
+         * @description Executes the create announcement workflow within this AuraEDU API boundary.
+         */
         post: operations["createAnnouncement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/communication-journeys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Lists tenant-owned consent-aware communication journeys. */
+        get: operations["listCommunicationJourneys"];
+        put?: never;
+        /** @description Creates a draft journey. Templates must already be active and match their step channels. */
+        post: operations["createCommunicationJourney"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/communication-journeys/{journey_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Executes the get communication journey workflow within this AuraEDU API boundary. */
+        get: operations["getCommunicationJourney"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/communication-journeys/{journey_id}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Activates a reviewed draft or paused journey. The creator cannot activate their own journey. */
+        post: operations["activateCommunicationJourney"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/communication-journeys/{journey_id}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Executes the pause communication journey workflow within this AuraEDU API boundary. */
+        post: operations["pauseCommunicationJourney"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/communication-journeys/{journey_id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Executes the archive communication journey workflow within this AuraEDU API boundary. */
+        post: operations["archiveCommunicationJourney"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/communication-journeys/{journey_id}/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Executes the get communication journey stats workflow within this AuraEDU API boundary. */
+        get: operations["getCommunicationJourneyStats"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -93,16 +332,58 @@ export type paths = {
     "/announcements/{announcement_id}": {
         parameters: {
             query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                announcement_id: components["parameters"]["AnnouncementId"];
+            };
+            cookie?: never;
+        };
+        /** @description Executes the get announcement workflow within this AuraEDU API boundary. */
+        get: operations["getAnnouncement"];
+        put?: never;
+        post?: never;
+        /** @description Executes the delete announcement workflow within this AuraEDU API boundary. */
+        delete: operations["deleteAnnouncement"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device-tokens": {
+        parameters: {
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get an announcement */
-        get: operations["getAnnouncement"];
+        get?: never;
+        put?: never;
+        /**
+         * Register or refresh the authenticated user's mobile installation
+         * @description Executes the register device token workflow within this AuraEDU API boundary.
+         */
+        post: operations["registerDeviceToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device-tokens/{device_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
         put?: never;
         post?: never;
-        /** Delete an announcement */
-        delete: operations["deleteAnnouncement"];
+        /** @description Executes the unregister device token workflow within this AuraEDU API boundary. */
+        delete: operations["unregisterDeviceToken"];
         options?: never;
         head?: never;
         patch?: never;
@@ -112,75 +393,197 @@ export type paths = {
 export type webhooks = Record<string, never>;
 export type components = {
     schemas: {
+        /** @enum {string} */
+        JourneyStatus: "draft" | "active" | "paused" | "archived";
+        /** @enum {string} */
+        JourneyEvent: "lead.created.v1" | "lead.interaction_created.v1" | "lead.scored.v1" | "application.started.v1" | "application.submitted.v1" | "application.admitted.v1" | "offer.issued.v1" | "offer.accepted.v1";
+        /** @enum {string} */
+        JourneyConditionOperator: "always" | "equals" | "not_equals";
+        CreateJourneyStep: {
+            /** @enum {string} */
+            channel: "email" | "sms" | "whatsapp" | "in_app";
+            /** Format: uuid */
+            template_id: string;
+            delay_minutes: number;
+            condition_operator: components["schemas"]["JourneyConditionOperator"];
+            /** @enum {string} */
+            condition_field?: "source" | "stage" | "campaign_id" | "programme_id" | "intake_id" | "score" | "confidence" | "channel" | "direction";
+            condition_value?: string;
+        };
+        JourneyStep: components["schemas"]["CreateJourneyStep"] & {
+            /** Format: uuid */
+            id: string;
+            position: number;
+        };
+        CreateCommunicationJourney: {
+            name: string;
+            trigger_event: components["schemas"]["JourneyEvent"];
+            /** @example Africa/Accra */
+            timezone: string;
+            quiet_hours_start_minute?: number | null;
+            quiet_hours_end_minute?: number | null;
+            frequency_window_hours: number;
+            frequency_limit: number;
+            cancel_on_events: components["schemas"]["JourneyEvent"][];
+            steps: components["schemas"]["CreateJourneyStep"][];
+        };
+        CommunicationJourney: components["schemas"]["CreateCommunicationJourney"] & {
+            /** Format: uuid */
+            id: string;
+            tenant_id: string;
+            steps?: components["schemas"]["JourneyStep"][];
+            status: components["schemas"]["JourneyStatus"];
+            version: number;
+            /** Format: uuid */
+            created_by: string;
+            /** Format: uuid */
+            activated_by?: string | null;
+            /** Format: date-time */
+            activated_at?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        JourneyStats: {
+            enrolled: number;
+            scheduled: number;
+            sent: number;
+            failed: number;
+            cancelled: number;
+            skipped: number;
+            accepted: number;
+            delivered: number;
+            delayed: number;
+            bounced: number;
+            complained: number;
+            suppressed: number;
+        };
         Error: {
             /** @enum {string} */
-            code: "forbidden" | "feature_disabled" | "tenant_mismatch" | "validation_error" | "not_found" | "unauthorized";
+            code: "forbidden" | "feature_disabled" | "tenant_mismatch" | "validation_error" | "conflict" | "not_found" | "unauthorized";
             message: string;
             request_id?: string;
         };
+        /** @enum {string} */
+        Channel: "email" | "sms" | "whatsapp" | "in_app" | "push";
+        /** @enum {string} */
+        MessageStatus: "pending" | "sent" | "failed" | "cancelled";
+        /** @enum {string} */
+        TemplateStatus: "active" | "archived";
         Message: {
             /** Format: uuid */
             id: string;
-            /** Format: uuid */
             tenant_id: string;
-            /** @enum {string} */
-            channel: "email" | "sms" | "whatsapp" | "in_app";
             /** Format: uuid */
             recipient_id: string;
-            subject?: string | null;
-            body?: string | null;
-            /** @enum {string} */
-            status: "queued" | "sent" | "delivered" | "failed";
-        };
-        SendMessageRequest: {
-            /** @enum {string} */
-            channel: "email" | "sms" | "whatsapp" | "in_app";
-            /** Format: uuid */
-            recipient_id: string;
-            subject?: string | null;
-            body?: string | null;
+            channel: components["schemas"]["Channel"];
             /** Format: uuid */
             template_id?: string | null;
-            variables?: {
+            subject: string;
+            body: string;
+            status: components["schemas"]["MessageStatus"];
+            metadata?: {
                 [key: string]: unknown;
-            } | null;
+            };
+            /** Format: date-time */
+            scheduled_at?: string | null;
+            /** Format: date-time */
+            sent_at?: string | null;
+            error?: string | null;
+            /** @enum {string|null} */
+            provider?: "resend" | "twilio" | null;
+            /** @enum {string|null} */
+            delivery_status?: "accepted" | "delivered" | "delayed" | "bounced" | "complained" | "failed" | "suppressed" | null;
+            /** Format: date-time */
+            delivery_status_at?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        CreateMessage: {
+            /** Format: uuid */
+            recipient_id: string;
+            channel: components["schemas"]["Channel"];
+            /** Format: uuid */
+            template_id?: string | null;
+            subject: string;
+            body: string;
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            scheduled_at?: string | null;
+        };
+        UpdateMessage: {
+            /** Format: uuid */
+            recipient_id?: string;
+            channel?: components["schemas"]["Channel"];
+            /** Format: uuid */
+            template_id?: string;
+            subject?: string;
+            body?: string;
+            status?: components["schemas"]["MessageStatus"];
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            scheduled_at?: string;
+            /** Format: date-time */
+            sent_at?: string;
+            error?: string;
         };
         Template: {
             /** Format: uuid */
             id: string;
-            /** Format: uuid */
             tenant_id: string;
             name: string;
-            /** @enum {string} */
-            channel: "email" | "sms" | "whatsapp" | "in_app";
-            subject_template?: string | null;
-            body_template?: string;
+            channel: components["schemas"]["Channel"];
+            subject_template: string;
+            body_template: string;
+            status: components["schemas"]["TemplateStatus"];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
         };
         CreateTemplate: {
             name: string;
-            /** @enum {string} */
-            channel: "email" | "sms" | "whatsapp" | "in_app";
-            subject_template?: string | null;
+            channel: components["schemas"]["Channel"];
+            subject_template?: string;
             body_template: string;
+        };
+        UpdateTemplate: {
+            name?: string;
+            channel?: components["schemas"]["Channel"];
+            subject_template?: string;
+            body_template?: string;
+            status?: components["schemas"]["TemplateStatus"];
         };
         Subscription: {
             /** Format: uuid */
             id: string;
-            /** Format: uuid */
             tenant_id: string;
             /** Format: uuid */
             user_id: string;
-            /** @enum {string} */
-            channel: "email" | "sms" | "whatsapp" | "in_app";
+            channel: components["schemas"]["Channel"];
             is_enabled?: boolean;
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            updated_at?: string;
         };
         CreateSubscription: {
             /** Format: uuid */
             user_id: string;
-            /** @enum {string} */
-            channel: "email" | "sms" | "whatsapp" | "in_app";
+            channel: components["schemas"]["Channel"];
             /** @default true */
             is_enabled: boolean;
+        };
+        UpdateSubscription: {
+            channel?: components["schemas"]["Channel"];
+            is_enabled?: boolean;
         };
         MessageList: {
             data?: components["schemas"]["Message"][];
@@ -216,6 +619,26 @@ export type components = {
              * @enum {string}
              */
             audience: "all" | "students" | "guardians" | "staff";
+        };
+        RegisterDeviceToken: {
+            device_id: string;
+            /** @enum {string} */
+            platform: "ios" | "android";
+            token: string;
+        };
+        DeviceToken: {
+            /** Format: uuid */
+            id: string;
+            tenant_id: string;
+            /** Format: uuid */
+            user_id: string;
+            device_id: string;
+            /** @enum {string} */
+            platform: "ios" | "android";
+            /** @enum {string} */
+            status: "active" | "invalid";
+            /** Format: date-time */
+            last_seen_at: string;
         };
         AnnouncementList: {
             data?: components["schemas"]["Announcement"][];
@@ -262,6 +685,21 @@ export type components = {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description Invalid lifecycle transition */
+        Conflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "code": "validation_error",
+                 *       "message": "Invalid lifecycle transition"
+                 *     }
+                 */
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description Request failed validation */
         ValidationError: {
             headers: {
@@ -279,8 +717,12 @@ export type components = {
         };
     };
     parameters: {
-        TenantId: string;
         AnnouncementId: string;
+        JourneyId: string;
+        MessageId: string;
+        TemplateId: string;
+        SubscriptionId: string;
+        DeviceId: string;
         /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
         TenantHeader: string;
         Limit: number;
@@ -292,11 +734,125 @@ export type components = {
 };
 export type $defs = Record<string, never>;
 export interface operations {
+    processResendDeliveryWebhook: {
+        parameters: {
+            query?: never;
+            header: {
+                "svix-id": string;
+                "svix-timestamp": string;
+                "svix-signature": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Applied, ignored, or already processed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["ValidationError"];
+            /** @description Receipt correlation is not ready; provider should retry */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    processTwilioDeliveryWebhook: {
+        parameters: {
+            query: {
+                message_id: string;
+            };
+            header: {
+                "X-Twilio-Signature": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/x-www-form-urlencoded": {
+                    AccountSid: string;
+                    MessageSid: string;
+                    MessageStatus: string;
+                    To: string;
+                } & {
+                    [key: string]: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Applied, ignored, or already processed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["ValidationError"];
+            /** @description Receipt correlation is not ready; provider should retry */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    unsubscribeEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    token: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Email opt-out applied */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: components["responses"]["ValidationError"];
+            /** @description Email preference storage is unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     listMessages: {
         parameters: {
             query?: {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
+                channel?: components["schemas"]["Channel"];
+                status?: components["schemas"]["MessageStatus"];
+                recipient_id?: string;
             };
             header?: {
                 /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
@@ -318,11 +874,9 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            422: components["responses"]["ValidationError"];
         };
     };
-    sendMessage: {
+    createMessage: {
         parameters: {
             query?: never;
             header?: {
@@ -334,11 +888,11 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SendMessageRequest"];
+                "application/json": components["schemas"]["CreateMessage"];
             };
         };
         responses: {
-            /** @description OK */
+            /** @description Created */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -349,6 +903,113 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getMessage: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                message_id: components["parameters"]["MessageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Message"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteMessage: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                message_id: components["parameters"]["MessageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateMessage: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                message_id: components["parameters"]["MessageId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMessage"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Message"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    sendMessage: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                message_id: components["parameters"]["MessageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sent */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Message"];
+                };
+            };
             404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationError"];
         };
@@ -358,6 +1019,8 @@ export interface operations {
             query?: {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
+                channel?: components["schemas"]["Channel"];
+                status?: components["schemas"]["TemplateStatus"];
             };
             header?: {
                 /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
@@ -377,10 +1040,6 @@ export interface operations {
                     "application/json": components["schemas"]["TemplateList"];
                 };
             };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            422: components["responses"]["ValidationError"];
         };
     };
     createTemplate: {
@@ -399,7 +1058,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description OK */
+            /** @description Created */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -408,9 +1067,85 @@ export interface operations {
                     "application/json": components["schemas"]["Template"];
                 };
             };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getTemplate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                template_id: components["parameters"]["TemplateId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Template"];
+                };
+            };
             404: components["responses"]["NotFound"];
+        };
+    };
+    deleteTemplate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                template_id: components["parameters"]["TemplateId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateTemplate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                template_id: components["parameters"]["TemplateId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTemplate"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Template"];
+                };
+            };
             422: components["responses"]["ValidationError"];
         };
     };
@@ -419,6 +1154,8 @@ export interface operations {
             query?: {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
+                channel?: components["schemas"]["Channel"];
+                user_id?: string;
             };
             header?: {
                 /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
@@ -438,10 +1175,6 @@ export interface operations {
                     "application/json": components["schemas"]["SubscriptionList"];
                 };
             };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            422: components["responses"]["ValidationError"];
         };
     };
     createSubscription: {
@@ -460,7 +1193,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description OK */
+            /** @description Created */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -469,9 +1202,85 @@ export interface operations {
                     "application/json": components["schemas"]["Subscription"];
                 };
             };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getSubscription: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                subscription_id: components["parameters"]["SubscriptionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Subscription"];
+                };
+            };
             404: components["responses"]["NotFound"];
+        };
+    };
+    deleteSubscription: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                subscription_id: components["parameters"]["SubscriptionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateSubscription: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                subscription_id: components["parameters"]["SubscriptionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSubscription"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Subscription"];
+                };
+            };
             422: components["responses"]["ValidationError"];
         };
     };
@@ -500,10 +1309,6 @@ export interface operations {
                     "application/json": components["schemas"]["AnnouncementList"];
                 };
             };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            422: components["responses"]["ValidationError"];
         };
     };
     createAnnouncement: {
@@ -522,7 +1327,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description OK */
+            /** @description Created */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -531,10 +1336,196 @@ export interface operations {
                     "application/json": components["schemas"]["Announcement"];
                 };
             };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationError"];
+        };
+    };
+    listCommunicationJourneys: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                status?: components["schemas"]["JourneyStatus"];
+                trigger_event?: components["schemas"]["JourneyEvent"];
+            };
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Journey list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["CommunicationJourney"][];
+                    };
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createCommunicationJourney: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCommunicationJourney"];
+            };
+        };
+        responses: {
+            /** @description Draft journey */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommunicationJourney"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getCommunicationJourney: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                journey_id: components["parameters"]["JourneyId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Journey */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommunicationJourney"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    activateCommunicationJourney: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                journey_id: components["parameters"]["JourneyId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Active journey */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommunicationJourney"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    pauseCommunicationJourney: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                journey_id: components["parameters"]["JourneyId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paused journey */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommunicationJourney"];
+                };
+            };
+            409: components["responses"]["Conflict"];
+        };
+    };
+    archiveCommunicationJourney: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                journey_id: components["parameters"]["JourneyId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Archived journey */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommunicationJourney"];
+                };
+            };
+        };
+    };
+    getCommunicationJourneyStats: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                journey_id: components["parameters"]["JourneyId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Delivery lifecycle counts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JourneyStats"];
+                };
+            };
+            404: components["responses"]["NotFound"];
         };
     };
     getAnnouncement: {
@@ -560,10 +1551,7 @@ export interface operations {
                     "application/json": components["schemas"]["Announcement"];
                 };
             };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            422: components["responses"]["ValidationError"];
         };
     };
     deleteAnnouncement: {
@@ -587,10 +1575,62 @@ export interface operations {
                 };
                 content?: never;
             };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    registerDeviceToken: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterDeviceToken"];
+            };
+        };
+        responses: {
+            /** @description Registered */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceToken"];
+                };
+            };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationError"];
+        };
+    };
+    unregisterDeviceToken: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                device_id: components["parameters"]["DeviceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
 }

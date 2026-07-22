@@ -21,6 +21,19 @@ func TestNewFileUpload_RequiresFilename(t *testing.T) {
 	}
 }
 
+func TestNewFileUpload_SanitizesPathAndRejectsHeaderInjection(t *testing.T) {
+	file, err := domain.NewFileUpload("tenant-1", `C:\\fakepath\\report.pdf`, "application/pdf", "user-1", "document", 100, "abc")
+	if err != nil {
+		t.Fatalf("sanitize browser path: %v", err)
+	}
+	if file.OriginalFilename != "report.pdf" {
+		t.Fatalf("filename=%q", file.OriginalFilename)
+	}
+	if _, err := domain.NewFileUpload("tenant-1", "report.pdf\r\nX-Evil: yes", "application/pdf", "user-1", "document", 100, "abc"); err == nil {
+		t.Fatal("expected control-character filename to be rejected")
+	}
+}
+
 func TestNewFileUpload_RequiresNonNegativeSize(t *testing.T) {
 	e, err := domain.NewFileUpload("tenant-1", "notes.pdf", "application/pdf", "user-1", "document", -1, "abc")
 	if err != nil {

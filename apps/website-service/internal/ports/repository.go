@@ -3,9 +3,58 @@ package ports
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/auraedu/website-service/internal/domain"
 )
+
+const (
+	WebsiteMutationPageCreate    = "page_create"
+	WebsiteMutationPageUpdate    = "page_update"
+	WebsiteMutationPageDelete    = "page_delete"
+	WebsiteMutationSectionCreate = "section_create"
+	WebsiteMutationSectionUpdate = "section_update"
+	WebsiteMutationSectionDelete = "section_delete"
+)
+
+type LifecycleEvent struct {
+	EventType string
+	Payload   map[string]any
+}
+
+type LifecycleRepository interface {
+	CommitWebsiteLifecycle(context.Context, string, string, *domain.Page, *domain.Section, []LifecycleEvent) error
+	ProvisionDefaultWebsite(context.Context, string, *domain.Page, *domain.Section, []LifecycleEvent) error
+}
+
+type OutboxEvent struct {
+	ID        string
+	TenantID  string
+	EventType string
+	Payload   json.RawMessage
+}
+
+type OutboxRepository interface {
+	ClaimPendingWebsiteEvents(context.Context, int) ([]OutboxEvent, error)
+	MarkWebsiteEventPublished(context.Context, string) error
+	MarkWebsiteEventFailed(context.Context, string, string) error
+}
+
+func PageEventData(page *domain.Page, meta map[string]any) map[string]any {
+	data := map[string]any{"page_id": page.ID, "slug": page.Slug, "title": page.Title}
+	for key, value := range meta {
+		data[key] = value
+	}
+	return data
+}
+
+func SectionEventData(section *domain.Section, meta map[string]any) map[string]any {
+	data := map[string]any{"section_id": section.ID, "page_id": section.PageID, "type": section.Type}
+	for key, value := range meta {
+		data[key] = value
+	}
+	return data
+}
 
 // PageFilter filters page list results.
 type PageFilter struct {

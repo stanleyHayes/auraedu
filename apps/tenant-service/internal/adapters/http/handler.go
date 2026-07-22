@@ -4,11 +4,14 @@
 package http
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/auraedu/platform/auth"
+	"github.com/auraedu/platform/flags"
 	"github.com/auraedu/tenant-service/internal/application"
 	"github.com/auraedu/tenant-service/internal/domain"
 )
@@ -20,6 +23,10 @@ type Handler struct {
 func NewHandler(svc *application.Service) *Handler { return &Handler{svc: svc} }
 
 func (h *Handler) Register(mux *http.ServeMux) {
+	mux.HandleFunc("POST /api/v1/public/onboarding-requests", h.submitOnboarding)
+	mux.HandleFunc("GET /api/v1/super-admin/onboarding-requests", h.listOnboarding)
+	mux.HandleFunc("POST /api/v1/super-admin/onboarding-requests/{request_id}/approve", h.approveOnboarding)
+	mux.HandleFunc("POST /api/v1/super-admin/onboarding-requests/{request_id}/reject", h.rejectOnboarding)
 	mux.HandleFunc("GET /api/v1/tenants", h.listTenants)
 	mux.HandleFunc("POST /api/v1/tenants", h.createTenant)
 	mux.HandleFunc("GET /api/v1/tenants/resolve", h.resolveTenant)
@@ -29,9 +36,140 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/tenants/{code}/branding", h.branding)
 	mux.HandleFunc("GET /api/v1/tenants/{code}/settings", h.settings)
 	mux.HandleFunc("PATCH /api/v1/tenants/{code}/settings", h.updateSettings)
+	mux.HandleFunc("POST /api/v1/tenants/{code}/custom-domain", h.requestCustomDomain)
+	mux.HandleFunc("GET /api/v1/tenants/{code}/custom-domain", h.getCustomDomain)
+	mux.HandleFunc("POST /api/v1/tenants/{code}/custom-domain/verify", h.verifyCustomDomain)
+	mux.HandleFunc("POST /api/v1/super-admin/tenants/{code}/custom-domain/activate", h.activateCustomDomain)
+	mux.HandleFunc("POST /api/v1/super-admin/tenants/{code}/custom-domain/deactivate", h.deactivateCustomDomain)
 	mux.HandleFunc("GET /api/v1/features", h.features)
 	mux.HandleFunc("PUT /api/v1/features/{key}", h.setFeature)
 	mux.HandleFunc("POST /api/v1/super-admin/features/{key}/override", h.overrideFeature)
+}
+
+func (h *Handler) RegisterInternal(mux *http.ServeMux, token string) {
+	mux.HandleFunc("GET /internal/v1/onboarding-requests/{request_id}/administrator", func(w http.ResponseWriter, r *http.Request) {
+		if !internalAuthorized(r, token) {
+			writeJSON(w, http.StatusUnauthorized, errEnv("unauthorized", "valid service credentials are required"))
+			return
+		}
+		request, err := h.svc.ResolveOnboardingAdministrator(r.Context(), r.PathValue("request_id"))
+		if err != nil {
+			writeErr(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{
+			"tenant_code": *request.TenantCode, "administrator_name": request.AdministratorName, "email": request.Email,
+		})
+	})
+	mux.HandleFunc("POST /internal/v1/tenants/{code}/activate", func(w http.ResponseWriter, r *http.Request) {
+		if !internalAuthorized(r, token) {
+			writeJSON(w, http.StatusUnauthorized, errEnv("unauthorized", "valid service credentials are required"))
+			return
+		}
+		if err := h.svc.ActivateOnboardingTenant(r.Context(), r.PathValue("code")); err != nil {
+			writeErr(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+}
+
+func internalAuthorized(r *http.Request, token string) bool {
+	expected := []byte("Bearer " + token)
+	provided := []byte(r.Header.Get("Authorization"))
+	return token != "" && len(expected) == len(provided) && subtle.ConstantTimeCompare(expected, provided) == 1
+}
+
+type onboardingRequestBody struct {
+	SchoolName           string  `json:"school_name"`
+	AdministratorName    string  `json:"administrator_name"`
+	Email                string  `json:"email"`
+	Phone                *string `json:"phone"`
+	CountryCode          string  `json:"country_code"`
+	Plan                 string  `json:"plan"`
+	Priorities           *string `json:"priorities"`
+	PrivacyNoticeVersion string  `json:"privacy_notice_version"`
+	AcceptedTerms        bool    `json:"accepted_terms"`
+	Website              string  `json:"website"`
+}
+
+func (h *Handler) submitOnboarding(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 32<<10)
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	var body onboardingRequestBody
+	if err := decoder.Decode(&body); err != nil {
+		writeJSON(w, http.StatusUnprocessableEntity, errEnv("validation_error", "request failed validation"))
+		return
+	}
+	request, _, err := h.svc.SubmitOnboarding(r.Context(), r.Header.Get("Idempotency-Key"), application.SubmitOnboardingInput{
+		SchoolName: body.SchoolName, AdministratorName: body.AdministratorName,
+		Email: body.Email, Phone: body.Phone, CountryCode: body.CountryCode,
+		Plan: body.Plan, Priorities: body.Priorities,
+		PrivacyNoticeVersion: body.PrivacyNoticeVersion,
+		AcceptedTerms:        body.AcceptedTerms, Website: body.Website,
+	})
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{
+		"request_id": request.ID, "status": request.Status, "submitted_at": request.SubmittedAt,
+	})
+}
+
+func (h *Handler) listOnboarding(w http.ResponseWriter, r *http.Request) {
+	limit := 25
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			writeJSON(w, http.StatusUnprocessableEntity, errEnv("validation_error", "limit is invalid"))
+			return
+		}
+		limit = parsed
+	}
+	requests, next, err := h.svc.ListOnboarding(r.Context(), auth.FromHeaders(r.Header), limit, r.URL.Query().Get("cursor"), r.URL.Query().Get("status"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	var nextCursor any
+	if next != "" {
+		nextCursor = next
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": requests, "next_cursor": nextCursor})
+}
+
+func (h *Handler) approveOnboarding(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		TenantCode string `json:"tenant_code"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&body); err != nil {
+		writeJSON(w, http.StatusUnprocessableEntity, errEnv("validation_error", "request failed validation"))
+		return
+	}
+	request, err := h.svc.ApproveOnboarding(r.Context(), auth.FromHeaders(r.Header), r.PathValue("request_id"), body.TenantCode)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, request)
+}
+
+func (h *Handler) rejectOnboarding(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Reason string `json:"reason"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&body); err != nil {
+		writeJSON(w, http.StatusUnprocessableEntity, errEnv("validation_error", "request failed validation"))
+		return
+	}
+	request, err := h.svc.RejectOnboarding(r.Context(), auth.FromHeaders(r.Header), r.PathValue("request_id"), body.Reason)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, request)
 }
 
 func tenantCode(r *http.Request) string {
@@ -117,6 +255,81 @@ func (h *Handler) updateTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, t)
+}
+
+func (h *Handler) requestCustomDomain(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	var body struct {
+		Hostname string `json:"hostname"`
+	}
+	if err := decoder.Decode(&body); err != nil {
+		writeJSON(w, http.StatusUnprocessableEntity, errEnv("validation_error", "request failed validation"))
+		return
+	}
+	registration, err := h.svc.RequestCustomDomain(r.Context(), auth.FromHeaders(r.Header), r.PathValue("code"), body.Hostname)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, registration)
+}
+
+func (h *Handler) getCustomDomain(w http.ResponseWriter, r *http.Request) {
+	registration, err := h.svc.GetCustomDomain(r.Context(), auth.FromHeaders(r.Header), r.PathValue("code"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, registration)
+}
+
+func (h *Handler) verifyCustomDomain(w http.ResponseWriter, r *http.Request) {
+	registration, err := h.svc.VerifyCustomDomain(r.Context(), auth.FromHeaders(r.Header), r.PathValue("code"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, registration)
+}
+
+func (h *Handler) activateCustomDomain(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	var body struct {
+		ProviderReference string `json:"provider_reference"`
+	}
+	if err := decoder.Decode(&body); err != nil {
+		writeJSON(w, http.StatusUnprocessableEntity, errEnv("validation_error", "request failed validation"))
+		return
+	}
+	registration, err := h.svc.ActivateCustomDomain(r.Context(), auth.FromHeaders(r.Header), r.PathValue("code"), body.ProviderReference)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, registration)
+}
+
+func (h *Handler) deactivateCustomDomain(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	var body struct {
+		ProviderReference string `json:"provider_reference"`
+	}
+	if err := decoder.Decode(&body); err != nil {
+		writeJSON(w, http.StatusUnprocessableEntity, errEnv("validation_error", "request failed validation"))
+		return
+	}
+	registration, err := h.svc.DeactivateCustomDomain(r.Context(), auth.FromHeaders(r.Header), r.PathValue("code"), body.ProviderReference)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, registration)
 }
 
 func (h *Handler) deleteTenant(w http.ResponseWriter, r *http.Request) {
@@ -234,12 +447,18 @@ func writeErr(w http.ResponseWriter, err error) {
 		writeJSON(w, http.StatusForbidden, errEnv("forbidden", "not permitted for this actor or tenant"))
 	case errors.Is(err, domain.ErrEntitlement):
 		writeJSON(w, http.StatusForbidden, errEnv("plan_required", "the tenant's plan does not include this feature"))
+	case errors.Is(err, flags.ErrFeatureDisabled):
+		writeJSON(w, http.StatusForbidden, errEnv("feature_disabled", "custom domains are disabled for this tenant"))
 	case errors.Is(err, domain.ErrNotFound):
 		writeJSON(w, http.StatusNotFound, errEnv("not_found", "tenant not found"))
 	case errors.Is(err, domain.ErrNoTenant):
 		writeJSON(w, http.StatusBadRequest, errEnv("tenant_mismatch", "tenant context required (X-Tenant-Code header or ?tenant=)"))
 	case errors.Is(err, domain.ErrValidation):
-		writeJSON(w, http.StatusUnprocessableEntity, errEnv("validation_error", "unknown feature key"))
+		writeJSON(w, http.StatusUnprocessableEntity, errEnv("validation_error", "request failed validation"))
+	case errors.Is(err, domain.ErrConflict):
+		writeJSON(w, http.StatusConflict, errEnv("conflict", "request conflicts with existing state"))
+	case errors.Is(err, domain.ErrUnavailable):
+		writeJSON(w, http.StatusServiceUnavailable, errEnv("dependency_unavailable", "domain verification is temporarily unavailable"))
 	default:
 		writeJSON(w, http.StatusInternalServerError, errEnv("internal", "unexpected error"))
 	}

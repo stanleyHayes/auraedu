@@ -9,11 +9,82 @@ permissions:
 jobs:
   security:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Static secret and PII-log scan
+        run: bash tools/ci/security-static-scan.sh
+      - name: Render private service-token wiring
+        run: bash tools/ci/check-render-service-secrets.sh
+      - name: Render hard-required runtime configuration
+        run: bash tools/ci/check-render-runtime-config.sh
+      - name: Render network boundaries
+        run: bash tools/ci/check-render-network-boundaries.sh
+      - name: Render deploy safety
+        run: bash tools/ci/check-render-deploy-safety.sh
+      - name: Disaster-recovery topology and policy
+        run: bash tools/ci/check-disaster-recovery.sh
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with: { go-version: '1.26.5' }
+      - name: Test fail-closed JetStream backup job
+        working-directory: tools/dr/nats-backup
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: go test ./...
+      - name: Test fail-closed PostgreSQL backup job
+        working-directory: tools/dr/postgres-backup
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: go test ./...
+      - name: Test deployed provider evidence probe
+        working-directory: tools/providerprobe
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: |
+          go test ./...
+          go vet ./...
+          go build -o "$RUNNER_TEMP/providerprobe" .
+          go run . -config ../../release/scenarios/staging-email-provider.json -validate-only
+      - name: Test deployed Twilio evidence probe
+        working-directory: tools/twilioprobe
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: |
+          go test ./...
+          go vet ./...
+          go build -o "$RUNNER_TEMP/twilioprobe" .
+          go run . -config ../../release/scenarios/staging-twilio-providers.json -validate-only
+      - name: Test deployed Vercel evidence probe
+        working-directory: tools/vercelprobe
+        env:
+          GOWORK: "off"
+          GOTOOLCHAIN: local
+        run: |
+          go test ./...
+          go vet ./...
+          go build -o "$RUNNER_TEMP/vercelprobe" .
+          go run . -config ../../release/scenarios/production-vercel-frontends.json -validate-only
+      - name: Exercise PostgreSQL backup container
+        run: bash tools/dr/run-postgres-backup-smoke.sh
+      - name: Validate GitHub Actions semantics
+        run: GOWORK=off go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+      - name: Authentication and authorization penetration matrix
+        env:
+          GOFLAGS: -mod=readonly
+          GOTOOLCHAIN: local
+        run: bash tools/ci/run-authz-security-tests.sh
+      - name: Injection and file-upload security matrix
+        env:
+          GOFLAGS: -mod=readonly
+          GOTOOLCHAIN: local
+        run: bash tools/ci/run-injection-upload-security-tests.sh
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
         with: { version: '11.11.0' }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '26.5.0'
           cache: 'pnpm'
@@ -25,12 +96,12 @@ jobs:
             echo "::notice::No pnpm-lock.yaml yet — skipping pnpm audit."
           fi
       - name: pnpm audit
-        run: pnpm audit --audit-level moderate || true
-      - uses: astral-sh/setup-uv@v5
+        run: pnpm audit --audit-level high
+      - uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081 # v5
       - name: pip-audit
         run: |
           if [ ! -f uv.lock ]; then
             echo "::notice::No uv.lock yet — skipping pip-audit."
             exit 0
           fi
-          uv run pip-audit || true
+          uv run pip-audit

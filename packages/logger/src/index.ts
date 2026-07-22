@@ -31,7 +31,7 @@ const PII_PATTERNS = [
   },
   { regex: /\b\d{3}-\d{2}-\d{4}\b/g, replacement: "[REDACTED_SSN]" },
   {
-    regex: /\b(?:\+\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g,
+    regex: /(?<!\w)(?:\+\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}(?!\w)/g,
     replacement: "[REDACTED_PHONE]",
   },
 ];
@@ -83,7 +83,7 @@ export function createLogger(options: LoggerOptions = {}) {
     const entry: LogEntry = {
       timestamp: new Date().toISOString(),
       level,
-      message,
+      message: redact(message) as string,
       service,
       ...(meta ? (redact(meta) as Record<string, unknown>) : undefined),
     };

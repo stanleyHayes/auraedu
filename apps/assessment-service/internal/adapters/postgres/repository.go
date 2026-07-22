@@ -3,13 +3,17 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/auraedu/assessment-service/internal/domain"
 	"github.com/auraedu/assessment-service/internal/ports"
+	"github.com/auraedu/platform/auth"
 	"github.com/auraedu/platform/db"
+	"github.com/auraedu/platform/tenancy"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -21,7 +25,11 @@ type Repository struct {
 	db *db.DB
 }
 
-var _ ports.Repository = (*Repository)(nil)
+var (
+	_ ports.Repository          = (*Repository)(nil)
+	_ ports.LifecycleRepository = (*Repository)(nil)
+	_ ports.OutboxRepository    = (*Repository)(nil)
+)
 
 // NewRepository creates a Postgres-backed assessment repository.
 func NewRepository(database *db.DB) *Repository { return &Repository{db: database} }
@@ -31,9 +39,12 @@ func NewRepository(database *db.DB) *Repository { return &Repository{db: databas
 func (r *Repository) CreateAssessment(ctx context.Context, tenantID string, a *domain.Assessment) error {
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `
-			INSERT INTO assessments (id, tenant_id, academic_year_id, subject_id, type, title, description, max_score, due_date, status, class_ids, published_at, created_at, updated_at)
+			INSERT INTO assessments (
+				id, tenant_id, academic_year_id, subject_id, type, title, description,
+				max_score, due_date, status, class_ids, published_at, created_at, updated_at
+			)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::uuid[], $12, $13, $14)
-		`, a.ID, tenantID, a.AcademicYearID, a.SubjectID, a.Type, a.Title, a.Description, a.MaxScore, a.DueDate, a.Status, classIDsOrEmpty(a.ClassIDs), a.PublishedAt, a.CreatedAt, a.UpdatedAt)
+		`, assessmentArgs(a, tenantID)...)
 		if err != nil {
 			return fmt.Errorf("assessment: create assessment: %w", err)
 		}
@@ -110,6 +121,17 @@ func listAssessmentsQuery(ctx context.Context, tx pgx.Tx, tenantID string, filte
 		args = append(args, filter.Status)
 		where += fmt.Sprintf(" AND status = $%d", len(args))
 	}
+	if filter.ClassIDs != nil {
+		if len(filter.ClassIDs) == 0 {
+			return tx.Query(ctx, `
+				SELECT id, tenant_id, academic_year_id, subject_id, type, title,
+					description, max_score, due_date, status, class_ids,
+					published_at, created_at, updated_at
+				FROM assessments WHERE false`)
+		}
+		args = append(args, filter.ClassIDs)
+		where += fmt.Sprintf(" AND class_ids && $%d::uuid[]", len(args))
+	}
 
 	if filter.Cursor != "" {
 		args = append(args, filter.Cursor)
@@ -131,9 +153,11 @@ func (r *Repository) UpdateAssessment(ctx context.Context, tenantID string, a *d
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `
 			UPDATE assessments
-			SET academic_year_id = $3, subject_id = $4, type = $5, title = $6, description = $7, max_score = $8, due_date = $9, status = $10, class_ids = $11::uuid[], published_at = $12, updated_at = $13
+			SET academic_year_id = $3, subject_id = $4, type = $5, title = $6,
+				description = $7, max_score = $8, due_date = $9, status = $10,
+				class_ids = $11::uuid[], published_at = $12, updated_at = $13
 			WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
-		`, a.ID, tenantID, a.AcademicYearID, a.SubjectID, a.Type, a.Title, a.Description, a.MaxScore, a.DueDate, a.Status, classIDsOrEmpty(a.ClassIDs), a.PublishedAt, a.UpdatedAt)
+		`, assessmentArgs(a, tenantID)[:13]...)
 		if err != nil {
 			return fmt.Errorf("assessment: update assessment: %w", err)
 		}
@@ -227,6 +251,9 @@ func listScoresQuery(ctx context.Context, tx pgx.Tx, tenantID, assessmentID stri
 	if filter.StudentID != "" {
 		args = append(args, filter.StudentID)
 		where += fmt.Sprintf(" AND student_id = $%d", len(args))
+	} else if filter.StudentIDs != nil {
+		args = append(args, filter.StudentIDs)
+		where += fmt.Sprintf(" AND student_id = ANY($%d)", len(args))
 	}
 
 	if filter.Cursor != "" {
@@ -274,6 +301,120 @@ func (r *Repository) DeleteScore(ctx context.Context, tenantID, assessmentID, sc
 	})
 }
 
+func (r *Repository) CommitAssessmentLifecycle(ctx context.Context, tenantID string, m ports.LifecycleMutation, events []ports.LifecycleEvent) error {
+	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		var err error
+		switch m.Kind {
+		case ports.AssessmentMutationCreate:
+			a := m.Assessment
+			_, err = tx.Exec(ctx, `
+				INSERT INTO assessments(
+					id,tenant_id,academic_year_id,subject_id,type,title,description,
+					max_score,due_date,status,class_ids,published_at,created_at,updated_at
+				) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::uuid[],$12,$13,$14)`,
+				assessmentArgs(a, tenantID)...)
+		case ports.AssessmentMutationUpdate:
+			a := m.Assessment
+			_, err = tx.Exec(ctx, `
+				UPDATE assessments SET academic_year_id=$3,subject_id=$4,type=$5,title=$6,
+					description=$7,max_score=$8,due_date=$9,status=$10,
+					class_ids=$11::uuid[],published_at=$12,updated_at=$13
+				WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL`, assessmentArgs(a, tenantID)[:13]...)
+		case ports.AssessmentMutationDelete:
+			_, err = tx.Exec(ctx, `UPDATE assessments SET deleted_at=now() WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL`, m.Assessment.ID, tenantID)
+		case ports.AssessmentMutationScoreCreate:
+			s := m.Score
+			_, err = tx.Exec(ctx, `
+				INSERT INTO scores(id,tenant_id,assessment_id,student_id,score,recorded_by,notes,created_at,updated_at)
+				VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+				s.ID, tenantID, s.AssessmentID, s.StudentID, s.Score, s.RecordedBy, s.Notes, s.CreatedAt, s.UpdatedAt)
+		case ports.AssessmentMutationScoreUpdate:
+			s := m.Score
+			_, err = tx.Exec(ctx, `
+				UPDATE scores SET score=$3,recorded_by=$4,notes=$5,updated_at=$6
+				WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL`,
+				s.ID, tenantID, s.Score, s.RecordedBy, s.Notes, s.UpdatedAt)
+		case ports.AssessmentMutationScoreDelete:
+			s := m.Score
+			_, err = tx.Exec(ctx, `
+				UPDATE scores SET deleted_at=now()
+				WHERE id=$1 AND assessment_id=$2 AND tenant_id=$3 AND deleted_at IS NULL`,
+				s.ID, s.AssessmentID, tenantID)
+		default:
+			return fmt.Errorf("assessment: unsupported lifecycle mutation %q", m.Kind)
+		}
+		if err != nil {
+			return fmt.Errorf("assessment: lifecycle mutation: %w", err)
+		}
+		for _, event := range events {
+			payload, err := json.Marshal(event.Payload)
+			if err != nil {
+				return err
+			}
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO assessment_outbox(id,tenant_id,event_type,payload)
+				VALUES($1,$2,$3,$4)`, uuid.NewString(), tenantID, event.EventType, payload); err != nil {
+				return fmt.Errorf("assessment: enqueue lifecycle event: %w", err)
+			}
+		}
+		return nil
+	})
+}
+func assessmentOutboxContext(ctx context.Context) context.Context {
+	ctx = auth.WithActor(ctx, auth.Actor{Role: auth.RolePlatformSuperAdmin, PlatformAdmin: true})
+	return tenancy.WithContext(ctx, tenancy.TenantContext{TenantID: "__assessment_outbox__"})
+}
+func (r *Repository) ClaimPendingAssessmentEvents(ctx context.Context, limit int) ([]ports.OutboxEvent, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 25
+	}
+	items := make([]ports.OutboxEvent, 0, limit)
+	err := r.db.WithTx(assessmentOutboxContext(ctx), func(ctx context.Context, tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			UPDATE assessment_outbox
+			SET attempts=attempts+1,
+				next_attempt_at=now()+(LEAST(300,power(2,attempts))*interval '1 second')
+			WHERE id IN(
+				SELECT id FROM assessment_outbox
+				WHERE published_at IS NULL AND next_attempt_at<=now()
+				ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT $1
+			) RETURNING id::text,tenant_id,event_type,payload`, limit)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var item ports.OutboxEvent
+			if err := rows.Scan(&item.ID, &item.TenantID, &item.EventType, &item.Payload); err != nil {
+				return err
+			}
+			items = append(items, item)
+		}
+		return rows.Err()
+	})
+	return items, err
+}
+
+func assessmentArgs(a *domain.Assessment, tenantID string) []any {
+	return []any{
+		a.ID, tenantID, a.AcademicYearID, a.SubjectID, a.Type, a.Title,
+		a.Description, a.MaxScore, a.DueDate, a.Status, classIDsOrEmpty(a.ClassIDs),
+		a.PublishedAt, a.CreatedAt, a.UpdatedAt,
+	}
+}
+func (r *Repository) MarkAssessmentEventPublished(ctx context.Context, id string) error {
+	return r.db.WithTx(assessmentOutboxContext(ctx), func(ctx context.Context, tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `UPDATE assessment_outbox SET published_at=now(),last_error=NULL WHERE id=$1`, id)
+		return err
+	})
+}
+func (r *Repository) MarkAssessmentEventFailed(ctx context.Context, id, msg string) error {
+	return r.db.WithTx(assessmentOutboxContext(ctx), func(ctx context.Context, tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `UPDATE assessment_outbox SET last_error=left($2,1000) WHERE id=$1`, id, msg)
+		return err
+	})
+}
+
 // --- Assignments. ---
 
 func (r *Repository) ListAssignments(ctx context.Context, tenantID string, filter ports.AssignmentListFilter) ([]*domain.Assessment, string, error) {
@@ -290,6 +431,14 @@ func (r *Repository) ListAssignments(ctx context.Context, tenantID string, filte
 		if filter.ClassID != "" {
 			args = append(args, filter.ClassID)
 			where += fmt.Sprintf(" AND class_ids @> ARRAY[$%d]::uuid[]", len(args))
+		}
+		if filter.ClassIDs != nil {
+			if len(filter.ClassIDs) == 0 {
+				where += " AND false"
+			} else {
+				args = append(args, filter.ClassIDs)
+				where += fmt.Sprintf(" AND class_ids && $%d::uuid[]", len(args))
+			}
 		}
 		if filter.StudentID != "" {
 			args = append(args, filter.StudentID)

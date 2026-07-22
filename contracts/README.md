@@ -11,7 +11,7 @@
 
 ## Change process (mandatory order)
 1. **Contract PR first.** Add/modify the `openapi`/`events` file. Merge it *before* implementation.
-2. **Generate.** `make contracts` runs codegen → Go server/client stubs, TS types (`packages/shared-types`), JSON-schema validators. Generated output is committed.
+2. **Generate.** `make contracts` runs codegen → Go server/client stubs, TS types (`packages/shared-types`), JSON-schema validators, the Go authorization registry, and typed Go/TS feature registries. Generated output is committed.
 3. **Implement producer + consumers in parallel**, each against the generated stub/types + a local mock.
 4. **Contract tests** run on both sides in CI and fail the build on drift.
 

@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-07-21",
+  "release_git_sha": null,
+  "items": [
+    {
+      "id": "AURA-54.1",
+      "status": "pending",
+      "owner": "Performance",
+      "requirement": "Run every authenticated load scenario against deployed staging and retain thresholded JSON results.",
+      "artifacts": []
+    },
+    {
+      "id": "AURA-54.2",
+      "status": "pending",
+      "owner": "Performance",
+      "requirement": "Provision 100 disposable staging tenants, run the exact-cardinality scale scenario, and retain the result.",
+      "artifacts": []
+    },
+    {
+      "id": "AURA-8.1",
+      "status": "pending",
+      "owner": "SRE",
+      "requirement": "Retain deployed staging metric, trace, log, dashboard, alert, paging receiver, and delivery evidence.",
+      "artifacts": []
+    },
+    {
+      "id": "AURA-50.2",
+      "status": "pending",
+      "owner": "Quality",
+      "requirement": "Execute and retain the two-school isolation matrix against deployed staging.",
+      "artifacts": []
+    },
+    {
+      "id": "AURA-48.7",
+      "status": "pending",
+      "owner": "Mobile Release",
+      "requirement": "Retain EAS project linkage, credential validation, signed build, and App Store Connect and Google Play submission evidence.",
+      "artifacts": []
+    },
+    {
+      "id": "AURA-48.8",
+      "status": "pending",
+      "owner": "Mobile Release",
+      "requirement": "Publish and verify a signed preview OTA update, then retain production-channel promotion evidence.",
+      "artifacts": []
+    },
+    {
+      "id": "AURA-47.3",
+      "status": "pending",
+      "owner": "Growth",
+      "requirement": "Retain a deployed provider-backed onboarding and first-admin invite delivery proof without message secrets.",
+      "artifacts": []
+    },
+    {
+      "id": "AURA-57.2",
+      "status": "pending",
+      "owner": "Design QA",
+      "requirement": "Retain desktop and mobile browser proof for the public admissions assistant, including consent, uncertainty, locale, and handoff states.",
+      "artifacts": []
+    },
+    {
+      "id": "AURA-58.1",
+      "status": "pending",
+      "owner": "Design QA",
+      "requirement": "Retain desktop and mobile browser proof for applicant and staff admissions conversion workflows.",
+      "artifacts": []
+    },
+    {
+      "id": "AURA-58.3",
+      "status": "pending",
+      "owner": "Growth and Design QA",
+      "requirement": "Retain desktop and mobile browser proof for journey authoring, activation, provider outcomes, suppression, and unsubscribe completion; deployed email delivery remains independently gated by AURA-18.9.",
+      "artifacts": []
+    },
+    {
+      "id": "AURA-59.2",
+      "status": "pending",
+      "owner": "AI Platform and Design QA",
+      "requirement": "Retain a real provider-backed governed content run plus desktop and mobile browser proof for policy, grounded briefing, compliance review, independent approval, and the denied publish boundary.",
+      "artifacts": []
+    },
+    {
+      "id": "AURA-18.9",
+      "status": "pending",
+      "owner": "Messaging",
+      "requirement": "Retain a secret-backed deployed Resend result proving envelope acceptance, persisted sent state, signed webhook correlation, and final delivered status.",
+      "artifacts": []
+    },
+    {
+      "id": "AURA-18.10/18.11",
+      "status": "pending",
+      "owner": "Messaging",
+      "requirement": "Retain secret-backed Twilio staging proof that approved SMS and WhatsApp senders are accepted, delivered, and correlated to persisted provider status without exposing recipients or credentials.",
+      "artifacts": []
+    },
+    {
+      "id": "AURA-9.3",
+      "status": "pending",
+      "owner": "SRE",
+      "requirement": "Approve production spend, configure resource sizing and scaling, and retain provider-observed zero-downtime deployment evidence.",
+      "artifacts": []
+    },
+    {
+      "id": "AURA-9.4",
+      "status": "pending",
+      "owner": "Recovery Lead",
+      "requirement": "Retain Render PITR, deployed backup runs, Object Lock inspection, monitor delivery, and provider-hosted restore and cutover evidence.",
+      "artifacts": []
+    },
+    {
+      "id": "AURA-9.5",
+      "status": "pending",
+      "owner": "SRE",
+      "requirement": "Provision an owned custom domain in Render, observe valid certificate issuance, activate it through the verified workflow, and retain deployed HTTPS, exact-origin CORS, and tenant-routing evidence.",
+      "artifacts": []
+    },
+    {
+      "id": "AURA-9.1",
+      "status": "pending",
+      "owner": "SRE",
+      "requirement": "Retain deployed Render health, readiness, identity, route, runtime configuration, and non-root proof for the production topology.",
+      "artifacts": []
+    },
+    {
+      "id": "AURA-9.8",
+      "status": "pending",
+      "owner": "Frontend Release",
+      "requirement": "Link both Vercel projects, configure production frontend and gateway origins, deploy both applications, and retain successful HTTPS plus exact-origin CORS evidence.",
+      "artifacts": []
+    },
+    {
+      "id": "AURA-21.9",
+      "status": "pending",
+      "owner": "Design QA",
+      "requirement": "Retain authenticated browser proof for teacher learning analytics across populated, empty, and dependency-failure states.",
+      "artifacts": []
+    }
+  ]
+}

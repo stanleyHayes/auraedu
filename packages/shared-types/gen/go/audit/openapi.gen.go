@@ -28,9 +28,11 @@ type AuditLogList struct {
 // ServerInterface is implemented by the service HTTP adapter.
 type ServerInterface interface {
 	listAuditLogs(w http.ResponseWriter, r *http.Request)
+	listAuditLogsGatewayAlias(w http.ResponseWriter, r *http.Request)
 }
 
 // ClientInterface is the generated consumer stub for this service.
 type ClientInterface interface {
 	listAuditLogs(ctx context.Context) (*http.Response, error)
+	listAuditLogsGatewayAlias(ctx context.Context) (*http.Response, error)
 }

@@ -3,10 +3,12 @@ package http
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/auraedu/fees-service/internal/application"
 	"github.com/auraedu/fees-service/internal/domain"
@@ -38,6 +40,36 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/invoices/{invoice_id}", h.getInvoice)
 	mux.HandleFunc("PATCH /api/v1/invoices/{invoice_id}", h.updateInvoice)
 	mux.HandleFunc("DELETE /api/v1/invoices/{invoice_id}", h.deleteInvoice)
+	mux.HandleFunc("GET /api/v1/balances/{student_id}", h.getBalance)
+	mux.HandleFunc("GET /api/v1/receipts/{receipt_id}", h.getReceipt)
+}
+
+// RegisterInternal mounts service-token authenticated private authorization routes.
+func (h *Handler) RegisterInternal(mux *http.ServeMux, token string) {
+	mux.HandleFunc("POST /internal/v1/invoice-access", func(w http.ResponseWriter, r *http.Request) {
+		provided, expected := r.Header.Get("Authorization"), "Bearer "+token
+		if token == "" || len(provided) != len(expected) || subtle.ConstantTimeCompare([]byte(provided), []byte(expected)) != 1 {
+			httpx.Unauthorized(w, r, "valid service credentials are required")
+			return
+		}
+		var body struct {
+			UserID     string   `json:"user_id"`
+			Role       string   `json:"role"`
+			InvoiceIDs []string `json:"invoice_ids"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&body); err != nil {
+			httpx.ValidationError(w, r, map[string]any{"body": "invalid JSON"})
+			return
+		}
+		tenantID := strings.TrimSpace(r.Header.Get(tenancy.HeaderTenantID))
+		ctx := tenancy.WithContext(r.Context(), tenancy.TenantContext{TenantID: tenantID})
+		ids, err := h.svc.ResolveInvoiceAccess(ctx, tenantID, body.UserID, body.Role, body.InvoiceIDs)
+		if err != nil {
+			h.writeErr(w, r, err)
+			return
+		}
+		httpx.RespondJSON(w, r, http.StatusOK, map[string]any{"invoice_ids": ids})
+	})
 }
 
 // --- FeeStructure handlers ---
@@ -277,6 +309,32 @@ func (h *Handler) deleteInvoice(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *Handler) getBalance(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	balance, err := h.svc.GetStudentBalance(ctx, actor, r.PathValue("student_id"))
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, balance)
+}
+
+func (h *Handler) getReceipt(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	receipt, err := h.svc.GetReceipt(ctx, actor, r.PathValue("receipt_id"))
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, receipt)
+}
+
 func (h *Handler) context(r *http.Request) (context.Context, auth.Actor, bool) {
 	actor := auth.FromHeaders(r.Header)
 	tenantID := r.Header.Get(tenancy.HeaderTenantID)
@@ -305,6 +363,8 @@ func (h *Handler) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 		httpx.Forbidden(w, r, "not permitted for this actor or tenant")
 	case errors.Is(err, domain.ErrMissingTenant):
 		httpx.TenantMismatch(w, r)
+	case errors.Is(err, domain.ErrUnavailable):
+		httpx.RespondJSON(w, r, http.StatusServiceUnavailable, httpx.Error{Code: httpx.ErrInternal, Message: "learner scope is unavailable"})
 	default:
 		httpx.RespondError(w, r, httpx.ErrorFrom(err))
 	}

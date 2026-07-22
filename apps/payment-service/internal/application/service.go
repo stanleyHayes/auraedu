@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strings"
 	"time"
 
@@ -43,6 +44,7 @@ type Service struct {
 	gates                    flags.Gate
 	paystackWebhookSecret    string
 	flutterwaveWebhookSecret string
+	invoiceAccess            ports.InvoiceAccessResolver
 }
 
 // Option configures the service.
@@ -56,6 +58,11 @@ func WithPaymentProvider(p ports.PaymentProvider) Option { return func(s *Servic
 
 // WithFeatureGate sets the feature-flag gate.
 func WithFeatureGate(g flags.Gate) Option { return func(s *Service) { s.gates = g } }
+
+// WithInvoiceAccessResolver configures fail-closed learner invoice ownership checks.
+func WithInvoiceAccessResolver(r ports.InvoiceAccessResolver) Option {
+	return func(s *Service) { s.invoiceAccess = r }
+}
 
 // WithWebhookSecrets sets the per-provider webhook signature secrets. An empty secret
 // keeps dev-mode behavior: webhooks for that provider are accepted with a warning log.
@@ -134,11 +141,8 @@ func (s *Service) CreatePayment(ctx context.Context, actor auth.Actor, req Creat
 	if err != nil {
 		return nil, err
 	}
-	if err := s.paymentRepo.Create(ctx, tenantID, p); err != nil {
+	if err := s.persistPaymentLifecycle(ctx, tenantID, p, ports.PaymentMutationCreate, "payment.created.v1", nil); err != nil {
 		return nil, err
-	}
-	if err := s.pub.PublishPayment(ctx, "payment.created.v1", p, nil); err != nil {
-		slog.Default().ErrorContext(ctx, "failed to publish payment.created event", "err", err)
 	}
 	return p, nil
 }
@@ -150,7 +154,12 @@ func (s *Service) ListPayments(ctx context.Context, actor auth.Actor, filter por
 		return nil, "", err
 	}
 	filter.Limit = normalizeLimit(filter.Limit)
-	return s.paymentRepo.List(ctx, tenantID, filter)
+	records, next, err := s.paymentRepo.List(ctx, tenantID, filter)
+	if err != nil {
+		return nil, "", err
+	}
+	records, err = s.authorizedPayments(ctx, actor, records)
+	return records, next, err
 }
 
 // GetPayment returns a single payment.
@@ -159,7 +168,14 @@ func (s *Service) GetPayment(ctx context.Context, actor auth.Actor, id string) (
 	if err != nil {
 		return nil, err
 	}
-	return s.paymentRepo.GetByID(ctx, tenantID, id)
+	payment, err := s.paymentRepo.GetByID(ctx, tenantID, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.authorizePayment(ctx, actor, payment); err != nil {
+		return nil, err
+	}
+	return payment, nil
 }
 
 // UpdatePayment patches a payment.
@@ -170,6 +186,9 @@ func (s *Service) UpdatePayment(ctx context.Context, actor auth.Actor, id string
 	}
 	p, err := s.paymentRepo.GetByID(ctx, tenantID, id)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.authorizePayment(ctx, actor, p); err != nil {
 		return nil, err
 	}
 
@@ -204,11 +223,15 @@ func (s *Service) UpdatePayment(ctx context.Context, actor auth.Actor, id string
 	if err := p.Validate(); err != nil {
 		return nil, err
 	}
-	if err := s.paymentRepo.Update(ctx, tenantID, p); err != nil {
+	if err := s.persistPaymentLifecycle(
+		ctx,
+		tenantID,
+		p,
+		ports.PaymentMutationUpdate,
+		"payment.updated.v1",
+		map[string]any{"changed_fields": changed},
+	); err != nil {
 		return nil, err
-	}
-	if err := s.pub.PublishPayment(ctx, "payment.updated.v1", p, map[string]any{"changed_fields": changed}); err != nil {
-		slog.Default().ErrorContext(ctx, "failed to publish payment.updated event", "err", err)
 	}
 	return p, nil
 }
@@ -223,13 +246,7 @@ func (s *Service) DeletePayment(ctx context.Context, actor auth.Actor, id string
 	if err != nil {
 		return err
 	}
-	if err := s.paymentRepo.Delete(ctx, tenantID, id); err != nil {
-		return err
-	}
-	if err := s.pub.PublishPayment(ctx, "payment.deleted.v1", p, nil); err != nil {
-		slog.Default().ErrorContext(ctx, "failed to publish payment.deleted event", "err", err)
-	}
-	return nil
+	return s.persistPaymentLifecycle(ctx, tenantID, p, ports.PaymentMutationDelete, "payment.deleted.v1", nil)
 }
 
 // InitiatePayment transitions a payment to processing, calls the provider adapter and publishes an event.
@@ -240,6 +257,9 @@ func (s *Service) InitiatePayment(ctx context.Context, actor auth.Actor, id stri
 	}
 	p, err := s.paymentRepo.GetByID(ctx, tenantID, id)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.authorizePayment(ctx, actor, p); err != nil {
 		return nil, err
 	}
 	if p.Status != string(domain.PaymentStatusPending) {
@@ -254,21 +274,80 @@ func (s *Service) InitiatePayment(ctx context.Context, actor auth.Actor, id stri
 		return nil, err
 	}
 
-	ref, _, err := s.provider.Initiate(ctx, *p)
+	ref, checkoutURL, err := s.provider.Initiate(ctx, *p)
 	if err != nil {
-		return nil, fmt.Errorf("%w: provider initiate failed: %w", domain.ErrValidation, err)
+		providerErr := fmt.Errorf("%w: provider initiate failed: %w", domain.ErrValidation, err)
+		return nil, errors.Join(providerErr, s.rollbackInitiation(ctx, tenantID, p))
+	}
+	parsedCheckout, parseErr := url.Parse(checkoutURL)
+	if parseErr != nil || parsedCheckout.Scheme != "https" || parsedCheckout.Host == "" {
+		providerErr := fmt.Errorf("%w: provider returned an invalid checkout URL", domain.ErrValidation)
+		return nil, errors.Join(providerErr, s.rollbackInitiation(ctx, tenantID, p))
 	}
 	if _, err := p.ApplyUpdate(domain.PaymentPatch{ProviderReference: &ref}); err != nil {
 		return nil, err
 	}
-	if err := s.paymentRepo.Update(ctx, tenantID, p); err != nil {
+	if err := s.persistPaymentLifecycle(
+		ctx,
+		tenantID,
+		p,
+		ports.PaymentMutationUpdate,
+		"payment.initiated.v1",
+		map[string]any{"provider_reference": ref},
+	); err != nil {
 		return nil, err
 	}
-
-	if err := s.pub.PublishPayment(ctx, "payment.initiated.v1", p, map[string]any{"provider_reference": ref}); err != nil {
-		slog.Default().ErrorContext(ctx, "failed to publish payment.initiated event", "err", err)
-	}
+	p.CheckoutURL = &checkoutURL
 	return p, nil
+}
+
+func (s *Service) rollbackInitiation(ctx context.Context, tenantID string, payment *domain.Payment) error {
+	pending := string(domain.PaymentStatusPending)
+	if _, err := payment.ApplyUpdate(domain.PaymentPatch{Status: &pending}); err != nil {
+		return fmt.Errorf("payments: restore pending state: %w", err)
+	}
+	if err := s.paymentRepo.Update(ctx, tenantID, payment); err != nil {
+		return fmt.Errorf("payments: persist restored pending state: %w", err)
+	}
+	return nil
+}
+
+func (s *Service) persistPaymentLifecycle(
+	ctx context.Context,
+	tenantID string,
+	payment *domain.Payment,
+	mutation string,
+	eventType string,
+	meta map[string]any,
+) error {
+	if durable, ok := s.paymentRepo.(ports.LifecycleRepository); ok {
+		return durable.CommitPaymentLifecycle(
+			ctx,
+			tenantID,
+			payment,
+			mutation,
+			eventType,
+			ports.PaymentEventData(eventType, payment, meta),
+		)
+	}
+	var err error
+	switch mutation {
+	case ports.PaymentMutationCreate:
+		err = s.paymentRepo.Create(ctx, tenantID, payment)
+	case ports.PaymentMutationUpdate:
+		err = s.paymentRepo.Update(ctx, tenantID, payment)
+	case ports.PaymentMutationDelete:
+		err = s.paymentRepo.Delete(ctx, tenantID, payment.ID)
+	default:
+		err = fmt.Errorf("payments: unsupported lifecycle mutation %q", mutation)
+	}
+	if err != nil {
+		return err
+	}
+	if err := s.pub.PublishPayment(ctx, eventType, payment, meta); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish payment lifecycle event", "event_type", eventType, "err", err)
+	}
+	return nil
 }
 
 // --- Transaction use cases ---
@@ -284,6 +363,13 @@ func (s *Service) ListTransactionsByPayment(
 	if err != nil {
 		return nil, "", err
 	}
+	payment, err := s.paymentRepo.GetByID(ctx, tenantID, paymentID)
+	if err != nil {
+		return nil, "", err
+	}
+	if err := s.authorizePayment(ctx, actor, payment); err != nil {
+		return nil, "", err
+	}
 	filter.Limit = normalizeLimit(filter.Limit)
 	return s.transactionRepo.ListByPayment(ctx, tenantID, paymentID, filter)
 }
@@ -294,7 +380,18 @@ func (s *Service) GetTransaction(ctx context.Context, actor auth.Actor, id strin
 	if err != nil {
 		return nil, err
 	}
-	return s.transactionRepo.GetByID(ctx, tenantID, id)
+	tx, err := s.transactionRepo.GetByID(ctx, tenantID, id)
+	if err != nil {
+		return nil, err
+	}
+	payment, err := s.paymentRepo.GetByID(ctx, tenantID, tx.PaymentID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.authorizePayment(ctx, actor, payment); err != nil {
+		return nil, err
+	}
+	return tx, nil
 }
 
 // --- Webhook event use cases ---
@@ -326,7 +423,7 @@ func (s *Service) CreateWebhookEvent(ctx context.Context, actor auth.Actor, req 
 
 // ListWebhookEvents returns a tenant-scoped page of webhook events.
 func (s *Service) ListWebhookEvents(ctx context.Context, actor auth.Actor, filter ports.WebhookEventFilter) ([]*domain.WebhookEvent, string, error) {
-	tenantID, err := s.requireAccess(ctx, actor, PermRead)
+	tenantID, err := s.requireAccess(ctx, actor, PermConfigure)
 	if err != nil {
 		return nil, "", err
 	}
@@ -336,7 +433,7 @@ func (s *Service) ListWebhookEvents(ctx context.Context, actor auth.Actor, filte
 
 // GetWebhookEvent returns a single webhook event.
 func (s *Service) GetWebhookEvent(ctx context.Context, actor auth.Actor, id string) (*domain.WebhookEvent, error) {
-	tenantID, err := s.requireAccess(ctx, actor, PermRead)
+	tenantID, err := s.requireAccess(ctx, actor, PermConfigure)
 	if err != nil {
 		return nil, err
 	}
@@ -439,6 +536,9 @@ func (s *Service) VerifyPayment(ctx context.Context, actor auth.Actor, id string
 	}
 	p, err := s.paymentRepo.GetByID(ctx, tenantID, id)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.authorizePayment(ctx, actor, p); err != nil {
 		return nil, err
 	}
 	if p.ProviderReference == nil || strings.TrimSpace(*p.ProviderReference) == "" {
@@ -569,50 +669,60 @@ func (s *Service) reconcilePayment(ctx context.Context, tenantID string, payment
 		if _, err := payment.ApplyUpdate(domain.PaymentPatch{Status: &target, CompletedAt: &now}); err != nil {
 			return err
 		}
-		if err := s.paymentRepo.Update(ctx, tenantID, payment); err != nil {
-			return err
-		}
-		if err := s.recordTransaction(
-			ctx, tenantID, payment.ID,
+		return s.commitReconciliation(
+			ctx, tenantID, payment,
 			string(domain.TransactionTypeCredit), string(domain.TransactionStatusSuccess),
-			providerReference, payment.AmountCents,
-		); err != nil {
-			return err
-		}
-		if err := s.pub.PublishPayment(ctx, "payment.received.v1", payment, map[string]any{"provider_reference": providerReference}); err != nil {
-			slog.Default().ErrorContext(ctx, "failed to publish payment.received event", "err", err)
-		}
-		return nil
+			providerReference, "payment.received.v1", map[string]any{"provider_reference": providerReference},
+		)
 	}
 
 	if _, err := payment.ApplyUpdate(domain.PaymentPatch{Status: &target}); err != nil {
 		return err
 	}
-	if err := s.paymentRepo.Update(ctx, tenantID, payment); err != nil {
-		return err
-	}
-	if err := s.recordTransaction(
-		ctx, tenantID, payment.ID,
+	return s.commitReconciliation(
+		ctx, tenantID, payment,
 		string(domain.TransactionTypeDebit), string(domain.TransactionStatusFailed),
-		providerReference, payment.AmountCents,
-	); err != nil {
-		return err
-	}
-	if err := s.pub.PublishPayment(ctx, "payment.failed.v1", payment, map[string]any{
-		"provider_reference": providerReference,
-		"reason":             "provider reported status " + status,
-	}); err != nil {
-		slog.Default().ErrorContext(ctx, "failed to publish payment.failed event", "err", err)
-	}
-	return nil
+		providerReference, "payment.failed.v1", map[string]any{
+			"provider_reference": providerReference,
+			"reason":             "provider reported status " + status,
+		})
 }
 
-func (s *Service) recordTransaction(ctx context.Context, tenantID, paymentID, txType, status, reference string, amountCents int) error {
-	tx, err := domain.NewTransaction(tenantID, paymentID, txType, status, reference, amountCents)
+func (s *Service) commitReconciliation(
+	ctx context.Context,
+	tenantID string,
+	payment *domain.Payment,
+	txType string,
+	txStatus string,
+	reference string,
+	eventType string,
+	meta map[string]any,
+) error {
+	transaction, err := domain.NewTransaction(tenantID, payment.ID, txType, txStatus, reference, payment.AmountCents)
 	if err != nil {
 		return err
 	}
-	return s.transactionRepo.Create(ctx, tenantID, tx)
+	if durable, ok := s.paymentRepo.(ports.ReconciliationRepository); ok {
+		return durable.CommitReconciliation(
+			ctx,
+			tenantID,
+			payment,
+			transaction,
+			eventType,
+			ports.PaymentEventData(eventType, payment, meta),
+		)
+	}
+	// Non-transactional repositories exist only in unit tests and local adapters.
+	if err := s.paymentRepo.Update(ctx, tenantID, payment); err != nil {
+		return err
+	}
+	if err := s.transactionRepo.Create(ctx, tenantID, transaction); err != nil {
+		return err
+	}
+	if err := s.pub.PublishPayment(ctx, eventType, payment, meta); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to publish payment reconciliation event", "event_type", eventType, "err", err)
+	}
+	return nil
 }
 
 func (s *Service) requireAccess(ctx context.Context, actor auth.Actor, perm string) (string, error) {
@@ -629,10 +739,60 @@ func (s *Service) requireAccess(ctx context.Context, actor auth.Actor, perm stri
 	if !actor.Has(perm) {
 		return "", domain.ErrForbidden
 	}
+	if learnerPaymentRole(actor.Role) && s.invoiceAccess == nil {
+		return "", domain.ErrUnavailable
+	}
 	if s.gates != nil && !s.gates.IsEnabled(ctx, tenantID, FeaturePayments) {
 		return "", fmt.Errorf("%w: %s", flags.ErrFeatureDisabled, FeaturePayments)
 	}
 	return tenantID, nil
+}
+
+func learnerPaymentRole(role string) bool {
+	role = strings.ToLower(strings.TrimSpace(role))
+	return role == "parent" || role == "student"
+}
+
+func (s *Service) authorizedPayments(ctx context.Context, actor auth.Actor, records []*domain.Payment) ([]*domain.Payment, error) {
+	if !learnerPaymentRole(actor.Role) {
+		return records, nil
+	}
+	if s.invoiceAccess == nil {
+		return nil, domain.ErrUnavailable
+	}
+	invoiceIDs := make([]string, 0, len(records))
+	for _, payment := range records {
+		invoiceIDs = append(invoiceIDs, payment.InvoiceID)
+	}
+	allowed, err := s.invoiceAccess.Resolve(ctx, actor.TenantID, actor.UserID, strings.ToLower(strings.TrimSpace(actor.Role)), invoiceIDs)
+	if err != nil {
+		return nil, err
+	}
+	set := make(map[string]struct{}, len(allowed))
+	for _, id := range allowed {
+		set[id] = struct{}{}
+	}
+	filtered := make([]*domain.Payment, 0, len(records))
+	for _, payment := range records {
+		if _, ok := set[payment.InvoiceID]; ok {
+			filtered = append(filtered, payment)
+		}
+	}
+	return filtered, nil
+}
+
+func (s *Service) authorizePayment(ctx context.Context, actor auth.Actor, payment *domain.Payment) error {
+	if !learnerPaymentRole(actor.Role) {
+		return nil
+	}
+	allowed, err := s.authorizedPayments(ctx, actor, []*domain.Payment{payment})
+	if err != nil {
+		return err
+	}
+	if len(allowed) != 1 {
+		return domain.ErrNotFound
+	}
+	return nil
 }
 
 func normalizeLimit(n int) int {
@@ -658,39 +818,18 @@ func parseWebhookPayload(payload json.RawMessage) (eventType, providerReference,
 	if err := json.Unmarshal(payload, &data); err != nil {
 		return "", "", "", fmt.Errorf("%w: payload must be valid JSON", domain.ErrValidation)
 	}
-	eventType = stringField(data, "event")
-	if eventType == "" {
-		eventType = stringField(data, "event_type")
+	eventType = firstString(data, "event", "event_type")
+	nested := objectField(data, "data")
+	providerReference = firstString(data, "reference", "provider_reference")
+	if providerReference == "" {
+		providerReference = firstString(nested, "reference", "tx_ref")
 	}
-	if ref, ok := data["reference"].(string); ok && ref != "" {
-		providerReference = ref
-	} else if ref, ok := data["provider_reference"].(string); ok && ref != "" {
-		providerReference = ref
-	} else if nested, ok := data["data"].(map[string]any); ok {
-		if ref, ok := nested["reference"].(string); ok && ref != "" {
-			providerReference = ref
-		} else if ref, ok := nested["tx_ref"].(string); ok && ref != "" {
-			providerReference = ref
-		}
-	}
-	if tenant, ok := data["tenant_id"].(string); ok && tenant != "" {
-		tenantID = tenant
-	} else if tenant, ok := data["tenant"].(string); ok && tenant != "" {
-		tenantID = tenant
-	} else if nested, ok := data["data"].(map[string]any); ok {
-		// Paystack carries our metadata bag on data.metadata.
-		if meta, ok := nested["metadata"].(map[string]any); ok {
-			if tenant, ok := meta["tenant_id"].(string); ok && tenant != "" {
-				tenantID = tenant
-			}
-		}
+	tenantID = firstString(data, "tenant_id", "tenant")
+	if tenantID == "" {
+		tenantID = tenantFromMetadata(nested)
 	}
 	if tenantID == "" {
-		if meta, ok := data["metadata"].(map[string]any); ok {
-			if tenant, ok := meta["tenant_id"].(string); ok && tenant != "" {
-				tenantID = tenant
-			}
-		}
+		tenantID = tenantFromMetadata(data)
 	}
 	if eventType == "" {
 		eventType = "charge.success"
@@ -702,6 +841,28 @@ func parseWebhookPayload(payload json.RawMessage) (eventType, providerReference,
 		return "", "", "", fmt.Errorf("%w: tenant_id not found in payload", domain.ErrValidation)
 	}
 	return eventType, providerReference, tenantID, nil
+}
+
+func firstString(values map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if value := stringField(values, key); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func tenantFromMetadata(values map[string]any) string {
+	metadata := objectField(values, "metadata")
+	return stringField(metadata, "tenant_id")
+}
+
+func objectField(values map[string]any, key string) map[string]any {
+	value, ok := values[key].(map[string]any)
+	if !ok {
+		return nil
+	}
+	return value
 }
 
 func nowUTC() time.Time { return time.Now().UTC() }

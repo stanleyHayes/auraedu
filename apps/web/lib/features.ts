@@ -23,6 +23,16 @@ const ROUTE_FEATURES: RouteMapping[] = [
   { prefix: "/admin/payments", feature: "online_payments" },
   { prefix: "/admin/communications", feature: "announcements" },
   { prefix: "/admin/website", feature: "public_website" },
+  { prefix: "/admin/leads", feature: "growth_crm" },
+  { prefix: "/admin/journeys", feature: "growth_crm" },
+  { prefix: "/admin/knowledge", feature: "growth_website_chat" },
+  { prefix: "/admin/campaigns", feature: "growth_campaigns" },
+  { prefix: "/admin/content", feature: "growth_content_ai" },
+  { prefix: "/admin/admissions", feature: "admissions" },
+  { prefix: "/admin/programmes", feature: "admissions" },
+  { prefix: "/admin/analytics", feature: "analytics" },
+  { prefix: "/admin/automation", feature: "growth_autonomous_actions" },
+  { prefix: "/applicant", feature: "admissions" },
 
   // Teacher
   { prefix: "/teacher/classes", feature: "academic_management" },
@@ -59,6 +69,20 @@ export function getRouteFeature(pathname: string): string | null {
     }
   }
   return null;
+}
+
+export function enabledFeatureKeys(flags: FeatureFlag[] | null | undefined): Set<string> {
+  return new Set((flags ?? []).filter((flag) => flag.is_enabled).map((flag) => flag.feature_key));
+}
+
+export function isNavigationFeatureVisible(
+  feature: string | undefined,
+  enabled: Set<string> | null,
+  allowStub = false,
+): boolean {
+  if (!feature) return true;
+  if (allowStub) return true;
+  return enabled?.has(feature) === true;
 }
 
 export function checkRouteFeature(

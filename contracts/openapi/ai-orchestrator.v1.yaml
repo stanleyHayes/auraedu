@@ -1,0 +1,135 @@
+openapi: 3.1.0
+info:
+  title: AuraEDU AI Orchestrator API
+  version: 1.0.0
+  description: Grounded website assistance and policy-controlled, independently reviewed low-risk actions.
+  contact:
+    name: AuraEDU Engineering
+servers: [{ url: /api/v1 }]
+tags:
+  - name: ai
+
+paths:
+  /ai/actions:
+    get:
+      operationId: listAIActionProposals
+      description: Executes the list ai action proposals workflow within this AuraEDU API boundary.
+      tags: ['ai']
+      parameters:
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/ActionStatus' } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200': { description: Tenant-scoped action queue, content: { application/json: { schema: { type: object, required: [data], properties: { data: { type: array, items: { $ref: '#/components/schemas/ActionProposal' } } } } } } }
+    post:
+      operationId: proposeAIAction
+      description: Executes the propose ai action workflow within this AuraEDU API boundary.
+      tags: ['ai']
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 16, maxLength: 128 } }
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ProposeAction' } } } }
+      responses:
+        '201': { description: Pending independent approval, content: { application/json: { schema: { $ref: '#/components/schemas/ActionProposal' } } } }
+        '403': { description: "Unknown, high-risk, disabled, cross-tenant, or unauthorised action" }
+        '409': { description: Idempotency key reused with a changed request }
+  /ai/actions/{action_id}:
+    parameters: [{ name: action_id, in: path, required: true, schema: { type: string, format: uuid } }]
+    get:
+      operationId: getAIActionProposal
+      description: Executes the get ai action proposal workflow within this AuraEDU API boundary.
+      tags: ['ai']
+      responses:
+        '200': { description: Proposal and immutable lifecycle evidence, content: { application/json: { schema: { type: object, required: [action, audit], properties: { action: { $ref: '#/components/schemas/ActionProposal' }, audit: { type: array, items: { $ref: '#/components/schemas/ActionAuditEntry' } } } } } } }
+  /ai/actions/{action_id}/approve:
+    parameters: [{ name: action_id, in: path, required: true, schema: { type: string, format: uuid } }]
+    post:
+      operationId: approveAndExecuteAIAction
+      tags: ['ai']
+      description: Requires an independent human with ai.action.approve and the underlying tool permission. AI and service actors cannot approve.
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ReviewAction' } } } }
+      responses:
+        '200': { description: Execution outcome, content: { application/json: { schema: { $ref: '#/components/schemas/ActionProposal' } } } }
+        '409': { description: Proposal is not pending approval }
+  /ai/actions/{action_id}/reject:
+    parameters: [{ name: action_id, in: path, required: true, schema: { type: string, format: uuid } }]
+    post:
+      operationId: rejectAIAction
+      description: Executes the reject ai action workflow within this AuraEDU API boundary.
+      tags: ['ai']
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ReviewAction' } } } }
+      responses:
+        '200': { description: Rejected proposal, content: { application/json: { schema: { $ref: '#/components/schemas/ActionProposal' } } } }
+  /ai/actions/{action_id}/retry:
+    parameters: [{ name: action_id, in: path, required: true, schema: { type: string, format: uuid } }]
+    post:
+      operationId: retryFailedAIAction
+      tags: ['ai']
+      description: Re-executes only a previously approved failed action using its immutable payload.
+      responses:
+        '200': { description: Retry outcome, content: { application/json: { schema: { $ref: '#/components/schemas/ActionProposal' } } } }
+components:
+  schemas:
+    ActionName:
+      type: string
+      enum: [crm.lead.assign]
+      description: Server-owned allowlist. The initial production policy permits only reversible individual CRM lead assignment.
+    ActionStatus:
+      type: string
+      enum: [pending_approval, approved, executing, succeeded, failed, rejected, cancelled]
+    LeadAssignmentPayload:
+      type: object
+      additionalProperties: false
+      required: [owner_user_id]
+      properties: { owner_user_id: { type: string, format: uuid } }
+    ProposeAction:
+      type: object
+      additionalProperties: false
+      required: [action, target_id, payload, reason]
+      properties:
+        action: { $ref: '#/components/schemas/ActionName' }
+        target_id: { type: string, format: uuid }
+        payload: { $ref: '#/components/schemas/LeadAssignmentPayload' }
+        reason: { type: string, minLength: 10, maxLength: 1000 }
+    ReviewAction:
+      type: object
+      additionalProperties: false
+      required: [note]
+      properties: { note: { type: string, maxLength: 1000 } }
+    ActionProposal:
+      type: object
+      required: [id, action, level, policy_version, target_type, target_id, payload, payload_hash, reason, status, proposed_by, proposer_role, execution_attempts, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string }
+        action: { $ref: '#/components/schemas/ActionName' }
+        level: { type: integer, enum: [2] }
+        policy_version: { type: string }
+        target_type: { type: string, enum: [crm_lead] }
+        target_id: { type: string, format: uuid }
+        payload: { $ref: '#/components/schemas/LeadAssignmentPayload' }
+        payload_hash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        reason: { type: string }
+        status: { $ref: '#/components/schemas/ActionStatus' }
+        proposed_by: { type: string }
+        proposer_role: { type: string }
+        reviewed_by: { type: [string, 'null'] }
+        reviewer_role: { type: [string, 'null'] }
+        review_note: { type: [string, 'null'] }
+        reviewed_at: { type: [string, 'null'], format: date-time }
+        execution_attempts: { type: integer, minimum: 0 }
+        result: { type: [object, 'null'], additionalProperties: true }
+        failure_code: { type: [string, 'null'] }
+        failure_detail: { type: [string, 'null'] }
+        executed_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    ActionAuditEntry:
+      type: object
+      required: [id, action_id, event, actor_id, actor_role, evidence, occurred_at]
+      properties:
+        id: { type: string, format: uuid }
+        action_id: { type: string, format: uuid }
+        event: { type: string, enum: [proposed, approved, rejected, execution_started, execution_succeeded, execution_failed] }
+        actor_id: { type: string }
+        actor_role: { type: string }
+        evidence: { type: object, additionalProperties: true }
+        occurred_at: { type: string, format: date-time }

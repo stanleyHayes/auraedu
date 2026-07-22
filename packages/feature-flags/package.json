@@ -10,12 +10,13 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "build": "echo \"@auraedu/flags: source-only package\"",
-    "test": "echo \"no tests yet\""
+    "test": "node --test test/*.test.ts"
   },
   "peerDependencies": {
     "react": "^19.2.7"
   },
   "devDependencies": {
+    "@types/node": "^26.1.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "eslint": "^10.7.0",

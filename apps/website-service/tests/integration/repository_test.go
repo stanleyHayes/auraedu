@@ -28,6 +28,54 @@ func withTenant(ctx context.Context, tenantID string) context.Context {
 	return tenancy.WithContext(ctx, tenancy.TenantContext{TenantID: tenantID})
 }
 
+func TestRepository_LifecycleOutboxAndDefaultProvisioningAreAtomic(t *testing.T) {
+	ctx := withTenant(context.Background(), tenantA)
+	tdb := testkit.NewPostgres(context.Background(), t, "../../migrations")
+	repo := postgres.NewRepository(tdb.DB)
+	page, err := domain.NewPage(tenantA, "durable", "Durable")
+	if err != nil {
+		t.Fatal(err)
+	}
+	events := []ports.LifecycleEvent{{EventType: "website.page_created.v1", Payload: ports.PageEventData(page, nil)}}
+	if err := repo.CommitWebsiteLifecycle(ctx, tenantA, ports.WebsiteMutationPageCreate, page, nil, events); err != nil {
+		t.Fatal(err)
+	}
+	items, err := repo.ClaimPendingWebsiteEvents(context.Background(), 10)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("items=%+v err=%v", items, err)
+	}
+
+	home, err := domain.NewPage(tenantA, "home", "Home")
+	if err != nil {
+		t.Fatal(err)
+	}
+	section, err := domain.NewSection(tenantA, home.ID, domain.SectionTypeHero, domain.Content{"title": "Welcome"}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provisionEvents := []ports.LifecycleEvent{{EventType: "website.page_created.v1", Payload: ports.PageEventData(home, nil)}, {EventType: "website.section_created.v1", Payload: ports.SectionEventData(section, nil)}}
+	if err := repo.ProvisionDefaultWebsite(ctx, tenantA, home, section, provisionEvents); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.GetSectionByID(ctx, tenantA, section.ID); err != nil {
+		t.Fatalf("default section missing: %v", err)
+	}
+
+	rollback, err := domain.NewPage(tenantA, "rollback", "Rollback")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tdb.DB.Pool().Exec(context.Background(), `DROP TABLE website_outbox`); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CommitWebsiteLifecycle(ctx, tenantA, ports.WebsiteMutationPageCreate, rollback, nil, []ports.LifecycleEvent{{EventType: "website.page_created.v1", Payload: ports.PageEventData(rollback, nil)}}); err == nil {
+		t.Fatal("expected outbox failure")
+	}
+	if _, err := repo.GetPageByID(ctx, tenantA, rollback.ID); err == nil {
+		t.Fatal("page mutation must roll back")
+	}
+}
+
 func mustCreatePage(ctx context.Context, t *testing.T, repo ports.Repository, tenantID, slug, title string) *domain.Page {
 	t.Helper()
 	page, err := domain.NewPage(tenantID, slug, title)

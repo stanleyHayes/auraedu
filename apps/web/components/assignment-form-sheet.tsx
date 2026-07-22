@@ -19,19 +19,20 @@ interface AssignmentFormSheetProps {
   years: AcademicYear[];
 }
 
-export function AssignmentFormSheet({ mode, initial, subjects, classes, years }: AssignmentFormSheetProps) {
+export function AssignmentFormSheet({
+  mode,
+  initial,
+  subjects,
+  classes,
+  years,
+}: AssignmentFormSheetProps) {
   const [open, setOpen] = React.useState(false);
   const isEdit = mode === "edit";
 
   return (
     <>
       {isEdit ? (
-        <Button
-          type="button"
-          variant="ghost"
-          className="h-8 px-2"
-          onClick={() => setOpen(true)}
-        >
+        <Button type="button" variant="ghost" className="h-8 px-2" onClick={() => setOpen(true)}>
           <Pencil className="size-4" />
           <span className="sr-only">Edit {initial?.title}</span>
         </Button>
@@ -41,10 +42,17 @@ export function AssignmentFormSheet({ mode, initial, subjects, classes, years }:
           Add assignment
         </Button>
       )}
-      <Sheet open={open} onClose={() => setOpen(false)} side="right" className="w-full max-w-xl bg-[var(--surface)] p-0">
+      <Sheet
+        open={open}
+        onClose={() => setOpen(false)}
+        side="right"
+        className="w-full max-w-xl bg-[var(--surface)] p-0"
+      >
         <div className="flex h-full flex-col">
           <div className="border-b border-[var(--border)] bg-[var(--muted)] px-6 py-4">
-            <h2 className="font-heading text-lg font-bold">{isEdit ? "Edit assignment" : "Add assignment"}</h2>
+            <h2 className="font-heading text-lg font-bold">
+              {isEdit ? "Edit assignment" : "Add assignment"}
+            </h2>
             <p className="text-sm text-muted-foreground">
               {isEdit
                 ? "Update the title, instructions, class, due date, or max score."

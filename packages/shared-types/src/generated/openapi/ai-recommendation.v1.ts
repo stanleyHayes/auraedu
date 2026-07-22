@@ -9,7 +9,10 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Service health check */
+        /**
+         * Service health check
+         * @description Executes the health check workflow within this AuraEDU API boundary.
+         */
         get: operations["healthCheck"];
         put?: never;
         post?: never;
@@ -28,7 +31,10 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Ingest a single approved learning metric (for tests/admins) */
+        /**
+         * Ingest a single approved learning metric (for tests/admins)
+         * @description Executes the ingest feature store metric workflow within this AuraEDU API boundary.
+         */
         post: operations["ingestFeatureStoreMetric"];
         delete?: never;
         options?: never;
@@ -43,10 +49,16 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List recommendations for a student */
+        /**
+         * List recommendations for a student
+         * @description Executes the list recommendations workflow within this AuraEDU API boundary.
+         */
         get: operations["listRecommendations"];
         put?: never;
-        /** Generate recommendations for a student */
+        /**
+         * Generate recommendations for a student
+         * @description Executes the generate recommendations workflow within this AuraEDU API boundary.
+         */
         post: operations["generateRecommendations"];
         delete?: never;
         options?: never;
@@ -61,7 +73,10 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get a recommendation by ID */
+        /**
+         * Get a recommendation by ID
+         * @description Executes the get recommendation workflow within this AuraEDU API boundary.
+         */
         get: operations["getRecommendation"];
         put?: never;
         post?: never;
@@ -80,7 +95,10 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Approve a pending recommendation */
+        /**
+         * Approve a pending recommendation
+         * @description Executes the approve recommendation workflow within this AuraEDU API boundary.
+         */
         post: operations["approveRecommendation"];
         delete?: never;
         options?: never;
@@ -97,7 +115,10 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Reject a pending recommendation */
+        /**
+         * Reject a pending recommendation
+         * @description Executes the reject recommendation workflow within this AuraEDU API boundary.
+         */
         post: operations["rejectRecommendation"];
         delete?: never;
         options?: never;
@@ -114,7 +135,10 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Override a recommendation with a teacher-crafted action */
+        /**
+         * Override a recommendation with a teacher-crafted action
+         * @description Executes the override recommendation workflow within this AuraEDU API boundary.
+         */
         post: operations["overrideRecommendation"];
         delete?: never;
         options?: never;
@@ -129,7 +153,10 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get explainability details for a recommendation */
+        /**
+         * Get explainability details for a recommendation
+         * @description Executes the explain recommendation workflow within this AuraEDU API boundary.
+         */
         get: operations["explainRecommendation"];
         put?: never;
         post?: never;
@@ -354,8 +381,9 @@ export interface operations {
     };
     listRecommendations: {
         parameters: {
-            query: {
-                student_id: string;
+            query?: {
+                /** @description Required for staff and parents; inferred from the authenticated student identity for student actors. */
+                student_id?: string;
                 status?: "pending" | "approved" | "rejected" | "overridden";
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];

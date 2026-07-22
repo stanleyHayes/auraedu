@@ -8,6 +8,7 @@ import (
 	"context"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/auraedu/tenant-service/internal/domain"
 	"github.com/auraedu/tenant-service/internal/ports"
@@ -15,11 +16,18 @@ import (
 
 // Repository is the seeded in-memory tenant + feature-flag store.
 type Repository struct {
-	mu       sync.RWMutex
-	tenants  map[string]domain.Tenant
-	order    []string
-	enabled  map[string]map[string]bool // tenant code -> feature key -> enabled
-	settings map[string]domain.Settings
+	mu                sync.RWMutex
+	tenants           map[string]domain.Tenant
+	order             []string
+	enabled           map[string]map[string]bool // tenant code -> feature key -> enabled
+	settings          map[string]domain.Settings
+	onboarding        map[string]*domain.OnboardingRequest
+	onboardingOrder   []string
+	idempotency       map[string]string
+	payloadHashes     map[string]string
+	emailFingerprints map[string]string
+	customDomains     map[string]domain.CustomDomain
+	domainChallenges  map[string]string
 }
 
 var _ ports.Repository = (*Repository)(nil)
@@ -35,9 +43,15 @@ func setOf(keys ...string) map[string]bool {
 // New returns a seeded repository (UPSHS, Aboom, Cape Coast Prep).
 func New() *Repository {
 	r := &Repository{
-		tenants:  map[string]domain.Tenant{},
-		enabled:  map[string]map[string]bool{},
-		settings: map[string]domain.Settings{},
+		tenants:           map[string]domain.Tenant{},
+		enabled:           map[string]map[string]bool{},
+		settings:          map[string]domain.Settings{},
+		onboarding:        map[string]*domain.OnboardingRequest{},
+		idempotency:       map[string]string{},
+		payloadHashes:     map[string]string{},
+		emailFingerprints: map[string]string{},
+		customDomains:     map[string]domain.CustomDomain{},
+		domainChallenges:  map[string]string{},
 	}
 	add := func(t domain.Tenant, enabled map[string]bool) {
 		r.tenants[t.Code] = t
@@ -73,6 +87,119 @@ func New() *Repository {
 	))
 
 	return r
+}
+
+func (r *Repository) SubmitOnboarding(
+	_ context.Context,
+	request *domain.OnboardingRequest,
+	idempotencyHash string,
+	payloadHash string,
+	emailFingerprint string,
+) (*domain.OnboardingRequest, bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if id, ok := r.idempotency[idempotencyHash]; ok {
+		if r.payloadHashes[idempotencyHash] != payloadHash {
+			return nil, false, domain.ErrConflict
+		}
+		stored := *r.onboarding[id]
+		return &stored, false, nil
+	}
+	if id, ok := r.emailFingerprints[emailFingerprint]; ok {
+		stored := *r.onboarding[id]
+		return &stored, false, nil
+	}
+	stored := *request
+	r.onboarding[request.ID] = &stored
+	r.onboardingOrder = append(r.onboardingOrder, request.ID)
+	r.idempotency[idempotencyHash] = request.ID
+	r.payloadHashes[idempotencyHash] = payloadHash
+	r.emailFingerprints[emailFingerprint] = request.ID
+	return request, true, nil
+}
+
+func (r *Repository) ListOnboarding(_ context.Context, limit int, cursor, status string) ([]domain.OnboardingRequest, string, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if limit <= 0 || limit > 100 {
+		limit = 25
+	}
+	out := make([]domain.OnboardingRequest, 0, limit)
+	started := cursor == ""
+	for i := len(r.onboardingOrder) - 1; i >= 0; i-- {
+		id := r.onboardingOrder[i]
+		if !started {
+			started = id == cursor
+			continue
+		}
+		item := r.onboarding[id]
+		if status != "" && item.Status != status {
+			continue
+		}
+		if len(out) == limit {
+			return out, out[len(out)-1].ID, nil
+		}
+		out = append(out, *item)
+	}
+	return out, "", nil
+}
+
+func (r *Repository) GetOnboarding(_ context.Context, requestID string) (domain.OnboardingRequest, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	item, ok := r.onboarding[requestID]
+	if !ok {
+		return domain.OnboardingRequest{}, domain.ErrNotFound
+	}
+	return *item, nil
+}
+
+func (r *Repository) ApproveOnboarding(_ context.Context, requestID string, tenant domain.Tenant, _ string) (domain.OnboardingRequest, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	item, ok := r.onboarding[requestID]
+	if !ok {
+		return domain.OnboardingRequest{}, domain.ErrNotFound
+	}
+	if item.Status != domain.OnboardingPending {
+		return domain.OnboardingRequest{}, domain.ErrConflict
+	}
+	if _, exists := r.tenants[tenant.Code]; exists {
+		return domain.OnboardingRequest{}, domain.ErrConflict
+	}
+	now := time.Now().UTC()
+	item.Status, item.TenantCode, item.DecidedAt = domain.OnboardingApproved, &tenant.Code, &now
+	r.tenants[tenant.Code] = tenant
+	r.order = append(r.order, tenant.Code)
+	r.enabled[tenant.Code] = defaultEnabledForPlan(tenant.Plan)
+	r.settings[tenant.Code] = domain.Settings{PrimaryContactEmail: item.Email}
+	delete(r.emailFingerprints, fingerprintLookup(r.emailFingerprints, requestID))
+	return *item, nil
+}
+
+func (r *Repository) RejectOnboarding(_ context.Context, requestID, reason, _ string) (domain.OnboardingRequest, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	item, ok := r.onboarding[requestID]
+	if !ok {
+		return domain.OnboardingRequest{}, domain.ErrNotFound
+	}
+	if item.Status != domain.OnboardingPending {
+		return domain.OnboardingRequest{}, domain.ErrConflict
+	}
+	now := time.Now().UTC()
+	item.Status, item.DecisionReason, item.DecidedAt = domain.OnboardingRejected, &reason, &now
+	delete(r.emailFingerprints, fingerprintLookup(r.emailFingerprints, requestID))
+	return *item, nil
+}
+
+func fingerprintLookup(values map[string]string, requestID string) string {
+	for fingerprint, id := range values {
+		if id == requestID {
+			return fingerprint
+		}
+	}
+	return ""
 }
 
 func (r *Repository) ListTenants(_ context.Context) ([]domain.Tenant, error) {
@@ -140,6 +267,8 @@ func (r *Repository) DeleteTenant(_ context.Context, code string) error {
 	delete(r.tenants, code)
 	delete(r.enabled, code)
 	delete(r.settings, code)
+	delete(r.customDomains, code)
+	delete(r.domainChallenges, code)
 	for i, c := range r.order {
 		if c == code {
 			r.order = append(r.order[:i], r.order[i+1:]...)
@@ -154,13 +283,13 @@ func (r *Repository) ResolveTenant(_ context.Context, domainHost, subdomain stri
 	defer r.mu.RUnlock()
 	if domainHost != "" {
 		for _, t := range r.tenants {
-			if strings.EqualFold(t.Domain, domainHost) {
+			if t.Status == "active" && strings.EqualFold(t.Domain, domainHost) {
 				return t, nil
 			}
 		}
 	}
 	if subdomain != "" {
-		if t, ok := r.tenants[subdomain]; ok {
+		if t, ok := r.tenants[subdomain]; ok && t.Status == "active" {
 			return t, nil
 		}
 	}
@@ -214,4 +343,86 @@ func (r *Repository) UpdateSettings(_ context.Context, code string, s domain.Set
 	}
 	r.settings[code] = s
 	return nil
+}
+
+func (r *Repository) RequestCustomDomain(_ context.Context, registration domain.CustomDomain, challengeHash string) (domain.CustomDomain, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.tenants[registration.TenantCode]; !ok {
+		return domain.CustomDomain{}, domain.ErrNotFound
+	}
+	if current, ok := r.customDomains[registration.TenantCode]; ok && current.Status == domain.DomainActive {
+		return domain.CustomDomain{}, domain.ErrConflict
+	}
+	for code, existing := range r.customDomains {
+		if code != registration.TenantCode && strings.EqualFold(existing.Hostname, registration.Hostname) {
+			return domain.CustomDomain{}, domain.ErrConflict
+		}
+	}
+	r.customDomains[registration.TenantCode] = registration
+	r.domainChallenges[registration.TenantCode] = challengeHash
+	return registration, nil
+}
+
+func (r *Repository) GetCustomDomain(_ context.Context, code string) (domain.CustomDomain, string, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	registration, ok := r.customDomains[code]
+	if !ok {
+		return domain.CustomDomain{}, "", domain.ErrNotFound
+	}
+	return registration, r.domainChallenges[code], nil
+}
+
+func (r *Repository) MarkCustomDomainVerified(_ context.Context, code string, verifiedAt time.Time) (domain.CustomDomain, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	registration, ok := r.customDomains[code]
+	if !ok {
+		return domain.CustomDomain{}, domain.ErrNotFound
+	}
+	registration.Status = domain.DomainVerified
+	registration.VerifiedAt = &verifiedAt
+	r.customDomains[code] = registration
+	return registration, nil
+}
+
+func (r *Repository) ActivateCustomDomain(_ context.Context, code, providerReference string, activatedAt time.Time) (domain.CustomDomain, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	registration, ok := r.customDomains[code]
+	if !ok {
+		return domain.CustomDomain{}, domain.ErrNotFound
+	}
+	if registration.Status != domain.DomainVerified {
+		return domain.CustomDomain{}, domain.ErrConflict
+	}
+	registration.Status = domain.DomainActive
+	registration.ProviderReference = providerReference
+	registration.ActivatedAt = &activatedAt
+	r.customDomains[code] = registration
+	tenant := r.tenants[code]
+	tenant.Domain = registration.Hostname
+	r.tenants[code] = tenant
+	return registration, nil
+}
+
+func (r *Repository) DeactivateCustomDomain(_ context.Context, code, providerReference string, deactivatedAt time.Time) (domain.CustomDomain, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	registration, ok := r.customDomains[code]
+	if !ok {
+		return domain.CustomDomain{}, domain.ErrNotFound
+	}
+	if registration.Status != domain.DomainActive {
+		return domain.CustomDomain{}, domain.ErrConflict
+	}
+	registration.Status = domain.DomainInactive
+	registration.ProviderReference = providerReference
+	registration.DeactivatedAt = &deactivatedAt
+	r.customDomains[code] = registration
+	tenant := r.tenants[code]
+	tenant.Domain = ""
+	r.tenants[code] = tenant
+	return registration, nil
 }

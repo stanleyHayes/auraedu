@@ -19,23 +19,25 @@ export interface ApiErrorBody {
 }
 
 export class ApiError extends Error {
-  constructor(
-    public readonly status: number,
-    public readonly code: string,
-    message: string,
-    public readonly details?: unknown,
-  ) {
+  public readonly status: number;
+  public readonly code: string;
+  public readonly details?: unknown;
+
+  constructor(status: number, code: string, message: string, details?: unknown) {
     super(message);
+    this.status = status;
+    this.code = code;
+    this.details = details;
     this.name = "ApiError";
   }
 }
 
 export class FeatureDisabledError extends ApiError {
-  constructor(
-    public readonly feature: string,
-    message: string,
-  ) {
+  public readonly feature: string;
+
+  constructor(feature: string, message: string) {
     super(403, "feature_disabled", message);
+    this.feature = feature;
     this.name = "FeatureDisabledError";
   }
 }

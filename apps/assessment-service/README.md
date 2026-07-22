@@ -4,7 +4,10 @@ Assignments, tests, exams, scores (EP-14, L2).
 
 Implemented: CRUD for `Assessment` and `Score` aggregates with Postgres
 persistence, cursor pagination, tenant-scoped RLS, RBAC and feature-flag
-gating, and domain event publishing over NATS.
+gating, and transactional lifecycle event delivery over NATS. Assessment and score
+mutations commit their contracted events to a FORCE-RLS outbox; the worker publishes
+stable IDs with bounded retry. Assignment create/update/delete remain explicit
+non-event boundaries; assignment publication is durable.
 
 - `/api/v1/assessments` + `/api/v1/assessments/{id}/scores` — gated on the
   `assessments` feature flag.
@@ -20,7 +23,8 @@ gating, and domain event publishing over NATS.
 
 ```bash
 cd apps/assessment-service
-DATABASE_URL=postgres://... go run ./cmd/server
+DATABASE_URL=postgres://... go run ./cmd/assessment-service server
+DATABASE_URL=postgres://... NATS_URL=nats://... go run ./cmd/assessment-service worker
 ```
 
 ## Test

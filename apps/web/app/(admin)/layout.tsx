@@ -1,6 +1,5 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { LayoutDashboard } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { ADMIN_NAV, fetchTenantBranding, getTenantCodeFromHeaders } from "@/lib/tenant";
 import { requireAuth, isAdmin } from "@/lib/auth";
@@ -18,7 +17,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   ]);
 
   const routeFeature = checkRouteFeature(pathname, tenant.features);
-  const guardedChildren = routeFeature.enabled ? children : (
+  const guardedChildren = routeFeature.enabled ? (
+    children
+  ) : (
     <FeatureDisabled feature={routeFeature.feature!} />
   );
 
@@ -33,6 +34,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   const user = {
+    id: session.user_id ?? session.sub,
     name: session.name ?? session.email ?? "Admin",
     email: session.email ?? "",
     role: session.role,
@@ -47,17 +49,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   };
 
   return (
-    <AdminShell
-      tenant={tenant}
-      navGroups={ADMIN_NAV}
-      showMobileMenu
-      user={user}
-      page={{
-        icon: <LayoutDashboard className="size-7" />,
-        title: "Admin Console",
-        description: "Manage students, staff, academics, and school settings.",
-      }}
-    >
+    <AdminShell tenant={tenant} navGroups={ADMIN_NAV} showMobileMenu user={user}>
       {guardedChildren}
     </AdminShell>
   );

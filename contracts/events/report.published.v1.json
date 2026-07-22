@@ -18,7 +18,7 @@
       "const": "1.0"
     },
     "type": {
-      "const": "report.published"
+      "const": "report.published.v1"
     },
     "source": {
       "const": "report-service"
@@ -65,7 +65,24 @@
             "null"
           ]
         }
+      },
+      "additionalProperties": false
+    }
+  },
+  "examples": [
+    {
+      "specversion": "1.0",
+      "type": "report.published.v1",
+      "source": "report-service",
+      "id": "example-id",
+      "time": "2026-07-19T10:00:00Z",
+      "tenant_id": "school-a",
+      "data": {
+        "report_card_id": "11111111-1111-4111-8111-111111111111",
+        "student_id": "11111111-1111-4111-8111-111111111111",
+        "term_id": "11111111-1111-4111-8111-111111111111"
       }
     }
-  }
+  ],
+  "additionalProperties": false
 }

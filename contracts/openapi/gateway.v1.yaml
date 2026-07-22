@@ -4,6 +4,8 @@ info:
   version: 1.0.0
   description: >
     Routing, health, and service registry surface exposed by the gateway itself (spec \u00a77). Owned by lane L1 (EP-03).
+  contact:
+    name: AuraEDU Engineering
 servers:
   - url: /api/v1
 tags:
@@ -14,6 +16,7 @@ paths:
     /health:
       get:
             operationId: healthCheck
+            description: Executes the health check workflow within this AuraEDU API boundary.
             tags: ['health']
             summary: Gateway health
             parameters:
@@ -31,6 +34,7 @@ paths:
     /ready:
       get:
             operationId: readyCheck
+            description: Executes the ready check workflow within this AuraEDU API boundary.
             tags: ['health']
             summary: Gateway readiness
             parameters:
@@ -48,6 +52,7 @@ paths:
     /routes:
       get:
             operationId: listRoutes
+            description: Executes the list routes workflow within this AuraEDU API boundary.
             tags: ['routes']
             summary: List configured upstream routes
             parameters:
@@ -64,8 +69,30 @@ paths:
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
+
+    /platform/health:
+      get:
+        operationId: getPlatformDependencyHealth
+        tags: ['health']
+        summary: Read current private-service readiness
+        description: >
+          Platform-super-admin-only, tenant-optional report produced by bounded concurrent
+          gateway probes. Private hosts and raw transport errors are never returned.
+        security: [{ bearerAuth: [] }]
+        responses:
+          '200':
+            description: Current dependency report; degraded/down dependencies remain data in a successful operator response.
+            headers:
+              Cache-Control:
+                schema: { type: string, const: no-store }
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/PlatformHealthReport' }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
       post:
             operationId: createRoute
+            description: Executes the create route workflow within this AuraEDU API boundary.
             tags: ['routes']
             summary: Register an upstream route
             parameters:
@@ -88,11 +115,6 @@ paths:
 
 components:
   parameters:
-    TenantId:
-      name: tenant_id
-      in: path
-      required: true
-      schema: { type: string, format: uuid }
     TenantHeader:
       name: X-Tenant-Code
       in: header
@@ -122,6 +144,24 @@ components:
         properties:
           status: { type: string, enum: [ok, degraded, down] }
           checks: { type: object, additionalProperties: true }
+    DependencyHealthCheck:
+        type: object
+        additionalProperties: false
+        required: [service, endpoint, status, detail, latency_ms]
+        properties:
+          service: { type: string, minLength: 1 }
+          endpoint: { type: string, enum: [/ready, /health, /healthz] }
+          status: { type: string, enum: [healthy, degraded, unreachable] }
+          detail: { type: string, minLength: 1, maxLength: 80 }
+          latency_ms: { type: integer, minimum: 0 }
+    PlatformHealthReport:
+        type: object
+        additionalProperties: false
+        required: [status, generated_at, checks]
+        properties:
+          status: { type: string, enum: [healthy, degraded, down] }
+          generated_at: { type: string, format: date-time }
+          checks: { type: array, items: { $ref: '#/components/schemas/DependencyHealthCheck' } }
     Route:
         type: object
         required: [path_prefix, upstream]
@@ -181,4 +221,3 @@ components:
 
 security:
   - bearerAuth: []
-

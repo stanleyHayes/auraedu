@@ -9,51 +9,63 @@ import (
 
 // Page generated from OpenAPI schema.
 type Page struct {
-	Id          string     `json:"id"`
-	TenantId    string     `json:"tenant_id"`
-	Slug        string     `json:"slug"`
-	Title       string     `json:"title"`
-	Sections    *[]Section `json:"sections,omitempty"`
-	IsPublished *bool      `json:"is_published,omitempty"`
-	PublishedAt *string    `json:"published_at,omitempty"`
+	Id              string  `json:"id"`
+	TenantId        string  `json:"tenant_id"`
+	Slug            string  `json:"slug"`
+	Title           string  `json:"title"`
+	Status          string  `json:"status"`
+	MetaDescription *string `json:"meta_description,omitempty"`
+	Layout          string  `json:"layout"`
+	CreatedAt       string  `json:"created_at"`
+	UpdatedAt       string  `json:"updated_at"`
+	PublishedAt     *string `json:"published_at,omitempty"`
 }
 
 // CreatePage generated from OpenAPI schema.
 type CreatePage struct {
-	Slug        string     `json:"slug"`
-	Title       string     `json:"title"`
-	Sections    *[]Section `json:"sections,omitempty"`
-	IsPublished *bool      `json:"is_published,omitempty"`
+	Slug            string  `json:"slug"`
+	Title           string  `json:"title"`
+	Status          *string `json:"status,omitempty"`
+	MetaDescription *string `json:"meta_description,omitempty"`
+	Layout          *string `json:"layout,omitempty"`
+}
+
+// UpdatePage generated from OpenAPI schema.
+type UpdatePage struct {
+	Slug            *string `json:"slug,omitempty"`
+	Title           *string `json:"title,omitempty"`
+	Status          *string `json:"status,omitempty"`
+	MetaDescription *string `json:"meta_description,omitempty"`
+	Layout          *string `json:"layout,omitempty"`
 }
 
 // Section generated from OpenAPI schema.
 type Section struct {
-	Type    string    `json:"type"`
-	Title   *string   `json:"title,omitempty"`
-	Content *string   `json:"content,omitempty"`
-	Media   *[]string `json:"media,omitempty"`
+	Id        string                  `json:"id"`
+	TenantId  string                  `json:"tenant_id"`
+	PageId    string                  `json:"page_id"`
+	Type      string                  `json:"type"`
+	Content   *map[string]interface{} `json:"content,omitempty"`
+	SortOrder int                     `json:"sort_order"`
+	Status    string                  `json:"status"`
+	CreatedAt string                  `json:"created_at"`
+	UpdatedAt string                  `json:"updated_at"`
 }
 
-// Menu generated from OpenAPI schema.
-type Menu struct {
-	Id       string `json:"id"`
-	TenantId string `json:"tenant_id"`
-	Name     string `json:"name"`
-	Items    *[]struct {
-		Label  *string `json:"label,omitempty"`
-		Url    *string `json:"url,omitempty"`
-		PageId *string `json:"page_id,omitempty"`
-	} `json:"items,omitempty"`
+// CreateSection generated from OpenAPI schema.
+type CreateSection struct {
+	Type      string                 `json:"type"`
+	Content   map[string]interface{} `json:"content"`
+	SortOrder int                    `json:"sort_order"`
+	Status    *string                `json:"status,omitempty"`
 }
 
-// CreateMenu generated from OpenAPI schema.
-type CreateMenu struct {
-	Name  string `json:"name"`
-	Items *[]struct {
-		Label  *string `json:"label,omitempty"`
-		Url    *string `json:"url,omitempty"`
-		PageId *string `json:"page_id,omitempty"`
-	} `json:"items,omitempty"`
+// UpdateSection generated from OpenAPI schema.
+type UpdateSection struct {
+	Type      *string                 `json:"type,omitempty"`
+	Content   *map[string]interface{} `json:"content,omitempty"`
+	SortOrder *int                    `json:"sort_order,omitempty"`
+	Status    *string                 `json:"status,omitempty"`
 }
 
 // PageList generated from OpenAPI schema.
@@ -62,26 +74,38 @@ type PageList struct {
 	NextCursor *string `json:"next_cursor,omitempty"`
 }
 
-// MenuList generated from OpenAPI schema.
-type MenuList struct {
-	Data       *[]Menu `json:"data,omitempty"`
-	NextCursor *string `json:"next_cursor,omitempty"`
+// SectionList generated from OpenAPI schema.
+type SectionList struct {
+	Data       *[]Section `json:"data,omitempty"`
+	NextCursor *string    `json:"next_cursor,omitempty"`
 }
 
 // ServerInterface is implemented by the service HTTP adapter.
 type ServerInterface interface {
 	listPages(w http.ResponseWriter, r *http.Request)
 	createPage(w http.ResponseWriter, r *http.Request)
+	getPage(w http.ResponseWriter, r *http.Request)
+	updatePage(w http.ResponseWriter, r *http.Request)
+	deletePage(w http.ResponseWriter, r *http.Request)
 	getPageBySlug(w http.ResponseWriter, r *http.Request)
-	listMenus(w http.ResponseWriter, r *http.Request)
-	createMenu(w http.ResponseWriter, r *http.Request)
+	listSections(w http.ResponseWriter, r *http.Request)
+	createSection(w http.ResponseWriter, r *http.Request)
+	getSection(w http.ResponseWriter, r *http.Request)
+	updateSection(w http.ResponseWriter, r *http.Request)
+	deleteSection(w http.ResponseWriter, r *http.Request)
 }
 
 // ClientInterface is the generated consumer stub for this service.
 type ClientInterface interface {
 	listPages(ctx context.Context) (*http.Response, error)
 	createPage(ctx context.Context) (*http.Response, error)
+	getPage(ctx context.Context) (*http.Response, error)
+	updatePage(ctx context.Context) (*http.Response, error)
+	deletePage(ctx context.Context) (*http.Response, error)
 	getPageBySlug(ctx context.Context) (*http.Response, error)
-	listMenus(ctx context.Context) (*http.Response, error)
-	createMenu(ctx context.Context) (*http.Response, error)
+	listSections(ctx context.Context) (*http.Response, error)
+	createSection(ctx context.Context) (*http.Response, error)
+	getSection(ctx context.Context) (*http.Response, error)
+	updateSection(ctx context.Context) (*http.Response, error)
+	deleteSection(ctx context.Context) (*http.Response, error)
 }

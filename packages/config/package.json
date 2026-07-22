@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "build": "echo \"@auraedu/config: source-only package\"",
-    "test": "echo \"no tests yet\""
+    "test": "node --test test/*.test.ts"
   },
   "dependencies": {
     "zod": "^4.4.3"

@@ -18,6 +18,7 @@ const (
 	ChannelSMS      NotificationChannel = "sms"
 	ChannelWhatsApp NotificationChannel = "whatsapp"
 	ChannelInApp    NotificationChannel = "in_app"
+	ChannelPush     NotificationChannel = "push"
 )
 
 // MessageStatus enumerates the lifecycle states of a message.
@@ -27,25 +28,43 @@ const (
 	MessageStatusPending   MessageStatus = "pending"
 	MessageStatusSent      MessageStatus = "sent"
 	MessageStatusFailed    MessageStatus = "failed"
-	MessageStatusCancelled MessageStatus = "cancelled" //nolint:misspell // domain uses British spelling for status
+	MessageStatusCancelled MessageStatus = "cancelled"
+)
+
+// DeliveryStatus records the provider-observed notification lifecycle independently
+// from MessageStatus, whose "sent" value means the provider accepted AuraEDU's
+// delivery request.
+type DeliveryStatus string
+
+const (
+	DeliveryStatusAccepted   DeliveryStatus = "accepted"
+	DeliveryStatusDelivered  DeliveryStatus = "delivered"
+	DeliveryStatusDelayed    DeliveryStatus = "delayed"
+	DeliveryStatusBounced    DeliveryStatus = "bounced"
+	DeliveryStatusComplained DeliveryStatus = "complained"
+	DeliveryStatusFailed     DeliveryStatus = "failed"
+	DeliveryStatusSuppressed DeliveryStatus = "suppressed"
 )
 
 // Message is the aggregate root for a notification message.
 type Message struct {
-	ID          string         `json:"id"`
-	TenantID    string         `json:"tenant_id"`
-	RecipientID string         `json:"recipient_id"`
-	Channel     string         `json:"channel"`
-	TemplateID  *string        `json:"template_id,omitempty"`
-	Subject     string         `json:"subject"`
-	Body        string         `json:"body"`
-	Status      string         `json:"status"`
-	Metadata    map[string]any `json:"metadata,omitempty"`
-	ScheduledAt *time.Time     `json:"scheduled_at,omitempty"`
-	SentAt      *time.Time     `json:"sent_at,omitempty"`
-	Error       *string        `json:"error,omitempty"`
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt   time.Time      `json:"updated_at"`
+	ID               string         `json:"id"`
+	TenantID         string         `json:"tenant_id"`
+	RecipientID      string         `json:"recipient_id"`
+	Channel          string         `json:"channel"`
+	TemplateID       *string        `json:"template_id,omitempty"`
+	Subject          string         `json:"subject"`
+	Body             string         `json:"body"`
+	Status           string         `json:"status"`
+	Metadata         map[string]any `json:"metadata,omitempty"`
+	ScheduledAt      *time.Time     `json:"scheduled_at,omitempty"`
+	SentAt           *time.Time     `json:"sent_at,omitempty"`
+	Error            *string        `json:"error,omitempty"`
+	Provider         *string        `json:"provider,omitempty"`
+	DeliveryStatus   *string        `json:"delivery_status,omitempty"`
+	DeliveryStatusAt *time.Time     `json:"delivery_status_at,omitempty"`
+	CreatedAt        time.Time      `json:"created_at"`
+	UpdatedAt        time.Time      `json:"updated_at"`
 }
 
 // NewMessage constructs a Message, enforcing invariants.
@@ -60,7 +79,7 @@ func NewMessage(tenantID, recipientID, channel, subject, body string, templateID
 		return nil, fmt.Errorf("%w: channel is required", ErrValidation)
 	}
 	if !isValidChannel(NotificationChannel(channel)) {
-		return nil, fmt.Errorf("%w: channel must be email, sms, whatsapp or in_app", ErrValidation)
+		return nil, fmt.Errorf("%w: channel must be email, sms, whatsapp, in_app or push", ErrValidation)
 	}
 	if strings.TrimSpace(subject) == "" {
 		return nil, fmt.Errorf("%w: subject is required", ErrValidation)
@@ -102,7 +121,7 @@ func (m Message) Validate() error {
 		return fmt.Errorf("%w: recipient_id is required", ErrValidation)
 	}
 	if !isValidChannel(NotificationChannel(m.Channel)) {
-		return fmt.Errorf("%w: channel must be email, sms, whatsapp or in_app", ErrValidation)
+		return fmt.Errorf("%w: channel must be email, sms, whatsapp, in_app or push", ErrValidation)
 	}
 	if strings.TrimSpace(m.Subject) == "" {
 		return fmt.Errorf("%w: subject is required", ErrValidation)
@@ -111,8 +130,10 @@ func (m Message) Validate() error {
 		return fmt.Errorf("%w: body is required", ErrValidation)
 	}
 	if !isValidMessageStatus(MessageStatus(m.Status)) {
-		//nolint:misspell // domain uses British spelling for status
 		return fmt.Errorf("%w: status must be pending, sent, failed or cancelled", ErrValidation)
+	}
+	if m.DeliveryStatus != nil && !isValidDeliveryStatus(DeliveryStatus(*m.DeliveryStatus)) {
+		return fmt.Errorf("%w: delivery_status is invalid", ErrValidation)
 	}
 	return nil
 }
@@ -144,7 +165,7 @@ func (m *Message) ApplyUpdate(patch MessagePatch) ([]string, error) {
 	}
 	if patch.Channel != nil {
 		if !isValidChannel(NotificationChannel(*patch.Channel)) {
-			return nil, fmt.Errorf("%w: channel must be email, sms, whatsapp or in_app", ErrValidation)
+			return nil, fmt.Errorf("%w: channel must be email, sms, whatsapp, in_app or push", ErrValidation)
 		}
 		m.Channel = strings.TrimSpace(strings.ToLower(*patch.Channel))
 		changed = append(changed, "channel")
@@ -169,7 +190,6 @@ func (m *Message) ApplyUpdate(patch MessagePatch) ([]string, error) {
 	}
 	if patch.Status != nil {
 		if !isValidMessageStatus(MessageStatus(*patch.Status)) {
-			//nolint:misspell // domain uses British spelling for status
 			return nil, fmt.Errorf("%w: status must be pending, sent, failed or cancelled", ErrValidation)
 		}
 		m.Status = *patch.Status
@@ -207,11 +227,36 @@ func (m *Message) MarkSent() {
 	m.UpdatedAt = now
 }
 
+// MarkProviderAccepted records the provider receipt without exposing the
+// provider's message identifier through the public Message representation.
+func (m *Message) MarkProviderAccepted(provider string, at time.Time) {
+	provider = strings.TrimSpace(strings.ToLower(provider))
+	status := string(DeliveryStatusAccepted)
+	at = at.UTC()
+	m.Provider = &provider
+	m.DeliveryStatus = &status
+	m.DeliveryStatusAt = &at
+	m.UpdatedAt = at
+}
+
 // MarkFailed transitions the message to failed status and records the error.
 func (m *Message) MarkFailed(reason string) {
 	now := time.Now().UTC()
 	m.Status = string(MessageStatusFailed)
 	m.Error = &reason
+	m.UpdatedAt = now
+}
+
+// MarkCancelled prevents a pending message from reaching a provider.
+func (m *Message) MarkCancelled(reason string) {
+	now := time.Now().UTC()
+	m.Status = string(MessageStatusCancelled)
+	if strings.TrimSpace(reason) == "" {
+		m.Error = nil
+	} else {
+		reason = strings.TrimSpace(reason)
+		m.Error = &reason
+	}
 	m.UpdatedAt = now
 }
 
@@ -225,7 +270,7 @@ func (m Message) MarshalMetadata() ([]byte, error) {
 
 func isValidChannel(c NotificationChannel) bool {
 	switch c {
-	case ChannelEmail, ChannelSMS, ChannelWhatsApp, ChannelInApp:
+	case ChannelEmail, ChannelSMS, ChannelWhatsApp, ChannelInApp, ChannelPush:
 		return true
 	}
 	return false
@@ -234,6 +279,15 @@ func isValidChannel(c NotificationChannel) bool {
 func isValidMessageStatus(s MessageStatus) bool {
 	switch s {
 	case MessageStatusPending, MessageStatusSent, MessageStatusFailed, MessageStatusCancelled:
+		return true
+	}
+	return false
+}
+
+func isValidDeliveryStatus(s DeliveryStatus) bool {
+	switch s {
+	case DeliveryStatusAccepted, DeliveryStatusDelivered, DeliveryStatusDelayed,
+		DeliveryStatusBounced, DeliveryStatusComplained, DeliveryStatusFailed, DeliveryStatusSuppressed:
 		return true
 	}
 	return false

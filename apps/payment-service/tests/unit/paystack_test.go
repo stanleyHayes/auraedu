@@ -12,9 +12,10 @@ import (
 
 	"github.com/auraedu/payment-service/internal/adapters/provider"
 	"github.com/auraedu/payment-service/internal/domain"
+	"github.com/google/uuid"
 )
 
-const testSecretKey = "unit-test-paystack-key"
+var testSecretKey = "sk_test_" + uuid.NewString()
 
 func newTestPayment(t *testing.T) domain.Payment {
 	t.Helper()
@@ -212,10 +213,12 @@ func TestMockProvider_Untouched(t *testing.T) {
 	if err != nil || ref == "" || url == "" {
 		t.Fatalf("mock initiate: ref=%q url=%q err=%v", ref, url, err)
 	}
-	if got, _ := m.Verify(context.Background(), "ok_success_1"); got != string(domain.PaymentStatusSuccess) {
+	got, err := m.Verify(context.Background(), "ok_success_1")
+	if err != nil || got != string(domain.PaymentStatusSuccess) {
 		t.Fatalf("expected success, got %q", got)
 	}
-	if got, _ := m.Verify(context.Background(), "nope"); got != string(domain.PaymentStatusFailed) {
+	got, err = m.Verify(context.Background(), "nope")
+	if err != nil || got != string(domain.PaymentStatusFailed) {
 		t.Fatalf("expected failed, got %q", got)
 	}
 }

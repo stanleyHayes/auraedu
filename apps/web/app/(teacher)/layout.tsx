@@ -1,6 +1,5 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { GraduationCap } from "lucide-react";
 import { TeacherShell } from "@/components/teacher-shell";
 import { fetchTenantBranding, getTenantCodeFromHeaders, TEACHER_NAV } from "@/lib/tenant";
 import { requireAuth, isTeacher } from "@/lib/auth";
@@ -18,7 +17,9 @@ export default async function TeacherLayout({ children }: { children: React.Reac
   ]);
 
   const routeFeature = checkRouteFeature(pathname, tenant.features);
-  const guardedChildren = routeFeature.enabled ? children : (
+  const guardedChildren = routeFeature.enabled ? (
+    children
+  ) : (
     <FeatureDisabled feature={routeFeature.feature!} />
   );
 
@@ -31,6 +32,7 @@ export default async function TeacherLayout({ children }: { children: React.Reac
   }
 
   const user = {
+    id: session.user_id ?? session.sub,
     name: session.name ?? session.email ?? "Teacher",
     email: session.email ?? "",
     role: session.role,
@@ -45,17 +47,7 @@ export default async function TeacherLayout({ children }: { children: React.Reac
   };
 
   return (
-    <TeacherShell
-      tenant={tenant}
-      navGroups={TEACHER_NAV}
-      user={user}
-      showMobileMenu
-      page={{
-        icon: <GraduationCap className="size-7" />,
-        title: "Teacher Portal",
-        description: "Attendance, scores, assignments, and class insights.",
-      }}
-    >
+    <TeacherShell tenant={tenant} navGroups={TEACHER_NAV} user={user} showMobileMenu>
       {guardedChildren}
     </TeacherShell>
   );

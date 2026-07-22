@@ -41,7 +41,7 @@ func (r *Repository) List(_ context.Context, tenantID string, limit int, cursor 
 
 	var scoped []*domain.AuditLog
 	for _, log := range r.logs {
-		if log.TenantID.String() == tenantID {
+		if log.TenantID == tenantID {
 			scoped = append(scoped, log)
 		}
 	}

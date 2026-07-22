@@ -44,23 +44,41 @@ func (p *Projection) ProcessEvent(ctx context.Context, event tenancy.CloudEvent)
 	}
 
 	switch event.Type {
+	case "lead.created.v1":
+		return p.handleGrowthEvent(ctx, tenantID, bucketDate, event, domain.GrowthLeads)
+
+	case "application.started.v1":
+		return p.handleGrowthEvent(ctx, tenantID, bucketDate, event, domain.GrowthApplicationsStarted)
+
+	case "application.submitted.v1":
+		return p.handleGrowthEvent(ctx, tenantID, bucketDate, event, domain.GrowthApplicationsDone)
+
+	case "application.admitted.v1":
+		return p.handleGrowthEvent(ctx, tenantID, bucketDate, event, domain.GrowthAdmitted)
+
+	case "offer.issued.v1":
+		return p.handleGrowthEvent(ctx, tenantID, bucketDate, event, domain.GrowthOffersIssued)
+
+	case "offer.accepted.v1":
+		return p.handleGrowthEvent(ctx, tenantID, bucketDate, event, domain.GrowthOffersAccepted)
+
 	case "student.enrolled.v1":
-		return p.incrementCount(ctx, tenantID, "students.count", bucketDate, nil)
+		return p.handleStudentCountEvent(ctx, tenantID, bucketDate, event, "students.count")
 
 	case "attendance.marked.v1":
-		return p.handleAttendanceMarked(ctx, tenantID, bucketDate, event.Data)
+		return p.handleAttendanceMarked(ctx, tenantID, bucketDate, event)
 
-	case "assessment.score_recorded.v1":
-		return p.handleAssessmentScore(ctx, tenantID, bucketDate, event.Data)
+	case "assessment.score_recorded.v1", "assessment.score_updated.v1", "assessment.score_deleted.v1":
+		return p.handleAssessmentScore(ctx, tenantID, event)
 
 	case "payment.received.v1":
-		return p.handleSumEvent(ctx, tenantID, "payments.total", bucketDate, event.Data, "amount")
+		return p.handleSumEvent(ctx, tenantID, "payments.total", bucketDate, event, "amount")
 
 	case "invoice.created.v1":
-		return p.handleSumEvent(ctx, tenantID, "invoices.total", bucketDate, event.Data, "amount")
+		return p.handleSumEvent(ctx, tenantID, "invoices.total", bucketDate, event, "amount")
 
 	case "report.published.v1":
-		return p.incrementCount(ctx, tenantID, "reports.count", bucketDate, nil)
+		return p.handleStudentCountEvent(ctx, tenantID, bucketDate, event, "reports.count")
 
 	default:
 		p.log.Info("ignoring unsupported event type", "type", event.Type, "id", event.ID)
@@ -68,61 +86,119 @@ func (p *Projection) ProcessEvent(ctx context.Context, event tenancy.CloudEvent)
 	}
 }
 
-func (p *Projection) handleAttendanceMarked(ctx context.Context, tenantID, bucketDate string, data json.RawMessage) error {
+func (p *Projection) handleGrowthEvent(ctx context.Context, tenantID, bucketDate string, event tenancy.CloudEvent, stage string) error {
 	var payload struct {
-		Status string `json:"status"`
+		LeadID        string `json:"lead_id"`
+		ApplicationID string `json:"application_id"`
+		ProgrammeID   string `json:"programme_id"`
+		IntakeID      string `json:"intake_id"`
+		Source        string `json:"source"`
+		CampaignID    string `json:"campaign_id"`
+		CreatedAt     string `json:"created_at"`
+		StartedAt     string `json:"started_at"`
+		SubmittedAt   string `json:"submitted_at"`
+		ReviewedAt    string `json:"reviewed_at"`
+		IssuedAt      string `json:"issued_at"`
+		AcceptedAt    string `json:"accepted_at"`
 	}
-	if len(data) > 0 {
-		if err := json.Unmarshal(data, &payload); err != nil {
+	if err := json.Unmarshal(event.Data, &payload); err != nil {
+		return fmt.Errorf("%w: decode %s payload: %w", domain.ErrValidation, event.Type, err)
+	}
+	if event.ID == "" {
+		return fmt.Errorf("%w: growth event missing id", domain.ErrValidation)
+	}
+	if stage == domain.GrowthLeads && payload.LeadID == "" {
+		return fmt.Errorf("%w: lead.created missing lead_id", domain.ErrValidation)
+	}
+	if stage != domain.GrowthLeads && (payload.ApplicationID == "" || payload.ProgrammeID == "") {
+		return fmt.Errorf("%w: %s missing application_id or programme_id", domain.ErrValidation, event.Type)
+	}
+	if stage == domain.GrowthLeads && strings.TrimSpace(payload.Source) == "" {
+		payload.Source = "unknown"
+	}
+	occurredAt := time.Now().UTC()
+	for _, raw := range []string{payload.AcceptedAt, payload.IssuedAt, payload.ReviewedAt, payload.SubmittedAt, payload.StartedAt, payload.CreatedAt, event.Time} {
+		if parsed, err := time.Parse(time.RFC3339, raw); err == nil {
+			occurredAt = parsed.UTC()
+			break
+		}
+	}
+	return p.repo.ApplyGrowthEvent(ctx, tenantID, domain.GrowthEvent{
+		EventID: event.ID, EventType: event.Type, Stage: stage, BucketDate: bucketDate,
+		LeadID: payload.LeadID, ApplicationID: payload.ApplicationID, ProgrammeID: payload.ProgrammeID,
+		IntakeID: payload.IntakeID, Source: strings.ToLower(strings.TrimSpace(payload.Source)), CampaignID: payload.CampaignID,
+		OccurredAt: occurredAt,
+	})
+}
+
+func (p *Projection) handleAttendanceMarked(ctx context.Context, tenantID, bucketDate string, event tenancy.CloudEvent) error {
+	var payload struct {
+		StudentID string `json:"student_id"`
+		Status    string `json:"status"`
+	}
+	if len(event.Data) > 0 {
+		if err := json.Unmarshal(event.Data, &payload); err != nil {
 			p.log.Warn("attendance.marked.v1: failed to unmarshal payload", "err", err)
 		}
 	}
 	status := strings.ToLower(strings.TrimSpace(payload.Status))
+	if strings.TrimSpace(payload.StudentID) == "" {
+		return fmt.Errorf("%w: attendance.marked.v1 missing student_id", domain.ErrValidation)
+	}
+	dims := domain.Dimensions{"student_id": payload.StudentID}
 	switch status {
 	case "present", "absent", "late", "excused":
 		name := fmt.Sprintf("attendance.%s", status)
-		return p.incrementCount(ctx, tenantID, name, bucketDate, nil)
+		return p.applyCountEvent(ctx, tenantID, bucketDate, event, name, dims)
 	default:
 		p.log.Info("attendance.marked.v1: unknown status", "status", payload.Status)
 		return nil
 	}
 }
 
-func (p *Projection) handleAssessmentScore(ctx context.Context, tenantID, bucketDate string, data json.RawMessage) error {
+func (p *Projection) handleAssessmentScore(ctx context.Context, tenantID string, event tenancy.CloudEvent) error {
 	var payload struct {
+		ScoreID        string  `json:"score_id"`
+		AssessmentID   string  `json:"assessment_id"`
+		StudentID      string  `json:"student_id"`
 		Score          float64 `json:"score"`
+		MaxScore       float64 `json:"max_score"`
 		SubjectID      string  `json:"subject_id"`
 		AcademicYearID string  `json:"academic_year_id"`
+		RecordedAt     string  `json:"recorded_at"`
 	}
-	if len(data) > 0 {
-		if err := json.Unmarshal(data, &payload); err != nil {
-			p.log.Warn("assessment.score_recorded.v1: failed to unmarshal payload", "err", err)
-			return nil
+	if err := json.Unmarshal(event.Data, &payload); err != nil {
+		return fmt.Errorf("%w: decode %s payload: %w", domain.ErrValidation, event.Type, err)
+	}
+	recordedAt, err := time.Parse(time.RFC3339, payload.RecordedAt)
+	if err != nil {
+		return fmt.Errorf("%w: %s recorded_at must be RFC3339", domain.ErrValidation, event.Type)
+	}
+	operation := domain.ScoreRecorded
+	switch event.Type {
+	case "assessment.score_updated.v1":
+		operation = domain.ScoreUpdated
+	case "assessment.score_deleted.v1":
+		operation = domain.ScoreDeleted
+	}
+	occurredAt := time.Now().UTC()
+	if event.Time != "" {
+		if parsed, parseErr := time.Parse(time.RFC3339, event.Time); parseErr == nil {
+			occurredAt = parsed.UTC()
 		}
 	}
-	if payload.SubjectID == "" || payload.AcademicYearID == "" {
-		p.log.Info("assessment.score_recorded.v1: missing subject_id or academic_year_id")
-		return nil
-	}
-
-	dims := domain.Dimensions{
-		"subject_id":       payload.SubjectID,
-		"academic_year_id": payload.AcademicYearID,
-	}
-
-	if err := p.incrementCount(ctx, tenantID, "assessments.count", bucketDate, dims); err != nil {
-		return err
-	}
-	if err := p.addToSum(ctx, tenantID, "assessments.sum_score", bucketDate, dims, payload.Score); err != nil {
-		return err
-	}
-	return p.addSampleToAverage(ctx, tenantID, "assessments.avg_score", bucketDate, dims, payload.Score)
+	return p.repo.ApplyAssessmentScoreEvent(ctx, tenantID, domain.AssessmentScoreEvent{
+		EventID: event.ID, EventType: event.Type, Operation: operation,
+		ScoreID: payload.ScoreID, AssessmentID: payload.AssessmentID,
+		StudentID: payload.StudentID, SubjectID: payload.SubjectID, AcademicYearID: payload.AcademicYearID,
+		Score: payload.Score, MaxScore: payload.MaxScore, RecordedAt: recordedAt, OccurredAt: occurredAt,
+	})
 }
 
-func (p *Projection) handleSumEvent(ctx context.Context, tenantID, metricName, bucketDate string, data json.RawMessage, field string) error {
+func (p *Projection) handleSumEvent(ctx context.Context, tenantID, metricName, bucketDate string, event tenancy.CloudEvent, field string) error {
 	var payload map[string]any
-	if len(data) > 0 {
-		if err := json.Unmarshal(data, &payload); err != nil {
+	if len(event.Data) > 0 {
+		if err := json.Unmarshal(event.Data, &payload); err != nil {
 			p.log.Warn("failed to unmarshal sum payload", "metric", metricName, "err", err)
 			return nil
 		}
@@ -132,31 +208,45 @@ func (p *Projection) handleSumEvent(ctx context.Context, tenantID, metricName, b
 		p.log.Info("sum event missing amount", "metric", metricName, "field", field)
 		return nil
 	}
-	return p.addToSum(ctx, tenantID, metricName, bucketDate, nil, amount)
+	metric, err := domain.NewMetric(tenantID, metricName, bucketDate, amount, domain.UnitSum, nil)
+	if err != nil {
+		return err
+	}
+	return p.applyMetricEvent(ctx, tenantID, event, []*domain.Metric{metric})
 }
 
-func (p *Projection) incrementCount(ctx context.Context, tenantID, metricName, bucketDate string, dims domain.Dimensions) error {
+func (p *Projection) applyCountEvent(
+	ctx context.Context,
+	tenantID, bucketDate string,
+	event tenancy.CloudEvent,
+	metricName string,
+	dims domain.Dimensions,
+) error {
 	m, err := domain.NewMetric(tenantID, metricName, bucketDate, 1, domain.UnitCount, dims)
 	if err != nil {
 		return err
 	}
-	return p.repo.UpsertMetric(ctx, tenantID, m)
+	return p.applyMetricEvent(ctx, tenantID, event, []*domain.Metric{m})
 }
 
-func (p *Projection) addToSum(ctx context.Context, tenantID, metricName, bucketDate string, dims domain.Dimensions, amount float64) error {
-	m, err := domain.NewMetric(tenantID, metricName, bucketDate, amount, domain.UnitSum, dims)
-	if err != nil {
-		return err
+func (p *Projection) handleStudentCountEvent(ctx context.Context, tenantID, bucketDate string, event tenancy.CloudEvent, metricName string) error {
+	var payload struct {
+		StudentID string `json:"student_id"`
 	}
-	return p.repo.UpsertMetric(ctx, tenantID, m)
+	if err := json.Unmarshal(event.Data, &payload); err != nil {
+		return fmt.Errorf("%w: decode %s payload: %w", domain.ErrValidation, event.Type, err)
+	}
+	if strings.TrimSpace(payload.StudentID) == "" {
+		return fmt.Errorf("%w: %s missing student_id", domain.ErrValidation, event.Type)
+	}
+	return p.applyCountEvent(ctx, tenantID, bucketDate, event, metricName, domain.Dimensions{"student_id": payload.StudentID})
 }
 
-func (p *Projection) addSampleToAverage(ctx context.Context, tenantID, metricName, bucketDate string, dims domain.Dimensions, sample float64) error {
-	m, err := domain.NewMetric(tenantID, metricName, bucketDate, sample, domain.UnitAverage, dims)
-	if err != nil {
-		return err
+func (p *Projection) applyMetricEvent(ctx context.Context, tenantID string, event tenancy.CloudEvent, metrics []*domain.Metric) error {
+	if strings.TrimSpace(event.ID) == "" {
+		return fmt.Errorf("%w: %s event missing id", domain.ErrValidation, event.Type)
 	}
-	return p.repo.UpsertMetric(ctx, tenantID, m)
+	return p.repo.ApplyMetricEvent(ctx, tenantID, event.ID, event.Type, metrics)
 }
 
 func extractFloat(payload map[string]any, key string) (float64, bool) {

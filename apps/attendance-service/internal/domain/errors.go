@@ -8,4 +8,5 @@ var (
 	ErrMissingTenant = errors.New("attendance: tenant context required")
 	ErrForbidden     = errors.New("attendance: forbidden")
 	ErrConflict      = errors.New("attendance: conflict")
+	ErrUnavailable   = errors.New("attendance: dependency unavailable")
 )

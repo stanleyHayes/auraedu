@@ -27,19 +27,30 @@ func (p *Publisher) Publish(ctx context.Context, eventType string, staff *domain
 	if p == nil || p.bus == nil {
 		return nil
 	}
-	data := map[string]any{
-		"staff_id":   staff.ID,
-		"staff_type": staff.StaffType,
-		"name":       staff.FullName(),
-	}
-	for k, v := range meta {
-		data[k] = v
-	}
+	data := ports.StaffEventData(staff, meta)
 	event, err := tenancy.NewCloudEvent(eventType, "staff-service", "", staff.TenantID, data)
 	if err != nil {
 		return fmt.Errorf("staff: build event: %w", err)
 	}
 	event.Subject = staff.ID
+	event.Time = time.Now().UTC().Format(time.RFC3339)
+	return p.bus.Publish(ctx, event)
+}
+
+// PublishWithID emits a replay-safe outbox event with a stable CloudEvent ID.
+func (p *Publisher) PublishWithID(ctx context.Context, eventID, eventType, tenantID string, data map[string]any) error {
+	if p == nil || p.bus == nil {
+		return nil
+	}
+	event, err := tenancy.NewCloudEvent(eventType, "staff-service", eventID, tenantID, data)
+	if err != nil {
+		return fmt.Errorf("staff: build outbox event: %w", err)
+	}
+	staffID, ok := data["staff_id"].(string)
+	if ok && staffID != "" {
+		event.Subject = staffID
+	}
+	event.IdempotencyKey = eventID
 	event.Time = time.Now().UTC().Format(time.RFC3339)
 	return p.bus.Publish(ctx, event)
 }

@@ -3,7 +3,9 @@ info:
   title: AuraEDU Notification Service API
   version: 1.0.0
   description: >
-    Email, SMS, WhatsApp, in-app, and announcements (spec \u00a77). Owned by lane L2 (EP-18). Feature flags: email_notifications, sms_notifications, whatsapp_notifications, announcements.
+    Email, SMS, WhatsApp, in-app, native push, and announcements (spec \u00a77). Owned by lane L2 (EP-18). Feature flags: email_notifications, sms_notifications, whatsapp_notifications, push_notifications, announcements.
+  contact:
+    name: AuraEDU Engineering
 servers:
   - url: /api/v1
 tags:
@@ -11,217 +13,432 @@ tags:
   - name: templates
   - name: subscriptions
   - name: announcements
+  - name: devices
+  - name: communication-journeys
+  - name: webhooks
 
 paths:
-    /messages:
-      get:
-            operationId: listMessages
-            tags: ['messages']
-            summary: List messages
-            parameters:
-              - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/Limit'
-              - $ref: '#/components/parameters/Cursor'
-            responses:
-              '200':
-                description: OK
-                content:
-                  application/json:
-                    schema: { $ref: '#/components/schemas/MessageList' }
-              '403': { $ref: '#/components/responses/Forbidden' }
-              '404': { $ref: '#/components/responses/NotFound' }
-              '422': { $ref: '#/components/responses/ValidationError' }
-              '401': { $ref: '#/components/responses/Unauthorized' }
-    /messages/send:
-      post:
-            operationId: sendMessage
-            tags: ['messages']
-            summary: Send a message
-            parameters:
-              - $ref: '#/components/parameters/TenantHeader'
-            requestBody:
-              required: true
-              content:
-                application/json:
-                  schema: { $ref: '#/components/schemas/SendMessageRequest' }
-            responses:
-              '201':
-                description: OK
-                content:
-                  application/json:
-                    schema: { $ref: '#/components/schemas/Message' }
-              '403': { $ref: '#/components/responses/Forbidden' }
-              '404': { $ref: '#/components/responses/NotFound' }
-              '422': { $ref: '#/components/responses/ValidationError' }
-              '401': { $ref: '#/components/responses/Unauthorized' }
-    /templates:
-      get:
-            operationId: listTemplates
-            tags: ['templates']
-            summary: List templates
-            parameters:
-              - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/Limit'
-              - $ref: '#/components/parameters/Cursor'
-            responses:
-              '200':
-                description: OK
-                content:
-                  application/json:
-                    schema: { $ref: '#/components/schemas/TemplateList' }
-              '403': { $ref: '#/components/responses/Forbidden' }
-              '404': { $ref: '#/components/responses/NotFound' }
-              '422': { $ref: '#/components/responses/ValidationError' }
-              '401': { $ref: '#/components/responses/Unauthorized' }
-      post:
-            operationId: createTemplate
-            tags: ['templates']
-            summary: Create a template
-            parameters:
-              - $ref: '#/components/parameters/TenantHeader'
-            requestBody:
-              required: true
-              content:
-                application/json:
-                  schema: { $ref: '#/components/schemas/CreateTemplate' }
-            responses:
-              '201':
-                description: OK
-                content:
-                  application/json:
-                    schema: { $ref: '#/components/schemas/Template' }
-              '403': { $ref: '#/components/responses/Forbidden' }
-              '404': { $ref: '#/components/responses/NotFound' }
-              '422': { $ref: '#/components/responses/ValidationError' }
-              '401': { $ref: '#/components/responses/Unauthorized' }
-    /subscriptions:
-      get:
-            operationId: listSubscriptions
-            tags: ['subscriptions']
-            summary: List subscriptions
-            parameters:
-              - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/Limit'
-              - $ref: '#/components/parameters/Cursor'
-            responses:
-              '200':
-                description: OK
-                content:
-                  application/json:
-                    schema: { $ref: '#/components/schemas/SubscriptionList' }
-              '403': { $ref: '#/components/responses/Forbidden' }
-              '404': { $ref: '#/components/responses/NotFound' }
-              '422': { $ref: '#/components/responses/ValidationError' }
-              '401': { $ref: '#/components/responses/Unauthorized' }
-      post:
-            operationId: createSubscription
-            tags: ['subscriptions']
-            summary: Create a subscription
-            parameters:
-              - $ref: '#/components/parameters/TenantHeader'
-            requestBody:
-              required: true
-              content:
-                application/json:
-                  schema: { $ref: '#/components/schemas/CreateSubscription' }
-            responses:
-              '201':
-                description: OK
-                content:
-                  application/json:
-                    schema: { $ref: '#/components/schemas/Subscription' }
-              '403': { $ref: '#/components/responses/Forbidden' }
-              '404': { $ref: '#/components/responses/NotFound' }
-              '422': { $ref: '#/components/responses/ValidationError' }
-              '401': { $ref: '#/components/responses/Unauthorized' }
-    /announcements:
-      get:
-            operationId: listAnnouncements
-            tags: ['announcements']
-            summary: List announcements
-            parameters:
-              - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/Limit'
-              - $ref: '#/components/parameters/Cursor'
-              - name: audience
-                in: query
-                schema: { type: string, enum: [all, students, guardians, staff] }
-            responses:
-              '200':
-                description: OK
-                content:
-                  application/json:
-                    schema: { $ref: '#/components/schemas/AnnouncementList' }
-              '403': { $ref: '#/components/responses/Forbidden' }
-              '404': { $ref: '#/components/responses/NotFound' }
-              '422': { $ref: '#/components/responses/ValidationError' }
-              '401': { $ref: '#/components/responses/Unauthorized' }
-      post:
-            operationId: createAnnouncement
-            tags: ['announcements']
-            summary: Create an announcement and publish it to the in-app inbox
-            parameters:
-              - $ref: '#/components/parameters/TenantHeader'
-            requestBody:
-              required: true
-              content:
-                application/json:
-                  schema: { $ref: '#/components/schemas/CreateAnnouncement' }
-            responses:
-              '201':
-                description: OK
-                content:
-                  application/json:
-                    schema: { $ref: '#/components/schemas/Announcement' }
-              '403': { $ref: '#/components/responses/Forbidden' }
-              '404': { $ref: '#/components/responses/NotFound' }
-              '422': { $ref: '#/components/responses/ValidationError' }
-              '401': { $ref: '#/components/responses/Unauthorized' }
-    /announcements/{announcement_id}:
-      get:
-            operationId: getAnnouncement
-            tags: ['announcements']
-            summary: Get an announcement
-            parameters:
-              - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/AnnouncementId'
-            responses:
-              '200':
-                description: OK
-                content:
-                  application/json:
-                    schema: { $ref: '#/components/schemas/Announcement' }
-              '403': { $ref: '#/components/responses/Forbidden' }
-              '404': { $ref: '#/components/responses/NotFound' }
-              '422': { $ref: '#/components/responses/ValidationError' }
-              '401': { $ref: '#/components/responses/Unauthorized' }
-      delete:
-            operationId: deleteAnnouncement
-            tags: ['announcements']
-            summary: Delete an announcement
-            parameters:
-              - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/AnnouncementId'
-            responses:
-              '204':
-                description: Deleted
-              '403': { $ref: '#/components/responses/Forbidden' }
-              '404': { $ref: '#/components/responses/NotFound' }
-              '422': { $ref: '#/components/responses/ValidationError' }
-              '401': { $ref: '#/components/responses/Unauthorized' }
-
+  /webhooks/resend:
+    post:
+      operationId: processResendDeliveryWebhook
+      description: Verifies a signed Resend/Svix callback, stores it replay-safely, and updates privacy-minimized delivery state and suppressions.
+      tags: [webhooks]
+      security: []
+      parameters:
+        - { name: svix-id, in: header, required: true, schema: { type: string, minLength: 1, maxLength: 255 } }
+        - { name: svix-timestamp, in: header, required: true, schema: { type: string, minLength: 1 } }
+        - { name: svix-signature, in: header, required: true, schema: { type: string, minLength: 1 } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, additionalProperties: true } } }
+      responses:
+        '204': { description: "Applied, ignored, or already processed" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '503': { description: Receipt correlation is not ready; provider should retry }
+  /webhooks/twilio:
+    post:
+      operationId: processTwilioDeliveryWebhook
+      description: Verifies a signed Twilio status callback, stores it replay-safely, and updates privacy-minimized SMS or WhatsApp delivery state.
+      tags: [webhooks]
+      security: []
+      parameters:
+        - { name: message_id, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: X-Twilio-Signature, in: header, required: true, schema: { type: string, minLength: 1, maxLength: 512 } }
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [AccountSid, MessageSid, MessageStatus, To]
+              properties:
+                AccountSid: { type: string, pattern: '^AC[0-9a-fA-F]{32}$' }
+                MessageSid: { type: string, pattern: '^(SM|MM)[0-9a-fA-F]{32}$' }
+                MessageStatus: { type: string, minLength: 1, maxLength: 64 }
+                To: { type: string, minLength: 9, maxLength: 32 }
+              additionalProperties: { type: string }
+      responses:
+        '200': { description: "Applied, ignored, or already processed" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '503': { description: Receipt correlation is not ready; provider should retry }
+  /email-preferences/unsubscribe:
+    post:
+      operationId: unsubscribeEmail
+      description: Applies a signed, privacy-minimized email opt-out without requiring an account or exposing the recipient address.
+      tags: [subscriptions]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [token]
+              properties:
+                token: { type: string, minLength: 32, maxLength: 1024 }
+      responses:
+        '204': { description: Email opt-out applied }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '503': { description: Email preference storage is unavailable }
+  /messages:
+    get:
+      operationId: listMessages
+      description: Executes the list messages workflow within this AuraEDU API boundary.
+      tags: [messages]
+      summary: List tenant messages
+      parameters:
+        - $ref: '#/components/parameters/TenantHeader'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - { name: channel, in: query, schema: { $ref: '#/components/schemas/Channel' } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/MessageStatus' } }
+        - { name: recipient_id, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/MessageList' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      operationId: createMessage
+      description: Executes the create message workflow within this AuraEDU API boundary.
+      tags: [messages]
+      summary: Create a pending message
+      parameters: [{ $ref: '#/components/parameters/TenantHeader' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateMessage' } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Message' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /messages/{message_id}:
+    parameters:
+      - $ref: '#/components/parameters/TenantHeader'
+      - $ref: '#/components/parameters/MessageId'
+    get:
+      operationId: getMessage
+      description: Executes the get message workflow within this AuraEDU API boundary.
+      tags: [messages]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Message' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: updateMessage
+      description: Executes the update message workflow within this AuraEDU API boundary.
+      tags: [messages]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateMessage' } } }
+      responses:
+        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/Message' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      operationId: deleteMessage
+      description: Executes the delete message workflow within this AuraEDU API boundary.
+      tags: [messages]
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /messages/{message_id}/send:
+    post:
+      operationId: sendMessage
+      description: Executes the send message workflow within this AuraEDU API boundary.
+      tags: [messages]
+      summary: Deliver an existing pending message
+      parameters:
+        - $ref: '#/components/parameters/TenantHeader'
+        - $ref: '#/components/parameters/MessageId'
+      responses:
+        '200': { description: Sent, content: { application/json: { schema: { $ref: '#/components/schemas/Message' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /notification-templates:
+    get:
+      operationId: listTemplates
+      description: Executes the list templates workflow within this AuraEDU API boundary.
+      tags: [templates]
+      parameters:
+        - $ref: '#/components/parameters/TenantHeader'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - { name: channel, in: query, schema: { $ref: '#/components/schemas/Channel' } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/TemplateStatus' } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/TemplateList' } } } }
+    post:
+      operationId: createTemplate
+      description: Executes the create template workflow within this AuraEDU API boundary.
+      tags: [templates]
+      parameters: [{ $ref: '#/components/parameters/TenantHeader' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateTemplate' } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Template' } } } }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /notification-templates/{template_id}:
+    parameters:
+      - $ref: '#/components/parameters/TenantHeader'
+      - $ref: '#/components/parameters/TemplateId'
+    get:
+      operationId: getTemplate
+      description: Executes the get template workflow within this AuraEDU API boundary.
+      tags: [templates]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Template' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: updateTemplate
+      description: Executes the update template workflow within this AuraEDU API boundary.
+      tags: [templates]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateTemplate' } } }
+      responses:
+        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/Template' } } } }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      operationId: deleteTemplate
+      description: Executes the delete template workflow within this AuraEDU API boundary.
+      tags: [templates]
+      responses:
+        '204': { description: Deleted }
+  /notification-subscriptions:
+    get:
+      operationId: listSubscriptions
+      description: Executes the list subscriptions workflow within this AuraEDU API boundary.
+      tags: [subscriptions]
+      parameters:
+        - $ref: '#/components/parameters/TenantHeader'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - { name: channel, in: query, schema: { $ref: '#/components/schemas/Channel' } }
+        - { name: user_id, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/SubscriptionList' } } } }
+    post:
+      operationId: createSubscription
+      description: Executes the create subscription workflow within this AuraEDU API boundary.
+      tags: [subscriptions]
+      parameters: [{ $ref: '#/components/parameters/TenantHeader' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateSubscription' } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Subscription' } } } }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /notification-subscriptions/{subscription_id}:
+    parameters:
+      - $ref: '#/components/parameters/TenantHeader'
+      - $ref: '#/components/parameters/SubscriptionId'
+    get:
+      operationId: getSubscription
+      description: Executes the get subscription workflow within this AuraEDU API boundary.
+      tags: [subscriptions]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Subscription' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: updateSubscription
+      description: Executes the update subscription workflow within this AuraEDU API boundary.
+      tags: [subscriptions]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateSubscription' } } }
+      responses:
+        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/Subscription' } } } }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      operationId: deleteSubscription
+      description: Executes the delete subscription workflow within this AuraEDU API boundary.
+      tags: [subscriptions]
+      responses:
+        '204': { description: Deleted }
+  /announcements:
+    get:
+      operationId: listAnnouncements
+      description: Executes the list announcements workflow within this AuraEDU API boundary.
+      tags: [announcements]
+      parameters:
+        - $ref: '#/components/parameters/TenantHeader'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - { name: audience, in: query, schema: { type: string, enum: [all, students, guardians, staff] } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/AnnouncementList' } } } }
+    post:
+      operationId: createAnnouncement
+      description: Executes the create announcement workflow within this AuraEDU API boundary.
+      tags: [announcements]
+      summary: Publish an announcement to the role-scoped in-app inbox
+      parameters: [{ $ref: '#/components/parameters/TenantHeader' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateAnnouncement' } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Announcement' } } } }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /communication-journeys:
+    get:
+      operationId: listCommunicationJourneys
+      description: Lists tenant-owned consent-aware communication journeys.
+      tags: [communication-journeys]
+      parameters:
+        - $ref: '#/components/parameters/TenantHeader'
+        - $ref: '#/components/parameters/Limit'
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/JourneyStatus' } }
+        - { name: trigger_event, in: query, schema: { $ref: '#/components/schemas/JourneyEvent' } }
+      responses:
+        '200': { description: Journey list, content: { application/json: { schema: { type: object, required: [data], properties: { data: { type: array, items: { $ref: '#/components/schemas/CommunicationJourney' } } } } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      operationId: createCommunicationJourney
+      description: Creates a draft journey. Templates must already be active and match their step channels.
+      tags: [communication-journeys]
+      parameters: [{ $ref: '#/components/parameters/TenantHeader' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateCommunicationJourney' } } }
+      responses:
+        '201': { description: Draft journey, content: { application/json: { schema: { $ref: '#/components/schemas/CommunicationJourney' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /communication-journeys/{journey_id}:
+    get:
+      operationId: getCommunicationJourney
+      description: Executes the get communication journey workflow within this AuraEDU API boundary.
+      tags: [communication-journeys]
+      parameters:
+        - $ref: '#/components/parameters/TenantHeader'
+        - $ref: '#/components/parameters/JourneyId'
+      responses:
+        '200': { description: Journey, content: { application/json: { schema: { $ref: '#/components/schemas/CommunicationJourney' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /communication-journeys/{journey_id}/activate:
+    post:
+      operationId: activateCommunicationJourney
+      description: Activates a reviewed draft or paused journey. The creator cannot activate their own journey.
+      tags: [communication-journeys]
+      parameters:
+        - $ref: '#/components/parameters/TenantHeader'
+        - $ref: '#/components/parameters/JourneyId'
+      responses:
+        '200': { description: Active journey, content: { application/json: { schema: { $ref: '#/components/schemas/CommunicationJourney' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /communication-journeys/{journey_id}/pause:
+    post:
+      operationId: pauseCommunicationJourney
+      description: Executes the pause communication journey workflow within this AuraEDU API boundary.
+      tags: [communication-journeys]
+      parameters:
+        - $ref: '#/components/parameters/TenantHeader'
+        - $ref: '#/components/parameters/JourneyId'
+      responses:
+        '200': { description: Paused journey, content: { application/json: { schema: { $ref: '#/components/schemas/CommunicationJourney' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /communication-journeys/{journey_id}/archive:
+    post:
+      operationId: archiveCommunicationJourney
+      description: Executes the archive communication journey workflow within this AuraEDU API boundary.
+      tags: [communication-journeys]
+      parameters:
+        - $ref: '#/components/parameters/TenantHeader'
+        - $ref: '#/components/parameters/JourneyId'
+      responses:
+        '200': { description: Archived journey, content: { application/json: { schema: { $ref: '#/components/schemas/CommunicationJourney' } } } }
+  /communication-journeys/{journey_id}/stats:
+    get:
+      operationId: getCommunicationJourneyStats
+      description: Executes the get communication journey stats workflow within this AuraEDU API boundary.
+      tags: [communication-journeys]
+      parameters:
+        - $ref: '#/components/parameters/TenantHeader'
+        - $ref: '#/components/parameters/JourneyId'
+      responses:
+        '200': { description: Delivery lifecycle counts, content: { application/json: { schema: { $ref: '#/components/schemas/JourneyStats' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /announcements/{announcement_id}:
+    parameters:
+      - $ref: '#/components/parameters/TenantHeader'
+      - $ref: '#/components/parameters/AnnouncementId'
+    get:
+      operationId: getAnnouncement
+      description: Executes the get announcement workflow within this AuraEDU API boundary.
+      tags: [announcements]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Announcement' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteAnnouncement
+      description: Executes the delete announcement workflow within this AuraEDU API boundary.
+      tags: [announcements]
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /device-tokens:
+    post:
+      operationId: registerDeviceToken
+      description: Executes the register device token workflow within this AuraEDU API boundary.
+      tags: [devices]
+      summary: Register or refresh the authenticated user's mobile installation
+      parameters: [{ $ref: '#/components/parameters/TenantHeader' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RegisterDeviceToken' } } }
+      responses:
+        '200': { description: Registered, content: { application/json: { schema: { $ref: '#/components/schemas/DeviceToken' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /device-tokens/{device_id}:
+    delete:
+      operationId: unregisterDeviceToken
+      description: Executes the unregister device token workflow within this AuraEDU API boundary.
+      tags: [devices]
+      parameters:
+        - $ref: '#/components/parameters/TenantHeader'
+        - $ref: '#/components/parameters/DeviceId'
+      responses:
+        '204': { description: Removed }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
 components:
   parameters:
-    TenantId:
-      name: tenant_id
-      in: path
-      required: true
-      schema: { type: string, format: uuid }
     AnnouncementId:
       name: announcement_id
       in: path
       required: true
       schema: { type: string, format: uuid }
+    JourneyId:
+      name: journey_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    MessageId:
+      name: message_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    TemplateId:
+      name: template_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    SubscriptionId:
+      name: subscription_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    DeviceId:
+      name: device_id
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 200 }
     TenantHeader:
       name: X-Tenant-Code
       in: header
@@ -238,68 +455,196 @@ components:
       schema: { type: string }
 
   schemas:
+    JourneyStatus:
+      type: string
+      enum: [draft, active, paused, archived]
+    JourneyEvent:
+      type: string
+      enum: [lead.created.v1, lead.interaction_created.v1, lead.scored.v1, application.started.v1, application.submitted.v1, application.admitted.v1, offer.issued.v1, offer.accepted.v1]
+    JourneyConditionOperator:
+      type: string
+      enum: [always, equals, not_equals]
+    CreateJourneyStep:
+      type: object
+      additionalProperties: false
+      required: [channel, template_id, delay_minutes, condition_operator]
+      properties:
+        channel: { type: string, enum: [email, sms, whatsapp, in_app] }
+        template_id: { type: string, format: uuid }
+        delay_minutes: { type: integer, minimum: 0, maximum: 129600 }
+        condition_operator: { $ref: '#/components/schemas/JourneyConditionOperator' }
+        condition_field: { type: string, enum: [source, stage, campaign_id, programme_id, intake_id, score, confidence, channel, direction] }
+        condition_value: { type: string, maxLength: 160 }
+    JourneyStep:
+      allOf:
+        - $ref: '#/components/schemas/CreateJourneyStep'
+        - type: object
+          required: [id, position]
+          properties:
+            id: { type: string, format: uuid }
+            position: { type: integer, minimum: 1, maximum: 10 }
+    CreateCommunicationJourney:
+      type: object
+      additionalProperties: false
+      required: [name, trigger_event, timezone, frequency_window_hours, frequency_limit, cancel_on_events, steps]
+      properties:
+        name: { type: string, minLength: 3, maxLength: 160 }
+        trigger_event: { $ref: '#/components/schemas/JourneyEvent' }
+        timezone: { type: string, minLength: 1, maxLength: 100, example: Africa/Accra }
+        quiet_hours_start_minute: { type: [integer, 'null'], minimum: 0, maximum: 1439 }
+        quiet_hours_end_minute: { type: [integer, 'null'], minimum: 0, maximum: 1439 }
+        frequency_window_hours: { type: integer, minimum: 1, maximum: 720 }
+        frequency_limit: { type: integer, minimum: 1, maximum: 100 }
+        cancel_on_events: { type: array, maxItems: 8, uniqueItems: true, items: { $ref: '#/components/schemas/JourneyEvent' } }
+        steps: { type: array, minItems: 1, maxItems: 10, items: { $ref: '#/components/schemas/CreateJourneyStep' } }
+    CommunicationJourney:
+      allOf:
+        - $ref: '#/components/schemas/CreateCommunicationJourney'
+        - type: object
+          required: [id, tenant_id, status, version, created_by, created_at, updated_at]
+          properties:
+            id: { type: string, format: uuid }
+            tenant_id: { type: string, minLength: 1 }
+            steps: { type: array, minItems: 1, maxItems: 10, items: { $ref: '#/components/schemas/JourneyStep' } }
+            status: { $ref: '#/components/schemas/JourneyStatus' }
+            version: { type: integer, minimum: 1 }
+            created_by: { type: string, format: uuid }
+            activated_by: { type: [string, 'null'], format: uuid }
+            activated_at: { type: [string, 'null'], format: date-time }
+            created_at: { type: string, format: date-time }
+            updated_at: { type: string, format: date-time }
+    JourneyStats:
+      type: object
+      required: [enrolled, scheduled, sent, failed, cancelled, skipped, accepted, delivered, delayed, bounced, complained, suppressed]
+      properties:
+        enrolled: { type: integer, minimum: 0 }
+        scheduled: { type: integer, minimum: 0 }
+        sent: { type: integer, minimum: 0 }
+        failed: { type: integer, minimum: 0 }
+        cancelled: { type: integer, minimum: 0 }
+        skipped: { type: integer, minimum: 0 }
+        accepted: { type: integer, minimum: 0 }
+        delivered: { type: integer, minimum: 0 }
+        delayed: { type: integer, minimum: 0 }
+        bounced: { type: integer, minimum: 0 }
+        complained: { type: integer, minimum: 0 }
+        suppressed: { type: integer, minimum: 0 }
     Error:
       type: object
       required: [code, message]
       properties:
-        code: { type: string, enum: [forbidden, feature_disabled, tenant_mismatch, validation_error, not_found, unauthorized] }
+        code: { type: string, enum: [forbidden, feature_disabled, tenant_mismatch, validation_error, conflict, not_found, unauthorized] }
         message: { type: string }
         request_id: { type: string }
+    Channel:
+      type: string
+      enum: [email, sms, whatsapp, in_app, push]
+    MessageStatus:
+      type: string
+      enum: [pending, sent, failed, cancelled]
+    TemplateStatus:
+      type: string
+      enum: [active, archived]
     Message:
-        type: object
-        required: [id, tenant_id, channel, recipient_id, status]
-        properties:
-          id: { type: string, format: uuid }
-          tenant_id: { type: string, format: uuid }
-          channel: { type: string, enum: [email, sms, whatsapp, in_app] }
-          recipient_id: { type: string, format: uuid }
-          subject: { type: [string, 'null'] }
-          body: { type: [string, 'null'] }
-          status: { type: string, enum: [queued, sent, delivered, failed] }
-    SendMessageRequest:
-        type: object
-        required: [channel, recipient_id]
-        properties:
-          channel: { type: string, enum: [email, sms, whatsapp, in_app] }
-          recipient_id: { type: string, format: uuid }
-          subject: { type: [string, 'null'] }
-          body: { type: [string, 'null'] }
-          template_id: { type: [string, 'null'], format: uuid }
-          variables: { type: [object, 'null'], additionalProperties: true }
+      type: object
+      required: [id, tenant_id, recipient_id, channel, subject, body, status, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string, minLength: 1 }
+        recipient_id: { type: string, format: uuid }
+        channel: { $ref: '#/components/schemas/Channel' }
+        template_id: { type: [string, 'null'], format: uuid }
+        subject: { type: string }
+        body: { type: string }
+        status: { $ref: '#/components/schemas/MessageStatus' }
+        metadata: { type: object, additionalProperties: true }
+        scheduled_at: { type: [string, 'null'], format: date-time }
+        sent_at: { type: [string, 'null'], format: date-time }
+        error: { type: [string, 'null'] }
+        provider: { type: [string, 'null'], enum: [resend, twilio] }
+        delivery_status: { type: [string, 'null'], enum: [accepted, delivered, delayed, bounced, complained, failed, suppressed] }
+        delivery_status_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    CreateMessage:
+      type: object
+      required: [recipient_id, channel, subject, body]
+      properties:
+        recipient_id: { type: string, format: uuid }
+        channel: { $ref: '#/components/schemas/Channel' }
+        template_id: { type: [string, 'null'], format: uuid }
+        subject: { type: string, minLength: 1 }
+        body: { type: string, minLength: 1 }
+        metadata: { type: object, additionalProperties: true }
+        scheduled_at: { type: [string, 'null'], format: date-time }
+    UpdateMessage:
+      type: object
+      minProperties: 1
+      properties:
+        recipient_id: { type: string, format: uuid }
+        channel: { $ref: '#/components/schemas/Channel' }
+        template_id: { type: string, format: uuid }
+        subject: { type: string, minLength: 1 }
+        body: { type: string, minLength: 1 }
+        status: { $ref: '#/components/schemas/MessageStatus' }
+        metadata: { type: object, additionalProperties: true }
+        scheduled_at: { type: string, format: date-time }
+        sent_at: { type: string, format: date-time }
+        error: { type: string }
     Template:
-        type: object
-        required: [id, tenant_id, name, channel]
-        properties:
-          id: { type: string, format: uuid }
-          tenant_id: { type: string, format: uuid }
-          name: { type: string }
-          channel: { type: string, enum: [email, sms, whatsapp, in_app] }
-          subject_template: { type: [string, 'null'] }
-          body_template: { type: string }
+      type: object
+      required: [id, tenant_id, name, channel, subject_template, body_template, status, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string, minLength: 1 }
+        name: { type: string }
+        channel: { $ref: '#/components/schemas/Channel' }
+        subject_template: { type: string }
+        body_template: { type: string }
+        status: { $ref: '#/components/schemas/TemplateStatus' }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
     CreateTemplate:
         type: object
         required: [name, channel, body_template]
         properties:
           name: { type: string }
-          channel: { type: string, enum: [email, sms, whatsapp, in_app] }
-          subject_template: { type: [string, 'null'] }
+          channel: { $ref: '#/components/schemas/Channel' }
+          subject_template: { type: string, minLength: 1 }
           body_template: { type: string }
+    UpdateTemplate:
+      type: object
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1 }
+        channel: { $ref: '#/components/schemas/Channel' }
+        subject_template: { type: string, minLength: 1 }
+        body_template: { type: string, minLength: 1 }
+        status: { $ref: '#/components/schemas/TemplateStatus' }
     Subscription:
         type: object
         required: [id, tenant_id, user_id, channel]
         properties:
           id: { type: string, format: uuid }
-          tenant_id: { type: string, format: uuid }
+          tenant_id: { type: string, minLength: 1 }
           user_id: { type: string, format: uuid }
-          channel: { type: string, enum: [email, sms, whatsapp, in_app] }
+          channel: { $ref: '#/components/schemas/Channel' }
           is_enabled: { type: boolean }
+          created_at: { type: string, format: date-time }
+          updated_at: { type: string, format: date-time }
     CreateSubscription:
         type: object
         required: [user_id, channel]
         properties:
           user_id: { type: string, format: uuid }
-          channel: { type: string, enum: [email, sms, whatsapp, in_app] }
+          channel: { $ref: '#/components/schemas/Channel' }
           is_enabled: { type: boolean, default: true }
+    UpdateSubscription:
+      type: object
+      minProperties: 1
+      properties:
+        channel: { $ref: '#/components/schemas/Channel' }
+        is_enabled: { type: boolean }
     MessageList:
         type: object
         properties:
@@ -333,6 +678,24 @@ components:
           title: { type: string }
           body: { type: string }
           audience: { type: string, enum: [all, students, guardians, staff], default: all }
+    RegisterDeviceToken:
+        type: object
+        required: [device_id, platform, token]
+        properties:
+          device_id: { type: string, minLength: 1, maxLength: 200 }
+          platform: { type: string, enum: [ios, android] }
+          token: { type: string, minLength: 1, maxLength: 255 }
+    DeviceToken:
+        type: object
+        required: [id, tenant_id, user_id, device_id, platform, status, last_seen_at]
+        properties:
+          id: { type: string, format: uuid }
+          tenant_id: { type: string }
+          user_id: { type: string, format: uuid }
+          device_id: { type: string }
+          platform: { type: string, enum: [ios, android] }
+          status: { type: string, enum: [active, invalid] }
+          last_seen_at: { type: string, format: date-time }
     AnnouncementList:
         type: object
         properties:
@@ -361,6 +724,12 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
           example: { code: not_found, message: "Resource not found" }
+    Conflict:
+      description: Invalid lifecycle transition
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: validation_error, message: "Invalid lifecycle transition" }
     ValidationError:
       description: Request failed validation
       content:
@@ -376,4 +745,3 @@ components:
 
 security:
   - bearerAuth: []
-

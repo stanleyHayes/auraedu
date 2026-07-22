@@ -9,4 +9,6 @@ var (
 	ErrNoTenant    = errors.New("tenant: tenant context required")
 	ErrForbidden   = errors.New("tenant: forbidden")
 	ErrEntitlement = errors.New("tenant: plan does not include this feature")
+	ErrConflict    = errors.New("tenant: conflicting state")
+	ErrUnavailable = errors.New("tenant: dependency unavailable")
 )

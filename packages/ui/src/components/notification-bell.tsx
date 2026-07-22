@@ -63,14 +63,16 @@ export function NotificationBell({ count = 0, className, align = "end" }: Notifi
           <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
             <p className="font-heading text-sm font-bold text-[var(--foreground)]">Notifications</p>
             {count > 0 ? (
-              <span className="rounded-full bg-[var(--color-gold)]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-gold)]">
+              <span className="rounded-full bg-[var(--color-signal)]/12 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-forest)]">
                 {count} new
               </span>
             ) : null}
           </div>
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <BellOff className="size-8 text-[var(--muted-foreground)]" aria-hidden="true" />
-            <p className="mt-3 text-sm font-medium text-[var(--foreground)]">No notifications yet</p>
+            <p className="mt-3 text-sm font-medium text-[var(--foreground)]">
+              No notifications yet
+            </p>
             <p className="mt-1 text-xs text-[var(--muted-foreground)]">
               Alerts and updates will appear here.
             </p>

@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { createGatewayClient, type GatewayClient } from "@auraedu/api-client";
-import { publicApiUrl, tenantHeaderName } from "@auraedu/config";
+import { gatewayInternalUrl, tenantHeaderName } from "@auraedu/config";
 import { ACCESS_TOKEN_COOKIE, getSession } from "./auth";
 
 const TENANT_COOKIE = "auraedu_tenant_code";
@@ -11,7 +11,7 @@ export async function createServerClient(): Promise<GatewayClient> {
   const token = jar.get(ACCESS_TOKEN_COOKIE)?.value;
 
   return createGatewayClient({
-    baseUrl: publicApiUrl,
+    baseUrl: gatewayInternalUrl,
     tenantHeader: tenantHeaderName,
     getToken: () => token,
     getTenantCode: () => tenantCode,
@@ -29,7 +29,7 @@ export async function createServerClientForTenant(tenantCode: string): Promise<G
   const token = jar.get(ACCESS_TOKEN_COOKIE)?.value;
 
   return createGatewayClient({
-    baseUrl: publicApiUrl,
+    baseUrl: gatewayInternalUrl,
     tenantHeader: tenantHeaderName,
     getToken: () => token,
     getTenantCode: () => tenantCode,

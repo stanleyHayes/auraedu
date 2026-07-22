@@ -22,20 +22,33 @@ var _ ports.EventPublisher = (*Publisher)(nil)
 // NewPublisher wraps a platform eventbus publisher.
 func NewPublisher(bus *eventbus.Publisher) *Publisher { return &Publisher{bus: bus} }
 
+// PublishWithID emits an outbox event with a stable CloudEvent identity so
+// retries remain idempotent for consumers.
+func (p *Publisher) PublishWithID(ctx context.Context, eventID, eventType, tenantID string, data map[string]any) error {
+	if p == nil || p.bus == nil {
+		return nil
+	}
+	event, err := tenancy.NewCloudEvent(eventType, "report-service", eventID, tenantID, data)
+	if err != nil {
+		return fmt.Errorf("report: build outbox event: %w", err)
+	}
+	event.Type = eventType
+	event.IdempotencyKey = eventID
+	if subject, ok := data["report_card_id"].(string); ok {
+		event.Subject = subject
+	} else if subject, ok := data["report_template_id"].(string); ok {
+		event.Subject = subject
+	}
+	event.Time = time.Now().UTC().Format(time.RFC3339)
+	return p.bus.Publish(ctx, event)
+}
+
 // PublishReportTemplate emits a CloudEvent for the given report template domain event.
 func (p *Publisher) PublishReportTemplate(ctx context.Context, eventType string, t *domain.ReportTemplate, meta map[string]any) error {
 	if p == nil || p.bus == nil {
 		return nil
 	}
-	data := map[string]any{
-		"report_template_id": t.ID,
-		"academic_year_id":   t.AcademicYearID,
-		"name":               t.Name,
-		"status":             t.Status,
-	}
-	for k, v := range meta {
-		data[k] = v
-	}
+	data := ports.ReportTemplateEventData(t, meta)
 	event, err := tenancy.NewCloudEvent(eventType, "report-service", "", t.TenantID, data)
 	if err != nil {
 		return fmt.Errorf("report: build template event: %w", err)
@@ -50,26 +63,7 @@ func (p *Publisher) PublishReportCard(ctx context.Context, eventType string, c *
 	if p == nil || p.bus == nil {
 		return nil
 	}
-	data := map[string]any{
-		"report_card_id":   c.ID,
-		"student_id":       c.StudentID,
-		"academic_year_id": c.AcademicYearID,
-		"term_id":          c.TermID,
-		"template_id":      c.TemplateID,
-		"status":           c.Status,
-	}
-	if c.PDFPath != nil {
-		data["pdf_path"] = *c.PDFPath
-		// Consumers never see local disk paths; file_url is the download route
-		// (contracts/events/report.published.v1.json).
-		data["file_url"] = "/api/v1/report-cards/" + c.ID + "/download"
-	}
-	if c.GeneratedAt != nil {
-		data["generated_at"] = c.GeneratedAt.Format(time.RFC3339)
-	}
-	for k, v := range meta {
-		data[k] = v
-	}
+	data := ports.ReportCardEventData(eventType, c, meta)
 	event, err := tenancy.NewCloudEvent(eventType, "report-service", "", c.TenantID, data)
 	if err != nil {
 		return fmt.Errorf("report: build report card event: %w", err)

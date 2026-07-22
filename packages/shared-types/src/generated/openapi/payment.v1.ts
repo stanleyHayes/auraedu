@@ -2,17 +2,24 @@
 // Do not edit by hand.
 
 export type paths = {
-    "/payments/initiate": {
+    "/payments": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List payments
+         * @description Executes the list payments workflow within this AuraEDU API boundary.
+         */
+        get: operations["listPayments"];
         put?: never;
-        /** Initiate a payment */
-        post: operations["initiatePayment"];
+        /**
+         * Create a payment
+         * @description Executes the create payment workflow within this AuraEDU API boundary.
+         */
+        post: operations["createPayment"];
         delete?: never;
         options?: never;
         head?: never;
@@ -26,8 +33,59 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get payment status */
+        /**
+         * Get payment status
+         * @description Executes the get payment workflow within this AuraEDU API boundary.
+         */
         get: operations["getPayment"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a payment
+         * @description Executes the delete payment workflow within this AuraEDU API boundary.
+         */
+        delete: operations["deletePayment"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a payment
+         * @description Executes the update payment workflow within this AuraEDU API boundary.
+         */
+        patch: operations["updatePayment"];
+        trace?: never;
+    };
+    "/payments/{payment_id}/initiate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Initiate provider checkout for an existing payment
+         * @description Executes the initiate payment workflow within this AuraEDU API boundary.
+         */
+        post: operations["initiatePayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/payments/{payment_id}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reconcile a payment with its provider
+         * @description Executes the verify payment workflow within this AuraEDU API boundary.
+         */
+        get: operations["verifyPayment"];
         put?: never;
         post?: never;
         delete?: never;
@@ -36,15 +94,82 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/transactions": {
+    "/payments/{payment_id}/transactions": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List transactions */
-        get: operations["listTransactions"];
+        /**
+         * List transactions for a payment
+         * @description Executes the list payment transactions workflow within this AuraEDU API boundary.
+         */
+        get: operations["listPaymentTransactions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/transactions/{transaction_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a transaction
+         * @description Executes the get transaction workflow within this AuraEDU API boundary.
+         */
+        get: operations["getTransaction"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhook-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List retained webhook events
+         * @description Executes the list webhook events workflow within this AuraEDU API boundary.
+         */
+        get: operations["listWebhookEvents"];
+        put?: never;
+        /**
+         * Record a webhook event through the authenticated API
+         * @description Executes the create webhook event workflow within this AuraEDU API boundary.
+         */
+        post: operations["createWebhookEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhook-events/{event_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a retained webhook event
+         * @description Executes the get webhook event workflow within this AuraEDU API boundary.
+         */
+        get: operations["getWebhookEvent"];
         put?: never;
         post?: never;
         delete?: never;
@@ -62,7 +187,10 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Receive provider webhook */
+        /**
+         * Receive provider webhook
+         * @description Executes the receive webhook workflow within this AuraEDU API boundary.
+         */
         post: operations["receiveWebhook"];
         delete?: never;
         options?: never;
@@ -80,38 +208,82 @@ export type components = {
             message: string;
             request_id?: string;
         };
-        InitiatePaymentRequest: {
-            /** Format: uuid */
-            invoice_id: string;
-            amount: number;
-            /** @enum {string} */
-            gateway: "paystack" | "flutterwave";
-            callback_url?: string | null;
-        };
         Payment: {
             /** Format: uuid */
             id: string;
-            /** Format: uuid */
+            /** @description Canonical tenant identifier resolved by the gateway. */
             tenant_id: string;
             /** Format: uuid */
             invoice_id: string;
-            amount: number;
-            gateway?: string;
+            amount_cents: number;
+            /** @example GHS */
+            currency: string;
             /** @enum {string} */
-            status: "pending" | "success" | "failed";
-            reference?: string | null;
+            provider: "paystack" | "flutterwave" | "mock";
+            provider_reference?: string | null;
+            /** @enum {string} */
+            status: "pending" | "processing" | "success" | "failed" | "cancelled";
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            initiated_at: string;
+            /** Format: date-time */
+            completed_at?: string | null;
+            /**
+             * Format: uri
+             * @description Ephemeral HTTPS checkout URL returned only by initiation.
+             */
+            checkout_url?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        CreatePayment: {
+            /** Format: uuid */
+            invoice_id: string;
+            amount_cents: number;
+            /** @default GHS */
+            currency: string;
+            /** @enum {string} */
+            provider: "paystack" | "flutterwave" | "mock";
+            metadata?: {
+                [key: string]: unknown;
+            };
+        };
+        UpdatePayment: {
+            amount_cents?: number;
+            currency?: string;
+            /** @enum {string} */
+            provider?: "paystack" | "flutterwave" | "mock";
+            provider_reference?: string | null;
+            /** @enum {string} */
+            status?: "pending" | "processing" | "success" | "failed" | "cancelled";
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            completed_at?: string | null;
+        };
+        PaymentList: {
+            data: components["schemas"]["Payment"][];
+            next_cursor: string | null;
         };
         Transaction: {
             /** Format: uuid */
             id: string;
-            /** Format: uuid */
             tenant_id: string;
             /** Format: uuid */
             payment_id: string;
-            amount: number;
-            gateway_reference?: string | null;
+            /** @enum {string} */
+            type: "debit" | "credit" | "refund";
+            /** @enum {string} */
+            status: "pending" | "success" | "failed";
+            amount_cents: number;
+            reference: string;
             /** Format: date-time */
-            recorded_at?: string;
+            created_at: string;
         };
         WebhookPayload: {
             event?: string;
@@ -124,13 +296,36 @@ export type components = {
         WebhookEvent: {
             /** Format: uuid */
             id: string;
-            provider: string;
-            event: string;
-            processed?: boolean;
+            tenant_id?: string;
+            /** @enum {string} */
+            provider: "paystack" | "flutterwave" | "mock";
+            event_type: string;
+            payload: {
+                [key: string]: unknown;
+            };
+            signature?: string | null;
+            processed: boolean;
+            /** Format: date-time */
+            processed_at?: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        CreateWebhookEvent: {
+            /** @enum {string} */
+            provider: "paystack" | "flutterwave" | "mock";
+            event_type: string;
+            payload: {
+                [key: string]: unknown;
+            };
+            signature?: string | null;
         };
         TransactionList: {
-            data?: components["schemas"]["Transaction"][];
-            next_cursor?: string | null;
+            data: components["schemas"]["Transaction"][];
+            next_cursor: string | null;
+        };
+        WebhookEventList: {
+            data: components["schemas"]["WebhookEvent"][];
+            next_cursor: string | null;
         };
     };
     responses: {
@@ -190,7 +385,10 @@ export type components = {
         };
     };
     parameters: {
-        TenantId: string;
+        PaymentId: string;
+        TransactionId: string;
+        EventId: string;
+        Provider: "paystack" | "flutterwave" | "mock";
         /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
         TenantHeader: string;
         Limit: number;
@@ -202,7 +400,38 @@ export type components = {
 };
 export type $defs = Record<string, never>;
 export interface operations {
-    initiatePayment: {
+    listPayments: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+                status?: "pending" | "processing" | "success" | "failed" | "cancelled";
+                provider?: "paystack" | "flutterwave" | "mock";
+                invoice_id?: string;
+            };
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Payments */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createPayment: {
         parameters: {
             query?: never;
             header?: {
@@ -214,11 +443,11 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["InitiatePaymentRequest"];
+                "application/json": components["schemas"]["CreatePayment"];
             };
         };
         responses: {
-            /** @description OK */
+            /** @description Created payment */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -229,7 +458,6 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationError"];
         };
     };
@@ -241,7 +469,7 @@ export interface operations {
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                payment_id: components["parameters"]["PaymentId"];
             };
             cookie?: never;
         };
@@ -262,7 +490,122 @@ export interface operations {
             422: components["responses"]["ValidationError"];
         };
     };
-    listTransactions: {
+    deletePayment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                payment_id: components["parameters"]["PaymentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Payment deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updatePayment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                payment_id: components["parameters"]["PaymentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePayment"];
+            };
+        };
+        responses: {
+            /** @description Updated payment */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payment"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    initiatePayment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                payment_id: components["parameters"]["PaymentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Initiated payment */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payment"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    verifyPayment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                payment_id: components["parameters"]["PaymentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Verified payment */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payment"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listPaymentTransactions: {
         parameters: {
             query?: {
                 limit?: components["parameters"]["Limit"];
@@ -272,7 +615,9 @@ export interface operations {
                 /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
-            path?: never;
+            path: {
+                payment_id: components["parameters"]["PaymentId"];
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -292,6 +637,120 @@ export interface operations {
             422: components["responses"]["ValidationError"];
         };
     };
+    getTransaction: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                transaction_id: components["parameters"]["TransactionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Transaction */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transaction"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listWebhookEvents: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Webhook events */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookEventList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createWebhookEvent: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateWebhookEvent"];
+            };
+        };
+        responses: {
+            /** @description Webhook event */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookEvent"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getWebhookEvent: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                event_id: components["parameters"]["EventId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Webhook event */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookEvent"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     receiveWebhook: {
         parameters: {
             query?: never;
@@ -300,7 +759,7 @@ export interface operations {
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                provider: components["parameters"]["Provider"];
             };
             cookie?: never;
         };
@@ -310,14 +769,12 @@ export interface operations {
             };
         };
         responses: {
-            /** @description OK */
-            201: {
+            /** @description Webhook accepted */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["WebhookEvent"];
-                };
+                content?: never;
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];

@@ -156,5 +156,5 @@ export function generateGoStubs(service: string, schema: any): string {
   code += generateServerInterface(schema.paths) + "\n";
   code += generateClientInterface(schema.paths) + "\n";
 
-  return code;
+  return `${code.trimEnd()}\n`;
 }

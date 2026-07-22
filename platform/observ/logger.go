@@ -4,6 +4,7 @@ package observ
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -24,6 +25,23 @@ var piiPatterns = []struct {
 	{"ssn", regexp.MustCompile(`(?i)ssn|social_security|national_id`)},
 }
 
+//nolint:gochecknoglobals // Compiled once because every emitted attribute is inspected.
+var sensitiveValuePatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}`),
+	regexp.MustCompile(`(?i)(bearer\s+|password\s*[=:]|access[_-]?token\s*[=:]|refresh[_-]?token\s*[=:]|api[_-]?key\s*[=:])\S+`),
+	regexp.MustCompile(`\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}(?:\.[A-Za-z0-9_-]{5,})?\b`),
+	regexp.MustCompile(`(?i)(?:\+?\d[\d ()-]{8,}\d)`),
+}
+
+func containsSensitiveValue(value string) bool {
+	for _, pattern := range sensitiveValuePatterns {
+		if pattern.MatchString(value) {
+			return true
+		}
+	}
+	return false
+}
+
 func redactReplacer(_ []string, a slog.Attr) slog.Attr {
 	key := a.Key
 	for _, p := range piiPatterns {
@@ -31,10 +49,9 @@ func redactReplacer(_ []string, a slog.Attr) slog.Attr {
 			return slog.String(key, "[REDACTED]")
 		}
 	}
-	if s, ok := a.Value.Any().(string); ok {
-		if strings.HasPrefix(s, "eyJ") && len(s) > 20 {
-			return slog.String(key, s[:8]+"...[REDACTED]")
-		}
+	value := fmt.Sprint(a.Value.Any())
+	if containsSensitiveValue(value) {
+		return slog.String(key, "[REDACTED]")
 	}
 	return a
 }
@@ -51,9 +68,13 @@ func NewLogger(level slog.Leveler, w io.Writer) *slog.Logger {
 	return slog.New(slog.NewJSONHandler(w, opts))
 }
 
-// DefaultLogger returns a logger writing INFO-level JSON to stdout.
+// DefaultLogger installs and returns an INFO-level redacting JSON logger.
+// Installing it ensures packages that use slog.Default also inherit the same
+// runtime PII protection as the service entrypoint's explicit logger.
 func DefaultLogger() *slog.Logger {
-	return NewLogger(slog.LevelInfo, os.Stdout)
+	logger := NewLogger(slog.LevelInfo, os.Stdout)
+	slog.SetDefault(logger)
+	return logger
 }
 
 // LoggerFromContext returns the logger stored in ctx, or DefaultLogger.

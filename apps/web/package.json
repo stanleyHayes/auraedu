@@ -9,7 +9,7 @@
     "start": "next start --port 3000",
     "typecheck": "next typegen && tsc --noEmit",
     "lint": "eslint .",
-    "test": "echo \"no tests yet\""
+    "test": "node --test test/*.test.ts"
   },
   "dependencies": {
     "@auraedu/api-client": "workspace:*",

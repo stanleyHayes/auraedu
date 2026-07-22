@@ -1,0 +1,27 @@
+name: tenant-isolation-gates
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  go-isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GOFLAGS: -mod=readonly
+      GOTOOLCHAIN: local
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with: { go-version: '1.26.5' }
+      - name: Go two-school isolation matrix
+        run: bash tools/ci/run-go-isolation-tests.sh
+      - name: Validate deployed isolation harness
+        run: |
+          cd tools/isolationtest
+          GOWORK=off go test ./...
+          GOWORK=off go build ./...
+          GOWORK=off go run . -config ../../release/scenarios/staging-two-school-isolation.json -validate-only

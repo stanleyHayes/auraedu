@@ -67,7 +67,9 @@ export default async function TeacherAssignmentsPage() {
         icon={<ClipboardList className="size-6" />}
         title="Assignments"
         description="Assignments set for your classes."
-        action={<AssignmentFormSheet mode="create" subjects={subjects} classes={classes} years={years} />}
+        action={
+          <AssignmentFormSheet mode="create" subjects={subjects} classes={classes} years={years} />
+        }
       />
 
       {error ? (

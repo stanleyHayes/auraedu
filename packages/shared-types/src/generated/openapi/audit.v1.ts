@@ -9,8 +9,32 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List audit logs */
+        /**
+         * List audit logs
+         * @description Executes the list audit logs workflow within this AuraEDU API boundary.
+         */
         get: operations["listAuditLogs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/audit/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List audit logs through the gateway-prefixed alias
+         * @deprecated
+         * @description Executes the list audit logs gateway alias workflow within this AuraEDU API boundary.
+         */
+        get: operations["listAuditLogsGatewayAlias"];
         put?: never;
         post?: never;
         delete?: never;
@@ -32,7 +56,7 @@ export type components = {
         AuditLog: {
             /** Format: uuid */
             id: string;
-            /** Format: uuid */
+            /** @description Canonical tenant identifier */
             tenant_id: string;
             event_type: string;
             /** Format: uuid */
@@ -107,7 +131,6 @@ export type components = {
         };
     };
     parameters: {
-        TenantId: string;
         /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
         TenantHeader: string;
         Limit: number;
@@ -147,6 +170,34 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationError"];
+        };
+    };
+    listAuditLogsGatewayAlias: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: {
+                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditLogList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
 }

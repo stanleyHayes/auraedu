@@ -38,7 +38,13 @@ export function SubjectForm({ mode, subjectId, initial, onSuccess }: SubjectForm
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="name">Subject name</Label>
-          <Input id="name" name="name" defaultValue={initial?.name} required placeholder="Mathematics" />
+          <Input
+            id="name"
+            name="name"
+            defaultValue={initial?.name}
+            required
+            placeholder="Mathematics"
+          />
         </div>
 
         <div className="space-y-1.5">

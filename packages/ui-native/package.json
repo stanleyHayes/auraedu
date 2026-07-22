@@ -1,0 +1,33 @@
+{
+  "name": "@auraedu/ui-native",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "build": "echo \"@auraedu/ui-native: source-only package\"",
+    "test": "node --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@auraedu/tokens": "workspace:*"
+  },
+  "peerDependencies": {
+    "expo-router": "~57.0.7",
+    "react": "19.2.3",
+    "react-native": "^0.86.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@types/react": "^19.2.17",
+    "eslint": "^10.7.0",
+    "expo-router": "~57.0.7",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "^0.86.0",
+    "typescript": "^6.0.3"
+  }
+}

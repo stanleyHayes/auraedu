@@ -11,8 +11,31 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Exchange credentials for JWT tokens */
+        /**
+         * Exchange tenant user credentials for rotating tokens
+         * @description Executes the login workflow within this AuraEDU API boundary.
+         */
         post: operations["login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/mfa/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete a tenant-bound privileged TOTP challenge
+         * @description Executes the verify mfa workflow within this AuraEDU API boundary.
+         */
+        post: operations["verifyMFA"];
         delete?: never;
         options?: never;
         head?: never;
@@ -28,7 +51,10 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Rotate access token using refresh token */
+        /**
+         * Rotate an access and refresh token pair
+         * @description Executes the refresh token workflow within this AuraEDU API boundary.
+         */
         post: operations["refreshToken"];
         delete?: never;
         options?: never;
@@ -45,7 +71,7 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Log out by revoking the refresh token */
+        /** @description Executes the logout workflow within this AuraEDU API boundary. */
         post: operations["logout"];
         delete?: never;
         options?: never;
@@ -63,8 +89,62 @@ export type paths = {
         get?: never;
         put?: never;
         post?: never;
-        /** Revoke a session */
+        /** @description Executes the revoke session workflow within this AuraEDU API boundary. */
         delete: operations["revokeSession"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Executes the get current identity workflow within this AuraEDU API boundary. */
+        get: operations["getCurrentIdentity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/forgot-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request a non-enumerating password reset delivery
+         * @description Executes the request password reset workflow within this AuraEDU API boundary.
+         */
+        post: operations["requestPasswordReset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Executes the reset password workflow within this AuraEDU API boundary. */
+        post: operations["resetPassword"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -77,10 +157,10 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List users for the tenant */
+        /** @description Executes the list users workflow within this AuraEDU API boundary. */
         get: operations["listUsers"];
         put?: never;
-        /** Create a user in the tenant */
+        /** @description Executes the create user workflow within this AuraEDU API boundary. */
         post: operations["createUser"];
         delete?: never;
         options?: never;
@@ -95,15 +175,16 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get a user */
+        /** @description Executes the get user workflow within this AuraEDU API boundary. */
         get: operations["getUser"];
-        put?: never;
+        /** @description Executes the update user workflow within this AuraEDU API boundary. */
+        put: operations["updateUser"];
         post?: never;
-        delete?: never;
+        /** @description Executes the delete user workflow within this AuraEDU API boundary. */
+        delete: operations["deleteUser"];
         options?: never;
         head?: never;
-        /** Update a user */
-        patch: operations["updateUser"];
+        patch?: never;
         trace?: never;
     };
     "/users/{user_id}/roles": {
@@ -115,8 +196,82 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Assign a role to a user */
+        /** @description Executes the assign role workflow within this AuraEDU API boundary. */
         post: operations["assignRole"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create and privately deliver a user invitation
+         * @description Executes the invite user workflow within this AuraEDU API boundary.
+         */
+        post: operations["inviteUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/invites/{token}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Executes the accept invite workflow within this AuraEDU API boundary. */
+        post: operations["acceptInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/invites/{token}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept a privately delivered invitation without an existing session
+         * @description Public transport boundary for the one-time, hashed, expiring invite token. The token is the credential; successful use activates the tenant administrator account.
+         */
+        post: operations["acceptPublicInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Executes the list permissions workflow within this AuraEDU API boundary. */
+        get: operations["listPermissions"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -130,7 +285,7 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List available roles */
+        /** @description Executes the list roles workflow within this AuraEDU API boundary. */
         get: operations["listRoles"];
         put?: never;
         post?: never;
@@ -145,96 +300,141 @@ export type webhooks = Record<string, never>;
 export type components = {
     schemas: {
         Error: {
-            /** @enum {string} */
-            code: "forbidden" | "feature_disabled" | "tenant_mismatch" | "validation_error" | "not_found" | "unauthorized";
+            code: string;
             message: string;
-            request_id?: string;
         };
         LoginRequest: {
-            identifier: string;
+            /** Format: email */
+            email: string;
             /** Format: password */
             password: string;
         };
-        RefreshRequest: {
-            refresh_token: string;
+        MFAChallenge: {
+            /** @enum {string} */
+            status: "mfa_required" | "mfa_setup_required";
+            challenge_token: string;
+            /** @description Returned only during first enrollment */
+            secret?: string;
+            /**
+             * Format: uri
+             * @description Returned only during first enrollment
+             */
+            otpauth_uri?: string;
+            user: components["schemas"]["User"];
         };
-        LogoutRequest: {
+        MFAVerifyRequest: {
+            challenge_token: string;
+            code: string;
+            /** @description Required only for first enrollment */
+            setup_secret?: string;
+        };
+        RefreshRequest: {
             refresh_token: string;
         };
         TokenPair: {
             access_token: string;
             refresh_token: string;
-            expires_in: number;
-            /** @default Bearer */
-            token_type: string;
+            /** @constant */
+            token_type: "Bearer";
+            /** Format: date-time */
+            expires_at: string;
+            user: components["schemas"]["User"];
+        };
+        CurrentIdentity: {
+            user_id: string;
+            tenant_id: string;
+            role: string;
+            permissions: string[];
+            features_hash: string;
+            platform_admin: boolean;
         };
         User: {
-            /** Format: uuid */
             id: string;
-            /** Format: uuid */
+            /** Format: email */
+            email: string;
+            name: string;
+            /** @description Canonical tenant code; empty only for platform administrators */
             tenant_id: string;
-            /** Format: email */
-            email: string;
-            username?: string | null;
             role: string;
+            permissions: string[];
             /** @enum {string} */
-            status: "active" | "suspended" | "pending";
-            /** Format: date-time */
-            created_at?: string;
-            /** Format: date-time */
-            updated_at?: string;
+            status: "active" | "inactive" | "locked";
         };
-        CreateUser: {
+        CreateUserRequest: {
+            tenant_id?: string;
             /** Format: email */
             email: string;
-            username?: string | null;
+            name: string;
             role: string;
+            permissions?: string[];
             /** Format: password */
             password?: string;
         };
-        UpdateUser: {
-            /** Format: email */
-            email?: string;
-            username?: string | null;
+        UpdateUserRequest: {
+            name?: string;
             role?: string;
+            permissions?: string[];
             /** @enum {string} */
-            status?: "active" | "suspended" | "pending";
+            status?: "active" | "inactive" | "locked";
         };
-        RoleAssignment: {
+        RoleAssignmentRequest: {
             role: string;
             permissions?: string[];
         };
-        Role: {
-            key: string;
-            name: string;
+        ForgotPasswordRequest: {
+            /** Format: email */
+            email: string;
+        };
+        ResetPasswordRequest: {
+            token: string;
+            /** Format: password */
+            new_password: string;
+        };
+        InviteUserRequest: {
+            tenant_id?: string;
+            /** Format: email */
+            email: string;
+            role: string;
             permissions?: string[];
         };
+        AcceptInviteRequest: {
+            name: string;
+            /** Format: password */
+            password: string;
+        };
+        InviteReceipt: {
+            /** @constant */
+            status: "delivery_queued";
+        };
+        StatusResponse: {
+            status: string;
+            message?: string;
+        };
         UserList: {
-            data?: components["schemas"]["User"][];
-            next_cursor?: string | null;
+            data: components["schemas"]["User"][];
+            next_cursor: string | null;
+        };
+        PermissionList: {
+            data: string[];
         };
         RoleList: {
-            data?: components["schemas"]["Role"][];
-            next_cursor?: string | null;
+            data: {
+                role: string;
+                scope: string;
+            }[];
         };
     };
     responses: {
-        /** @description Missing or invalid bearer token */
+        /** @description Missing, invalid or expired credential */
         Unauthorized: {
             headers: {
                 [name: string]: unknown;
             };
             content: {
-                /**
-                 * @example {
-                 *       "code": "unauthorized",
-                 *       "message": "Authentication required"
-                 *     }
-                 */
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description Not permitted (auth, tenant scope, RBAC, or feature disabled) */
+        /** @description Tenant or permission gate denied access */
         Forbidden: {
             headers: {
                 [name: string]: unknown;
@@ -249,12 +449,15 @@ export type components = {
                 [name: string]: unknown;
             };
             content: {
-                /**
-                 * @example {
-                 *       "code": "not_found",
-                 *       "message": "Resource not found"
-                 *     }
-                 */
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Resource already exists */
+        Conflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
                 "application/json": components["schemas"]["Error"];
             };
         };
@@ -264,22 +467,24 @@ export type components = {
                 [name: string]: unknown;
             };
             content: {
-                /**
-                 * @example {
-                 *       "code": "validation_error",
-                 *       "message": "request body is invalid"
-                 *     }
-                 */
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Required private delivery service unavailable */
+        Unavailable: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
                 "application/json": components["schemas"]["Error"];
             };
         };
     };
     parameters: {
-        TenantId: string;
-        /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
         TenantHeader: string;
-        Limit: number;
-        Cursor: string;
+        UserId: string;
+        SessionId: string;
+        InviteToken: string;
     };
     requestBodies: never;
     headers: never;
@@ -291,7 +496,6 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path?: never;
@@ -303,7 +507,44 @@ export interface operations {
             };
         };
         responses: {
-            /** @description OK */
+            /** @description Authenticated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenPair"];
+                };
+            };
+            /** @description Privileged account requires TOTP setup or verification */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MFAChallenge"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    verifyMFA: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MFAVerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description Authenticated after MFA */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -313,18 +554,13 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationError"];
         };
     };
     refreshToken: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
-                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -334,7 +570,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description OK */
+            /** @description Rotated */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -344,59 +580,45 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            422: components["responses"]["ValidationError"];
         };
     };
     logout: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
-                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["LogoutRequest"];
+                "application/json": components["schemas"]["RefreshRequest"];
             };
         };
         responses: {
-            /** @description OK */
+            /** @description Logged out */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        status?: string;
-                    };
+                    "application/json": components["schemas"]["StatusResponse"];
                 };
             };
             401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            422: components["responses"]["ValidationError"];
         };
     };
     revokeSession: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
-                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
-            };
+            header?: never;
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                session_id: components["parameters"]["SessionId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description No content */
+            /** @description Revoked */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -405,18 +627,88 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
+        };
+    };
+    getCurrentIdentity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current claims */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurrentIdentity"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    requestPasswordReset: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForgotPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted regardless of account existence */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusResponse"];
+                };
+            };
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    resetPassword: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Password reset */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
             422: components["responses"]["ValidationError"];
         };
     };
     listUsers: {
         parameters: {
-            query?: {
-                limit?: components["parameters"]["Limit"];
-                cursor?: components["parameters"]["Cursor"];
-            };
+            query?: never;
             header?: {
-                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path?: never;
@@ -424,7 +716,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description OK */
+            /** @description Tenant users */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -433,17 +725,13 @@ export interface operations {
                     "application/json": components["schemas"]["UserList"];
                 };
             };
-            401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            422: components["responses"]["ValidationError"];
         };
     };
     createUser: {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path?: never;
@@ -451,11 +739,166 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CreateUser"];
+                "application/json": components["schemas"]["CreateUserRequest"];
             };
         };
         responses: {
-            /** @description OK */
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description User */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateUserRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    assignRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleAssignmentRequest"];
+            };
+        };
+        responses: {
+            /** @description Role assigned */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    inviteUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteUserRequest"];
+            };
+        };
+        responses: {
+            /** @description Delivery accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteReceipt"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationError"];
+            503: components["responses"]["Unavailable"];
+        };
+    };
+    acceptInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: components["parameters"]["InviteToken"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcceptInviteRequest"];
+            };
+        };
+        responses: {
+            /** @description Account activated */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -465,60 +908,26 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationError"];
         };
     };
-    getUser: {
+    acceptPublicInvite: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
-                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
-            };
+            header?: never;
             path: {
-                tenant_id: components["parameters"]["TenantId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["User"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            422: components["responses"]["ValidationError"];
-        };
-    };
-    updateUser: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
-                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                tenant_id: components["parameters"]["TenantId"];
+                token: components["parameters"]["InviteToken"];
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UpdateUser"];
+                "application/json": components["schemas"]["AcceptInviteRequest"];
             };
         };
         responses: {
-            /** @description OK */
-            200: {
+            /** @description Account activated */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -527,57 +936,39 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationError"];
         };
     };
-    assignRole: {
+    listPermissions: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
-                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                tenant_id: components["parameters"]["TenantId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RoleAssignment"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["User"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            422: components["responses"]["ValidationError"];
-        };
-    };
-    listRoles: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
-                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description OK */
+            /** @description Permission keys */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionList"];
+                };
+            };
+        };
+    };
+    listRoles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Supported roles */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -586,10 +977,6 @@ export interface operations {
                     "application/json": components["schemas"]["RoleList"];
                 };
             };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            422: components["responses"]["ValidationError"];
         };
     };
 }

@@ -4,12 +4,8 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createGatewayClient } from "@auraedu/api-client";
-import { publicApiUrl, tenantHeaderName } from "@auraedu/config";
-import {
-  ACCESS_TOKEN_COOKIE,
-  REFRESH_TOKEN_COOKIE,
-  USER_COOKIE,
-} from "./auth";
+import { gatewayInternalUrl, tenantHeaderName } from "@auraedu/config";
+import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, USER_COOKIE } from "./auth";
 import { createServerClient } from "./api";
 
 const TENANT_COOKIE = "auraedu_tenant_code";
@@ -21,7 +17,7 @@ export async function logoutAction() {
 
   if (refreshToken) {
     const client = createGatewayClient({
-      baseUrl: publicApiUrl,
+      baseUrl: gatewayInternalUrl,
       tenantHeader: tenantHeaderName,
       getToken: () => undefined,
       getTenantCode: () => tenantCode,

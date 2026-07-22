@@ -4,8 +4,10 @@ info:
   version: 1.0.0
   description: >
     Computer-based / online exams: question banks, sessions, submissions, and auto-grading (spec \u00a77). Owned by lane L2 (EP-24). Feature flag: cbt_exams.
+  contact:
+    name: AuraEDU Engineering
 servers:
-  - url: /api/v1
+  - url: /api/v1/cbt
 tags:
   - name: exams
   - name: question-banks
@@ -15,6 +17,7 @@ paths:
     /exams:
       get:
             operationId: listExams
+            description: Executes the list exams workflow within this AuraEDU API boundary.
             tags: ['exams']
             summary: List exams
             parameters:
@@ -33,6 +36,7 @@ paths:
               '401': { $ref: '#/components/responses/Unauthorized' }
       post:
             operationId: createExam
+            description: Executes the create exam workflow within this AuraEDU API boundary.
             tags: ['exams']
             summary: Create an exam
             parameters:
@@ -55,11 +59,12 @@ paths:
     /exams/{exam_id}:
       get:
             operationId: getExam
+            description: Executes the get exam workflow within this AuraEDU API boundary.
             tags: ['exams']
             summary: Get an exam
             parameters:
               - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/TenantId'
+              - $ref: '#/components/parameters/ExamId'
             responses:
               '200':
                 description: OK
@@ -70,14 +75,51 @@ paths:
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
-    /exams/{exam_id}/sessions:
+      patch:
+        operationId: updateExam
+        description: Executes the update exam workflow within this AuraEDU API boundary.
+        tags: ['exams']
+        summary: Update an exam
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/ExamId'
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UpdateExam' }
+        responses:
+          '200':
+            description: Updated exam
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/Exam' }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+      delete:
+        operationId: deleteExam
+        description: Executes the delete exam workflow within this AuraEDU API boundary.
+        tags: ['exams']
+        summary: Delete an exam
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/ExamId'
+        responses:
+          '204': { description: Exam deleted }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+    /exams/{exam_id}/start:
       post:
             operationId: startExamSession
+            description: Executes the start exam session workflow within this AuraEDU API boundary.
             tags: ['exams']
             summary: Start an exam session
             parameters:
               - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/TenantId'
+              - $ref: '#/components/parameters/ExamId'
             responses:
               '201':
                 description: OK
@@ -89,30 +131,110 @@ paths:
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
     /submissions:
-      post:
-            operationId: submitExam
+      get:
+            operationId: listSubmissions
+            description: Executes the list submissions workflow within this AuraEDU API boundary.
             tags: ['submissions']
-            summary: Submit an exam
+            summary: List submissions visible to the actor
             parameters:
               - $ref: '#/components/parameters/TenantHeader'
-            requestBody:
-              required: true
-              content:
-                application/json:
-                  schema: { $ref: '#/components/schemas/CreateSubmission' }
+              - $ref: '#/components/parameters/Limit'
+              - $ref: '#/components/parameters/Cursor'
             responses:
-              '201':
+              '200':
                 description: OK
                 content:
                   application/json:
-                    schema: { $ref: '#/components/schemas/Submission' }
+                    schema: { $ref: '#/components/schemas/SubmissionList' }
               '403': { $ref: '#/components/responses/Forbidden' }
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
-    /question-banks:
+    /submissions/{submission_id}:
       get:
-            operationId: listQuestionBanks
+        operationId: getSubmission
+        description: Executes the get submission workflow within this AuraEDU API boundary.
+        tags: ['submissions']
+        summary: Get a submission visible to the actor
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/SubmissionId'
+        responses:
+          '200':
+            description: Submission
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/Submission' }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+    /submissions/{submission_id}/questions:
+      get:
+            operationId: getSubmissionQuestions
+            description: Executes the get submission questions workflow within this AuraEDU API boundary.
+            tags: ['submissions']
+            summary: Get answer-safe questions for the authenticated student's active attempt
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/SubmissionId'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema:
+                      type: object
+                      properties:
+                        data: { type: array, items: { $ref: '#/components/schemas/ExamQuestion' } }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+    /submissions/{submission_id}/submit:
+      post:
+            operationId: submitAnswers
+            description: Executes the submit answers workflow within this AuraEDU API boundary.
+            tags: ['submissions']
+            summary: Submit and auto-grade the authenticated student's attempt
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+              - $ref: '#/components/parameters/SubmissionId'
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema: { $ref: '#/components/schemas/SubmitAnswers' }
+            responses:
+              '200':
+                description: Graded submission
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Submission' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+    /submissions/{submission_id}/grade:
+      post:
+        operationId: gradeSubmission
+        description: Executes the grade submission workflow within this AuraEDU API boundary.
+        tags: ['submissions']
+        summary: Grade a submitted attempt
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/SubmissionId'
+        responses:
+          '200':
+            description: Graded submission
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/Submission' }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+    /questions:
+      get:
+            operationId: listQuestions
+            description: Executes the list questions workflow within this AuraEDU API boundary.
             tags: ['question-banks']
             summary: List question banks
             parameters:
@@ -124,13 +246,14 @@ paths:
                 description: OK
                 content:
                   application/json:
-                    schema: { $ref: '#/components/schemas/QuestionBankList' }
+                    schema: { $ref: '#/components/schemas/QuestionList' }
               '403': { $ref: '#/components/responses/Forbidden' }
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
       post:
-            operationId: createQuestionBank
+            operationId: createQuestion
+            description: Executes the create question workflow within this AuraEDU API boundary.
             tags: ['question-banks']
             summary: Create a question bank
             parameters:
@@ -139,22 +262,81 @@ paths:
               required: true
               content:
                 application/json:
-                  schema: { $ref: '#/components/schemas/CreateQuestionBank' }
+                  schema: { $ref: '#/components/schemas/CreateQuestion' }
             responses:
               '201':
                 description: OK
                 content:
                   application/json:
-                    schema: { $ref: '#/components/schemas/QuestionBank' }
+                    schema: { $ref: '#/components/schemas/Question' }
               '403': { $ref: '#/components/responses/Forbidden' }
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
 
+    /questions/{question_id}:
+      get:
+        operationId: getQuestion
+        description: Executes the get question workflow within this AuraEDU API boundary.
+        tags: ['question-banks']
+        summary: Get a question
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/QuestionId'
+        responses:
+          '200':
+            description: Question
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/Question' }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+      patch:
+        operationId: updateQuestion
+        description: Executes the update question workflow within this AuraEDU API boundary.
+        tags: ['question-banks']
+        summary: Update a question
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/QuestionId'
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UpdateQuestion' }
+        responses:
+          '200':
+            description: Updated question
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/Question' }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+      delete:
+        operationId: deleteQuestion
+        description: Executes the delete question workflow within this AuraEDU API boundary.
+        tags: ['question-banks']
+        summary: Delete a question
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/QuestionId'
+        responses:
+          '204': { description: Question deleted }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
 components:
   parameters:
-    TenantId:
-      name: tenant_id
+    ExamId:
+      name: exam_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    QuestionId:
+      name: question_id
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -164,6 +346,11 @@ components:
       required: false
       description: Optional tenant code for resolution when the gateway cannot derive it from the host.
       schema: { type: string, example: upshs }
+    SubmissionId:
+      name: submission_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     Limit:
       name: limit
       in: query
@@ -189,71 +376,114 @@ components:
           tenant_id: { type: string, format: uuid }
           title: { type: string }
           subject_id: { type: string, format: uuid }
+          academic_year_id: { type: string, format: uuid }
           duration_minutes: { type: integer, minimum: 1 }
-          question_count: { type: integer, minimum: 0 }
-          starts_at: { type: [string, 'null'], format: date-time }
-          ends_at: { type: [string, 'null'], format: date-time }
+          question_ids: { type: array, items: { type: string, format: uuid } }
+          start_at: { type: [string, 'null'], format: date-time }
+          end_at: { type: [string, 'null'], format: date-time }
+          status: { type: string, enum: [draft, published, active, closed, archived] }
     CreateExam:
         type: object
-        required: [title, subject_id]
+        required: [title, academic_year_id, subject_id, question_ids, duration_minutes]
         properties:
           title: { type: string }
+          academic_year_id: { type: string, format: uuid }
           subject_id: { type: string, format: uuid }
           duration_minutes: { type: integer, minimum: 1 }
           question_ids: { type: array, items: { type: string, format: uuid } }
-          starts_at: { type: [string, 'null'], format: date-time }
-          ends_at: { type: [string, 'null'], format: date-time }
+          start_at: { type: [string, 'null'], format: date-time }
+          end_at: { type: [string, 'null'], format: date-time }
+    UpdateExam:
+        type: object
+        properties:
+          title: { type: string }
+          duration_minutes: { type: integer, minimum: 1 }
+          question_ids: { type: array, items: { type: string, format: uuid } }
+          start_at: { type: [string, 'null'], format: date-time }
+          end_at: { type: [string, 'null'], format: date-time }
+          status: { type: string, enum: [draft, published, active, closed, archived] }
     ExamSession:
         type: object
-        required: [id, exam_id, student_id, started_at]
+        required: [id, exam_session_id, student_id, status]
         properties:
           id: { type: string, format: uuid }
-          exam_id: { type: string, format: uuid }
+          exam_session_id: { type: string, format: uuid }
           student_id: { type: string, format: uuid }
-          started_at: { type: string, format: date-time }
-          expires_at: { type: string, format: date-time }
+          status: { type: string, enum: [in_progress, submitted, graded] }
     Submission:
         type: object
-        required: [id, exam_id, student_id, answers]
+        required: [id, exam_session_id, student_id, answers, status]
         properties:
           id: { type: string, format: uuid }
-          exam_id: { type: string, format: uuid }
+          exam_session_id: { type: string, format: uuid }
           student_id: { type: string, format: uuid }
-          answers: { type: array, items: { type: object, properties: { question_id: { type: string, format: uuid }, selected_option: { type: [string, 'null'] }, text_answer: { type: [string, 'null'] } } } }
+          answers: { type: object, additionalProperties: { type: string } }
+          status: { type: string, enum: [in_progress, submitted, graded] }
           score: { type: [number, 'null'], minimum: 0 }
           max_score: { type: [number, 'null'], minimum: 0 }
           submitted_at: { type: string, format: date-time }
-    CreateSubmission:
+    SubmitAnswers:
         type: object
-        required: [exam_id, student_id, answers]
+        required: [answers]
         properties:
-          exam_id: { type: string, format: uuid }
-          student_id: { type: string, format: uuid }
-          answers: { type: array, items: { type: object, properties: { question_id: { type: string, format: uuid }, selected_option: { type: [string, 'null'] }, text_answer: { type: [string, 'null'] } } } }
-    QuestionBank:
+          answers: { type: object, additionalProperties: { type: string } }
+    ExamQuestion:
         type: object
-        required: [id, tenant_id, name]
+        required: [id, question_text, question_type, marks]
+        properties:
+          id: { type: string, format: uuid }
+          question_text: { type: string }
+          question_type: { type: string, enum: [multiple_choice, true_false, short_answer] }
+          options: { type: array, items: { type: string } }
+          marks: { type: integer, minimum: 1 }
+    Question:
+        type: object
+        required: [id, tenant_id, academic_year_id, subject_id, question_text, question_type, correct_answer, marks, status]
         properties:
           id: { type: string, format: uuid }
           tenant_id: { type: string, format: uuid }
-          name: { type: string }
-          subject_id: { type: [string, 'null'], format: uuid }
-          question_count: { type: integer, minimum: 0 }
-    CreateQuestionBank:
+          academic_year_id: { type: string, format: uuid }
+          subject_id: { type: string, format: uuid }
+          question_text: { type: string }
+          question_type: { type: string, enum: [multiple_choice, true_false, short_answer] }
+          options: { type: array, items: { type: string } }
+          correct_answer: { type: string }
+          marks: { type: integer, minimum: 1 }
+          status: { type: string, enum: [draft, published, archived] }
+    CreateQuestion:
         type: object
-        required: [name]
+        required: [academic_year_id, subject_id, question_text, question_type, correct_answer, marks]
         properties:
-          name: { type: string }
-          subject_id: { type: [string, 'null'], format: uuid }
+          academic_year_id: { type: string, format: uuid }
+          subject_id: { type: string, format: uuid }
+          question_text: { type: string }
+          question_type: { type: string, enum: [multiple_choice, true_false, short_answer] }
+          options: { type: array, items: { type: string } }
+          correct_answer: { type: string }
+          marks: { type: integer, minimum: 1 }
+    UpdateQuestion:
+        type: object
+        properties:
+          question_text: { type: string }
+          question_type: { type: string, enum: [multiple_choice, true_false, short_answer] }
+          options: { type: array, items: { type: string } }
+          correct_answer: { type: string }
+          marks: { type: integer, minimum: 1 }
+          status: { type: string, enum: [draft, published, archived] }
     ExamList:
         type: object
         properties:
           data: { type: array, items: { $ref: '#/components/schemas/Exam' } }
           next_cursor: { type: [string, 'null'] }
-    QuestionBankList:
+    QuestionList:
         type: object
         properties:
-          data: { type: array, items: { $ref: '#/components/schemas/QuestionBank' } }
+          data: { type: array, items: { $ref: '#/components/schemas/Question' } }
+          next_cursor: { type: [string, 'null'] }
+    SubmissionList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/Submission' } }
           next_cursor: { type: [string, 'null'] }
 
   responses:
@@ -293,4 +523,3 @@ components:
 
 security:
   - bearerAuth: []
-

@@ -1,0 +1,478 @@
+openapi: 3.1.0
+info:
+  title: AuraEDU Growth CRM API
+  version: 1.0.0
+  description: Tenant-isolated recruitment leads, consent and interaction timelines.
+  contact:
+    name: AuraEDU Engineering
+servers:
+  - url: /api/v1
+tags:
+  - name: public-leads
+  - name: leads
+  - name: interactions
+  - name: feedback
+  - name: internal-recipients
+
+paths:
+  /internal/v1/leads/{lead_id}/welcome-recipient:
+    get:
+      operationId: resolveLeadWelcomeRecipient
+      description: Resolve current channel-specific contact consent without placing prospect PII on the event bus.
+      tags: [internal-recipients]
+      summary: Resolve a consented lead notification recipient for a trusted service
+      servers: [{ url: / }]
+      security: [{ serviceBearer: [] }]
+      parameters:
+        - name: X-Tenant-ID
+          in: header
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 64 }
+        - $ref: '#/components/parameters/LeadId'
+      responses:
+        '200':
+          description: Current contact values and capture-time channel consent
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WelcomeRecipient' }
+        '401': { description: Invalid service credentials }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /public/leads:
+    post:
+      operationId: captureLead
+      description: Executes the capture lead workflow within this AuraEDU API boundary.
+      tags: [public-leads]
+      summary: Capture or deduplicate a consented prospect enquiry
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/TenantCode'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CaptureLead' }
+      responses:
+        '201':
+          description: Lead created
+          content: { application/json: { schema: { $ref: '#/components/schemas/LeadCaptureResult' } } }
+        '200':
+          description: Existing tenant lead matched and updated
+          content: { application/json: { schema: { $ref: '#/components/schemas/LeadCaptureResult' } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /leads:
+    get:
+      operationId: listLeads
+      description: Executes the list leads workflow within this AuraEDU API boundary.
+      tags: [leads]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/TenantCode'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - { name: stage, in: query, schema: { $ref: '#/components/schemas/LeadStage' } }
+        - { name: owner_user_id, in: query, schema: { type: string, format: uuid } }
+        - { name: search, in: query, schema: { type: string, maxLength: 120 } }
+      responses:
+        '200':
+          description: Tenant-scoped lead page
+          content: { application/json: { schema: { $ref: '#/components/schemas/LeadList' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /leads/{lead_id}:
+    get:
+      operationId: getLead
+      description: Executes the get lead workflow within this AuraEDU API boundary.
+      tags: [leads]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/TenantCode'
+        - $ref: '#/components/parameters/LeadId'
+      responses:
+        '200':
+          description: Lead with current state
+          content: { application/json: { schema: { $ref: '#/components/schemas/Lead' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: updateLead
+      description: Executes the update lead workflow within this AuraEDU API boundary.
+      tags: [leads]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/TenantCode'
+        - $ref: '#/components/parameters/LeadId'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateLead' } } }
+      responses:
+        '200':
+          description: Lead updated
+          content: { application/json: { schema: { $ref: '#/components/schemas/Lead' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /leads/{lead_id}/interactions:
+    get:
+      operationId: listLeadInteractions
+      description: Executes the list lead interactions workflow within this AuraEDU API boundary.
+      tags: [interactions]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/TenantCode'
+        - $ref: '#/components/parameters/LeadId'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Lead interaction timeline
+          content: { application/json: { schema: { $ref: '#/components/schemas/InteractionList' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      operationId: createLeadInteraction
+      description: Executes the create lead interaction workflow within this AuraEDU API boundary.
+      tags: [interactions]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/TenantCode'
+        - $ref: '#/components/parameters/LeadId'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateInteraction' } } }
+      responses:
+        '201':
+          description: Interaction logged
+          content: { application/json: { schema: { $ref: '#/components/schemas/Interaction' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /leads/{lead_id}/score:
+    post:
+      operationId: rescoreLead
+      description: Executes the rescore lead workflow within this AuraEDU API boundary.
+      tags: [leads]
+      summary: Recalculate the versioned rules-based score and explanation
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/TenantCode' }
+        - { $ref: '#/components/parameters/LeadId' }
+      responses:
+        '200': { description: Current explainable score, content: { application/json: { schema: { $ref: '#/components/schemas/LeadScore' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /public/feedback:
+    post:
+      operationId: submitGrowthFeedback
+      description: Executes the submit growth feedback workflow within this AuraEDU API boundary.
+      tags: [feedback]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/TenantCode'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/SubmitFeedback' } } }
+      responses:
+        '202': { description: Feedback accepted }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /public/callback-requests:
+    post:
+      operationId: requestAdmissionsCallback
+      description: Executes the request admissions callback workflow within this AuraEDU API boundary.
+      tags: [public-leads]
+      summary: Request a preferred call time; this does not claim a confirmed appointment
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/TenantCode'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ScheduleCallback' }
+      responses:
+        '201':
+          description: Callback time requested
+          content: { application/json: { schema: { $ref: '#/components/schemas/CallbackRequest' } } }
+        '200':
+          description: Idempotent replay of the existing callback request
+          content: { application/json: { schema: { $ref: '#/components/schemas/CallbackRequest' } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /callback-requests:
+    get:
+      operationId: listAdmissionsCallbackRequests
+      description: Executes the list admissions callback requests workflow within this AuraEDU API boundary.
+      tags: [leads]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/TenantCode'
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/CallbackStatus' } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+      responses:
+        '200':
+          description: Tenant callback queue ordered by requested time
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/CallbackRequest' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+    serviceBearer: { type: http, scheme: bearer }
+  parameters:
+    TenantCode:
+      name: X-Tenant-Code
+      in: header
+      required: true
+      schema: { type: string, pattern: '^[a-z0-9][a-z0-9-]{1,62}$' }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, minLength: 16, maxLength: 128 }
+    LeadId:
+      name: lead_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+  schemas:
+    LeadStage:
+      type: string
+      enum: [new, contacted, engaged, qualified, application_started, application_completed, under_review, admitted, offer_accepted, deposit_paid, enrolled, lost, deferred, withdrawn]
+    Channel:
+      type: string
+      enum: [website, email, sms, whatsapp, phone, in_person, event, social, other]
+    CaptureLead:
+      type: object
+      required: [first_name, last_name, source, consent]
+      anyOf:
+        - required: [email]
+        - required: [phone]
+      properties:
+        first_name: { type: string, minLength: 1, maxLength: 100 }
+        last_name: { type: string, minLength: 1, maxLength: 100 }
+        email: { type: [string, 'null'], format: email, maxLength: 254 }
+        phone: { type: [string, 'null'], minLength: 7, maxLength: 32 }
+        institution_id: { type: [string, 'null'], format: uuid }
+        preferred_programme_ids: { type: array, maxItems: 20, items: { type: string, format: uuid } }
+        preferred_intake_id: { type: [string, 'null'], format: uuid }
+        source: { type: string, minLength: 1, maxLength: 80 }
+        campaign_id: { type: [string, 'null'], format: uuid }
+        message: { type: [string, 'null'], maxLength: 2000 }
+        consent: { $ref: '#/components/schemas/Consent' }
+    Consent:
+      type: object
+      required: [privacy_notice_version]
+      properties:
+        privacy_notice_version: { type: string, minLength: 1, maxLength: 40 }
+        email: { type: boolean, default: false }
+        sms: { type: boolean, default: false }
+        whatsapp: { type: boolean, default: false }
+        voice: { type: boolean, default: false }
+    WelcomeRecipient:
+      type: object
+      required: [email, phone, first_name, eligible, email_eligible, sms_eligible, whatsapp_eligible]
+      additionalProperties: false
+      properties:
+        email: { type: string, format: email }
+        phone: { type: string, pattern: '^\+[1-9][0-9]{7,14}$' }
+        first_name: { type: string }
+        eligible:
+          type: boolean
+          deprecated: true
+          description: Backward-compatible alias for email_eligible.
+        email_eligible: { type: boolean }
+        sms_eligible: { type: boolean }
+        whatsapp_eligible: { type: boolean }
+    Lead:
+      type: object
+      required: [id, tenant_id, first_name, last_name, source, stage, consent, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string }
+        institution_id: { type: [string, 'null'], format: uuid }
+        first_name: { type: string }
+        last_name: { type: string }
+        email: { type: [string, 'null'], format: email }
+        phone: { type: [string, 'null'] }
+        preferred_programme_ids: { type: array, items: { type: string, format: uuid } }
+        preferred_intake_id: { type: [string, 'null'], format: uuid }
+        source: { type: string }
+        campaign_id: { type: [string, 'null'], format: uuid }
+        stage: { $ref: '#/components/schemas/LeadStage' }
+        score: { type: [integer, 'null'], minimum: 0, maximum: 100 }
+        score_version: { type: [string, 'null'] }
+        score_confidence:
+          oneOf:
+            - { type: string, enum: [low, medium, high] }
+            - { type: 'null' }
+        score_positive_factors: { type: array, items: { $ref: '#/components/schemas/ScoreFactor' } }
+        score_negative_factors: { type: array, items: { $ref: '#/components/schemas/ScoreFactor' } }
+        scored_at: { type: [string, 'null'], format: date-time }
+        owner_user_id: { type: [string, 'null'], format: uuid }
+        consent: { $ref: '#/components/schemas/Consent' }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    LeadCaptureResult:
+      type: object
+      required: [lead_id, created, stage]
+      properties:
+        lead_id: { type: string, format: uuid }
+        created: { type: boolean }
+        stage: { $ref: '#/components/schemas/LeadStage' }
+    ScoreFactor:
+      type: object
+      required: [code, explanation, points]
+      properties:
+        code: { type: string }
+        explanation: { type: string }
+        points: { type: integer, minimum: -100, maximum: 100 }
+    LeadScore:
+      type: object
+      required: [score, confidence, positive_factors, negative_factors, rule_version, evaluated_at]
+      properties:
+        score: { type: integer, minimum: 0, maximum: 100 }
+        confidence: { type: string, enum: [low, medium, high] }
+        positive_factors: { type: array, items: { $ref: '#/components/schemas/ScoreFactor' } }
+        negative_factors: { type: array, items: { $ref: '#/components/schemas/ScoreFactor' } }
+        rule_version: { type: string }
+        evaluated_at: { type: string, format: date-time }
+    UpdateLead:
+      type: object
+      minProperties: 1
+      properties:
+        stage: { $ref: '#/components/schemas/LeadStage' }
+        owner_user_id: { type: [string, 'null'], format: uuid }
+        preferred_programme_ids: { type: array, maxItems: 20, items: { type: string, format: uuid } }
+    LeadList:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Lead' } }
+        next_cursor: { type: [string, 'null'] }
+    CreateInteraction:
+      type: object
+      required: [channel, direction, summary]
+      properties:
+        channel: { $ref: '#/components/schemas/Channel' }
+        direction: { type: string, enum: [inbound, outbound] }
+        summary: { type: string, minLength: 1, maxLength: 2000 }
+        occurred_at: { type: [string, 'null'], format: date-time }
+    Interaction:
+      type: object
+      required: [id, tenant_id, lead_id, channel, direction, actor_type, summary, occurred_at]
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string }
+        lead_id: { type: string, format: uuid }
+        channel: { $ref: '#/components/schemas/Channel' }
+        direction: { type: string, enum: [inbound, outbound] }
+        actor_type: { type: string, enum: [prospect, staff, ai, system] }
+        actor_id: { type: [string, 'null'], format: uuid }
+        summary: { type: string }
+        occurred_at: { type: string, format: date-time }
+    InteractionList:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Interaction' } }
+        next_cursor: { type: [string, 'null'] }
+    SubmitFeedback:
+      type: object
+      required: [feedback_type]
+      properties:
+        interaction_id: { type: [string, 'null'], format: uuid }
+        ai_run_id: { type: [string, 'null'], format: uuid }
+        feedback_type: { type: string, enum: [helpful, unhelpful, incorrect, outdated, unresolved, escalation_requested] }
+        rating: { type: [integer, 'null'], minimum: 1, maximum: 5 }
+        comment: { type: [string, 'null'], maxLength: 2000 }
+    CallbackStatus:
+      type: string
+      enum: [requested, confirmed, completed, cancelled]
+    ScheduleCallback:
+      type: object
+      required: [first_name, last_name, phone, preferred_at, timezone, locale, message, consent]
+      properties:
+        first_name: { type: string, minLength: 1, maxLength: 100 }
+        last_name: { type: string, minLength: 1, maxLength: 100 }
+        email: { type: [string, 'null'], format: email, maxLength: 254 }
+        phone: { type: string, minLength: 7, maxLength: 32 }
+        preferred_at: { type: string, format: date-time }
+        timezone: { type: string, minLength: 1, maxLength: 120 }
+        locale: { type: string, enum: [en, en-GH, fr, fr-GH] }
+        message: { type: string, maxLength: 2000 }
+        consent: { $ref: '#/components/schemas/Consent' }
+      additionalProperties: false
+    CallbackRequest:
+      type: object
+      required: [id, tenant_id, lead_id, preferred_at, timezone, locale, status, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string }
+        lead_id: { type: string, format: uuid }
+        preferred_at: { type: string, format: date-time }
+        timezone: { type: string }
+        locale: { type: string, enum: [en, en-GH, fr, fr-GH] }
+        status: { $ref: '#/components/schemas/CallbackStatus' }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        request_id: { type: [string, 'null'] }
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Forbidden:
+      description: Tenant, permission, feature or ownership check failed
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    NotFound:
+      description: Resource not found or not visible in this tenant
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Conflict:
+      description: Idempotency key was reused with a different payload
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    ValidationError:
+      description: Request failed validation
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    RateLimited:
+      description: Public capture rate limit exceeded
+      headers:
+        Retry-After: { schema: { type: integer } }
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }

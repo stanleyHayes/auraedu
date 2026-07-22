@@ -2,7 +2,9 @@ package integration
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/auraedu/notification-service/internal/adapters/notifier"
 	"github.com/auraedu/notification-service/internal/adapters/postgres"
@@ -15,6 +17,111 @@ import (
 	"github.com/auraedu/platform/testkit"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
+
+func TestDeliveryOutcomeAtomicallyEnqueuesTenantEvent(t *testing.T) {
+	ctx := withTenant(context.Background(), tenantA)
+	tdb := testkit.NewPostgres(context.Background(), t, "../../migrations")
+	repo := postgres.NewMessageRepository(tdb.DB)
+	message := mustCreateMessage(ctx, t, repo, recipientA, "in_app", "Delivery proof")
+	svc := application.NewService(repo, nil, nil, application.WithNotifiers(map[string]ports.Notifier{"in_app": notifier.InboxNotifier{}}))
+	if err := svc.DeliverScheduled(ctx, message); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := repo.GetByID(ctx, tenantA, message.ID)
+	if err != nil || stored.Status != string(domain.MessageStatusSent) {
+		t.Fatalf("stored outcome=%+v err=%v", stored, err)
+	}
+	outbox, err := repo.ClaimPendingNotificationEvents(context.Background(), 10)
+	if err != nil || len(outbox) != 1 {
+		t.Fatalf("delivery outbox=%+v err=%v", outbox, err)
+	}
+	if outbox[0].TenantID != tenantA || outbox[0].EventType != "notification.sent.v1" {
+		t.Fatalf("unexpected delivery event: %+v", outbox[0])
+	}
+	var got map[string]any
+	if err := json.Unmarshal(outbox[0].Payload, &got); err != nil || got["message_id"] != message.ID {
+		t.Fatalf("delivery payload=%+v err=%v", got, err)
+	}
+	if err := repo.MarkNotificationEventPublished(context.Background(), outbox[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	if pending, err := repo.ClaimPendingNotificationEvents(context.Background(), 10); err != nil || len(pending) != 0 {
+		t.Fatalf("published outbox must drain: pending=%+v err=%v", pending, err)
+	}
+}
+
+func TestDeliveryOutcomeRollsBackWithoutOutbox(t *testing.T) {
+	ctx := withTenant(context.Background(), tenantA)
+	tdb := testkit.NewPostgres(context.Background(), t, "../../migrations")
+	repo := postgres.NewMessageRepository(tdb.DB)
+	message := mustCreateMessage(ctx, t, repo, recipientA, "in_app", "Rollback proof")
+	message.MarkSent()
+	if _, err := tdb.DB.Pool().Exec(context.Background(), `DROP TABLE notification_outbox`); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CommitDeliveryOutcome(ctx, tenantA, message, "", false, "notification.sent.v1", map[string]any{"message_id": message.ID}); err == nil {
+		t.Fatal("delivery state must fail when its durable event cannot be written")
+	}
+	stored, err := repo.GetByID(ctx, tenantA, message.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Status != string(domain.MessageStatusPending) || stored.SentAt != nil {
+		t.Fatalf("delivery mutation escaped rollback: %+v", stored)
+	}
+}
+
+func TestScheduledMessageClaimAndCancellation(t *testing.T) {
+	tdb := testkit.NewPostgres(context.Background(), t, "../../migrations")
+	repo := postgres.NewMessageRepository(tdb.DB)
+	past := time.Now().UTC().Add(-time.Minute)
+	message, err := domain.NewMessage(tenantA, recipientA, "in_app", "Offer reminder", "Review your offer", nil, map[string]any{"application_id": "app-1"}, &past)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = repo.Create(withTenant(context.Background(), tenantA), tenantA, message); err != nil {
+		t.Fatal(err)
+	}
+	due, err := repo.ClaimDue(context.Background(), 10, 5*time.Minute)
+	if err != nil || len(due) != 1 || due[0].TenantID != tenantA {
+		t.Fatalf("claim due=%+v err=%v", due, err)
+	}
+	if err = repo.CancelByApplication(withTenant(context.Background(), tenantA), tenantA, "app-1"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := repo.GetByID(withTenant(context.Background(), tenantA), tenantA, message.ID)
+	if err != nil || got.Status != string(domain.MessageStatusCancelled) {
+		t.Fatalf("cancelled message=%+v err=%v", got, err)
+	}
+}
+
+func TestDeviceTokenUpsertTransferAndTenantIsolation(t *testing.T) {
+	tdb := testkit.NewPostgres(context.Background(), t, "../../migrations")
+	repo := postgres.NewDeviceTokenRepository(tdb.DB)
+	device, err := domain.NewDeviceToken(tenantA, recipientA, "phone-1", "android", "ExponentPushToken[test-device-token]")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored, err := repo.Upsert(withTenant(context.Background(), tenantA), tenantA, device)
+	if err != nil || stored.Status != "active" {
+		t.Fatalf("upsert=%+v err=%v", stored, err)
+	}
+	list, err := repo.ListActive(withTenant(context.Background(), tenantA), tenantA, recipientA)
+	if err != nil || len(list) != 1 {
+		t.Fatalf("active list=%+v err=%v", list, err)
+	}
+	otherTenant, err := repo.ListActive(withTenant(context.Background(), tenantB), tenantB, recipientA)
+	if err != nil || len(otherTenant) != 0 {
+		t.Fatalf("tenant isolation list=%+v err=%v", otherTenant, err)
+	}
+	if err := repo.MarkInvalid(withTenant(context.Background(), tenantA), tenantA, device.Token); err != nil {
+		t.Fatal(err)
+	}
+	list, err = repo.ListActive(withTenant(context.Background(), tenantA), tenantA, recipientA)
+	if err != nil || len(list) != 0 {
+		t.Fatalf("invalid token remained active: %+v err=%v", list, err)
+	}
+}
 
 const (
 	tenantA = "11111111-1111-1111-1111-111111111111"

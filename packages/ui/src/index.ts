@@ -5,6 +5,12 @@ export { useTheme, type Theme } from "./lib/use-theme";
 export { Button, type ButtonProps, type ButtonVariant } from "./components/button";
 export { ThemeToggle } from "./components/theme-toggle";
 export { Skeleton } from "./components/skeleton";
+export {
+  CardGridSkeleton,
+  PageHeaderSkeleton,
+  StatsSkeleton,
+  TableSkeleton,
+} from "./components/loading-states";
 export { RegisterCard, type RegisterCardProps, type Pupil } from "./components/register";
 export { StatCard, type StatCardProps } from "./components/stat-card";
 export {
@@ -14,6 +20,7 @@ export {
   type NavItem,
 } from "./components/app-sidebar";
 export { PageHeader, type PageHeaderProps } from "./components/page-header";
+export { PageGuideProvider, PageHelp, type PageGuide } from "./components/page-guide";
 export { UserMenu, type UserMenuProps, type UserMenuItem } from "./components/user-menu";
 export { EmptyState, type EmptyStateProps } from "./components/empty-state";
 export { DataTable, type DataTableProps, type DataTableColumn } from "./components/data-table";
@@ -24,5 +31,9 @@ export { Select, type SelectProps } from "./components/select";
 export { Watermark, type WatermarkProps } from "./components/watermark";
 export { Reveal, type RevealProps, type RevealVariant } from "./components/reveal";
 export { PillNav, type PillNavProps, type PillNavItem } from "./components/pill-nav";
-export { AdminDropdown, type AdminDropdownProps, type AdminDropdownItem } from "./components/admin-dropdown";
+export {
+  AdminDropdown,
+  type AdminDropdownProps,
+  type AdminDropdownItem,
+} from "./components/admin-dropdown";
 export { NotificationBell, type NotificationBellProps } from "./components/notification-bell";

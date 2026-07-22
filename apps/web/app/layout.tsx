@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
-import { Fraunces, Outfit, Spline_Sans_Mono } from "next/font/google";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { FeatureFlagsProvider, type FeatureSnapshot } from "@auraedu/flags";
 import {
+  DEFAULT_BRAND,
+  brandContrastColor,
+  brandOnDarkColor,
   getTenantCodeFromHeaders,
   isTenantNotFound,
   fetchTenantBranding,
@@ -11,29 +13,18 @@ import {
 } from "@/lib/tenant";
 import "./globals.css";
 
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  weight: ["600", "700", "800"],
-  variable: "--font-fraunces",
-  display: "swap",
-});
-const outfit = Outfit({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-outfit",
-  display: "swap",
-});
-const mono = Spline_Sans_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500"],
-  variable: "--font-spline-mono",
-  display: "swap",
-});
-
 export const metadata: Metadata = {
   title: "AuraEDU — School portal",
   description: "The AuraEDU school portal.",
   robots: { index: false },
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    shortcut: "/icon.svg",
+    apple: "/apple-icon.png",
+  },
 };
 
 const bootScript = `(function(){try{var r=document.documentElement;var m=localStorage.getItem('auraedu-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');r.classList.toggle('dark',m==='dark');r.style.colorScheme=m;}catch(e){}})();`;
@@ -41,30 +32,42 @@ const bootScript = `(function(){try{var r=document.documentElement;var m=localSt
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const requestHeaders = await headers();
   const tenantCode = getTenantCodeFromHeaders(requestHeaders);
+  const pathname = requestHeaders.get("x-pathname") ?? "";
+  const globalAuthEntry = isGlobalAuthEntry(pathname) && !tenantCode;
 
-  if (!tenantCode || isTenantNotFound(requestHeaders)) {
+  if ((!tenantCode || isTenantNotFound(requestHeaders)) && !globalAuthEntry) {
     notFound();
   }
 
-  let tenant;
-  try {
-    tenant = await fetchTenantBranding(tenantCode);
-  } catch {
-    notFound();
+  let snapshot: FeatureSnapshot;
+  let brand: string = DEFAULT_BRAND;
+  let secondary: string | undefined;
+
+  if (globalAuthEntry) {
+    snapshot = { tenantCode: "auraedu", flags: [] };
+  } else {
+    let tenant;
+    try {
+      tenant = await fetchTenantBranding(tenantCode);
+    } catch {
+      notFound();
+    }
+
+    snapshot = toFeatureSnapshot(tenant);
+    // A tenant with no branding configured yet returns empty strings. Emitting
+    // `--color-brand: ;` is a *valid* custom property holding an empty value, so
+    // every var(--color-brand) reference resolves to nothing and silently blanks
+    // the primary button, focus rings and accents. Fall back to the platform brand.
+    const configuredBrand = tenant.branding.brand.primary?.trim();
+    const configuredSecondary = tenant.branding.brand.secondary?.trim();
+    brand = configuredBrand ? configuredBrand : DEFAULT_BRAND;
+    secondary = configuredSecondary;
   }
 
-  const snapshot: FeatureSnapshot = toFeatureSnapshot(tenant);
-
-  const brand = tenant.branding.brand.primary;
-  const secondary = tenant.branding.brand.secondary;
-  const tenantTheme = `:root { --color-brand: ${brand};${secondary ? ` --color-brand-secondary: ${secondary};` : ""} }`;
+  const tenantTheme = `:root { --color-brand: ${brand}; --color-brand-contrast: ${brandContrastColor(brand)}; --color-brand-on-dark: ${brandOnDarkColor(brand)};${secondary ? ` --color-brand-secondary: ${secondary};` : ""} }`;
 
   return (
-    <html
-      lang="en"
-      className={`${fraunces.variable} ${outfit.variable} ${mono.variable}`}
-      suppressHydrationWarning
-    >
+    <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: bootScript }} />
         <style id="tenant-theme" dangerouslySetInnerHTML={{ __html: tenantTheme }} />
@@ -74,4 +77,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </body>
     </html>
   );
+}
+
+function isGlobalAuthEntry(pathname: string): boolean {
+  return ["/login", "/accept-invite", "/forgot-password", "/reset-password"].includes(pathname);
 }

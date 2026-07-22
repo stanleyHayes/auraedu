@@ -4,6 +4,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/auraedu/analytics-service/internal/domain"
 	"github.com/auraedu/analytics-service/internal/ports"
@@ -23,6 +24,7 @@ const FeatureAnalytics = "analytics"
 type Service struct {
 	repo  ports.Repository
 	gates flags.Gate
+	scope ports.LearnerScopeResolver
 }
 
 // Option configures the service.
@@ -30,6 +32,11 @@ type Option func(*Service)
 
 // WithFeatureGate sets the feature-flag gate.
 func WithFeatureGate(g flags.Gate) Option { return func(s *Service) { s.gates = g } }
+
+// WithLearnerScopeResolver configures authoritative teacher roster scope.
+func WithLearnerScopeResolver(resolver ports.LearnerScopeResolver) Option {
+	return func(s *Service) { s.scope = resolver }
+}
 
 // NewService constructs the application service.
 func NewService(repo ports.Repository, opts ...Option) *Service {
@@ -47,6 +54,19 @@ func (s *Service) List(ctx context.Context, actor auth.Actor, filter ports.ListF
 		return nil, "", err
 	}
 	filter.Limit = normalizeLimit(filter.Limit)
+	if strings.EqualFold(strings.TrimSpace(actor.Role), "teacher") {
+		if s.scope == nil {
+			return nil, "", domain.ErrUnavailable
+		}
+		scope, scopeErr := s.scope.Resolve(ctx, tenantID, actor.UserID, "teacher")
+		if scopeErr != nil {
+			return nil, "", scopeErr
+		}
+		if len(scope.StudentIDs) == 0 {
+			return []*domain.Metric{}, "", nil
+		}
+		filter.StudentIDs = append([]string(nil), scope.StudentIDs...)
+	}
 	return s.repo.ListMetrics(ctx, tenantID, filter)
 }
 

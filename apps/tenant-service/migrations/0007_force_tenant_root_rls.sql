@@ -1,0 +1,5 @@
+-- +goose Up
+ALTER TABLE tenants FORCE ROW LEVEL SECURITY;
+
+-- +goose Down
+ALTER TABLE tenants NO FORCE ROW LEVEL SECURITY;

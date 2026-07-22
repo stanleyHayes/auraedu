@@ -36,13 +36,14 @@ func main() {
 		"assessments.read", "assessments.record_scores", "assessments.manage",
 		"reports.read", "reports.publish",
 		"fees.read", "fees.manage",
-		"payments.read", "payments.initiate",
+		"payments.read", "payments.initiate", "payments.configure",
 		"notifications.read", "notifications.send", "notifications.manage",
 		"website.read", "website.manage",
 		"files.read", "files.upload", "files.delete",
 		"analytics.view",
 		"billing.read", "billing.manage",
 		"cbt.read", "cbt.author", "cbt.take", "cbt.grade",
+		"ai.view_recommendations", "ai.approve_recommendations", "ai.view_predictions", "ai.approve_predictions", "ai.view_guidance", "ai.approve_guidance",
 		"audit.read",
 	}
 	var permsArray strings.Builder

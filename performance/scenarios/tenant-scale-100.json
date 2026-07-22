@@ -1,0 +1,29 @@
+{
+  "name": "auraedu-100-tenant-scale",
+  "environment": "staging",
+  "base_url": "https://staging-api.auraedu.example",
+  "duration": "10m",
+  "concurrency": 100,
+  "rate_per_second": 200,
+  "min_requests_per_second": 180,
+  "timeout": "5s",
+  "max_error_rate": 0.01,
+  "p95_ms": 750,
+  "p99_ms": 1500,
+  "required_tenant_count": 100,
+  "tenants": [{ "code": "replace-from-AURA_PERF_TENANTS_JSON" }],
+  "requests": [
+    {
+      "name": "tenant-resolution",
+      "method": "GET",
+      "path": "/api/v1/tenants/resolve?subdomain={tenant}",
+      "expected_status": [200]
+    },
+    {
+      "name": "feature-snapshot",
+      "method": "GET",
+      "path": "/api/v1/features?tenant={tenant}",
+      "expected_status": [200]
+    }
+  ]
+}

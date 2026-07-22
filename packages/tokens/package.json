@@ -12,9 +12,13 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "build": "echo \"@auraedu/tokens: source-only package\"",
-    "test": "echo \"no tests\""
+    "test": "node --test test/*.test.ts"
+  },
+  "dependencies": {
+    "tailwindcss": "^4.3.2"
   },
   "devDependencies": {
+    "@types/node": "^26.1.1",
     "eslint": "^10.7.0",
     "typescript": "^6.0.3"
   }

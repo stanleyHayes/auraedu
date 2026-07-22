@@ -5,6 +5,8 @@ info:
   description: >
     Career path and course recommendations (spec \u00a715).
     Owned by lane L3 (EP-32). Feature flag: career_guidance.
+  contact:
+    name: AuraEDU Engineering
 servers:
   - url: /api/v1/ai/career-guidance
 tags:
@@ -14,6 +16,7 @@ paths:
   /health:
     get:
       operationId: healthCheck
+      description: Executes the health check workflow within this AuraEDU API boundary.
       tags: ['career-guidance']
       summary: Service health check
       security: []
@@ -31,6 +34,7 @@ paths:
   /feature-store/metrics:
     post:
       operationId: ingestFeatureStoreMetric
+      description: Executes the ingest feature store metric workflow within this AuraEDU API boundary.
       tags: ['career-guidance']
       summary: Ingest a single approved learning metric
       parameters:
@@ -53,13 +57,15 @@ paths:
   /guidance:
     get:
       operationId: listGuidance
+      description: Executes the list guidance workflow within this AuraEDU API boundary.
       tags: ['career-guidance']
       summary: List career guidance for a student
       parameters:
         - $ref: '#/components/parameters/TenantHeader'
         - name: student_id
           in: query
-          required: true
+          required: false
+          description: Required for parent/teacher/admin callers; inferred from the authenticated student identity.
           schema: { type: string, format: uuid }
         - name: guidance_type
           in: query
@@ -78,6 +84,7 @@ paths:
 
     post:
       operationId: generateGuidance
+      description: Executes the generate guidance workflow within this AuraEDU API boundary.
       tags: ['career-guidance']
       summary: Generate career guidance for a student
       parameters:
@@ -100,6 +107,7 @@ paths:
   /guidance/{guidance_id}:
     get:
       operationId: getGuidance
+      description: Executes the get guidance workflow within this AuraEDU API boundary.
       tags: ['career-guidance']
       summary: Get guidance by ID
       parameters:
@@ -121,6 +129,7 @@ paths:
   /guidance/{guidance_id}/explain:
     get:
       operationId: explainGuidance
+      description: Executes the explain guidance workflow within this AuraEDU API boundary.
       tags: ['career-guidance']
       summary: Get explainability details for guidance
       parameters:
@@ -142,6 +151,7 @@ paths:
   /guidance/{guidance_id}/approve:
     post:
       operationId: approveGuidance
+      description: Executes the approve guidance workflow within this AuraEDU API boundary.
       tags: ['career-guidance']
       summary: Approve guidance
       parameters:
@@ -168,6 +178,7 @@ paths:
   /guidance/{guidance_id}/reject:
     post:
       operationId: rejectGuidance
+      description: Executes the reject guidance workflow within this AuraEDU API boundary.
       tags: ['career-guidance']
       summary: Reject guidance
       parameters:
@@ -242,7 +253,6 @@ components:
 
     GenerateGuidanceRequest:
       type: object
-      required: [student_id]
       properties:
         student_id: { type: string, format: uuid }
         guidance_types: { type: array, items: { type: string } }

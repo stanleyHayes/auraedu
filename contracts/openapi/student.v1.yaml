@@ -4,6 +4,8 @@ info:
   version: 1.0.0
   description: >
     Students, guardians, and enrollment (spec \u00a77). Owned by lane L2 (EP-10). Feature flag: student_management.
+  contact:
+    name: AuraEDU Engineering
 servers:
   - url: /api/v1
 tags:
@@ -15,6 +17,7 @@ paths:
     /students:
       get:
             operationId: listStudents
+            description: Executes the list students workflow within this AuraEDU API boundary.
             tags: ['students']
             summary: List students
             parameters:
@@ -34,6 +37,7 @@ paths:
               '401': { $ref: '#/components/responses/Unauthorized' }
       post:
             operationId: createStudent
+            description: Executes the create student workflow within this AuraEDU API boundary.
             tags: ['students']
             summary: Create a student
             parameters:
@@ -56,6 +60,7 @@ paths:
     /students/import:
       post:
             operationId: importStudents
+            description: Executes the import students workflow within this AuraEDU API boundary.
             tags: ['students']
             summary: Bulk import students and guardians from CSV
             parameters:
@@ -70,7 +75,7 @@ paths:
                       file:
                         type: string
                         format: binary
-                        description: CSV with columns first_name,last_name,date_of_birth,gender,relationship,guardian_first_name,guardian_last_name,guardian_phone,guardian_email
+                        description: CSV with columns first_name,last_name,date_of_birth,gender,relationship,guardian_first_name,guardian_last_name,guardian_phone,guardian_email,user_id,guardian_user_id
             responses:
               '200':
                 description: OK
@@ -81,14 +86,36 @@ paths:
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
+    /students/me:
+      get:
+            operationId: getMyStudent
+            tags: ['students']
+            summary: Get the caller's own student record
+            description: >
+              Resolves the student record linked to the authenticated identity user
+              (students.user_id = actor user id, AURA-10.12). 404 when the user has
+              no linked student. Requires students.read.
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/Student' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
     /students/{student_id}:
       get:
             operationId: getStudent
+            description: Executes the get student workflow within this AuraEDU API boundary.
             tags: ['students']
             summary: Get a student
             parameters:
               - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/TenantId'
+              - $ref: '#/components/parameters/StudentId'
             responses:
               '200':
                 description: OK
@@ -101,11 +128,12 @@ paths:
               '401': { $ref: '#/components/responses/Unauthorized' }
       patch:
             operationId: updateStudent
+            description: Executes the update student workflow within this AuraEDU API boundary.
             tags: ['students']
             summary: Update a student
             parameters:
               - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/TenantId'
+              - $ref: '#/components/parameters/StudentId'
             requestBody:
               required: true
               content:
@@ -123,11 +151,12 @@ paths:
               '401': { $ref: '#/components/responses/Unauthorized' }
       delete:
             operationId: deleteStudent
+            description: Executes the delete student workflow within this AuraEDU API boundary.
             tags: ['students']
             summary: Delete a student
             parameters:
               - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/TenantId'
+              - $ref: '#/components/parameters/StudentId'
             responses:
               '204':
                 description: No content
@@ -138,11 +167,12 @@ paths:
     /students/{student_id}/enrollments:
       get:
             operationId: listEnrollments
+            description: Executes the list enrollments workflow within this AuraEDU API boundary.
             tags: ['enrollments']
             summary: List student enrollments
             parameters:
               - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/TenantId'
+              - $ref: '#/components/parameters/StudentId'
               - $ref: '#/components/parameters/Limit'
               - $ref: '#/components/parameters/Cursor'
             responses:
@@ -157,11 +187,12 @@ paths:
               '401': { $ref: '#/components/responses/Unauthorized' }
       post:
             operationId: createEnrollment
+            description: Executes the create enrollment workflow within this AuraEDU API boundary.
             tags: ['enrollments']
             summary: Enroll a student
             parameters:
               - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/TenantId'
+              - $ref: '#/components/parameters/StudentId'
             requestBody:
               required: true
               content:
@@ -175,16 +206,18 @@ paths:
                     schema: { $ref: '#/components/schemas/Enrollment' }
               '403': { $ref: '#/components/responses/Forbidden' }
               '404': { $ref: '#/components/responses/NotFound' }
+              '409': { description: Student already has an enrollment for this academic year }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
     /students/{student_id}/guardians:
       get:
             operationId: listStudentGuardians
+            description: Executes the list student guardians workflow within this AuraEDU API boundary.
             tags: ['guardians']
             summary: List a student's guardians
             parameters:
               - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/TenantId'
+              - $ref: '#/components/parameters/StudentId'
             responses:
               '200':
                 description: OK
@@ -197,11 +230,12 @@ paths:
               '401': { $ref: '#/components/responses/Unauthorized' }
       post:
             operationId: linkGuardian
+            description: Executes the link guardian workflow within this AuraEDU API boundary.
             tags: ['guardians']
             summary: Link a guardian to a student
             parameters:
               - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/TenantId'
+              - $ref: '#/components/parameters/StudentId'
             requestBody:
               required: true
               content:
@@ -220,6 +254,7 @@ paths:
     /guardians:
       post:
             operationId: createGuardian
+            description: Executes the create guardian workflow within this AuraEDU API boundary.
             tags: ['guardians']
             summary: Create a guardian
             parameters:
@@ -239,14 +274,37 @@ paths:
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
+    /guardians/me/children:
+      get:
+            operationId: getMyGuardianChildren
+            tags: ['guardians']
+            summary: Get the caller's guardian record with their linked students
+            description: >
+              Resolves the guardian record linked to the authenticated identity user
+              (guardians.user_id = actor user id, AURA-10.12) and returns it with the
+              students linked via the student_guardians link table. 404 when the user
+              has no linked guardian. Requires students.read.
+            parameters:
+              - $ref: '#/components/parameters/TenantHeader'
+            responses:
+              '200':
+                description: OK
+                content:
+                  application/json:
+                    schema: { $ref: '#/components/schemas/GuardianChildren' }
+              '403': { $ref: '#/components/responses/Forbidden' }
+              '404': { $ref: '#/components/responses/NotFound' }
+              '422': { $ref: '#/components/responses/ValidationError' }
+              '401': { $ref: '#/components/responses/Unauthorized' }
     /guardians/{guardian_id}:
       get:
             operationId: getGuardian
+            description: Executes the get guardian workflow within this AuraEDU API boundary.
             tags: ['guardians']
             summary: Get a guardian
             parameters:
               - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/TenantId'
+              - $ref: '#/components/parameters/GuardianId'
             responses:
               '200':
                 description: OK
@@ -259,11 +317,12 @@ paths:
               '401': { $ref: '#/components/responses/Unauthorized' }
       patch:
             operationId: updateGuardian
+            description: Executes the update guardian workflow within this AuraEDU API boundary.
             tags: ['guardians']
             summary: Update a guardian
             parameters:
               - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/TenantId'
+              - $ref: '#/components/parameters/GuardianId'
             requestBody:
               required: true
               content:
@@ -281,11 +340,12 @@ paths:
               '401': { $ref: '#/components/responses/Unauthorized' }
       delete:
             operationId: deleteGuardian
+            description: Executes the delete guardian workflow within this AuraEDU API boundary.
             tags: ['guardians']
             summary: Delete a guardian
             parameters:
               - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/TenantId'
+              - $ref: '#/components/parameters/GuardianId'
             responses:
               '204':
                 description: No content
@@ -296,11 +356,13 @@ paths:
     /students/{student_id}/guardians/{guardian_id}:
       delete:
             operationId: unlinkGuardian
+            description: Executes the unlink guardian workflow within this AuraEDU API boundary.
             tags: ['guardians']
             summary: Unlink a guardian from a student
             parameters:
               - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/TenantId'
+              - $ref: '#/components/parameters/StudentId'
+              - $ref: '#/components/parameters/GuardianId'
             responses:
               '204':
                 description: No content
@@ -311,8 +373,13 @@ paths:
 
 components:
   parameters:
-    TenantId:
-      name: tenant_id
+    StudentId:
+      name: student_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    GuardianId:
+      name: guardian_id
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -347,10 +414,10 @@ components:
         request_id: { type: string }
     Student:
         type: object
-        required: [id, tenant_id, first_name, last_name, student_code]
+        required: [id, tenant_id, first_name, last_name, student_code, status, created_at, updated_at]
         properties:
           id: { type: string, format: uuid }
-          tenant_id: { type: string, format: uuid }
+          tenant_id: { type: string }
           first_name: { type: string }
           last_name: { type: string }
           student_code: { type: string }
@@ -359,6 +426,7 @@ components:
           status: { type: string, enum: [active, withdrawn, graduated] }
           class_id: { type: [string, 'null'], format: uuid }
           academic_year_id: { type: [string, 'null'], format: uuid }
+          user_id: { type: [string, 'null'], format: uuid, description: Soft link to the identity-service user that owns this record (no cross-service FK). }
           created_at: { type: string, format: date-time }
           updated_at: { type: string, format: date-time }
     CreateStudent:
@@ -371,13 +439,14 @@ components:
           gender: { type: [string, 'null'], enum: [male, female, other] }
           class_id: { type: [string, 'null'], format: uuid }
           academic_year_id: { type: [string, 'null'], format: uuid }
+          user_id: { type: [string, 'null'], format: uuid, description: Optional identity user to link the record to at creation. }
     UpdateStudent:
         type: object
         properties:
           first_name: { type: string }
           last_name: { type: string }
           status: { type: string, enum: [active, withdrawn, graduated] }
-          class_id: { type: [string, 'null'], format: uuid }
+          user_id: { type: [string, 'null'], format: uuid, description: Identity account link; null clears an existing link. }
     Guardian:
         type: object
         required: [id, tenant_id, first_name, last_name, relationship]
@@ -389,6 +458,7 @@ components:
           relationship: { type: string }
           phone: { type: [string, 'null'] }
           email: { type: [string, 'null'], format: email }
+          user_id: { type: [string, 'null'], format: uuid, description: Soft link to the identity-service user that owns this record (no cross-service FK). }
     CreateGuardian:
         type: object
         required: [first_name, last_name, relationship]
@@ -398,6 +468,15 @@ components:
           relationship: { type: string }
           phone: { type: [string, 'null'] }
           email: { type: [string, 'null'], format: email }
+          user_id: { type: [string, 'null'], format: uuid, description: Optional identity user to link the record to at creation. }
+    GuardianChildren:
+        type: object
+        required: [guardian, students]
+        properties:
+          guardian: { $ref: '#/components/schemas/Guardian' }
+          students:
+            type: array
+            items: { $ref: '#/components/schemas/Student' }
     UpdateGuardian:
         type: object
         properties:
@@ -440,9 +519,10 @@ components:
                 message: { type: string }
     Enrollment:
         type: object
-        required: [id, student_id, class_id, academic_year_id]
+        required: [id, tenant_id, student_id, class_id, academic_year_id, enrolled_at]
         properties:
           id: { type: string, format: uuid }
+          tenant_id: { type: string, minLength: 1 }
           student_id: { type: string, format: uuid }
           class_id: { type: string, format: uuid }
           academic_year_id: { type: string, format: uuid }
@@ -506,4 +586,3 @@ components:
 
 security:
   - bearerAuth: []
-

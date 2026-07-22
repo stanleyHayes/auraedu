@@ -19,6 +19,7 @@ type Claims struct {
 	Permissions  []string `json:"permissions,omitempty"`
 	FeaturesHash string   `json:"features_hash,omitempty"`
 	TokenType    string   `json:"typ,omitempty"`
+	Challenge    string   `json:"challenge,omitempty"`
 	IssuedAt     int64    `json:"iat"`
 	ExpiresAt    int64    `json:"exp"`
 }
@@ -32,6 +33,15 @@ const header = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
 
 func Sign(c Claims, key []byte) (string, error) {
 	c.TokenType = "access"
+	return signClaims(c, key)
+}
+
+func SignChallenge(c Claims, tokenType string, key []byte) (string, error) {
+	c.TokenType = tokenType
+	return signClaims(c, key)
+}
+
+func signClaims(c Claims, key []byte) (string, error) {
 	payload, err := json.Marshal(c)
 	if err != nil {
 		return "", err

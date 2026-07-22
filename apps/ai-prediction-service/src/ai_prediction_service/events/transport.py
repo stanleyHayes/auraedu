@@ -16,10 +16,10 @@ logger = logging.getLogger(__name__)
 
 
 class ConsoleTransport:
-    """Fallback transport that logs events for local development."""
+    """Fallback transport that records only PII-safe event metadata."""
 
     async def publish(self, subject: str, payload: bytes) -> None:
-        logger.info("EVENT subject=%s payload=%s", subject, payload.decode())
+        logger.info("EVENT subject=%s payload_bytes=%d", subject, len(payload))
 
 
 class _TransportManager:

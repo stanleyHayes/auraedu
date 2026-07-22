@@ -42,9 +42,9 @@
       "schedule": ["before 10am on Monday"]
     },
     {
-      "description": "Group Dockerfile base image updates",
-      "matchManagers": ["dockerfile"],
-      "groupName": "Dockerfile base images",
+      "description": "Group Dockerfile and Compose image updates",
+      "matchManagers": ["dockerfile", "docker-compose"],
+      "groupName": "Docker image dependencies",
       "schedule": ["before 10am on Monday"]
     }
   ]

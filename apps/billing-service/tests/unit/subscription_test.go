@@ -1,4 +1,3 @@
-//nolint:misspell // British spelling "cancelled" is intentional for the billing domain.
 package unit
 
 import (

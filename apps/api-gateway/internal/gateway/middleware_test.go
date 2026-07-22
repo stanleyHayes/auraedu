@@ -1,7 +1,9 @@
 package gateway
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -26,6 +28,9 @@ func testBuilder() *Builder {
 		RateLimitBurst: 20,
 	}
 	cfg.Registry = ServiceRegistry{
+		{Prefix: "/api/v1/public/onboarding-requests", Target: "http://localhost:8082", Public: true, TenantOptional: true},
+		{Prefix: "/api/v1/public/invites", Target: "http://localhost:8081", Public: true, TenantOptional: true},
+		{Prefix: "/api/v1/public/assistant", Target: "http://localhost:8111", Public: true, FeatureKey: "growth_website_chat"},
 		{Prefix: "/api/v1/identity", Target: "http://localhost:8081", Public: true},
 		{Prefix: "/api/v1/students", Target: "http://localhost:8090", FeatureKey: "student_management"},
 		{Prefix: "/api/v1/cbt", Target: "http://localhost:8102", FeatureKey: "cbt_exams"},
@@ -55,15 +60,142 @@ func testBuilder() *Builder {
 		Registry: cfg.Registry,
 		Proxy:    proxy,
 		Tenant: &stubs.TenantResolver{
-			BySubdomain: map[string]string{"upshs": "upshs", "aboom": "aboom"},
+			BySubdomain:         map[string]string{"upshs": "upshs", "aboom": "aboom"},
+			SubdomainBaseDomain: "auraedu.test",
 		},
 		Flags: &stubs.FeatureFlagClient{
-			Defaults: map[string]bool{"student_management": true, "ai_predictions": true, "file_management": true, "fees": true, "email_notifications": true},
+			Defaults: map[string]bool{"student_management": true, "ai_predictions": true, "file_management": true, "fees": true, "email_notifications": true, "growth_website_chat": true},
 			TenantOverrides: map[string]map[string]bool{
 				"upshs": {"cbt_exams": true},
 				"aboom": {"cbt_exams": false, "email_notifications": false},
 			},
 		},
+	}
+}
+
+func TestPublicInviteAcceptanceNeedsNoSessionOrTenantAndDoesNotLeakTokenToRateLimitStorage(t *testing.T) {
+	b := testBuilder()
+	var logs bytes.Buffer
+	b.Log = slog.New(slog.NewJSONHandler(&logs, nil))
+	store := &mocks.RedisStore{AllowFunc: func(string) (bool, error) { return true, nil }}
+	b.RateLimiter = &TokenBucket{Store: store, RPS: 1, Burst: 1}
+	called := false
+	handler := b.chain(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		called = true
+		if !ActorFrom(r.Context()).IsEmpty() || TenantIDFrom(r.Context()) != "" {
+			t.Fatal("invite acceptance invented an actor or tenant")
+		}
+	}))
+	const secret = "secret-one-time-invite-token"
+	request := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"/api/v1/public/invites/"+secret+"/accept",
+		strings.NewReader(`{"name":"Ama","password":"strong-password"}`),
+	)
+	request.RemoteAddr = "203.0.113.25:443"
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if !called || response.Code != http.StatusOK {
+		t.Fatalf("public invite did not reach upstream: called=%v status=%d body=%s", called, response.Code, response.Body.String())
+	}
+	calls := store.Calls()
+	if len(calls) != 1 || strings.Contains(calls[0], secret) || !strings.Contains(calls[0], "/api/v1/public/invites") {
+		t.Fatalf("rate-limit storage exposed the token or missed canonical route: %v", calls)
+	}
+	if strings.Contains(logs.String(), secret) || !strings.Contains(logs.String(), `"path":"/api/v1/public/invites"`) {
+		t.Fatalf("access log exposed the token or missed canonical route: %s", logs.String())
+	}
+}
+
+func TestBuildUsesConfiguredReadinessChecks(t *testing.T) {
+	b := testBuilder()
+	health := NewHealth("api-gateway", "test")
+	health.AddReadinessCheck("redis", func() error { return errors.New("redis unavailable") })
+	b.Health = health
+
+	recorder := httptest.NewRecorder()
+	b.Build().ServeHTTP(
+		recorder,
+		httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ready", nil),
+	)
+
+	if recorder.Code != http.StatusServiceUnavailable || !strings.Contains(recorder.Body.String(), `"check":"redis"`) {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestPublicOnboardingSkipsTenantResolutionAndUsesIPRateLimit(t *testing.T) {
+	b := testBuilder()
+	store := &mocks.RedisStore{AllowFunc: func(string) (bool, error) { return true, nil }}
+	b.RateLimiter = &TokenBucket{Store: store, RPS: 1, Burst: 1}
+	called := false
+	handler := b.chain(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		called = true
+		if tenant := TenantIDFrom(r.Context()); tenant != "" {
+			t.Errorf("platform public route should not invent tenant context, got %q", tenant)
+		}
+	}))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/public/onboarding-requests", strings.NewReader(`{}`))
+	req.Header.Set("X-Forwarded-For", "203.0.113.17")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if !called || rr.Code != http.StatusOK {
+		t.Fatalf("public onboarding should reach handler: called=%v status=%d body=%s", called, rr.Code, rr.Body.String())
+	}
+	if calls := store.Calls(); len(calls) != 1 || !strings.Contains(calls[0], "public:203.0.113.17") {
+		t.Fatalf("expected IP-scoped rate-limit key, got %v", calls)
+	}
+}
+
+func TestPublicTenantRouteUsesTenantAndClientRateLimitKey(t *testing.T) {
+	b := testBuilder()
+	store := &mocks.RedisStore{AllowFunc: func(string) (bool, error) { return true, nil }}
+	b.RateLimiter = &TokenBucket{Store: store, RPS: 1, Burst: 1}
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/public/assistant/messages", strings.NewReader(`{}`))
+	req.Header.Set("X-Tenant-ID", "upshs")
+	req.Header.Set("X-Forwarded-For", "203.0.113.44")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if calls := store.Calls(); len(calls) != 1 || !strings.Contains(calls[0], "upshs:public:203.0.113.44") {
+		t.Fatalf("expected tenant+IP rate-limit key, got %v", calls)
+	}
+}
+
+func TestRenderClientAddressIgnoresSpoofedForwardedFor(t *testing.T) {
+	b := testBuilder()
+	b.Config.TrustedProxy = "render"
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	req.RemoteAddr = "192.0.2.10:443"
+	req.Header.Set("X-Forwarded-For", "203.0.113.99")
+	req.Header.Set("CF-Connecting-IP", "198.51.100.24")
+
+	if got := b.clientAddress(req); got != "198.51.100.24" {
+		t.Fatalf("client address=%q, want Cloudflare address", got)
+	}
+
+	req.Header.Del("CF-Connecting-IP")
+	if got := b.clientAddress(req); got != "192.0.2.10" {
+		t.Fatalf("fallback address=%q, want direct peer instead of spoofable forwarding header", got)
+	}
+}
+
+func TestPublicRouteFailsClosedWhenRateLimiterIsUnavailable(t *testing.T) {
+	b := testBuilder()
+	b.RateLimiter = &TokenBucket{Store: &mocks.RedisStore{AllowFunc: func(string) (bool, error) {
+		return false, errors.New("redis unavailable")
+	}}}
+	handler := b.chain(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Fatal("public handler should not run") }))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/public/assistant/messages", strings.NewReader(`{}`))
+	req.Header.Set("X-Tenant-ID", "upshs")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusServiceUnavailable || !strings.Contains(recorder.Body.String(), "rate_limiter_unavailable") {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 }
 
@@ -115,6 +247,69 @@ func TestCORSPreflight(t *testing.T) {
 	}
 	if got := rr.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:3000" {
 		t.Fatalf("cors origin: got %q", got)
+	}
+}
+
+func TestGatewaySetsSensitiveAPIResponseHeaders(t *testing.T) {
+	b := testBuilder()
+	b.Config.Environment = "production"
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/identity/login", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	want := map[string]string{
+		"Cache-Control":             "no-store",
+		"Content-Security-Policy":   "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+		"Permissions-Policy":        "camera=(), microphone=(), geolocation=()",
+		"Referrer-Policy":           "no-referrer",
+		"Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
+		"X-Content-Type-Options":    "nosniff",
+		"X-Frame-Options":           "DENY",
+	}
+	for header, expected := range want {
+		if got := rr.Header().Get(header); got != expected {
+			t.Errorf("%s=%q, want %q", header, got, expected)
+		}
+	}
+}
+
+func TestCORSAllowsOwnedTenantSubdomain(t *testing.T) {
+	b := testBuilder()
+	b.Config.CORSOrigins = []string{"https://auraedu.com", "https://*.auraedu.com"}
+
+	if !b.allowOrigin("https://upshs.auraedu.com") {
+		t.Fatal("expected owned tenant subdomain to be allowed")
+	}
+	if b.allowOrigin("https://auraedu.com.attacker.example") {
+		t.Fatal("lookalike domain must not be allowed")
+	}
+	if b.allowOrigin("http://upshs.auraedu.com") {
+		t.Fatal("scheme downgrade must not be allowed")
+	}
+}
+
+func TestCORSAllowsOnlyExactVerifiedCustomDomain(t *testing.T) {
+	b := testBuilder()
+	b.Config.CORSOrigins = []string{"https://auraedu.com", "https://*.auraedu.com"}
+	b.Tenant = &stubs.TenantResolver{ByHost: map[string]string{"school.edu.gh": "upshs"}}
+
+	if !b.allowRequestOrigin(context.Background(), "https://school.edu.gh") {
+		t.Fatal("verified exact custom domain should be allowed")
+	}
+	for _, origin := range []string{
+		"https://upshs.attacker.example",
+		"http://school.edu.gh",
+		"https://school.edu.gh:8443",
+		"https://school.edu.gh.attacker.example",
+	} {
+		if b.allowRequestOrigin(context.Background(), origin) {
+			t.Fatalf("unverified custom origin %q was allowed", origin)
+		}
 	}
 }
 
@@ -178,6 +373,60 @@ func TestAuthAcceptsValidToken(t *testing.T) {
 	}
 }
 
+func TestAuthRejectsInvalidTokenBeforeUnpermissionedRoute(t *testing.T) {
+	b := testBuilder()
+	called := false
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/students/1", nil)
+	req.Header.Set("Authorization", "Bearer attacker-controlled-token")
+	req.Header.Set("X-Tenant-ID", "upshs")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if called || rr.Code != http.StatusUnauthorized || !strings.Contains(rr.Body.String(), "unauthorized") {
+		t.Fatalf("called=%v status=%d body=%s", called, rr.Code, rr.Body.String())
+	}
+}
+
+func TestAuthRejectsInvalidOptionalTokenOnPublicRoute(t *testing.T) {
+	b := testBuilder()
+	called := false
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/identity/login", nil)
+	req.Header.Set("Authorization", "Bearer attacker-controlled-token")
+	req.Header.Set("X-Tenant-ID", "upshs")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if called || rr.Code != http.StatusUnauthorized {
+		t.Fatalf("called=%v status=%d body=%s", called, rr.Code, rr.Body.String())
+	}
+}
+
+func TestTenantRejectsJWTClaimSwitchToAnotherSchool(t *testing.T) {
+	b := testBuilder()
+	token := signTestToken(b, auth.Claims{Subject: "u1", TenantID: "upshs", Role: "teacher"})
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("cross-tenant token must not reach handler")
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/students/1", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("X-Tenant-ID", "aboom")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden || !strings.Contains(rr.Body.String(), "tenant_mismatch") {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestTenantRequired(t *testing.T) {
 	b := testBuilder()
 	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -215,6 +464,21 @@ func TestTenantResolvedFromSubdomain(t *testing.T) {
 	}
 }
 
+func TestTenantDoesNotResolveFromAttackerControlledFirstLabel(t *testing.T) {
+	b := testBuilder()
+	token := signTestToken(b, auth.Claims{Subject: "u1", TenantID: "upshs", Role: "teacher"})
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("attacker-controlled hostname reached tenant handler")
+	}))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "https://upshs.attacker.example/api/v1/students/1", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestFeatureFlagDisabled(t *testing.T) {
 	b := testBuilder()
 	token := signTestToken(b, auth.Claims{Subject: "u1", TenantID: "aboom", Role: "teacher"})
@@ -233,6 +497,52 @@ func TestFeatureFlagDisabled(t *testing.T) {
 	}
 	if !strings.Contains(rr.Body.String(), "feature_disabled") {
 		t.Fatalf("expected feature_disabled error")
+	}
+}
+
+func TestFeatureFlagGateFailsClosedWhenClientMissing(t *testing.T) {
+	b := testBuilder()
+	b.Flags = nil
+	token := signTestToken(b, auth.Claims{Subject: "u1", TenantID: "upshs", Role: "teacher"})
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("should not reach handler without a feature-flag client")
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/cbt/exams", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("X-Tenant-ID", "upshs")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden || !strings.Contains(rr.Body.String(), "feature_disabled") {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestFeatureFlagTenantMatrix(t *testing.T) {
+	b := testBuilder()
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	for _, tc := range []struct {
+		tenant string
+		want   int
+	}{
+		{tenant: "upshs", want: http.StatusNoContent},
+		{tenant: "aboom", want: http.StatusForbidden},
+	} {
+		t.Run(tc.tenant, func(t *testing.T) {
+			token := signTestToken(b, auth.Claims{Subject: "u1", TenantID: tc.tenant, Role: "teacher"})
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/cbt/exams", nil)
+			req.Header.Set("Authorization", "Bearer "+token)
+			req.Header.Set("X-Tenant-ID", tc.tenant)
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+			if rr.Code != tc.want {
+				t.Fatalf("status=%d want=%d body=%s", rr.Code, tc.want, rr.Body.String())
+			}
+		})
 	}
 }
 

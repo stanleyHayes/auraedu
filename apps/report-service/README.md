@@ -4,7 +4,9 @@ Report cards, transcripts, PDF (EP-15, L2).
 
 Hexagonal Go service (agent_plan §5). Implements CRUD for `ReportTemplate` and
 `ReportCard` aggregates, event-driven score/attendance materialization, and
-gofpdf report card generation.
+gofpdf report card generation. `GET /api/v1/transcripts/{student_id}` derives a
+current transcript from published/archived cards and their score/attendance evidence;
+parent and student callers remain constrained to their resolved learner scope.
 
 ## Event materialization (AURA-15.9)
 
@@ -26,13 +28,28 @@ acked (dropped); transient failures are nacked for redelivery.
 
 ## PDF generation
 
-`POST /api/v1/report-cards/{id}/generate` renders the card synchronously:
-tenant header and title/body from the assigned template, student identity,
-period, aggregated subject scores table and attendance summary. On success the
-card transitions draft → generating → published and emits
-`report.published.v1` (payload per `contracts/events/report.published.v1.json`;
-`file_url` is the download route). `GET /api/v1/report-cards/{id}/download`
-serves the stored file.
+`POST /api/v1/report-cards/{id}/generate` atomically moves the card to
+`generating`, writes a replay-safe PostgreSQL job and returns `202`. The worker
+leases ready jobs with `FOR UPDATE SKIP LOCKED`, renders tenant header,
+template, student/period, aggregated scores and attendance, then stores the PDF
+in tenant-scoped object storage. Render production fails closed unless
+`REPORT_STORAGE_BACKEND=cloudinary` and `CLOUDINARY_URL` is configured; local
+Compose uses a shared named volume. Failed jobs use bounded exponential retry,
+expired leases are reclaimed after worker crashes, and terminal failure returns
+the card to `draft` for an explicit human retry.
+
+Every template and report-card create, update and delete also commits its
+contracted lifecycle event to the tenant-isolated transactional outbox in the
+same database transaction. Publication likewise changes the card and job and
+writes `report.published.v1` in one commit. The worker dispatches every outbox
+record with a stable event ID and bounded exponential retry, so a broker outage
+cannot lose a committed lifecycle transition (publication payload per
+`contracts/events/report.published.v1.json`; `file_url` is the authorized
+download route). `GET
+/api/v1/report-cards/{id}/download` streams the stored file through report RBAC
+and learner ownership checks. Cloudinary assets use authenticated delivery with
+a short-lived server-generated signature; storage keys are excluded from REST
+DTOs and events.
 
 ## Run
 
@@ -43,5 +60,5 @@ curl localhost:8080/health
 
 ## Contract
 
-REST: `contracts/openapi/report.v1.yaml` (TODO) · Events: `contracts/events/`.
+REST: `contracts/openapi/report.v1.yaml` · Events: `contracts/events/`.
 Every action enforces: authenticated → tenant → RBAC → feature-flag → ownership.

@@ -1,0 +1,32 @@
+name: performance-gates
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  load-runner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GOFLAGS: -mod=readonly
+      GOTOOLCHAIN: local
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with: { go-version: '1.26.5' }
+      - name: Validate load runner and scenarios
+        run: |
+          cd tools/loadtest
+          GOWORK=off go test ./...
+          GOWORK=off go build ./...
+          for scenario in ../../performance/scenarios/*.json; do
+            if [[ "$scenario" == *tenant-scale-100.json ]]; then
+              tenants=$(python3 -c 'import json; print(json.dumps([{"code": f"perf-{i:03d}"} for i in range(1, 101)]))')
+              AURA_PERF_TENANTS_JSON="$tenants" GOWORK=off go run . -config "$scenario" -validate-only
+            else
+              GOWORK=off go run . -config "$scenario" -validate-only
+            fi
+          done

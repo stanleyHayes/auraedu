@@ -132,6 +132,14 @@ func (s *Service) ListPlans(ctx context.Context, actor auth.Actor, filter ports.
 	return s.planRepo.List(withPlatformTenant(ctx), filter)
 }
 
+// ListPublicPlans returns only the active global plan catalogue. It never
+// exposes tenant subscriptions or invoices.
+func (s *Service) ListPublicPlans(ctx context.Context, filter ports.PlanFilter) ([]*domain.Plan, string, error) {
+	filter.Limit = normalizeLimit(filter.Limit)
+	filter.Status = string(domain.PlanStatusActive)
+	return s.planRepo.List(withPlatformTenant(ctx), filter)
+}
+
 // GetPlan returns a single plan.
 func (s *Service) GetPlan(ctx context.Context, actor auth.Actor, id string) (*domain.Plan, error) {
 	if !actor.Authenticated() || !actor.Has(PermRead) {
@@ -226,6 +234,12 @@ func (s *Service) CreateSubscription(ctx context.Context, actor auth.Actor, req 
 		return nil, err
 	}
 	if err := s.subRepo.Create(ctx, tenantID, sub); err != nil {
+		if isUniqueViolation(err) {
+			existing, _, listErr := s.subRepo.List(ctx, tenantID, ports.SubscriptionFilter{Limit: 1, Status: string(domain.SubscriptionStatusTrialing)})
+			if listErr == nil && len(existing) == 1 {
+				return existing[0], nil
+			}
+		}
 		return nil, err
 	}
 	return sub, nil
@@ -255,22 +269,50 @@ func (s *Service) CreateSubscriptionForTenant(ctx context.Context, tenantID, pla
 	if err != nil {
 		return nil, err
 	}
-	if err := s.subRepo.Create(ctx, tenantID, sub); err != nil {
-		return nil, err
+	events := []ports.LifecycleEvent{
+		{
+			EventType: "billing.subscription_changed.v1",
+			TenantID:  tenantID,
+			Payload: ports.SubscriptionEventData(sub, map[string]any{
+				"plan_key": plan.Code,
+			}),
+		},
+		{
+			EventType: "billing.trial_started.v1",
+			TenantID:  tenantID,
+			Payload: ports.SubscriptionEventData(sub, map[string]any{
+				"plan_key":      plan.Code,
+				"trial_ends_at": trialEndsAt.Format(time.RFC3339),
+			}),
+		},
 	}
-	if err := s.pub.PublishSubscription(ctx, "billing.subscription_changed.v1", sub, map[string]any{
-		"tenant_id": tenantID,
-		"plan_key":  plan.Code,
-		"status":    sub.Status,
-	}); err != nil {
-		slog.Default().ErrorContext(ctx, "failed to publish subscription changed event", "err", err)
+	lifecycleRepo, durable := s.subRepo.(ports.SubscriptionLifecycleRepository)
+	var persistErr error
+	if durable {
+		persistErr = lifecycleRepo.CommitSubscriptionLifecycle(ctx, tenantID, ports.BillingMutationSubscriptionCreate, sub, events)
+	} else {
+		persistErr = s.subRepo.Create(ctx, tenantID, sub)
 	}
-	if err := s.pub.PublishSubscription(ctx, "billing.trial_started.v1", sub, map[string]any{
-		"tenant_id":     tenantID,
-		"plan_key":      plan.Code,
-		"trial_ends_at": trialEndsAt.Format(time.RFC3339),
-	}); err != nil {
-		slog.Default().ErrorContext(ctx, "failed to publish trial started event", "err", err)
+	if persistErr != nil {
+		if isUniqueViolation(persistErr) {
+			existing, _, listErr := s.subRepo.List(ctx, tenantID, ports.SubscriptionFilter{Limit: 1, Status: string(domain.SubscriptionStatusTrialing)})
+			if listErr == nil && len(existing) == 1 {
+				return existing[0], nil
+			}
+		}
+		return nil, persistErr
+	}
+	if !durable {
+		if err := s.pub.PublishSubscription(ctx, events[0].EventType, sub, map[string]any{"plan_key": plan.Code}); err != nil {
+			slog.Default().ErrorContext(ctx, "failed to publish subscription changed event", "err", err)
+		}
+		trialMeta := map[string]any{
+			"plan_key":      plan.Code,
+			"trial_ends_at": trialEndsAt.Format(time.RFC3339),
+		}
+		if err := s.pub.PublishSubscription(ctx, events[1].EventType, sub, trialMeta); err != nil {
+			slog.Default().ErrorContext(ctx, "failed to publish trial started event", "err", err)
+		}
 	}
 	return sub, nil
 }
@@ -342,17 +384,34 @@ func (s *Service) ChangeSubscriptionPlan(ctx context.Context, actor auth.Actor, 
 	if err := sub.ChangePlan(newPlanID); err != nil {
 		return nil, err
 	}
-	if err := s.subRepo.Update(ctx, tenantID, sub); err != nil {
-		return nil, err
-	}
-	if err := s.pub.PublishSubscription(ctx, "billing.subscription_changed.v1", sub, map[string]any{
-		"tenant_id": tenantID,
-		"plan_key":  newPlan.Code,
-		"status":    sub.Status,
-	}); err != nil {
-		slog.Default().ErrorContext(ctx, "failed to publish subscription changed event", "err", err)
-	}
+	events := []ports.LifecycleEvent{{
+		EventType: "billing.subscription_changed.v1",
+		TenantID:  tenantID,
+		Payload:   ports.SubscriptionEventData(sub, map[string]any{"plan_key": newPlan.Code}),
+	}}
 	if newPlan.PriceCents > currentPlan.PriceCents {
+		events = append(events, ports.LifecycleEvent{
+			EventType: "billing.plan_upgraded.v1",
+			TenantID:  tenantID,
+			Payload:   ports.PlanEventData(newPlan, map[string]any{"tenant_id": tenantID, "previous_plan": previousPlanCode}),
+		})
+	}
+	lifecycleRepo, durable := s.subRepo.(ports.SubscriptionLifecycleRepository)
+	var persistErr error
+	if durable {
+		persistErr = lifecycleRepo.CommitSubscriptionLifecycle(ctx, tenantID, ports.BillingMutationSubscriptionUpdate, sub, events)
+	} else {
+		persistErr = s.subRepo.Update(ctx, tenantID, sub)
+	}
+	if persistErr != nil {
+		return nil, persistErr
+	}
+	if !durable {
+		if err := s.pub.PublishSubscription(ctx, "billing.subscription_changed.v1", sub, map[string]any{"plan_key": newPlan.Code}); err != nil {
+			slog.Default().ErrorContext(ctx, "failed to publish subscription changed event", "err", err)
+		}
+	}
+	if !durable && newPlan.PriceCents > currentPlan.PriceCents {
 		if err := s.pub.PublishPlan(ctx, "billing.plan_upgraded.v1", newPlan, map[string]any{
 			"tenant_id":     tenantID,
 			"previous_plan": previousPlanCode,
@@ -406,13 +465,25 @@ func (s *Service) CreateInvoice(ctx context.Context, actor auth.Actor, req Creat
 	if err != nil {
 		return nil, err
 	}
-	if err := s.invRepo.Create(ctx, tenantID, inv); err != nil {
-		return nil, err
+	events := []ports.LifecycleEvent{{
+		EventType: "billing.invoice_created.v1",
+		TenantID:  tenantID,
+		Payload:   ports.InvoiceEventData(inv, nil),
+	}}
+	lifecycleRepo, durable := s.invRepo.(ports.InvoiceLifecycleRepository)
+	var persistErr error
+	if durable {
+		persistErr = lifecycleRepo.CommitInvoiceLifecycle(ctx, tenantID, ports.BillingMutationInvoiceCreate, inv, events)
+	} else {
+		persistErr = s.invRepo.Create(ctx, tenantID, inv)
 	}
-	if err := s.pub.PublishInvoice(ctx, "billing.invoice_created.v1", inv, map[string]any{
-		"tenant_id": tenantID,
-	}); err != nil {
-		slog.Default().ErrorContext(ctx, "failed to publish invoice created event", "err", err)
+	if persistErr != nil {
+		return nil, persistErr
+	}
+	if !durable {
+		if err := s.pub.PublishInvoice(ctx, "billing.invoice_created.v1", inv, nil); err != nil {
+			slog.Default().ErrorContext(ctx, "failed to publish invoice created event", "err", err)
+		}
 	}
 	return inv, nil
 }

@@ -164,6 +164,21 @@ func TestCloudinaryStorage_SignUploadRequiresIDs(t *testing.T) {
 	}
 }
 
+func TestCloudinaryStorage_SignUploadRejectsTenantEscapeAndResourceInjection(t *testing.T) {
+	store, err := NewCloudinaryStorage("cloudinary://key:secret@testcloud")
+	if err != nil {
+		t.Fatalf("new storage: %v", err)
+	}
+	for _, folder := range []string{"other-school/docs", "tenant-1/../other-school", `tenant-1\\docs`} {
+		if _, err := store.SignUpload(context.Background(), "tenant-1", "file-1", folder, "raw"); err == nil {
+			t.Fatalf("accepted unsafe folder %q", folder)
+		}
+	}
+	if _, err := store.SignUpload(context.Background(), "tenant-1", "file-1", "tenant-1/docs", "raw/../../image"); err == nil {
+		t.Fatal("accepted unsafe resource type")
+	}
+}
+
 func TestCloudinaryStorage_DeliveryURL(t *testing.T) {
 	store, err := NewCloudinaryStorage("cloudinary://key:secret@testcloud",
 		WithResourceType("image"),

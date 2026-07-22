@@ -3,9 +3,13 @@ package application
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/auraedu/identity-service/internal/domain"
 	"github.com/auraedu/identity-service/internal/jwt"
@@ -31,6 +35,20 @@ type Service struct {
 	refreshTTL  time.Duration
 	now         func() time.Time
 	serviceName string
+	notifier    ports.TransactionalNotifier
+	activator   ports.TenantActivator
+	mfaKey      []byte
+	mfaRequired bool
+}
+
+type Option func(*Service)
+
+func WithTransactionalNotifier(notifier ports.TransactionalNotifier) Option {
+	return func(s *Service) { s.notifier = notifier }
+}
+
+func WithTenantActivator(activator ports.TenantActivator) Option {
+	return func(s *Service) { s.activator = activator }
 }
 
 func NewService(
@@ -39,8 +57,9 @@ func NewService(
 	publisher ports.EventPublisher,
 	signingKey []byte,
 	accessTTL, refreshTTL time.Duration,
+	opts ...Option,
 ) *Service {
-	return &Service{
+	s := &Service{
 		repo:        repo,
 		sessions:    sessions,
 		publisher:   publisher,
@@ -50,23 +69,48 @@ func NewService(
 		now:         time.Now,
 		serviceName: "identity-service",
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 func (s *Service) WithClock(now func() time.Time) *Service { s.now = now; return s }
 
 func (s *Service) Login(ctx context.Context, email, password string) (accessToken, refreshToken string, user domain.User, expires time.Time, err error) {
+	result, err := s.LoginStart(ctx, email, password)
+	if err != nil {
+		return "", "", domain.User{}, time.Time{}, err
+	}
+	if result.Status != "authenticated" {
+		return "", "", domain.User{}, time.Time{}, domain.ErrMFARequired
+	}
+	return result.AccessToken, result.RefreshToken, result.User, result.Expires, nil
+}
+
+func (s *Service) authenticate(ctx context.Context, email, password string) (domain.User, error) {
+	if !passwordWithinMaximum(password) {
+		dummy, err := domain.NewCredential("bounded-timing-equalizer")
+		if err == nil {
+			dummy.Verify("bounded-invalid-password")
+		}
+		return domain.User{}, domain.ErrInvalidCredentials
+	}
 	found, cred, ok, err := s.repo.FindByEmail(ctx, email)
 	if err != nil || !ok {
 		dummy, credErr := domain.NewCredential("timing-equalizer")
 		if credErr == nil {
 			dummy.Verify(password)
 		}
-		return "", "", domain.User{}, time.Time{}, domain.ErrInvalidCredentials
+		return domain.User{}, domain.ErrInvalidCredentials
 	}
 	if !cred.Verify(password) {
-		return "", "", domain.User{}, time.Time{}, domain.ErrInvalidCredentials
+		return domain.User{}, domain.ErrInvalidCredentials
 	}
-	return s.issueSession(ctx, found)
+	if found.Status != domain.StatusActive {
+		return domain.User{}, domain.ErrInvalidCredentials
+	}
+	return found, nil
 }
 
 func (s *Service) Refresh(ctx context.Context, refreshToken string) (accessToken, newRefreshToken string, user domain.User, expires time.Time, err error) {
@@ -74,25 +118,59 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (accessToken
 		return "", "", domain.User{}, time.Time{}, domain.ErrExpiredToken
 	}
 	tokenHash := domain.HashToken(refreshToken)
-	userID, err := s.repo.FindRefreshToken(ctx, tokenHash)
+	var expectedUserID string
+	if s.sessions != nil {
+		expectedUserID, err = s.repo.FindRefreshToken(ctx, tokenHash)
+		if err != nil {
+			return "", "", domain.User{}, time.Time{}, domain.ErrExpiredToken
+		}
+		privileged := tenancy.WithActor(ctx, auth.Actor{PlatformAdmin: true})
+		expectedUser, getErr := s.repo.GetUser(privileged, expectedUserID)
+		if getErr != nil {
+			return "", "", domain.User{}, time.Time{}, s.revokeRefreshFamily(ctx, tokenHash, domain.ErrExpiredToken)
+		}
+		storedUserID, ok, findErr := s.sessions.Find(ctx, expectedUser.TenantID, tokenHash)
+		if findErr != nil {
+			return "", "", domain.User{}, time.Time{}, fmt.Errorf("%w: session store lookup: %w", domain.ErrUnavailable, findErr)
+		}
+		if !ok || storedUserID != expectedUserID {
+			return "", "", domain.User{}, time.Time{}, s.revokeRefreshFamily(ctx, tokenHash, domain.ErrExpiredToken)
+		}
+	}
+	newRefreshToken, err = domain.RandomToken()
+	if err != nil {
+		return "", "", domain.User{}, time.Time{}, err
+	}
+	newTokenHash := domain.HashToken(newRefreshToken)
+	userID, err := s.repo.RotateRefreshToken(ctx, tokenHash, newTokenHash, s.now().Add(s.refreshTTL))
 	if err != nil {
 		return "", "", domain.User{}, time.Time{}, domain.ErrExpiredToken
 	}
-	if err := s.repo.RevokeRefreshToken(ctx, tokenHash); err != nil {
-		return "", "", domain.User{}, time.Time{}, err
+	if expectedUserID != "" && userID != expectedUserID {
+		return "", "", domain.User{}, time.Time{}, s.revokeRefreshFamily(ctx, newTokenHash, domain.ErrExpiredToken)
 	}
 	// Refresh tokens authenticate on their own; load the user without tenant filtering.
 	privileged := tenancy.WithActor(ctx, auth.Actor{PlatformAdmin: true})
 	u, err := s.repo.GetUser(privileged, userID)
 	if err != nil {
-		return "", "", domain.User{}, time.Time{}, domain.ErrExpiredToken
+		return "", "", domain.User{}, time.Time{}, s.revokeRefreshFamily(ctx, newTokenHash, domain.ErrExpiredToken)
+	}
+	if u.Status != domain.StatusActive {
+		return "", "", domain.User{}, time.Time{}, s.revokeRefreshFamily(ctx, newTokenHash, domain.ErrExpiredToken)
+	}
+	accessToken, expires, err = s.issueAccessToken(u)
+	if err != nil {
+		return "", "", domain.User{}, time.Time{}, s.revokeRefreshFamily(ctx, newTokenHash, err)
 	}
 	if s.sessions != nil {
 		if err := s.sessions.Revoke(ctx, u.TenantID, tokenHash); err != nil {
 			slog.Default().ErrorContext(ctx, "failed to revoke old session", "err", err)
 		}
+		if err := s.sessions.Save(ctx, u.TenantID, u.ID, newTokenHash, s.refreshTTL); err != nil {
+			return "", "", domain.User{}, time.Time{}, s.revokeRefreshFamily(ctx, newTokenHash, err)
+		}
 	}
-	return s.issueSession(ctx, u)
+	return accessToken, newRefreshToken, u, expires, nil
 }
 
 func (s *Service) Logout(ctx context.Context, actor auth.Actor, refreshToken string) error {
@@ -126,7 +204,7 @@ func (s *Service) revokeSessionByHash(ctx context.Context, actor auth.Actor, tok
 	if !actor.CanAccessTenant(u.TenantID) {
 		return domain.ErrForbidden
 	}
-	if err := s.repo.RevokeRefreshToken(ctx, tokenHash); err != nil {
+	if err := s.repo.RevokeRefreshFamily(ctx, tokenHash); err != nil {
 		return err
 	}
 	if s.sessions != nil {
@@ -143,7 +221,7 @@ func (s *Service) Verify(token string) (jwt.Claims, error) {
 
 func (s *Service) CreateUser(ctx context.Context, actor auth.Actor, input CreateUserInput) (domain.User, error) {
 	ctx = tenancy.WithActor(ctx, actor)
-	if !actor.Has(PermUsersCreate) {
+	if !actor.Has(PermUsersCreate) || !actor.Has(PermRolesAssign) {
 		return domain.User{}, domain.ErrForbidden
 	}
 	tenantID := actor.TenantID
@@ -157,16 +235,26 @@ func (s *Service) CreateUser(ctx context.Context, actor auth.Actor, input Create
 	if email == "" || input.Name == "" || input.Role == "" {
 		return domain.User{}, domain.ErrValidation
 	}
+	permissions := input.Permissions
+	if permissions == nil {
+		permissions = []string{}
+	}
+	if err := validateAuthorizationGrant(actor, tenantID, input.Role, permissions); err != nil {
+		return domain.User{}, err
+	}
 	u := domain.User{
 		Email:       email,
 		Name:        input.Name,
 		TenantID:    tenantID,
 		Role:        input.Role,
-		Permissions: input.Permissions,
+		Permissions: permissions,
 		Status:      domain.StatusActive,
 	}
 	var cred domain.Credential
 	if input.Password != "" {
+		if !validNewPassword(input.Password) {
+			return domain.User{}, domain.ErrValidation
+		}
 		var err error
 		cred, err = domain.NewCredential(input.Password)
 		if err != nil {
@@ -212,8 +300,9 @@ func (s *Service) GetUser(ctx context.Context, actor auth.Actor, id string) (dom
 
 func (s *Service) UpdateUser(ctx context.Context, actor auth.Actor, id string, input UpdateUserInput) (domain.User, error) {
 	ctx = tenancy.WithActor(ctx, actor)
-	if !actor.Has(PermUsersUpdate) && !actor.Has(PermRolesAssign) {
-		return domain.User{}, domain.ErrForbidden
+	wantsAuthorizationChange, err := validateUserUpdateRequest(actor, input)
+	if err != nil {
+		return domain.User{}, err
 	}
 	existing, err := s.repo.GetUser(ctx, id)
 	if err != nil {
@@ -222,32 +311,91 @@ func (s *Service) UpdateUser(ctx context.Context, actor auth.Actor, id string, i
 	if !actor.CanAccessTenant(existing.TenantID) {
 		return domain.User{}, domain.ErrForbidden
 	}
-	u := domain.User{}
-	if input.Name != nil {
-		u.Name = *input.Name
+	u, newRole, newPermissions, authorizationChanged, statusChanged := prepareUserUpdate(existing, input)
+	if wantsAuthorizationChange {
+		if err := validateAuthorizationGrant(actor, existing.TenantID, newRole, newPermissions); err != nil {
+			return domain.User{}, err
+		}
 	}
-	if input.Role != nil {
-		u.Role = *input.Role
+	if authorizationChanged {
+		event := ports.RoleChangeEvent{
+			TenantID: existing.TenantID, UserID: id,
+			PreviousRole: existing.Role, NewRole: newRole,
+		}
+		if input.Permissions != nil {
+			event.Permissions = *input.Permissions
+		}
+		if durable, ok := s.repo.(ports.DurableRoleChangeRepository); ok {
+			if err := durable.UpdateUserWithRoleChange(ctx, id, u, event); err != nil {
+				return domain.User{}, err
+			}
+			return s.repo.GetUser(ctx, id)
+		}
 	}
-	if input.Permissions != nil {
-		u.Permissions = *input.Permissions
-	}
-	if input.Status != nil {
-		u.Status = *input.Status
+	if statusChanged {
+		if durable, ok := s.repo.(ports.DurableUserSessionRepository); ok {
+			if err := durable.UpdateUserAndRevokeSessions(ctx, id, u); err != nil {
+				return domain.User{}, err
+			}
+			return s.repo.GetUser(ctx, id)
+		}
 	}
 	if err := s.repo.UpdateUser(ctx, id, u); err != nil {
 		return domain.User{}, err
 	}
-	if input.Role != nil && *input.Role != existing.Role {
-		if err := s.publisher.Publish(ctx, s.newEvent(existing.TenantID, "user.role_changed.v1", map[string]any{
-			"user_id":       id,
-			"previous_role": existing.Role,
-			"new_role":      *input.Role,
-		})); err != nil {
+	if authorizationChanged || statusChanged {
+		if err := s.repo.RevokeUserSessions(ctx, id); err != nil {
+			return domain.User{}, err
+		}
+	}
+	if authorizationChanged {
+		payload := ports.RoleChangeEventData(ports.RoleChangeEvent{
+			TenantID: existing.TenantID, UserID: id, PreviousRole: existing.Role,
+			NewRole: newRole, Permissions: permissionValues(input.Permissions),
+		})
+		if err := s.publisher.Publish(ctx, s.newEvent(existing.TenantID, "user.role_changed.v1", payload)); err != nil {
 			return domain.User{}, err
 		}
 	}
 	return s.repo.GetUser(ctx, id)
+}
+
+func validateUserUpdateRequest(actor auth.Actor, input UpdateUserInput) (bool, error) {
+	wantsAuthorizationChange := input.Role != nil || input.Permissions != nil
+	wantsProfileChange := input.Name != nil || input.Status != nil
+	switch {
+	case wantsAuthorizationChange && !actor.Has(PermRolesAssign):
+		return false, domain.ErrForbidden
+	case wantsProfileChange && !actor.Has(PermUsersUpdate):
+		return false, domain.ErrForbidden
+	case !wantsAuthorizationChange && !wantsProfileChange:
+		return false, domain.ErrValidation
+	case input.Status != nil && !validUserStatus(*input.Status):
+		return false, domain.ErrValidation
+	default:
+		return wantsAuthorizationChange, nil
+	}
+}
+
+func prepareUserUpdate(existing domain.User, input UpdateUserInput) (domain.User, string, []string, bool, bool) {
+	update := domain.User{}
+	newRole, newPermissions := existing.Role, existing.Permissions
+	if input.Name != nil {
+		update.Name = *input.Name
+	}
+	if input.Role != nil {
+		update.Role, newRole = *input.Role, *input.Role
+	}
+	if input.Permissions != nil {
+		update.Permissions, newPermissions = *input.Permissions, *input.Permissions
+	}
+	if input.Status != nil {
+		update.Status = *input.Status
+	}
+	permissionsChanged := input.Permissions != nil && !slices.Equal(*input.Permissions, existing.Permissions)
+	authorizationChanged := newRole != existing.Role || permissionsChanged
+	statusChanged := input.Status != nil && *input.Status != existing.Status
+	return update, newRole, newPermissions, authorizationChanged, statusChanged
 }
 
 func (s *Service) DeleteUser(ctx context.Context, actor auth.Actor, id string) error {
@@ -277,16 +425,35 @@ func (s *Service) AssignRole(ctx context.Context, actor auth.Actor, id, role str
 	if !actor.CanAccessTenant(existing.TenantID) {
 		return domain.User{}, domain.ErrForbidden
 	}
+	grantPermissions := permissions
+	if grantPermissions == nil {
+		grantPermissions = existing.Permissions
+	}
+	if err := validateAuthorizationGrant(actor, existing.TenantID, role, grantPermissions); err != nil {
+		return domain.User{}, err
+	}
+	if role == existing.Role && slices.Equal(grantPermissions, existing.Permissions) {
+		return existing, nil
+	}
 	u := domain.User{Role: role, Permissions: permissions}
+	event := ports.RoleChangeEvent{
+		TenantID: existing.TenantID, UserID: id, PreviousRole: existing.Role,
+		NewRole: role, Permissions: permissions,
+	}
+	if durable, ok := s.repo.(ports.DurableRoleChangeRepository); ok {
+		if err := durable.UpdateUserWithRoleChange(ctx, id, u, event); err != nil {
+			return domain.User{}, err
+		}
+		return s.repo.GetUser(ctx, id)
+	}
 	if err := s.repo.UpdateUser(ctx, id, u); err != nil {
 		return domain.User{}, err
 	}
-	if err := s.publisher.Publish(ctx, s.newEvent(existing.TenantID, "user.role_changed.v1", map[string]any{
-		"user_id":       id,
-		"previous_role": existing.Role,
-		"new_role":      role,
-		"permissions":   permissions,
-	})); err != nil {
+	if err := s.repo.RevokeUserSessions(ctx, id); err != nil {
+		return domain.User{}, err
+	}
+	payload := ports.RoleChangeEventData(event)
+	if err := s.publisher.Publish(ctx, s.newEvent(existing.TenantID, "user.role_changed.v1", payload)); err != nil {
 		return domain.User{}, err
 	}
 	return s.repo.GetUser(ctx, id)
@@ -297,7 +464,8 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email string) error 
 	if err != nil {
 		return err
 	}
-	if !ok {
+	requestTenant := tenancy.ActorFromContext(ctx).TenantID
+	if !ok || requestTenant == "" || u.TenantID != requestTenant {
 		return nil
 	}
 	token, err := domain.RandomToken()
@@ -309,38 +477,39 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email string) error 
 	if err := s.repo.SavePasswordResetToken(ctx, u.TenantID, u.ID, tokenHash, expires); err != nil {
 		return err
 	}
-	return s.publisher.Publish(ctx, s.newEvent(u.TenantID, "notification.requested.v1", map[string]any{
-		"channel":   "email",
-		"recipient": u.Email,
-		"template":  "password_reset",
-		"payload": map[string]any{
-			"user_id":         u.ID,
-			"name":            u.Name,
-			"reset_token":     token,
-			"expires_minutes": 15,
-		},
-	}))
+	if s.notifier == nil {
+		return domain.ErrUnavailable
+	}
+	return s.notifier.Deliver(ctx, u.TenantID, u.Email, "password_reset", map[string]any{
+		"name": u.Name, "reset_token": token, "expires_minutes": 15,
+	})
 }
 
 func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) error {
-	if token == "" || newPassword == "" {
+	if token == "" || !validNewPassword(newPassword) {
 		return domain.ErrValidation
 	}
 	tokenHash := domain.HashToken(token)
-	userID, err := s.repo.UsePasswordResetToken(ctx, tokenHash)
-	if err != nil {
-		return domain.ErrExpiredToken
-	}
 	cred, err := domain.NewCredential(newPassword)
 	if err != nil {
 		return err
 	}
-	return s.repo.UpdateCredential(ctx, userID, cred)
+	tenantID := tenancy.ActorFromContext(ctx).TenantID
+	if tenantID == "" {
+		return domain.ErrExpiredToken
+	}
+	if err := s.repo.ResetPasswordWithToken(ctx, tokenHash, tenantID, cred); err != nil {
+		if errors.Is(err, domain.ErrExpiredToken) {
+			return domain.ErrExpiredToken
+		}
+		return err
+	}
+	return nil
 }
 
 func (s *Service) InviteUser(ctx context.Context, actor auth.Actor, input InviteInput) (string, error) {
 	ctx = tenancy.WithActor(ctx, actor)
-	if !actor.Has(PermUsersCreate) {
+	if !actor.Has(PermUsersCreate) || !actor.Has(PermRolesAssign) {
 		return "", domain.ErrForbidden
 	}
 	tenantID := actor.TenantID
@@ -354,64 +523,108 @@ func (s *Service) InviteUser(ctx context.Context, actor auth.Actor, input Invite
 	if email == "" || input.Role == "" {
 		return "", domain.ErrValidation
 	}
+	permissions := input.Permissions
+	if permissions == nil {
+		permissions = []string{}
+	}
+	if err := validateAuthorizationGrant(actor, tenantID, input.Role, permissions); err != nil {
+		return "", err
+	}
 	token, err := domain.RandomToken()
 	if err != nil {
 		return "", err
 	}
 	tokenHash := domain.HashToken(token)
 	expires := s.now().Add(7 * 24 * time.Hour)
-	invitedBy := ""
+	var invitedBy *string
 	if actor.UserID != "" {
-		invitedBy = actor.UserID
+		value := actor.UserID
+		invitedBy = &value
 	}
-	if err := s.repo.SaveInvite(ctx, tenantID, email, input.Role, input.Permissions, tokenHash, &invitedBy, expires); err != nil {
+	if err := s.repo.SaveInvite(ctx, tenantID, email, input.Role, permissions, tokenHash, invitedBy, expires); err != nil {
 		return "", err
 	}
-	if err := s.publisher.Publish(ctx, s.newEvent(tenantID, "notification.requested.v1", map[string]any{
-		"channel":   "email",
-		"recipient": email,
-		"template":  "user_invite",
-		"payload": map[string]any{
-			"tenant_id":    tenantID,
-			"role":         input.Role,
-			"invite_token": token,
-			"expires_days": 7,
-		},
-	})); err != nil {
+	if s.notifier == nil {
+		return "", domain.ErrUnavailable
+	}
+	if err := s.notifier.Deliver(ctx, tenantID, email, "user_invite", map[string]any{
+		"role": input.Role, "invite_token": token, "expires_days": 7,
+	}); err != nil {
 		return "", err
 	}
 	return token, nil
 }
 
 func (s *Service) AcceptInvite(ctx context.Context, token, name, password string) (domain.User, error) {
-	if token == "" || name == "" || password == "" {
+	if token == "" || name == "" || !validNewPassword(password) {
 		return domain.User{}, domain.ErrValidation
 	}
-	details, err := s.repo.UseInvite(ctx, domain.HashToken(token))
+	tokenHash := domain.HashToken(token)
+	details, err := s.repo.InspectInvite(ctx, tokenHash)
 	if err != nil {
 		return domain.User{}, domain.ErrExpiredToken
 	}
+	if err := validateAuthorizationGrant(auth.Actor{PlatformAdmin: true}, details.TenantID, details.Role, details.Permissions); err != nil {
+		return domain.User{}, domain.ErrForbidden
+	}
+	ctx = tenancy.WithActor(ctx, auth.Actor{TenantID: details.TenantID})
 	cred, err := domain.NewCredential(password)
 	if err != nil {
 		return domain.User{}, err
 	}
-	u := domain.User{
-		Email:       details.Email,
-		Name:        name,
-		TenantID:    details.TenantID,
-		Role:        details.Role,
-		Permissions: details.Permissions,
-		Status:      domain.StatusActive,
-	}
-	id, err := s.repo.CreateUser(ctx, u, cred)
+	u, err := s.repo.AcceptInviteWithCredential(ctx, tokenHash, name, password, cred)
 	if err != nil {
 		return domain.User{}, err
 	}
-	u.ID = id
+	if u.Role == "school_admin" {
+		if s.activator == nil {
+			return domain.User{}, domain.ErrUnavailable
+		}
+		if err := s.activator.Activate(ctx, u.TenantID); err != nil {
+			return domain.User{}, domain.ErrUnavailable
+		}
+	}
 	return u, nil
 }
 
+func validNewPassword(password string) bool {
+	length := utf8.RuneCountInString(password)
+	return length >= 12 && passwordWithinMaximum(password)
+}
+
+func passwordWithinMaximum(password string) bool {
+	return utf8.RuneCountInString(password) <= 256 && len(password) <= 1024
+}
+
 func (s *Service) issueSession(ctx context.Context, u domain.User) (string, string, domain.User, time.Time, error) {
+	accessToken, expires, err := s.issueAccessToken(u)
+	if err != nil {
+		return "", "", domain.User{}, time.Time{}, err
+	}
+	refreshToken, err := domain.RandomToken()
+	if err != nil {
+		return "", "", domain.User{}, time.Time{}, err
+	}
+	refreshHash := domain.HashToken(refreshToken)
+	if err := s.repo.SaveRefreshToken(ctx, u.ID, refreshHash, uuid.NewString(), s.now().Add(s.refreshTTL)); err != nil {
+		return "", "", domain.User{}, time.Time{}, err
+	}
+	if s.sessions != nil {
+		if err := s.sessions.Save(ctx, u.TenantID, u.ID, refreshHash, s.refreshTTL); err != nil {
+			return "", "", domain.User{}, time.Time{}, s.revokeRefreshFamily(ctx, refreshHash, err)
+		}
+	}
+	return accessToken, refreshToken, u, expires, nil
+}
+
+func (s *Service) revokeRefreshFamily(ctx context.Context, tokenHash string, cause error) error {
+	if err := s.repo.RevokeRefreshFamily(ctx, tokenHash); err != nil {
+		return errors.Join(cause, fmt.Errorf("identity: revoke refresh family: %w", err))
+	}
+	return cause
+}
+
+func (s *Service) issueAccessToken(u domain.User) (string, time.Time, error) {
 	now := s.now()
 	expires := now.Add(s.accessTTL)
 	claims := jwt.Claims{
@@ -426,22 +639,9 @@ func (s *Service) issueSession(ctx context.Context, u domain.User) (string, stri
 	}
 	accessToken, err := jwt.Sign(claims, s.signingKey)
 	if err != nil {
-		return "", "", domain.User{}, time.Time{}, err
+		return "", time.Time{}, err
 	}
-	refreshToken, err := domain.RandomToken()
-	if err != nil {
-		return "", "", domain.User{}, time.Time{}, err
-	}
-	refreshHash := domain.HashToken(refreshToken)
-	if err := s.repo.SaveRefreshToken(ctx, u.ID, refreshHash, expires.Add(s.refreshTTL)); err != nil {
-		return "", "", domain.User{}, time.Time{}, err
-	}
-	if s.sessions != nil {
-		if err := s.sessions.Save(ctx, u.TenantID, u.ID, refreshHash, s.refreshTTL); err != nil {
-			return "", "", domain.User{}, time.Time{}, err
-		}
-	}
-	return accessToken, refreshToken, u, expires, nil
+	return accessToken, expires, nil
 }
 
 func (s *Service) newEvent(tenantID, eventType string, data map[string]any) ports.Event {
@@ -455,6 +655,13 @@ func (s *Service) newEvent(tenantID, eventType string, data map[string]any) port
 		DataContentType: "application/json",
 		Data:            data,
 	}
+}
+
+func permissionValues(values *[]string) []string {
+	if values == nil {
+		return nil
+	}
+	return *values
 }
 
 type CreateUserInput struct {

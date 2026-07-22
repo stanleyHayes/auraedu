@@ -1,15 +1,17 @@
 # identity-service — hermetic single-module build (go.mod replaces platform → ../../platform).
 # Build from repo root: docker build -f apps/identity-service/Dockerfile .
-FROM golang:1.26.5-alpine AS build
+FROM golang:1.26.5-alpine@sha256:0178a641fbb4858c5f1b48e34bdaabe0350a330a1b1149aabd498d0699ff5fb2 AS build
 WORKDIR /src
 COPY platform/ ./platform/
 COPY apps/identity-service/ ./apps/identity-service/
 WORKDIR /src/apps/identity-service
 ENV GOWORK=off GOFLAGS=-mod=readonly CGO_ENABLED=0 GOTOOLCHAIN=local
 ARG GIT_SHA=dev
-RUN go build -ldflags "-s -w -X main.version=${GIT_SHA}" -o /out/app ./cmd/identity-service
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build -ldflags "-s -w -X main.version=${GIT_SHA}" -o /out/app ./cmd/identity-service
 
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:aef9602f8710ec12bde19d593fed1f76c708531bb7aba205110f1029786ead7b
 COPY --from=build /out/app /app
 EXPOSE 8081
 USER nonroot:nonroot

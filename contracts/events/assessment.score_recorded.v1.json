@@ -4,27 +4,107 @@
   "title": "assessment.score_recorded.v1",
   "description": "Emitted by Assessment Service when a score is recorded (spec §4.3). CloudEvents 1.0 envelope; every event MUST carry tenant_id.",
   "type": "object",
-  "required": ["specversion", "type", "source", "id", "time", "tenant_id", "data"],
+  "required": [
+    "specversion",
+    "type",
+    "source",
+    "id",
+    "time",
+    "tenant_id",
+    "data"
+  ],
   "properties": {
-    "specversion": { "const": "1.0" },
-    "type": { "const": "assessment.score_recorded.v1" },
-    "source": { "const": "assessment-service" },
-    "subject": { "type": "string", "description": "student id" },
-    "id": { "type": "string", "description": "unique event id (idempotency key)" },
-    "time": { "type": "string", "format": "date-time" },
-    "tenant_id": { "type": "string", "description": "REQUIRED — events without tenant_id are rejected" },
-    "datacontenttype": { "const": "application/json" },
+    "specversion": {
+      "const": "1.0"
+    },
+    "type": {
+      "const": "assessment.score_recorded.v1"
+    },
+    "source": {
+      "const": "assessment-service"
+    },
+    "subject": {
+      "type": "string",
+      "description": "score id"
+    },
+    "id": {
+      "type": "string",
+      "description": "unique event id (idempotency key)"
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "REQUIRED — events without tenant_id are rejected"
+    },
+    "datacontenttype": {
+      "const": "application/json"
+    },
     "data": {
       "type": "object",
-      "required": ["student_id", "subject_id", "score"],
+      "required": [
+        "score_id",
+        "assessment_id",
+        "student_id",
+        "subject_id",
+        "academic_year_id",
+        "score",
+        "max_score",
+        "recorded_at"
+      ],
       "properties": {
-        "student_id": { "type": "string", "format": "uuid" },
-        "subject_id": { "type": "string", "format": "uuid" },
-        "assessment_id": { "type": "string", "format": "uuid" },
-        "score": { "type": "number", "minimum": 0 },
-        "max_score": { "type": "number", "minimum": 0 },
-        "term_id": { "type": "string", "format": "uuid" }
-      }
+        "score_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "assessment_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "student_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "subject_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "academic_year_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "score": {
+          "type": "number",
+          "minimum": 0
+        },
+        "max_score": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "recorded_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "term_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "class_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
     }
   },
   "examples": [
@@ -32,11 +112,24 @@
       "specversion": "1.0",
       "type": "assessment.score_recorded.v1",
       "source": "assessment-service",
-      "subject": "student-uuid",
+      "subject": "cccccccc-cccc-cccc-cccc-cccccccccccc",
       "id": "evt-8f3c",
       "time": "2026-07-08T10:00:00Z",
       "tenant_id": "upshs",
-      "data": { "student_id": "student-uuid", "subject_id": "subject-uuid", "score": 72, "max_score": 100 }
+      "data": {
+        "score_id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+        "assessment_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        "student_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+        "subject_id": "dddddddd-dddd-dddd-dddd-dddddddddddd",
+        "academic_year_id": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+        "score": 72,
+        "max_score": 100,
+        "recorded_at": "2026-07-08T10:00:00Z",
+        "class_ids": [
+          "ffffffff-ffff-ffff-ffff-ffffffffffff"
+        ]
+      }
     }
-  ]
+  ],
+  "additionalProperties": false
 }

@@ -2,7 +2,10 @@ package integration
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/auraedu/fees-service/internal/adapters/postgres"
 	"github.com/auraedu/fees-service/internal/application"
@@ -76,6 +79,117 @@ func TestFeeStructureRepository_CreateAndGet(t *testing.T) {
 	}
 	if got.ID != fs.ID || got.Name != "Tuition" {
 		t.Fatalf("fee structure mismatch: %+v", got)
+	}
+}
+
+func TestPaymentReconciliationIsAtomicIdempotentAndCurrencySafe(t *testing.T) {
+	ctx := withTenant(context.Background(), tenantA)
+	feeRepo, invoicePort := newRepos(t)
+	invoiceRepo, ok := invoicePort.(*postgres.InvoiceRepository)
+	if !ok {
+		t.Fatalf("unexpected invoice repository type %T", invoicePort)
+	}
+	fee := mustCreateFeeStructure(ctx, t, feeRepo, "Tuition", ay1, 10000)
+	invoice := mustCreateInvoice(ctx, t, invoicePort, studentA, fee.ID, 10000)
+
+	initial, err := invoiceRepo.GetStudentBalance(ctx, tenantA, studentA)
+	if err != nil || len(initial.Totals) != 1 || initial.Totals[0].OutstandingCents != 10000 {
+		t.Fatalf("initial balance: %+v err=%v", initial, err)
+	}
+	first := ports.PaymentApplication{InvoiceID: invoice.ID, PaymentID: "11111111-aaaa-4aaa-8aaa-111111111111", AmountCents: 4000, ReceivedAt: time.Now()}
+	updated, receipt, created, err := invoiceRepo.ApplyPayment(ctx, tenantA, first)
+	if err != nil || !created || updated.Status != string(domain.InvoiceStatusPartial) || updated.BalanceCents != 6000 {
+		t.Fatalf("partial reconciliation: invoice=%+v receipt=%+v created=%v err=%v", updated, receipt, created, err)
+	}
+	replayed, sameReceipt, created, err := invoiceRepo.ApplyPayment(ctx, tenantA, first)
+	if err != nil || created || replayed.BalanceCents != 6000 || sameReceipt.ID != receipt.ID {
+		t.Fatalf("replay: invoice=%+v receipt=%+v created=%v err=%v", replayed, sameReceipt, created, err)
+	}
+	second := ports.PaymentApplication{InvoiceID: invoice.ID, PaymentID: "22222222-bbbb-4bbb-8bbb-222222222222", AmountCents: 7000, ReceivedAt: time.Now()}
+	paid, overpayment, created, err := invoiceRepo.ApplyPayment(ctx, tenantA, second)
+	if err != nil || !created || paid.Status != string(domain.InvoiceStatusPaid) || paid.BalanceCents != 0 {
+		t.Fatalf("paid reconciliation: invoice=%+v receipt=%+v created=%v err=%v", paid, overpayment, created, err)
+	}
+	if overpayment.AppliedCents != 6000 || overpayment.OverpaymentCents != 1000 {
+		t.Fatalf("overpayment evidence: %+v", overpayment)
+	}
+	outbox, err := invoiceRepo.ClaimPendingFeeEvents(context.Background(), 10)
+	if err != nil || len(outbox) != 3 {
+		t.Fatalf("reconciliation outbox=%+v err=%v", outbox, err)
+	}
+	counts := map[string]int{}
+	for _, item := range outbox {
+		counts[item.EventType]++
+		var payload map[string]any
+		if err := json.Unmarshal(item.Payload, &payload); err != nil {
+			t.Fatalf("decode fees outbox: %v", err)
+		}
+		if payload["invoice_id"] != invoice.ID || payload["student_id"] != studentA {
+			t.Fatalf("unexpected fees outbox payload: %+v", payload)
+		}
+		if err := invoiceRepo.MarkFeeEventPublished(context.Background(), item.ID); err != nil {
+			t.Fatalf("mark fees event published: %v", err)
+		}
+	}
+	if counts["invoice.updated.v1"] != 2 || counts["invoice.paid.v1"] != 1 {
+		t.Fatalf("unexpected reconciliation events: %+v", counts)
+	}
+	if pending, err := invoiceRepo.ClaimPendingFeeEvents(context.Background(), 10); err != nil || len(pending) != 0 {
+		t.Fatalf("published fees outbox must drain: pending=%+v err=%v", pending, err)
+	}
+	final, err := invoiceRepo.GetStudentBalance(ctx, tenantA, studentA)
+	if err != nil || final.Totals[0].TotalPaidCents != 10000 || final.Totals[0].OutstandingCents != 0 {
+		t.Fatalf("final balance: %+v err=%v", final, err)
+	}
+	if _, err := invoiceRepo.GetReceiptByID(withTenant(context.Background(), tenantB), tenantB, receipt.ID); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("cross-tenant receipt: %v", err)
+	}
+}
+
+func TestPaymentReconciliationRollsBackWithoutOutbox(t *testing.T) {
+	ctx := withTenant(context.Background(), tenantA)
+	tdb := testkit.NewPostgres(context.Background(), t, "../../migrations")
+	feeRepo := postgres.NewFeeStructureRepository(tdb.DB)
+	invoiceRepo := postgres.NewInvoiceRepository(tdb.DB)
+	fee := mustCreateFeeStructure(ctx, t, feeRepo, "Atomic tuition", ay1, 10000)
+	invoice := mustCreateInvoice(ctx, t, invoiceRepo, studentA, fee.ID, 10000)
+	if _, err := tdb.DB.Pool().Exec(context.Background(), `DROP TABLE fees_outbox`); err != nil {
+		t.Fatal(err)
+	}
+	input := ports.PaymentApplication{InvoiceID: invoice.ID, PaymentID: "33333333-cccc-4ccc-8ccc-333333333333", AmountCents: 4000, ReceivedAt: time.Now()}
+	if _, _, _, err := invoiceRepo.ApplyPayment(ctx, tenantA, input); err == nil {
+		t.Fatal("payment reconciliation must fail when its durable events cannot be written")
+	}
+	stored, err := invoiceRepo.GetByID(ctx, tenantA, invoice.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.BalanceCents != 10000 || stored.Status != string(domain.InvoiceStatusPending) {
+		t.Fatalf("invoice mutation escaped rollback: %+v", stored)
+	}
+}
+
+func TestInvoiceLifecycleRollsBackWithoutOutbox(t *testing.T) {
+	ctx := withTenant(context.Background(), tenantA)
+	tdb := testkit.NewPostgres(context.Background(), t, "../../migrations")
+	feeRepo := postgres.NewFeeStructureRepository(tdb.DB)
+	invoiceRepo := postgres.NewInvoiceRepository(tdb.DB)
+	fee := mustCreateFeeStructure(ctx, t, feeRepo, "Atomic invoice", ay1, 10000)
+	invoice, err := domain.NewInvoice(tenantA, studentA, fee.ID, 10000, 10000, domain.Date{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tdb.DB.Pool().Exec(context.Background(), `DROP TABLE fees_outbox`); err != nil {
+		t.Fatal(err)
+	}
+	if err := invoiceRepo.CommitInvoiceLifecycle(ctx, tenantA, invoice, ports.InvoiceMutationCreate, []ports.LifecycleEvent{{
+		EventType: "invoice.created.v1",
+		Payload:   ports.InvoiceEventData("invoice.created.v1", invoice, nil),
+	}}); err == nil {
+		t.Fatal("invoice create must fail when its durable event cannot be written")
+	}
+	if _, err := invoiceRepo.GetByID(ctx, tenantA, invoice.ID); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("invoice mutation escaped rollback: %v", err)
 	}
 }
 
@@ -210,6 +324,9 @@ func TestInvoiceRepository_ListFilters(t *testing.T) {
 		want   int
 	}{
 		{"by student_id", ports.InvoiceFilter{Limit: 10, StudentID: studentA}, 1},
+		{"by learner scope", ports.InvoiceFilter{Limit: 10, StudentIDs: []string{studentA}}, 1},
+		{"by invoice IDs", ports.InvoiceFilter{Limit: 10, InvoiceIDs: []string{"00000000-0000-0000-0000-000000000000"}}, 0},
+		{"empty learner scope fails closed", ports.InvoiceFilter{Limit: 10, StudentIDs: []string{}}, 0},
 		{"by fee_structure_id", ports.InvoiceFilter{Limit: 10, FeeStructureID: fs2.ID}, 1},
 		{"by status", ports.InvoiceFilter{Limit: 10, Status: string(domain.InvoiceStatusPending)}, 2},
 	}
@@ -369,5 +486,20 @@ func TestService_CreateInvoiceFromFeeStructure(t *testing.T) {
 	}
 	if inv.AmountCents != 10000 || inv.BalanceCents != 10000 {
 		t.Fatalf("expected amount/balance from fee structure, got %+v", inv)
+	}
+	postgresRepo, ok := invRepo.(*postgres.InvoiceRepository)
+	if !ok {
+		t.Fatalf("unexpected invoice repository type %T", invRepo)
+	}
+	outbox, err := postgresRepo.ClaimPendingFeeEvents(context.Background(), 10)
+	if err != nil || len(outbox) != 2 {
+		t.Fatalf("invoice creation outbox=%+v err=%v", outbox, err)
+	}
+	counts := map[string]int{}
+	for _, event := range outbox {
+		counts[event.EventType]++
+	}
+	if counts["fee.assigned.v1"] != 1 || counts["invoice.created.v1"] != 1 {
+		t.Fatalf("invoice creation events=%+v", counts)
 	}
 }

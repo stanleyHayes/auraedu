@@ -3,6 +3,7 @@ package unit
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/auraedu/platform/auth"
@@ -12,6 +13,15 @@ import (
 )
 
 func newSvc() *application.Service { return application.NewService(memory.New()) }
+
+type txtResolver struct {
+	records map[string][]string
+	err     error
+}
+
+func (r *txtResolver) LookupTXT(_ context.Context, name string) ([]string, error) {
+	return r.records[name], r.err
+}
 
 var (
 	ctx         = context.Background()
@@ -137,7 +147,12 @@ func TestSettingsTenantScope(t *testing.T) {
 
 func TestUpdateSettings(t *testing.T) {
 	svc := newSvc()
-	updated, err := svc.UpdateSettings(ctx, upshsUser, "upshs", domain.Settings{
+	if _, err := svc.UpdateSettings(ctx, upshsUser, "upshs", domain.Settings{
+		Locale: "en-GH", Timezone: "Africa/Accra", AcademicYearStartMonth: 9,
+	}); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("teacher must not update tenant settings, got %v", err)
+	}
+	updated, err := svc.UpdateSettings(ctx, upshsAdmin, "upshs", domain.Settings{
 		Locale:                 "en-GH",
 		Timezone:               "Africa/Accra",
 		AcademicYearStartMonth: 9,
@@ -155,7 +170,7 @@ func TestUpdateSettings(t *testing.T) {
 	if s.Timezone != "Africa/Accra" {
 		t.Fatalf("timezone = %q, want Africa/Accra", s.Timezone)
 	}
-	if _, err := svc.UpdateSettings(ctx, upshsUser, "upshs", domain.Settings{AcademicYearStartMonth: 13}); !errors.Is(err, domain.ErrValidation) {
+	if _, err := svc.UpdateSettings(ctx, upshsAdmin, "upshs", domain.Settings{AcademicYearStartMonth: 13}); !errors.Is(err, domain.ErrValidation) {
 		t.Fatalf("invalid month should be validation error, got %v", err)
 	}
 }
@@ -242,6 +257,10 @@ func TestUpdateTenantValidation(t *testing.T) {
 	if _, err := svc.UpdateTenant(ctx, platformAdm, "upshs", domain.TenantUpdate{Plan: &badPlan}); !errors.Is(err, domain.ErrValidation) {
 		t.Fatalf("invalid plan should be validation error, got %v", err)
 	}
+	domainHost := "upshs.edu.gh"
+	if _, err := svc.UpdateTenant(ctx, platformAdm, "upshs", domain.TenantUpdate{Domain: &domainHost}); !errors.Is(err, domain.ErrValidation) {
+		t.Fatalf("generic update must not bypass domain verification, got %v", err)
+	}
 }
 
 func TestResolveTenantBySubdomain(t *testing.T) {
@@ -251,6 +270,9 @@ func TestResolveTenantBySubdomain(t *testing.T) {
 	}
 	if _, err := svc.ResolveTenant(ctx, "", "no-such-tenant"); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("unknown subdomain should be not found, got %v", err)
+	}
+	if _, err := svc.ResolveTenant(ctx, "", "cape-coast-prep"); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("onboarding tenant must not resolve publicly, got %v", err)
 	}
 	got, err := svc.ResolveTenant(ctx, "", "upshs")
 	if err != nil {
@@ -262,18 +284,79 @@ func TestResolveTenantBySubdomain(t *testing.T) {
 }
 
 func TestResolveTenantByDomain(t *testing.T) {
-	svc := newSvc()
-	// Seed a tenant with a custom domain via update.
-	domainHost := "upshs.edu.gh"
-	if _, err := svc.UpdateTenant(ctx, platformAdm, "upshs", domain.TenantUpdate{Domain: &domainHost}); err != nil {
-		t.Fatalf("set domain: %v", err)
+	resolver := &txtResolver{records: map[string][]string{}}
+	svc := application.NewService(memory.New(), application.WithTXTResolver(resolver), application.WithDomainTokenGenerator(func() (string, error) {
+		return strings.Repeat("a", 64), nil
+	}))
+	domainHost := "UPSHS.edu.gh."
+	registration, err := svc.RequestCustomDomain(ctx, upshsAdmin, "upshs", domainHost)
+	if err != nil {
+		t.Fatalf("request custom domain: %v", err)
 	}
-	got, err := svc.ResolveTenant(ctx, domainHost, "")
+	if registration.Hostname != "upshs.edu.gh" || registration.Status != domain.DomainPending || registration.VerificationToken == "" {
+		t.Fatalf("unexpected registration: %+v", registration)
+	}
+	if _, err := svc.ResolveTenant(ctx, registration.Hostname, ""); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("unverified domain must not resolve, got %v", err)
+	}
+	if _, err := svc.VerifyCustomDomain(ctx, upshsAdmin, "upshs"); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("missing TXT value must not verify, got %v", err)
+	}
+	resolver.records[registration.TXTRecordName] = []string{"unrelated", registration.VerificationToken}
+	verified, err := svc.VerifyCustomDomain(ctx, upshsAdmin, "upshs")
+	if err != nil || verified.Status != domain.DomainVerified || verified.VerifiedAt == nil {
+		t.Fatalf("verify custom domain: %+v err=%v", verified, err)
+	}
+	read, err := svc.GetCustomDomain(ctx, upshsAdmin, "upshs")
+	if err != nil || read.VerificationToken != "" {
+		t.Fatalf("stored challenge must never expose its token: %+v err=%v", read, err)
+	}
+	if _, err := svc.ActivateCustomDomain(ctx, upshsAdmin, "upshs", "render-domain-123"); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("school admin must not attest provider TLS, got %v", err)
+	}
+	active, err := svc.ActivateCustomDomain(ctx, platformAdm, "upshs", "render-domain-123")
+	if err != nil || active.Status != domain.DomainActive || active.ActivatedAt == nil {
+		t.Fatalf("activate custom domain: %+v err=%v", active, err)
+	}
+	visible, err := svc.GetCustomDomain(ctx, upshsAdmin, "upshs")
+	if err != nil || visible.ProviderReference != "" {
+		t.Fatalf("tenant-facing domain state leaked provider reference: %+v err=%v", visible, err)
+	}
+	got, err := svc.ResolveTenant(ctx, registration.Hostname, "")
 	if err != nil {
 		t.Fatalf("resolve by domain: %v", err)
 	}
 	if got.Code != "upshs" {
 		t.Fatalf("resolved code = %q, want upshs", got.Code)
+	}
+	if _, err := svc.DeactivateCustomDomain(ctx, upshsAdmin, "upshs", "render-removal-123"); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("school admin must not attest provider removal, got %v", err)
+	}
+	inactive, err := svc.DeactivateCustomDomain(ctx, platformAdm, "upshs", "render-removal-123")
+	if err != nil || inactive.Status != domain.DomainInactive || inactive.DeactivatedAt == nil {
+		t.Fatalf("deactivate custom domain: %+v err=%v", inactive, err)
+	}
+	if _, err := svc.ResolveTenant(ctx, registration.Hostname, ""); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("inactive domain must not resolve, got %v", err)
+	}
+}
+
+func TestCustomDomainSecurityAndValidation(t *testing.T) {
+	svc := newSvc()
+	if _, err := svc.RequestCustomDomain(ctx, upshsUser, "upshs", "school.edu.gh"); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("teacher must not request domain, got %v", err)
+	}
+	if _, err := svc.RequestCustomDomain(ctx, upshsAdmin, "aboom-ame-zion-c", "school.edu.gh"); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("cross-tenant request must be forbidden, got %v", err)
+	}
+	aboomAdmin := auth.Actor{UserID: "a2", TenantID: "aboom-ame-zion-c", Role: "school_admin", Permissions: []string{"features.manage"}}
+	if _, err := svc.RequestCustomDomain(ctx, aboomAdmin, "aboom-ame-zion-c", "school.edu.gh"); !errors.Is(err, domain.ErrEntitlement) {
+		t.Fatalf("starter plan must not request custom domain, got %v", err)
+	}
+	for _, invalid := range []string{"localhost", "127.0.0.1", "evil..edu.gh", "school.auraedu.com", "https://school.edu.gh"} {
+		if _, err := domain.NormalizeCustomDomain(invalid); !errors.Is(err, domain.ErrValidation) {
+			t.Fatalf("invalid domain %q accepted: %v", invalid, err)
+		}
 	}
 }
 

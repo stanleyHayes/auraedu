@@ -4,6 +4,7 @@ package servercmd
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -17,6 +18,7 @@ import (
 	"github.com/auraedu/platform/eventbus"
 	"github.com/auraedu/platform/flags"
 	"github.com/auraedu/platform/httpx"
+	"github.com/auraedu/platform/observ"
 
 	// Register pgx SQL driver for database/sql based migrations.
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -35,22 +37,36 @@ const service = "file-service"
 // version is injected via -ldflags "-X main.version=<sha>" (Dockerfile); falls back to env.
 var version = ""
 
-func main() {
-	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+func run() error {
+	log := observ.DefaultLogger()
 	slog.SetDefault(log)
+	if err := config.RequireProductionEnv("INTERNAL_SERVICE_TOKEN"); err != nil {
+		return err
+	}
 	if version == "" {
 		version = config.Getenv("GIT_SHA", "dev")
 	}
+	shutdownTracing, err := observ.InitTracing(service, version)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := shutdownTracing(context.Background()); err != nil {
+			log.Error("failed to flush tracing", "err", err)
+		}
+	}()
 
 	ctx := context.Background()
 	database, err := openDB(ctx)
 	if err != nil {
-		log.Error("failed to open database", "err", err)
-		os.Exit(1)
+		return err
 	}
 	defer database.Close()
 
-	store := initStorage(log)
+	store, err := initStorage(log)
+	if err != nil {
+		return err
+	}
 	pub := publisher(ctx, log)
 	gates := featureGates(log)
 
@@ -77,33 +93,39 @@ func main() {
 	mux := http.NewServeMux()
 	health.Register(mux)
 	handler.Register(mux)
+	handler.RegisterInternal(mux, config.Getenv("INTERNAL_SERVICE_TOKEN", ""))
 
 	addr := ":" + strconv.Itoa(config.Port(8080))
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           httpx.RequestIDMiddleware(mux),
+		Handler:           observ.HTTPHandler(service, httpx.RequestIDMiddleware(mux)),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
+	errorsChannel := make(chan error, 1)
 	go func() {
 		log.Info(service+" listening", "addr", addr)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error("server error", "err", err)
-			os.Exit(1)
-		}
+		errorsChannel <- srv.ListenAndServe()
 	}()
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-	<-stop
+	select {
+	case err = <-errorsChannel:
+		if !errors.Is(err, http.ErrServerClosed) {
+			return err
+		}
+	case <-stop:
+	}
 	ctxShutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctxShutdown); err != nil {
-		log.Error("server shutdown error", "err", err)
+		return err
 	}
 	log.Info(service + " stopped")
+	return nil
 }
 
 func openDB(ctx context.Context) (*db.DB, error) {
@@ -117,26 +139,27 @@ func openDB(ctx context.Context) (*db.DB, error) {
 	})
 }
 
-func initStorage(log *slog.Logger) ports.Storage {
+func initStorage(log *slog.Logger) (ports.Storage, error) {
 	if cloudURL := config.Getenv("CLOUDINARY_URL", ""); cloudURL != "" {
 		store, err := storage.NewCloudinaryStorage(cloudURL,
 			storage.WithResourceType(config.Getenv("CLOUDINARY_RESOURCE_TYPE", "raw")),
 		)
 		if err != nil {
-			log.Error("failed to initialize cloudinary storage", "err", err)
-			os.Exit(1)
+			return nil, fmt.Errorf("initialize cloudinary storage: %w", err)
 		}
 		log.Info("cloudinary storage initialized")
-		return store
+		return store, nil
+	}
+	if config.Getenv("ENVIRONMENT", "development") == "production" {
+		return nil, errors.New("CLOUDINARY_URL is required in production")
 	}
 
 	dir := config.Getenv("FILE_STORAGE_DIR", "/tmp/auraedu-files")
 	if err := os.MkdirAll(dir, 0o750); err != nil {
-		log.Error("failed to create storage directory", "dir", dir, "err", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("create storage directory %s: %w", dir, err)
 	}
 	log.Info("local storage initialized", "dir", dir)
-	return storage.NewLocalStorage(dir)
+	return storage.NewLocalStorage(dir), nil
 }
 
 func publisher(_ context.Context, log *slog.Logger) *svcevents.Publisher {
@@ -175,17 +198,11 @@ func featureGates(log *slog.Logger) flags.Gate {
 		fallback = reg.SnapshotFromRegistry()
 	}
 
-	// Live per-tenant overrides come from tenant-service (same wiring as the
-	// api-gateway); without SERVICE_TENANT_URL the static snapshot rules.
-	if tenantURL := config.Getenv("SERVICE_TENANT_URL", ""); tenantURL != "" {
-		return flags.NewTenantServiceClient(tenantURL, flags.WarnOnceFallback(fallback, log))
-	}
-	return fallback
+	return flags.NewRuntimeGate(config.Getenv("SERVICE_TENANT_URL", ""), fallback, log)
 }
 
 // Run starts the file-service HTTP server. It is invoked by the service CLI.
 func Run(serviceVersion string) error {
 	version = serviceVersion
-	main()
-	return nil
+	return run()
 }

@@ -26,7 +26,7 @@ func enabledGates(tenants ...string) *flags.StaticSnapshot {
 }
 
 func scoreInput(tenantID string) application.ScoreRecordedInput {
-	max := 100.0
+	maximum := 100.0
 	return application.ScoreRecordedInput{
 		EventID:      "evt-1",
 		TenantID:     tenantID,
@@ -35,7 +35,7 @@ func scoreInput(tenantID string) application.ScoreRecordedInput {
 		AssessmentID: assessment1,
 		TermID:       term1,
 		Score:        72,
-		MaxScore:     &max,
+		MaxScore:     &maximum,
 	}
 }
 
@@ -161,6 +161,34 @@ func TestMaterializeScore_SkipsWhenFeatureDisabled(t *testing.T) {
 	}
 }
 
+func TestMaterializeScore_FeatureFlagTenantMatrix(t *testing.T) {
+	repo := newFakeRepo()
+	gates := enabledGates(tenantA)
+	svc := application.NewService(repo, application.WithFeatureGate(gates))
+	ctx := context.Background()
+
+	if err := svc.MaterializeScore(ctx, scoreInput(tenantA)); err != nil {
+		t.Fatalf("enabled tenant materialize: %v", err)
+	}
+	disabled := scoreInput(tenantB)
+	disabled.EventID = "evt-disabled-tenant"
+	if err := svc.MaterializeScore(ctx, disabled); err != nil {
+		t.Fatalf("disabled tenant must be a silent worker skip: %v", err)
+	}
+
+	cardsA, _, err := repo.ListReportCards(ctx, tenantA, listAll())
+	if err != nil {
+		t.Fatalf("list enabled tenant: %v", err)
+	}
+	cardsB, _, err := repo.ListReportCards(ctx, tenantB, listAll())
+	if err != nil {
+		t.Fatalf("list disabled tenant: %v", err)
+	}
+	if len(cardsA) != 1 || len(cardsB) != 0 {
+		t.Fatalf("matrix violated: enabled tenant cards=%d disabled tenant cards=%d", len(cardsA), len(cardsB))
+	}
+}
+
 func TestMaterializeScore_TenantScoping(t *testing.T) {
 	repo := newFakeRepo()
 	svc := application.NewService(repo, application.WithFeatureGate(enabledGates(tenantA, tenantB)))
@@ -189,13 +217,23 @@ func TestMaterializeScore_TenantScoping(t *testing.T) {
 		t.Fatal("tenants must get separate draft cards")
 	}
 
-	entriesA, _ := repo.ListScoreEntries(ctx, tenantA, cardA.ID)
-	entriesB, _ := repo.ListScoreEntries(ctx, tenantB, cardB.ID)
+	entriesA, err := repo.ListScoreEntries(ctx, tenantA, cardA.ID)
+	if err != nil {
+		t.Fatalf("list tenant A scores: %v", err)
+	}
+	entriesB, err := repo.ListScoreEntries(ctx, tenantB, cardB.ID)
+	if err != nil {
+		t.Fatalf("list tenant B scores: %v", err)
+	}
 	if len(entriesA) != 1 || len(entriesB) != 1 {
 		t.Fatalf("expected one entry per tenant, got A=%d B=%d", len(entriesA), len(entriesB))
 	}
 	// Cross-tenant reads see nothing.
-	if leaked, _ := repo.ListScoreEntries(ctx, tenantB, cardA.ID); len(leaked) != 0 {
+	leaked, err := repo.ListScoreEntries(ctx, tenantB, cardA.ID)
+	if err != nil {
+		t.Fatalf("list cross-tenant scores: %v", err)
+	}
+	if len(leaked) != 0 {
 		t.Fatalf("tenant B must not list tenant A entries, got %d", len(leaked))
 	}
 }
@@ -252,7 +290,10 @@ func TestMaterializeScore_CreateConflictRereadsDraft(t *testing.T) {
 	if len(entries) != 1 {
 		t.Fatalf("expected the entry to land on the winner draft, got %d", len(entries))
 	}
-	cards, _, _ := repo.ListReportCards(ctx, tenantA, listAll())
+	cards, _, err := repo.ListReportCards(ctx, tenantA, listAll())
+	if err != nil {
+		t.Fatalf("list cards after conflict: %v", err)
+	}
 	if len(cards) != 1 {
 		t.Fatalf("conflict path must not duplicate drafts, got %d", len(cards))
 	}
@@ -323,7 +364,10 @@ func TestMaterializeAttendance_SkipsWhenFeatureDisabled(t *testing.T) {
 	if err := svc.MaterializeAttendance(context.Background(), in); err != nil {
 		t.Fatalf("disabled feature must be a silent skip, got %v", err)
 	}
-	cards, _, _ := repo.ListReportCards(context.Background(), tenantA, listAll())
+	cards, _, err := repo.ListReportCards(context.Background(), tenantA, listAll())
+	if err != nil {
+		t.Fatalf("list cards for disabled feature: %v", err)
+	}
 	if len(cards) != 0 {
 		t.Fatalf("no draft should be created when the feature is off, got %d", len(cards))
 	}

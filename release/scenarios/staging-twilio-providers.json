@@ -1,0 +1,8 @@
+{
+  "name": "auraedu-staging-messaging-providers",
+  "environment": "staging",
+  "base_url": "https://staging-api.auraedu.example",
+  "timeout": "15s",
+  "delivery_timeout": "5m",
+  "poll_interval": "2s"
+}

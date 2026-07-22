@@ -5,6 +5,8 @@ info:
   description: >
     Student risk and performance predictions (spec \u00a715).
     Owned by lane L3 (EP-31). Feature flag: ai_predictions.
+  contact:
+    name: AuraEDU Engineering
 servers:
   - url: /api/v1/ai/predictions
 tags:
@@ -15,6 +17,7 @@ paths:
   /health:
     get:
       operationId: healthCheck
+      description: Executes the health check workflow within this AuraEDU API boundary.
       tags: ['predictions']
       summary: Service health check
       security: []
@@ -32,6 +35,7 @@ paths:
   /feature-store/metrics:
     post:
       operationId: ingestFeatureStoreMetric
+      description: Executes the ingest feature store metric workflow within this AuraEDU API boundary.
       tags: ['feature-store']
       summary: Ingest a single approved learning metric
       parameters:
@@ -54,6 +58,7 @@ paths:
   /predictions:
     get:
       operationId: listPredictions
+      description: Executes the list predictions workflow within this AuraEDU API boundary.
       tags: ['predictions']
       summary: List predictions for a student
       parameters:
@@ -79,6 +84,7 @@ paths:
 
     post:
       operationId: generatePredictions
+      description: Executes the generate predictions workflow within this AuraEDU API boundary.
       tags: ['predictions']
       summary: Generate predictions for a student
       parameters:
@@ -101,6 +107,7 @@ paths:
   /predictions/{prediction_id}:
     get:
       operationId: getPrediction
+      description: Executes the get prediction workflow within this AuraEDU API boundary.
       tags: ['predictions']
       summary: Get a prediction by ID
       parameters:
@@ -122,6 +129,7 @@ paths:
   /predictions/{prediction_id}/explain:
     get:
       operationId: explainPrediction
+      description: Executes the explain prediction workflow within this AuraEDU API boundary.
       tags: ['predictions']
       summary: Get explainability details for a prediction
       parameters:
@@ -143,6 +151,7 @@ paths:
   /predictions/{prediction_id}/approve:
     post:
       operationId: approvePrediction
+      description: Executes the approve prediction workflow within this AuraEDU API boundary.
       tags: ['predictions']
       summary: Approve a prediction
       parameters:
@@ -169,6 +178,7 @@ paths:
   /predictions/{prediction_id}/reject:
     post:
       operationId: rejectPrediction
+      description: Executes the reject prediction workflow within this AuraEDU API boundary.
       tags: ['predictions']
       summary: Reject a prediction
       parameters:

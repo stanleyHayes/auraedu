@@ -2,9 +2,86 @@ package ports
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/auraedu/assessment-service/internal/domain"
 )
+
+const (
+	AssessmentMutationCreate      = "assessment_create"
+	AssessmentMutationUpdate      = "assessment_update"
+	AssessmentMutationDelete      = "assessment_delete"
+	AssessmentMutationScoreCreate = "score_create"
+	AssessmentMutationScoreUpdate = "score_update"
+	AssessmentMutationScoreDelete = "score_delete"
+)
+
+type LifecycleEvent struct {
+	EventType string
+	Payload   map[string]any
+}
+type LifecycleMutation struct {
+	Kind       string
+	Assessment *domain.Assessment
+	Score      *domain.Score
+}
+type LifecycleRepository interface {
+	CommitAssessmentLifecycle(context.Context, string, LifecycleMutation, []LifecycleEvent) error
+}
+type OutboxEvent struct {
+	ID, TenantID, EventType string
+	Payload                 json.RawMessage
+}
+type OutboxRepository interface {
+	ClaimPendingAssessmentEvents(context.Context, int) ([]OutboxEvent, error)
+	MarkAssessmentEventPublished(context.Context, string) error
+	MarkAssessmentEventFailed(context.Context, string, string) error
+}
+
+func AssessmentEventData(a *domain.Assessment, meta map[string]any) map[string]any {
+	data := map[string]any{
+		"assessment_id":    a.ID,
+		"academic_year_id": a.AcademicYearID,
+		"subject_id":       a.SubjectID,
+		"type":             a.Type,
+		"title":            a.Title,
+		"max_score":        a.MaxScore,
+		"status":           a.Status,
+	}
+	if a.Description != nil {
+		data["description"] = *a.Description
+	}
+	if a.DueDate != nil {
+		data["due_date"] = a.DueDate.Format("2006-01-02T15:04:05Z07:00")
+	}
+	for k, v := range meta {
+		data[k] = v
+	}
+	return data
+}
+func AssignmentEventData(a *domain.Assessment, meta map[string]any) map[string]any {
+	data := map[string]any{"assignment_id": a.ID, "subject_id": a.SubjectID}
+	if len(a.ClassIDs) > 0 {
+		data["class_ids"] = a.ClassIDs
+	}
+	if a.DueDate != nil {
+		data["due_date"] = a.DueDate.UTC().Format("2006-01-02T15:04:05Z07:00")
+	}
+	for k, v := range meta {
+		data[k] = v
+	}
+	return data
+}
+func ScoreEventData(s *domain.Score, meta map[string]any) map[string]any {
+	data := map[string]any{"score_id": s.ID, "assessment_id": s.AssessmentID, "student_id": s.StudentID, "score": s.Score, "recorded_by": s.RecordedBy}
+	if s.Notes != nil {
+		data["notes"] = *s.Notes
+	}
+	for k, v := range meta {
+		data[k] = v
+	}
+	return data
+}
 
 // Repository persists Assessment and Score aggregates. Implementations MUST scope
 // every query by tenantID (defense-in-depth with Postgres RLS, agent_plan §7).
@@ -29,6 +106,14 @@ type Repository interface {
 	// Gradebook.
 	GradebookScores(ctx context.Context, tenantID string, filter GradebookFilter) ([]domain.GradeRow, error)
 }
+type LearnerScopeResolver interface {
+	Resolve(context.Context, string, string, string) (LearnerScope, error)
+}
+
+type LearnerScope struct {
+	StudentIDs []string
+	ClassIDs   []string
+}
 
 // AssessmentListFilter carries cursor pagination and optional equality filters.
 type AssessmentListFilter struct {
@@ -38,13 +123,15 @@ type AssessmentListFilter struct {
 	SubjectID      string
 	Type           string
 	Status         string
+	ClassIDs       []string
 }
 
 // ScoreListFilter carries cursor pagination and optional equality filters.
 type ScoreListFilter struct {
-	Limit     int
-	Cursor    string
-	StudentID string
+	Limit      int
+	Cursor     string
+	StudentID  string
+	StudentIDs []string
 }
 
 // AssignmentListFilter carries cursor pagination and optional equality filters.
@@ -54,6 +141,7 @@ type AssignmentListFilter struct {
 	Cursor    string
 	SubjectID string
 	ClassID   string
+	ClassIDs  []string
 	StudentID string
 	Status    string
 }

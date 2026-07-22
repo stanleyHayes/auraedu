@@ -41,9 +41,9 @@ export default async function BillingPlansPage() {
           keyExtractor={(p) => p.id}
           columns={[
             {
-              key: "key",
-              header: "Key",
-              cell: (p) => <span className="font-mono text-xs">{p.key}</span>,
+              key: "code",
+              header: "Code",
+              cell: (p) => <span className="font-mono text-xs">{p.code}</span>,
             },
             {
               key: "name",
@@ -52,9 +52,14 @@ export default async function BillingPlansPage() {
             },
             {
               key: "price",
-              header: "Monthly price",
+              header: "Price",
               cell: (p) =>
-                typeof p.price_monthly === "number" ? `$${p.price_monthly.toFixed(2)}` : "—",
+                `${new Intl.NumberFormat("en-GH", {
+                  style: "currency",
+                  currency: p.currency,
+                }).format(
+                  p.price_cents / 100,
+                )} / ${p.billing_interval === "yearly" ? "year" : "month"}`,
             },
             {
               key: "features",

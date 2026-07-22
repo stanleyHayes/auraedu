@@ -3,13 +3,16 @@ package http
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/auraedu/academic-service/internal/application"
 	"github.com/auraedu/academic-service/internal/domain"
+	"github.com/auraedu/academic-service/internal/ports"
 	"github.com/auraedu/platform/auth"
 	"github.com/auraedu/platform/flags"
 	"github.com/auraedu/platform/httpx"
@@ -23,6 +26,25 @@ type Handler struct {
 
 // NewHandler creates the HTTP adapter.
 func NewHandler(svc *application.Service) *Handler { return &Handler{svc: svc} }
+
+// RegisterInternal mounts authenticated service-to-service scope routes.
+func (h *Handler) RegisterInternal(mux *http.ServeMux, token string) {
+	mux.HandleFunc("GET /internal/v1/teacher-class-scope", func(w http.ResponseWriter, r *http.Request) {
+		provided, expected := r.Header.Get("Authorization"), "Bearer "+token
+		if token == "" || len(provided) != len(expected) || subtle.ConstantTimeCompare([]byte(provided), []byte(expected)) != 1 {
+			httpx.Unauthorized(w, r, "valid service credentials are required")
+			return
+		}
+		tenantID := strings.TrimSpace(r.Header.Get(tenancy.HeaderTenantID))
+		ctx := tenancy.WithContext(r.Context(), tenancy.TenantContext{TenantID: tenantID})
+		classIDs, err := h.svc.ResolveTeacherClassScope(ctx, tenantID, strings.TrimSpace(r.URL.Query().Get("user_id")))
+		if err != nil {
+			h.writeErr(w, r, err, "teacher class scope")
+			return
+		}
+		httpx.RespondJSON(w, r, http.StatusOK, map[string]any{"class_ids": classIDs})
+	})
+}
 
 // Register mounts the service routes. Paths follow contracts/openapi/academic.v1.yaml;
 // get/patch/delete by id mirror the academic-year routes pending contract coverage.
@@ -50,6 +72,18 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/subjects/{subject_id}", h.getSubject)
 	mux.HandleFunc("PATCH /api/v1/subjects/{subject_id}", h.updateSubject)
 	mux.HandleFunc("DELETE /api/v1/subjects/{subject_id}", h.deleteSubject)
+
+	mux.HandleFunc("GET /api/v1/grading-scales", h.listGradingScales)
+	mux.HandleFunc("POST /api/v1/grading-scales", h.createGradingScale)
+	mux.HandleFunc("GET /api/v1/grading-scales/{grading_scale_id}", h.getGradingScale)
+	mux.HandleFunc("PATCH /api/v1/grading-scales/{grading_scale_id}", h.updateGradingScale)
+	mux.HandleFunc("DELETE /api/v1/grading-scales/{grading_scale_id}", h.deleteGradingScale)
+
+	mux.HandleFunc("GET /api/v1/timetable", h.listTimetable)
+	mux.HandleFunc("POST /api/v1/timetable", h.createTimetable)
+	mux.HandleFunc("GET /api/v1/timetable/{entry_id}", h.getTimetable)
+	mux.HandleFunc("PATCH /api/v1/timetable/{entry_id}", h.updateTimetable)
+	mux.HandleFunc("DELETE /api/v1/timetable/{entry_id}", h.deleteTimetable)
 }
 
 // ---- academic years ---------------------------------------------------------
@@ -450,6 +484,198 @@ func (h *Handler) deleteSubject(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// ---- grading scales --------------------------------------------------------
+
+type gradingScaleBody struct {
+	Name   string              `json:"name"`
+	Ranges []domain.GradeRange `json:"ranges"`
+}
+
+func (h *Handler) listGradingScales(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	records, nextCursor, err := h.svc.ListGradingScales(ctx, actor, listLimit(r), r.URL.Query().Get("cursor"))
+	if err != nil {
+		h.writeErr(w, r, err, "grading scale")
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, map[string]any{"data": records, "next_cursor": nullIfEmpty(nextCursor)})
+}
+
+func (h *Handler) createGradingScale(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	var body gradingScaleBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		httpx.ValidationError(w, r, map[string]any{"body": "invalid JSON"})
+		return
+	}
+	record, err := h.svc.CreateGradingScale(ctx, actor, application.CreateGradingScaleRequest{Name: body.Name, Ranges: body.Ranges})
+	if err != nil {
+		h.writeErr(w, r, err, "grading scale")
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusCreated, record)
+}
+
+func (h *Handler) getGradingScale(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	record, err := h.svc.GetGradingScale(ctx, actor, r.PathValue("grading_scale_id"))
+	if err != nil {
+		h.writeErr(w, r, err, "grading scale")
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, record)
+}
+
+func (h *Handler) updateGradingScale(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	var body struct {
+		Name   *string              `json:"name"`
+		Ranges *[]domain.GradeRange `json:"ranges"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		httpx.ValidationError(w, r, map[string]any{"body": "invalid JSON"})
+		return
+	}
+	record, err := h.svc.UpdateGradingScale(
+		ctx,
+		actor,
+		r.PathValue("grading_scale_id"),
+		application.UpdateGradingScaleRequest{Name: body.Name, Ranges: body.Ranges},
+	)
+	if err != nil {
+		h.writeErr(w, r, err, "grading scale")
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, record)
+}
+
+func (h *Handler) deleteGradingScale(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	if err := h.svc.DeleteGradingScale(ctx, actor, r.PathValue("grading_scale_id")); err != nil {
+		h.writeErr(w, r, err, "grading scale")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ---- timetable -------------------------------------------------------------
+
+type timetableBody struct {
+	ClassID   string  `json:"class_id"`
+	TermID    string  `json:"term_id"`
+	SubjectID string  `json:"subject_id"`
+	TeacherID *string `json:"teacher_id"`
+	Weekday   int     `json:"weekday"`
+	StartTime string  `json:"start_time"`
+	EndTime   string  `json:"end_time"`
+	Room      *string `json:"room"`
+}
+
+func (h *Handler) listTimetable(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, _ := h.context(r)
+	filter := ports.TimetableFilter{TermID: r.URL.Query().Get("term_id"), Status: r.URL.Query().Get("status"), Limit: listLimit(r)}
+	if id := strings.TrimSpace(r.URL.Query().Get("class_id")); id != "" {
+		filter.ClassIDs = []string{id}
+	}
+	if day, err := strconv.Atoi(r.URL.Query().Get("weekday")); err == nil {
+		filter.Weekday = day
+	}
+	records, err := h.svc.ListTimetable(ctx, actor, filter)
+	if err != nil {
+		h.writeErr(w, r, err, "timetable entry")
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, map[string]any{"data": records})
+}
+func (h *Handler) createTimetable(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, _ := h.context(r)
+	var body timetableBody
+	if json.NewDecoder(r.Body).Decode(&body) != nil {
+		httpx.ValidationError(w, r, map[string]any{"body": "invalid JSON"})
+		return
+	}
+	entry, err := h.svc.CreateTimetableEntry(ctx, actor, application.CreateTimetableRequest{
+		ClassID:   body.ClassID,
+		TermID:    body.TermID,
+		SubjectID: body.SubjectID,
+		TeacherID: body.TeacherID,
+		Weekday:   body.Weekday,
+		StartTime: body.StartTime,
+		EndTime:   body.EndTime,
+		Room:      body.Room,
+	})
+	if err != nil {
+		h.writeErr(w, r, err, "timetable entry")
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusCreated, entry)
+}
+func (h *Handler) getTimetable(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, _ := h.context(r)
+	entry, err := h.svc.GetTimetableEntry(ctx, actor, r.PathValue("entry_id"))
+	if err != nil {
+		h.writeErr(w, r, err, "timetable entry")
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, entry)
+}
+func (h *Handler) updateTimetable(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, _ := h.context(r)
+	var body struct {
+		TeacherID *string `json:"teacher_id"`
+		Weekday   *int    `json:"weekday"`
+		StartTime *string `json:"start_time"`
+		EndTime   *string `json:"end_time"`
+		Room      *string `json:"room"`
+		Status    *string `json:"status"`
+	}
+	if json.NewDecoder(r.Body).Decode(&body) != nil {
+		httpx.ValidationError(w, r, map[string]any{"body": "invalid JSON"})
+		return
+	}
+	entry, err := h.svc.UpdateTimetableEntry(
+		ctx,
+		actor,
+		r.PathValue("entry_id"),
+		application.UpdateTimetableRequest{
+			TeacherID: body.TeacherID,
+			Weekday:   body.Weekday,
+			StartTime: body.StartTime,
+			EndTime:   body.EndTime,
+			Room:      body.Room,
+			Status:    body.Status,
+		},
+	)
+	if err != nil {
+		h.writeErr(w, r, err, "timetable entry")
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, entry)
+}
+func (h *Handler) deleteTimetable(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, _ := h.context(r)
+	if err := h.svc.DeleteTimetableEntry(ctx, actor, r.PathValue("entry_id")); err != nil {
+		h.writeErr(w, r, err, "timetable entry")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // ---- shared helpers ---------------------------------------------------------
 
 func (h *Handler) context(r *http.Request) (context.Context, auth.Actor, bool) {
@@ -474,12 +700,20 @@ func (h *Handler) writeErr(w http.ResponseWriter, r *http.Request, err error, re
 		httpx.ValidationError(w, r, map[string]any{"detail": err.Error()})
 	case errors.Is(err, domain.ErrNotFound):
 		httpx.NotFound(w, r, resource)
+	case errors.Is(err, domain.ErrConflict):
+		httpx.RespondJSON(w, r, http.StatusConflict, map[string]any{"error": "conflict", "message": "timetable overlaps an existing class or teacher period"})
 	case errors.Is(err, flags.ErrFeatureDisabled):
-		httpx.FeatureDisabled(w, r, application.FeatureAcademicManagement)
+		feature := application.FeatureAcademicManagement
+		if strings.Contains(err.Error(), application.FeatureTimetable) {
+			feature = application.FeatureTimetable
+		}
+		httpx.FeatureDisabled(w, r, feature)
 	case errors.Is(err, domain.ErrForbidden):
 		httpx.Forbidden(w, r, "not permitted for this actor or tenant")
 	case errors.Is(err, domain.ErrMissingTenant):
 		httpx.TenantMismatch(w, r)
+	case errors.Is(err, domain.ErrUnavailable):
+		httpx.RespondJSON(w, r, http.StatusServiceUnavailable, httpx.Error{Code: httpx.ErrInternal, Message: "academic scope dependency is unavailable"})
 	default:
 		httpx.RespondError(w, r, httpx.ErrorFrom(err))
 	}

@@ -13,6 +13,8 @@
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-focus: var(--input-focus);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
@@ -22,7 +24,7 @@
   --radius: var(--radius-md);
 }
 
-/* ---- LIGHT (parchment) ---- */
+/* ---- LIGHT (cool mineral surface) ---- */
 :root {
   --background: var(--color-paper-50);
   --surface: var(--color-paper-100);
@@ -30,6 +32,12 @@
   --muted: var(--color-paper-200);
   --muted-foreground: var(--color-ink-400);
   --border: var(--color-paper-300);
+  /* Form fields sit one step down from the card and lift to it on focus. */
+  --input: var(--color-paper-200);
+  --input-focus: var(--color-paper-100);
+  /* The brand used as text/icons on a surface, as opposed to --primary which is
+     a fill paired with --primary-foreground. On paper the brand reads as-is. */
+  --brand-text: var(--color-brand);
   --primary: var(--color-brand);
   --primary-foreground: var(--color-brand-contrast);
   --secondary: var(--color-brand-secondary);
@@ -43,15 +51,26 @@
   --background: var(--color-ink-950);
   --surface: var(--color-ink-900);
   --foreground: var(--color-paper-50);
-  --muted: #1a1714;
+  --muted: #0f2444;
   --muted-foreground: var(--color-ink-200);
-  --border: #2a2722;
-  --primary: color-mix(in oklab, var(--color-brand) 70%, #eaede6);
-  --primary-foreground: var(--color-ink-950);
-  --secondary: color-mix(in oklab, var(--color-brand-secondary) 70%, #eaede6);
+  --border: #263b5c;
+  /* Fields must not stay parchment in dark mode — light --foreground text on a
+     light field is invisible. Sit above the ink-900 card, lift again on focus. */
+  --input: var(--color-ink-800);
+  --input-focus: var(--color-ink-700);
+  /* A brand dark enough to need white button labels cannot also be read as text
+     on the ink card — use the lifted variant for that role only. */
+  --brand-text: var(--color-brand-on-dark);
+  /* Do NOT lighten the brand by a fixed amount and assume ink text reads on it:
+     that only holds for light brands. A dark tenant brand (e.g. UPSHS maroon)
+     stays dark after the mix and the ink label drops to ~3:1. Pair the brand with
+     the contrast colour derived from its own luminance instead. */
+  --primary: var(--color-brand);
+  --primary-foreground: var(--color-brand-contrast);
+  --secondary: color-mix(in oklab, var(--color-brand-secondary) 65%, #ffffff);
   --secondary-foreground: var(--color-ink-950);
   --accent: color-mix(in oklab, var(--color-brand) 22%, var(--color-ink-900));
-  --ring: color-mix(in oklab, var(--color-brand) 70%, #eaede6);
+  --ring: color-mix(in oklab, var(--color-brand) 72%, #ffffff);
 }
 
 /* ---- base ---- */
@@ -94,7 +113,9 @@ h3 {
   box-shadow:
     0 1px 2px color-mix(in oklab, var(--color-ink-950) 4%, transparent),
     0 6px 18px color-mix(in oklab, var(--color-ink-950) 3%, transparent);
-  transition: transform 180ms var(--ease-spring), box-shadow 180ms var(--ease-spring);
+  transition:
+    transform 180ms var(--ease-spring),
+    box-shadow 180ms var(--ease-spring);
 }
 .card-hover:hover {
   transform: translateY(-2px);
@@ -104,7 +125,11 @@ h3 {
 }
 .card-accent-strip {
   height: 3px;
-  background: linear-gradient(90deg, var(--color-gold), color-mix(in oklab, var(--color-gold) 40%, transparent));
+  background: linear-gradient(
+    90deg,
+    var(--color-gold),
+    color-mix(in oklab, var(--color-gold) 40%, transparent)
+  );
 }
 .card-asymmetric {
   border-radius: var(--radius-lg) var(--radius-xl) var(--radius-md) var(--radius-2xl);
@@ -143,7 +168,9 @@ h3 {
   border-radius: var(--radius-full);
   background: var(--primary);
   z-index: -1;
-  transition: transform 360ms var(--ease-spring), width 360ms var(--ease-spring);
+  transition:
+    transform 360ms var(--ease-spring),
+    width 360ms var(--ease-spring);
 }
 
 /* ---- button shine sweep ---- */

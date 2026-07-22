@@ -13,3 +13,17 @@ type Notifier interface {
 	// duplicate side effects.
 	Send(ctx context.Context, msg domain.Message) error
 }
+
+// ProviderReceipt correlates a provider-accepted notification with later signed
+// delivery feedback. MessageID is intentionally kept out of public API models.
+type ProviderReceipt struct {
+	Provider  string
+	MessageID string
+}
+
+// ReceiptNotifier is implemented by providers that return a stable delivery
+// identifier. Existing channel adapters may continue implementing Notifier.
+type ReceiptNotifier interface {
+	Notifier
+	SendWithReceipt(context.Context, domain.Message) (ProviderReceipt, error)
+}

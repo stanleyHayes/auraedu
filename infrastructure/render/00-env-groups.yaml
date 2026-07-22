@@ -8,6 +8,14 @@ envVarGroups:
         value: info
       - key: OTEL_EXPORTER_OTLP_ENDPOINT
         value: "" # set to Grafana Cloud / collector endpoint in the dashboard
+      - key: OTEL_EXPORTER_OTLP_PROTOCOL
+        value: grpc
+      - key: OTEL_TRACES_SAMPLER_ARG
+        value: "0.1"
+      - key: OTEL_RESOURCE_ATTRIBUTES
+        value: deployment.environment.name=production
+      - key: METRICS_BEARER_TOKEN
+        generateValue: true
       - key: ENVIRONMENT
         value: production
 
@@ -15,9 +23,44 @@ envVarGroups:
     envVars:
       - key: JWT_SIGNING_KEY
         generateValue: true # 256-bit; Identity signs, Gateway verifies
+      - key: CLOUDINARY_URL
+        sync: false # cloudinary://api_key:api_secret@cloud_name
       - key: CLOUDINARY_CLOUD_NAME
         sync: false # set in the dashboard
       - key: CLOUDINARY_API_KEY
         sync: false
       - key: CLOUDINARY_API_SECRET
+        sync: false
+
+  - name: auraedu-dr-secrets
+    envVars:
+      - key: DR_BACKUP_S3_ENDPOINT
+        sync: false
+      - key: DR_BACKUP_S3_REGION
+        value: eu-central-1
+      - key: DR_BACKUP_S3_BUCKET
+        sync: false
+      - key: DR_BACKUP_S3_PREFIX
+        value: auraedu
+      - key: DR_BACKUP_S3_ACCESS_KEY_ID
+        sync: false
+      - key: DR_BACKUP_S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: DR_BACKUP_RETENTION_DAYS
+        value: "35"
+      - key: DR_BACKUP_HEARTBEAT_URL
+        sync: false
+      - key: DR_BACKUP_HEARTBEAT_TOKEN
+        sync: false
+      - key: DR_BACKUP_ALERT_URL
+        sync: false
+      - key: DR_BACKUP_ALERT_TOKEN
+        sync: false
+      - key: DR_POSTGRES_BACKUP_HEARTBEAT_URL
+        sync: false
+      - key: DR_POSTGRES_BACKUP_HEARTBEAT_TOKEN
+        sync: false
+      - key: DR_POSTGRES_BACKUP_ALERT_URL
+        sync: false
+      - key: DR_POSTGRES_BACKUP_ALERT_TOKEN
         sync: false

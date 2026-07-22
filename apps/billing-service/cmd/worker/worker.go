@@ -4,17 +4,21 @@ package workercmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log/slog"
-	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	svcevents "github.com/auraedu/billing-service/internal/adapters/events"
 	"github.com/auraedu/billing-service/internal/adapters/postgres"
 	"github.com/auraedu/billing-service/internal/application"
+	"github.com/auraedu/billing-service/internal/ports"
 	"github.com/auraedu/platform/config"
 	"github.com/auraedu/platform/db"
 	"github.com/auraedu/platform/eventbus"
+	"github.com/auraedu/platform/observ"
 	"github.com/auraedu/platform/tenancy"
 
 	// Register pgx SQL driver for database/sql based migrations.
@@ -24,89 +28,132 @@ import (
 
 const service = "billing-service-worker"
 
-var version = ""
+type outboxPublisher interface {
+	PublishWithID(context.Context, string, string, string, map[string]any) error
+}
 
-func main() {
-	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+// Run consumes tenant onboarding and dispatches the transactional billing outbox.
+func Run() error {
+	log := observ.DefaultLogger()
 	slog.SetDefault(log)
-	if version == "" {
-		version = config.Getenv("GIT_SHA", "dev")
-	}
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
 
-	ctx := context.Background()
-	database, err := openDB(ctx)
+	version := config.Getenv("GIT_SHA", "dev")
+	shutdown, err := observ.InitTracing(service, version)
 	if err != nil {
-		log.Error("failed to open database", "err", err)
-		os.Exit(1)
+		return err
+	}
+	defer func() {
+		if shutdownErr := shutdown(context.Background()); shutdownErr != nil {
+			log.Error("failed to shut down tracing", "err", shutdownErr)
+		}
+	}()
+
+	dsn, err := config.MustGetenv("DATABASE_URL")
+	if err != nil {
+		return err
+	}
+	database, err := db.Open(ctx, db.Config{DSN: dsn, Migrations: "migrations"})
+	if err != nil {
+		return err
 	}
 	defer database.Close()
+
+	natsURL, err := config.MustGetenv("NATS_URL")
+	if err != nil {
+		return err
+	}
+	nc, err := nats.Connect(natsURL, nats.Timeout(5*time.Second))
+	if err != nil {
+		return fmt.Errorf("billing worker: connect NATS: %w", err)
+	}
+	defer nc.Close()
+	js, err := nc.JetStream()
+	if err != nil {
+		return err
+	}
+	if _, err := eventbus.EnsureStream(js, "AURA"); err != nil {
+		return err
+	}
 
 	planRepo := postgres.NewPlanRepository(database)
 	subRepo := postgres.NewSubscriptionRepository(database)
 	invRepo := postgres.NewSaaSInvoiceRepository(database)
-	svc := application.NewService(planRepo, subRepo, invRepo)
+	pub := svcevents.NewPublisher(eventbus.NewPublisher(js))
+	svc := application.NewService(planRepo, subRepo, invRepo, application.WithPublisher(pub))
+	metrics := observ.NewWorkerMetrics(service, "tenant-created", "outbox-batch", "outbox-publish")
 
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-
-	natsURL := config.Getenv("NATS_URL", "")
-	if natsURL == "" {
-		log.Info("NATS_URL not set; worker running without event consumption")
-		<-stop
-		log.Info(service + " stopped")
-		return
-	}
-
-	nc, err := nats.Connect(natsURL)
+	subscription, err := eventbus.Subscribe(
+		js, "AURA", "billing-worker-tenant-created", "tenant.created.v1",
+		func(ctx context.Context, event tenancy.CloudEvent) error {
+			started := time.Now()
+			err := handleTenantCreated(ctx, log, svc, event)
+			metrics.Observe(ctx, "tenant-created", started, err)
+			return err
+		}, nil,
+	)
 	if err != nil {
-		log.Error("failed to connect to NATS", "err", err)
-		return
-	}
-	defer nc.Close()
-
-	js, err := nc.JetStream()
-	if err != nil {
-		log.Error("failed to create JetStream context", "err", err)
-		return
-	}
-
-	if _, err := eventbus.EnsureStream(js, "AURA"); err != nil {
-		log.Error("failed to ensure NATS stream", "err", err)
-		return
-	}
-
-	sub, err := eventbus.Subscribe(js, "AURA", "billing-worker-tenant-created", "tenant.created.v1", func(ctx context.Context, event tenancy.CloudEvent) error {
-		return handleTenantCreated(ctx, log, svc, event)
-	}, nil)
-	if err != nil {
-		log.Error("failed to subscribe to tenant.created.v1", "err", err)
-		return
+		return err
 	}
 	defer func() {
-		if err := sub.Unsubscribe(); err != nil {
-			log.Error("subscriber unsubscribe error", "err", err)
+		if unsubscribeErr := subscription.Unsubscribe(); unsubscribeErr != nil {
+			log.Error("failed to unsubscribe tenant consumer", "err", unsubscribeErr)
 		}
 	}()
 
-	log.Info(service+" started", "version", version)
-	<-stop
-	log.Info(service + " stopped")
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		started := time.Now()
+		err := dispatch(ctx, subRepo, pub, metrics)
+		metrics.Observe(ctx, "outbox-batch", started, err)
+		if err != nil && ctx.Err() == nil {
+			log.Error("billing outbox dispatch failed", "err", err)
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+		}
+	}
 }
 
-func openDB(ctx context.Context) (*db.DB, error) {
-	dsn, err := config.MustGetenv("DATABASE_URL")
+func dispatch(ctx context.Context, repo ports.OutboxRepository, pub outboxPublisher, metrics *observ.WorkerMetrics) error {
+	items, err := repo.ClaimPendingBillingEvents(ctx, 25)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return db.Open(ctx, db.Config{
-		DSN:        dsn,
-		Migrations: "migrations",
-	})
+	for _, item := range items {
+		started := time.Now()
+		var payload map[string]any
+		if err := json.Unmarshal(item.Payload, &payload); err != nil {
+			metrics.Observe(ctx, "outbox-publish", started, err)
+			if markErr := repo.MarkBillingEventFailed(ctx, item.ID, "invalid outbox payload"); markErr != nil {
+				return errors.Join(err, markErr)
+			}
+			continue
+		}
+		if err := pub.PublishWithID(ctx, item.ID, item.EventType, item.TenantID, payload); err != nil {
+			metrics.Observe(ctx, "outbox-publish", started, err)
+			if markErr := repo.MarkBillingEventFailed(ctx, item.ID, err.Error()); markErr != nil {
+				return errors.Join(err, markErr)
+			}
+			continue
+		}
+		if err := repo.MarkBillingEventPublished(ctx, item.ID); err != nil {
+			return err
+		}
+		metrics.Observe(ctx, "outbox-publish", started, nil)
+	}
+	return nil
 }
 
 func handleTenantCreated(ctx context.Context, log *slog.Logger, svc *application.Service, event tenancy.CloudEvent) error {
 	var payload struct {
-		TenantID string `json:"tenant_id"`
+		TenantID   string `json:"tenant_id"`
+		TenantCode string `json:"tenant_code"`
+		Plan       string `json:"plan"`
 	}
 	if len(event.Data) > 0 {
 		if err := json.Unmarshal(event.Data, &payload); err != nil {
@@ -114,6 +161,9 @@ func handleTenantCreated(ctx context.Context, log *slog.Logger, svc *application
 		}
 	}
 	tenantID := payload.TenantID
+	if tenantID == "" {
+		tenantID = payload.TenantCode
+	}
 	if tenantID == "" {
 		tenantID = event.TenantID
 	}
@@ -123,31 +173,17 @@ func handleTenantCreated(ctx context.Context, log *slog.Logger, svc *application
 	}
 
 	ctx = tenancy.WithContext(ctx, tenancy.TenantContext{TenantID: tenantID})
-	subCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	requestCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-
-	_, err := svc.CreateTrialSubscriptionForTenant(subCtx, tenantID)
-	if err != nil {
-		if isNoDefaultPlan(err) {
-			log.Warn("no default active plan found for new tenant; skipping trial subscription", "tenant_id", tenantID)
-			return nil
-		}
-		log.Error("failed to create trial subscription for tenant", "tenant_id", tenantID, "err", err)
-		return err
+	var err error
+	if payload.Plan != "" {
+		_, err = svc.CreateSubscriptionForTenant(requestCtx, tenantID, payload.Plan)
+	} else {
+		_, err = svc.CreateTrialSubscriptionForTenant(requestCtx, tenantID)
 	}
-	log.Info("created trial subscription for tenant", "tenant_id", tenantID)
-	return nil
-}
-
-func isNoDefaultPlan(err error) bool {
-	if err == nil {
-		return false
+	if err != nil && err.Error() == "billing: no default active plan" {
+		log.Warn("no default active plan found for new tenant; skipping trial subscription", "tenant_id", tenantID)
+		return nil
 	}
-	return err.Error() == "billing: no default active plan"
-}
-
-// Run starts the billing-service background worker. It is invoked by the service CLI.
-func Run() error {
-	main()
-	return nil
+	return err
 }

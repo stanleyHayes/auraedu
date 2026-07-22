@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
+	"io"
 	"testing"
 	"time"
 
@@ -14,22 +14,22 @@ import (
 	svcevents "github.com/auraedu/report-service/internal/adapters/events"
 	"github.com/auraedu/report-service/internal/application"
 	"github.com/auraedu/report-service/internal/domain"
+	"github.com/auraedu/report-service/internal/ports"
 	"github.com/nats-io/nats.go"
 )
 
-func publishActor(tenantID string, perms ...string) auth.Actor {
-	return auth.Actor{UserID: "user-1", TenantID: tenantID, Permissions: perms}
+func publishActor(perms ...string) auth.Actor {
+	return auth.Actor{UserID: "user-1", TenantID: tenantA, Permissions: perms}
 }
 
-func TestGenerateReportCard_PublishesWithMaterializedEntries(t *testing.T) {
+func TestQueuedReportCardGeneration_PublishesWithMaterializedEntries(t *testing.T) {
 	repo := newFakeRepo()
 	pdfGen := &fakePDFGenerator{}
-	pub := &fakePublisher{}
+	store := newFakeReportStorage()
 	svc := application.NewService(repo,
 		application.WithFeatureGate(enabledGates(tenantA)),
 		application.WithPDFGenerator(pdfGen),
-		application.WithPublisher(pub),
-		application.WithReportOutputDir(t.TempDir()),
+		application.WithStorage(store),
 	)
 	ctx := tenancy.WithContext(context.Background(), tenancy.TenantContext{TenantID: tenantA})
 
@@ -47,9 +47,20 @@ func TestGenerateReportCard_PublishesWithMaterializedEntries(t *testing.T) {
 		t.Fatalf("find draft: %v", err)
 	}
 
-	published, err := svc.GenerateReportCard(ctx, publishActor(tenantA, application.PermPublish), card.ID)
+	queued, err := svc.RequestReportCardGeneration(ctx, publishActor(application.PermPublish), card.ID)
 	if err != nil {
-		t.Fatalf("generate: %v", err)
+		t.Fatalf("queue: %v", err)
+	}
+	if queued.Status != string(domain.ReportCardStatusGenerating) {
+		t.Fatalf("expected generating, got %q", queued.Status)
+	}
+	processed, err := svc.ProcessNextGeneration(context.Background(), time.Minute, 5)
+	if err != nil || !processed {
+		t.Fatalf("process generation: processed=%v err=%v", processed, err)
+	}
+	published, err := repo.GetReportCardByID(ctx, tenantA, card.ID)
+	if err != nil {
+		t.Fatalf("get published card: %v", err)
 	}
 	if published.Status != string(domain.ReportCardStatusPublished) {
 		t.Fatalf("expected published, got %q", published.Status)
@@ -57,8 +68,22 @@ func TestGenerateReportCard_PublishesWithMaterializedEntries(t *testing.T) {
 	if published.PDFPath == nil {
 		t.Fatal("expected pdf_path")
 	}
-	if _, err := os.Stat(*published.PDFPath); err != nil {
-		t.Fatalf("expected PDF file on disk: %v", err)
+	if store.objects[*published.PDFPath] != "%PDF-1.7 fake" {
+		t.Fatalf("expected durable PDF object at %q", *published.PDFPath)
+	}
+	reader, _, err := svc.DownloadReportCard(ctx, publishActor(application.PermRead), card.ID)
+	if err != nil {
+		t.Fatalf("download: %v", err)
+	}
+	downloaded, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("read downloaded PDF: %v", err)
+	}
+	if err := reader.Close(); err != nil {
+		t.Fatalf("close downloaded PDF: %v", err)
+	}
+	if string(downloaded) != "%PDF-1.7 fake" {
+		t.Fatalf("unexpected downloaded PDF: %q", downloaded)
 	}
 
 	// The render model must carry the materialized data.
@@ -71,28 +96,13 @@ func TestGenerateReportCard_PublishesWithMaterializedEntries(t *testing.T) {
 	if pdfGen.lastDoc.Attendance.Present != 1 {
 		t.Fatalf("expected attendance summary in document, got %+v", pdfGen.lastDoc.Attendance)
 	}
-
-	// The publish transition must emit report.published.v1.
-	var found bool
-	for _, e := range pub.events {
-		if e.eventType == "report.published.v1" && e.card != nil && e.card.ID == card.ID {
-			found = true
-			if e.card.TermID != term1 {
-				t.Fatalf("published event card missing term: %+v", e.card)
-			}
-		}
-	}
-	if !found {
-		t.Fatalf("expected report.published.v1 event, got %+v", pub.events)
-	}
 }
 
-func TestGenerateReportCard_ConflictWhenGenerating(t *testing.T) {
+func TestRequestReportCardGeneration_ConflictWhenGenerating(t *testing.T) {
 	repo := newFakeRepo()
 	svc := application.NewService(repo,
 		application.WithFeatureGate(enabledGates(tenantA)),
 		application.WithPDFGenerator(&fakePDFGenerator{}),
-		application.WithReportOutputDir(t.TempDir()),
 	)
 	ctx := tenancy.WithContext(context.Background(), tenancy.TenantContext{TenantID: tenantA})
 
@@ -105,17 +115,16 @@ func TestGenerateReportCard_ConflictWhenGenerating(t *testing.T) {
 		t.Fatalf("create card: %v", err)
 	}
 
-	if _, err := svc.GenerateReportCard(ctx, publishActor(tenantA, application.PermPublish), card.ID); !errors.Is(err, domain.ErrConflict) {
+	if _, err := svc.RequestReportCardGeneration(ctx, publishActor(application.PermPublish), card.ID); !errors.Is(err, domain.ErrConflict) {
 		t.Fatalf("expected conflict, got %v", err)
 	}
 }
 
-func TestGenerateReportCard_RequiresPublishPermission(t *testing.T) {
+func TestRequestReportCardGeneration_RequiresPublishPermission(t *testing.T) {
 	repo := newFakeRepo()
 	svc := application.NewService(repo,
 		application.WithFeatureGate(enabledGates(tenantA)),
 		application.WithPDFGenerator(&fakePDFGenerator{}),
-		application.WithReportOutputDir(t.TempDir()),
 	)
 	ctx := tenancy.WithContext(context.Background(), tenancy.TenantContext{TenantID: tenantA})
 
@@ -127,8 +136,41 @@ func TestGenerateReportCard_RequiresPublishPermission(t *testing.T) {
 		t.Fatalf("create card: %v", err)
 	}
 
-	if _, err := svc.GenerateReportCard(ctx, publishActor(tenantA, application.PermRead), card.ID); !errors.Is(err, domain.ErrForbidden) {
+	if _, err := svc.RequestReportCardGeneration(ctx, publishActor(application.PermRead), card.ID); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("expected forbidden, got %v", err)
+	}
+}
+
+func TestQueuedReportCardGeneration_TerminalStorageFailureRestoresDraft(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeReportStorage()
+	store.fail = errors.New("object store unavailable")
+	svc := application.NewService(repo,
+		application.WithFeatureGate(enabledGates(tenantA)),
+		application.WithPDFGenerator(&fakePDFGenerator{}),
+		application.WithStorage(store),
+	)
+	ctx := tenancy.WithContext(context.Background(), tenancy.TenantContext{TenantID: tenantA})
+	card, err := domain.NewReportCard(tenantA, studentA, ay1, template1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CreateReportCard(ctx, tenantA, card); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.RequestReportCardGeneration(ctx, publishActor(application.PermPublish), card.ID); err != nil {
+		t.Fatal(err)
+	}
+	processed, err := svc.ProcessNextGeneration(context.Background(), time.Minute, 1)
+	if !processed || err == nil {
+		t.Fatalf("expected terminal processing error, processed=%v err=%v", processed, err)
+	}
+	got, err := repo.GetReportCardByID(ctx, tenantA, card.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != string(domain.ReportCardStatusDraft) {
+		t.Fatalf("terminal failure status = %q, want draft", got.Status)
 	}
 }
 
@@ -199,8 +241,68 @@ func TestPublisher_ReportPublishedPayloadConformance(t *testing.T) {
 	if data["report_card_id"] != card.ID || data["student_id"] != studentA || data["term_id"] != term1 {
 		t.Fatalf("unexpected data: %v", data)
 	}
+	if _, exposed := data["pdf_path"]; exposed {
+		t.Fatalf("private storage path leaked into event: %v", data)
+	}
 	wantURL := "/api/v1/report-cards/" + card.ID + "/download"
 	if data["file_url"] != wantURL {
 		t.Fatalf("file_url: got %v, want %q", data["file_url"], wantURL)
+	}
+}
+
+func TestPublisher_OutboxLifecyclePreservesSubjectAndOmitsEmptyUUIDs(t *testing.T) {
+	js := &captureJS{}
+	pub := svcevents.NewPublisher(eventbus.NewPublisher(js))
+
+	template, err := domain.NewReportTemplate(tenantA, "Term report", ay1, "# Report")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pub.PublishWithID(context.Background(), "event-template", "report.created.v1", tenantA, ports.ReportTemplateEventData(template, nil)); err != nil {
+		t.Fatalf("publish template outbox event: %v", err)
+	}
+	var templateEvent map[string]any
+	if err := json.Unmarshal(js.msg.Data, &templateEvent); err != nil {
+		t.Fatal(err)
+	}
+	if templateEvent["subject"] != template.ID || templateEvent["id"] != "event-template" {
+		t.Fatalf("template identity not preserved: %v", templateEvent)
+	}
+	if js.msg.Header.Get("Nats-Msg-Id") != "event-template" {
+		t.Fatalf("stable broker id missing: %v", js.msg.Header)
+	}
+
+	card := &domain.ReportCard{
+		ID:             "55555555-5555-5555-5555-555555555555",
+		TenantID:       tenantA,
+		StudentID:      studentA,
+		AcademicYearID: ay1,
+		Status:         string(domain.ReportCardStatusDraft),
+	}
+	if err := pub.PublishWithID(
+		context.Background(),
+		"event-card",
+		"report.created.v1",
+		tenantA,
+		ports.ReportCardEventData("report.created.v1", card, nil),
+	); err != nil {
+		t.Fatalf("publish card outbox event: %v", err)
+	}
+	var cardEvent map[string]any
+	if err := json.Unmarshal(js.msg.Data, &cardEvent); err != nil {
+		t.Fatal(err)
+	}
+	data, ok := cardEvent["data"].(map[string]any)
+	if !ok {
+		t.Fatalf("missing card event data: %v", cardEvent)
+	}
+	if _, present := data["term_id"]; present {
+		t.Fatalf("empty term_id must be omitted, got %v", data)
+	}
+	if _, present := data["template_id"]; present {
+		t.Fatalf("empty template_id must be omitted, got %v", data)
+	}
+	if cardEvent["subject"] != card.ID || cardEvent["id"] != "event-card" {
+		t.Fatalf("card identity not preserved: %v", cardEvent)
 	}
 }

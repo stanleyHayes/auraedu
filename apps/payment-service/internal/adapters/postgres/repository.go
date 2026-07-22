@@ -3,12 +3,17 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/auraedu/payment-service/internal/domain"
 	"github.com/auraedu/payment-service/internal/ports"
+	"github.com/auraedu/platform/auth"
 	"github.com/auraedu/platform/db"
+	"github.com/auraedu/platform/tenancy"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -28,9 +33,12 @@ type WebhookEventRepository struct {
 }
 
 var (
-	_ ports.PaymentRepository      = (*PaymentRepository)(nil)
-	_ ports.TransactionRepository  = (*TransactionRepository)(nil)
-	_ ports.WebhookEventRepository = (*WebhookEventRepository)(nil)
+	_ ports.PaymentRepository        = (*PaymentRepository)(nil)
+	_ ports.ReconciliationRepository = (*PaymentRepository)(nil)
+	_ ports.LifecycleRepository      = (*PaymentRepository)(nil)
+	_ ports.OutboxRepository         = (*PaymentRepository)(nil)
+	_ ports.TransactionRepository    = (*TransactionRepository)(nil)
+	_ ports.WebhookEventRepository   = (*WebhookEventRepository)(nil)
 )
 
 // NewPaymentRepository creates a Postgres-backed payment repository.
@@ -52,7 +60,12 @@ func NewWebhookEventRepository(database *db.DB) *WebhookEventRepository {
 
 func (r *PaymentRepository) Create(ctx context.Context, tenantID string, p *domain.Payment) error {
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `
+		return insertPayment(ctx, tx, tenantID, p)
+	})
+}
+
+func insertPayment(ctx context.Context, tx pgx.Tx, tenantID string, p *domain.Payment) error {
+	_, err := tx.Exec(ctx, `
 			INSERT INTO payments (
 				id, tenant_id, invoice_id, amount_cents, currency, provider,
 				provider_reference, status, metadata, initiated_at, completed_at,
@@ -62,14 +75,13 @@ func (r *PaymentRepository) Create(ctx context.Context, tenantID string, p *doma
 				$10, $11, $12, $13
 			)
 		`,
-			p.ID, tenantID, p.InvoiceID, p.AmountCents, p.Currency, p.Provider,
-			p.ProviderReference, p.Status, p.Metadata, p.InitiatedAt, p.CompletedAt,
-			p.CreatedAt, p.UpdatedAt)
-		if err != nil {
-			return fmt.Errorf("payments: create payment: %w", err)
-		}
-		return nil
-	})
+		p.ID, tenantID, p.InvoiceID, p.AmountCents, p.Currency, p.Provider,
+		p.ProviderReference, p.Status, p.Metadata, p.InitiatedAt, p.CompletedAt,
+		p.CreatedAt, p.UpdatedAt)
+	if err != nil {
+		return fmt.Errorf("payments: create payment: %w", err)
+	}
+	return nil
 }
 
 func (r *PaymentRepository) GetByID(ctx context.Context, tenantID, id string) (*domain.Payment, error) {
@@ -176,7 +188,12 @@ func listPaymentsQuery(ctx context.Context, tx pgx.Tx, tenantID string, filter p
 
 func (r *PaymentRepository) Update(ctx context.Context, tenantID string, p *domain.Payment) error {
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `
+		return updatePayment(ctx, tx, tenantID, p)
+	})
+}
+
+func updatePayment(ctx context.Context, tx pgx.Tx, tenantID string, p *domain.Payment) error {
+	tag, err := tx.Exec(ctx, `
 			UPDATE payments
 			SET
 				invoice_id = $3,
@@ -190,11 +207,160 @@ func (r *PaymentRepository) Update(ctx context.Context, tenantID string, p *doma
 				completed_at = $11,
 				updated_at = $12
 			WHERE id = $1 AND tenant_id = $2
-		`, p.ID, tenantID, p.InvoiceID, p.AmountCents, p.Currency, p.Provider, p.ProviderReference, p.Status, p.Metadata, p.InitiatedAt, p.CompletedAt, p.UpdatedAt)
-		if err != nil {
-			return fmt.Errorf("payments: update payment: %w", err)
+	`, p.ID, tenantID, p.InvoiceID, p.AmountCents, p.Currency, p.Provider, p.ProviderReference, p.Status, p.Metadata, p.InitiatedAt, p.CompletedAt, p.UpdatedAt)
+	if err != nil {
+		return fmt.Errorf("payments: update payment: %w", err)
+	}
+	if tag.RowsAffected() != 1 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+// CommitReconciliation closes the money-to-event loss window: payment state,
+// immutable ledger entry, and the downstream event either all commit or all
+// roll back.
+func (r *PaymentRepository) CommitReconciliation(
+	ctx context.Context,
+	tenantID string,
+	payment *domain.Payment,
+	transaction *domain.Transaction,
+	eventType string,
+	payload map[string]any,
+) error {
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("payments: encode reconciliation event: %w", err)
+	}
+	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		if err := updatePayment(ctx, tx, tenantID, payment); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO transactions (id, tenant_id, payment_id, type, status, amount_cents, reference, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		`,
+			transaction.ID,
+			tenantID,
+			transaction.PaymentID,
+			transaction.Type,
+			transaction.Status,
+			transaction.AmountCents,
+			transaction.Reference,
+			transaction.CreatedAt,
+		); err != nil {
+			return fmt.Errorf("payments: create reconciliation transaction: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO payment_outbox (id, tenant_id, event_type, payload, created_at, next_attempt_at)
+			VALUES ($1, $2, $3, $4, now(), now())
+		`, uuid.NewString(), tenantID, eventType, encoded); err != nil {
+			return fmt.Errorf("payments: enqueue reconciliation event: %w", err)
 		}
 		return nil
+	})
+}
+
+// CommitPaymentLifecycle closes the CRUD/initiation state-to-event loss
+// window by applying both records in one tenant-scoped transaction.
+func (r *PaymentRepository) CommitPaymentLifecycle(
+	ctx context.Context,
+	tenantID string,
+	payment *domain.Payment,
+	mutation string,
+	eventType string,
+	payload map[string]any,
+) error {
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("payments: encode lifecycle event: %w", err)
+	}
+	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		switch mutation {
+		case ports.PaymentMutationCreate:
+			if err := insertPayment(ctx, tx, tenantID, payment); err != nil {
+				return err
+			}
+		case ports.PaymentMutationUpdate:
+			if err := updatePayment(ctx, tx, tenantID, payment); err != nil {
+				return err
+			}
+		case ports.PaymentMutationDelete:
+			tag, err := tx.Exec(ctx, `DELETE FROM payments WHERE id=$1 AND tenant_id=$2`, payment.ID, tenantID)
+			if err != nil {
+				return fmt.Errorf("payments: delete payment: %w", err)
+			}
+			if tag.RowsAffected() != 1 {
+				return domain.ErrNotFound
+			}
+		default:
+			return fmt.Errorf("payments: unsupported lifecycle mutation %q", mutation)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO payment_outbox (id,tenant_id,event_type,payload,created_at,next_attempt_at)
+			VALUES ($1,$2,$3,$4,now(),now())
+		`, uuid.NewString(), tenantID, eventType, encoded); err != nil {
+			return fmt.Errorf("payments: enqueue lifecycle event: %w", err)
+		}
+		return nil
+	})
+}
+
+func paymentOutboxContext(ctx context.Context) context.Context {
+	ctx = auth.WithActor(ctx, auth.Actor{Role: auth.RolePlatformSuperAdmin, PlatformAdmin: true})
+	return tenancy.WithContext(ctx, tenancy.TenantContext{TenantID: "__payment_outbox__"})
+}
+
+func (r *PaymentRepository) ClaimPendingPaymentEvents(ctx context.Context, limit int) ([]ports.OutboxEvent, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 25
+	}
+	items := make([]ports.OutboxEvent, 0, limit)
+	err := r.db.WithTx(paymentOutboxContext(ctx), func(ctx context.Context, tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			UPDATE payment_outbox
+			SET attempts=attempts+1,
+			    next_attempt_at=now()+(LEAST(300,power(2,attempts))*interval '1 second')
+			WHERE id IN (
+				SELECT id FROM payment_outbox
+				WHERE published_at IS NULL AND next_attempt_at<=now()
+				ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT $1
+			)
+			RETURNING id, tenant_id, event_type, payload, created_at
+		`, limit)
+		if err != nil {
+			return fmt.Errorf("payments: claim outbox: %w", err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var item ports.OutboxEvent
+			if err := rows.Scan(&item.ID, &item.TenantID, &item.EventType, &item.Payload, &item.CreatedAt); err != nil {
+				return fmt.Errorf("payments: scan outbox: %w", err)
+			}
+			items = append(items, item)
+		}
+		return rows.Err()
+	})
+	return items, err
+}
+
+func (r *PaymentRepository) MarkPaymentEventPublished(ctx context.Context, id string) error {
+	return r.markPaymentEvent(ctx, id, "", true)
+}
+
+func (r *PaymentRepository) MarkPaymentEventFailed(ctx context.Context, id, message string) error {
+	return r.markPaymentEvent(ctx, id, message, false)
+}
+
+func (r *PaymentRepository) markPaymentEvent(ctx context.Context, id, message string, published bool) error {
+	return r.db.WithTx(paymentOutboxContext(ctx), func(ctx context.Context, tx pgx.Tx) error {
+		var err error
+		if published {
+			_, err = tx.Exec(ctx, `UPDATE payment_outbox SET published_at=$2,last_error=NULL WHERE id=$1`, id, time.Now().UTC())
+		} else {
+			_, err = tx.Exec(ctx, `UPDATE payment_outbox SET last_error=left($2,1000) WHERE id=$1`, id, message)
+		}
+		return err
 	})
 }
 

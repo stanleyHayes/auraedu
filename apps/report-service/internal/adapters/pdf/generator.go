@@ -113,11 +113,11 @@ func (g *Generator) scoresTable(pdf *gofpdf.Fpdf, doc *domain.ReportCardDocument
 	for _, s := range doc.Scores {
 		pdf.CellFormat(90, 7, truncate(s.Label, 60), "1", 0, "L", false, 0, "")
 		pdf.CellFormat(30, 7, formatScore(s.Score), "1", 0, "R", false, 0, "")
-		max := "-"
+		maximum := "-"
 		if s.MaxScore != nil {
-			max = formatScore(*s.MaxScore)
+			maximum = formatScore(*s.MaxScore)
 		}
-		pdf.CellFormat(30, 7, max, "1", 0, "R", false, 0, "")
+		pdf.CellFormat(30, 7, maximum, "1", 0, "R", false, 0, "")
 		pct := "-"
 		if p, ok := s.Percentage(); ok {
 			pct = fmt.Sprintf("%.1f", p)
@@ -173,9 +173,9 @@ func formatScore(v float64) string {
 	return strconv.FormatFloat(v, 'f', -1, 64)
 }
 
-func truncate(s string, max int) string {
-	if len(s) <= max {
+func truncate(s string, maximum int) string {
+	if len(s) <= maximum {
 		return s
 	}
-	return s[:max-1] + "~"
+	return s[:maximum-1] + "~"
 }

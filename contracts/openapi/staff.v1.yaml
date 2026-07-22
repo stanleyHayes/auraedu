@@ -4,6 +4,8 @@ info:
   version: 1.0.0
   description: >
     Teachers and non-teaching staff (spec \u00a77). Owned by lane L2 (EP-11). Feature flag: staff_management.
+  contact:
+    name: AuraEDU Engineering
 servers:
   - url: /api/v1
 tags:
@@ -14,6 +16,7 @@ paths:
     /staff:
       get:
             operationId: listStaff
+            description: Executes the list staff workflow within this AuraEDU API boundary.
             tags: ['staff']
             summary: List staff
             parameters:
@@ -32,6 +35,7 @@ paths:
               '401': { $ref: '#/components/responses/Unauthorized' }
       post:
             operationId: createStaff
+            description: Executes the create staff workflow within this AuraEDU API boundary.
             tags: ['staff']
             summary: Create a staff record
             parameters:
@@ -54,11 +58,12 @@ paths:
     /staff/{staff_id}:
       get:
             operationId: getStaff
+            description: Executes the get staff workflow within this AuraEDU API boundary.
             tags: ['staff']
             summary: Get a staff record
             parameters:
               - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/TenantId'
+              - $ref: '#/components/parameters/StaffId'
             responses:
               '200':
                 description: OK
@@ -71,11 +76,12 @@ paths:
               '401': { $ref: '#/components/responses/Unauthorized' }
       patch:
             operationId: updateStaff
+            description: Executes the update staff workflow within this AuraEDU API boundary.
             tags: ['staff']
             summary: Update a staff record
             parameters:
               - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/TenantId'
+              - $ref: '#/components/parameters/StaffId'
             requestBody:
               required: true
               content:
@@ -91,51 +97,87 @@ paths:
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
+      delete:
+        operationId: deleteStaff
+        description: Executes the delete staff workflow within this AuraEDU API boundary.
+        tags: ['staff']
+        summary: Delete a staff record
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/StaffId'
+        responses:
+          '204': { description: Staff record deleted }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
     /staff/{staff_id}/assignments:
       get:
-            operationId: listStaffAssignments
-            tags: ['assignments']
-            summary: List staff assignments
-            parameters:
-              - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/TenantId'
-            responses:
-              '200':
-                description: OK
-                content:
-                  application/json:
-                    schema: { $ref: '#/components/schemas/StaffAssignmentList' }
-              '403': { $ref: '#/components/responses/Forbidden' }
-              '404': { $ref: '#/components/responses/NotFound' }
-              '422': { $ref: '#/components/responses/ValidationError' }
-              '401': { $ref: '#/components/responses/Unauthorized' }
+        operationId: listStaffAssignments
+        description: Executes the list staff assignments workflow within this AuraEDU API boundary.
+        tags: ['assignments']
+        summary: List a staff member's class and subject assignments
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/StaffId'
+          - $ref: '#/components/parameters/Limit'
+          - $ref: '#/components/parameters/Cursor'
+        responses:
+          '200':
+            description: Staff assignments
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/StaffAssignmentList' }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
       post:
-            operationId: createStaffAssignment
-            tags: ['assignments']
-            summary: Assign staff to class/subject
-            parameters:
-              - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/TenantId'
-            requestBody:
-              required: true
-              content:
-                application/json:
-                  schema: { $ref: '#/components/schemas/CreateStaffAssignment' }
-            responses:
-              '201':
-                description: OK
-                content:
-                  application/json:
-                    schema: { $ref: '#/components/schemas/StaffAssignment' }
-              '403': { $ref: '#/components/responses/Forbidden' }
-              '404': { $ref: '#/components/responses/NotFound' }
-              '422': { $ref: '#/components/responses/ValidationError' }
-              '401': { $ref: '#/components/responses/Unauthorized' }
+        operationId: createStaffAssignment
+        description: Executes the create staff assignment workflow within this AuraEDU API boundary.
+        tags: ['assignments']
+        summary: Assign an active teacher to a class and optional subject
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/StaffId'
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateStaffAssignment' }
+        responses:
+          '201':
+            description: Assignment created
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/StaffAssignment' }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+    /staff/{staff_id}/assignments/{assignment_id}:
+      delete:
+        operationId: deleteStaffAssignment
+        description: Executes the delete staff assignment workflow within this AuraEDU API boundary.
+        tags: ['assignments']
+        summary: Remove a staff class or subject assignment
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/StaffId'
+          - $ref: '#/components/parameters/AssignmentId'
+        responses:
+          '204': { description: Assignment removed }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
 
 components:
   parameters:
-    TenantId:
-      name: tenant_id
+    StaffId:
+      name: staff_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    AssignmentId:
+      name: assignment_id
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -164,16 +206,19 @@ components:
         request_id: { type: string }
     Staff:
         type: object
-        required: [id, tenant_id, first_name, last_name, staff_type]
+        required: [id, tenant_id, first_name, last_name, staff_type, staff_code, status, created_at, updated_at]
         properties:
           id: { type: string, format: uuid }
-          tenant_id: { type: string, format: uuid }
+          tenant_id: { type: string }
           first_name: { type: string }
           last_name: { type: string }
           staff_type: { type: string, enum: [teacher, non_teaching] }
           email: { type: [string, 'null'], format: email }
+          user_id: { type: [string, 'null'], format: uuid }
           staff_code: { type: string }
+          status: { type: string, enum: [active, inactive] }
           created_at: { type: string, format: date-time }
+          updated_at: { type: string, format: date-time }
     CreateStaff:
         type: object
         required: [first_name, last_name, staff_type]
@@ -182,6 +227,7 @@ components:
           last_name: { type: string }
           staff_type: { type: string, enum: [teacher, non_teaching] }
           email: { type: [string, 'null'], format: email }
+          user_id: { type: [string, 'null'], format: uuid }
     UpdateStaff:
         type: object
         properties:
@@ -189,13 +235,16 @@ components:
           last_name: { type: string }
           staff_type: { type: string, enum: [teacher, non_teaching] }
           email: { type: [string, 'null'], format: email }
+          user_id: { type: [string, 'null'], format: uuid }
+          status: { type: string, enum: [active, inactive] }
     StaffAssignment:
         type: object
-        required: [id, staff_id]
+        required: [id, tenant_id, staff_id, class_id, assigned_at]
         properties:
           id: { type: string, format: uuid }
+          tenant_id: { type: string }
           staff_id: { type: string, format: uuid }
-          class_id: { type: [string, 'null'], format: uuid }
+          class_id: { type: string, format: uuid }
           subject_id: { type: [string, 'null'], format: uuid }
           role: { type: [string, 'null'] }
           assigned_at: { type: string, format: date-time }
@@ -254,4 +303,3 @@ components:
 
 security:
   - bearerAuth: []
-

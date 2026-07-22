@@ -2,6 +2,7 @@ package tenancy
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -117,13 +118,35 @@ func TestValidateAccess(t *testing.T) {
 }
 
 func TestCloudEventValidate(t *testing.T) {
-	valid := CloudEvent{SpecVersion: "1.0", Type: "student.enrolled", ID: "evt-1", TenantID: "upshs"}
+	valid := CloudEvent{SpecVersion: "1.0", Type: "student.enrolled.v1", Source: "student-service", ID: "evt-1", Time: "2026-07-20T10:00:00Z", TenantID: "upshs", Data: json.RawMessage(`{"student_id":"s1"}`)}
 	if err := valid.Validate(); err != nil {
 		t.Fatalf("valid event rejected: %v", err)
 	}
 
-	invalid := CloudEvent{SpecVersion: "1.0", Type: "student.enrolled", ID: "evt-2"}
+	invalid := valid
+	invalid.TenantID = ""
 	if err := invalid.Validate(); !errors.Is(err, ErrMissingEventTenant) {
 		t.Fatalf("expected missing tenant error, got %v", err)
+	}
+
+	for name, testCase := range map[string]struct {
+		mutate   func(*CloudEvent)
+		expected error
+	}{
+		"unversioned type": {func(event *CloudEvent) { event.Type = "student.enrolled" }, ErrUnversionedEventType},
+		"missing source":   {func(event *CloudEvent) { event.Source = "" }, ErrMissingEventSource},
+		"missing time":     {func(event *CloudEvent) { event.Time = "" }, ErrMissingEventTime},
+		"invalid time":     {func(event *CloudEvent) { event.Time = "not-a-time" }, ErrInvalidEventTime},
+		"missing data":     {func(event *CloudEvent) { event.Data = nil }, ErrMissingEventData},
+		"array data":       {func(event *CloudEvent) { event.Data = json.RawMessage(`[]`) }, ErrInvalidEventData},
+		"malformed data":   {func(event *CloudEvent) { event.Data = json.RawMessage(`{`) }, ErrInvalidEventData},
+	} {
+		t.Run(name, func(t *testing.T) {
+			event := valid
+			testCase.mutate(&event)
+			if err := event.Validate(); !errors.Is(err, testCase.expected) {
+				t.Fatalf("expected %v, got %v", testCase.expected, err)
+			}
+		})
 	}
 }

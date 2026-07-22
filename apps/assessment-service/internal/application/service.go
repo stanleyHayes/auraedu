@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/auraedu/assessment-service/internal/domain"
@@ -34,6 +35,7 @@ type Service struct {
 	repo  ports.Repository
 	pub   ports.EventPublisher
 	gates flags.Gate
+	scope ports.LearnerScopeResolver
 }
 
 // Option configures the service.
@@ -44,6 +46,9 @@ func WithPublisher(pub ports.EventPublisher) Option { return func(s *Service) { 
 
 // WithFeatureGate sets the feature-flag gate.
 func WithFeatureGate(g flags.Gate) Option { return func(s *Service) { s.gates = g } }
+func WithLearnerScopeResolver(r ports.LearnerScopeResolver) Option {
+	return func(s *Service) { s.scope = r }
+}
 
 type noopPublisher struct{}
 
@@ -64,6 +69,23 @@ func NewService(repo ports.Repository, opts ...Option) *Service {
 		o(s)
 	}
 	return s
+}
+
+func (s *Service) commitLifecycle(
+	ctx context.Context,
+	tenantID string,
+	mutation ports.LifecycleMutation,
+	events []ports.LifecycleEvent,
+	fallback func() error,
+	publish func() error,
+) error {
+	if repo, ok := s.repo.(ports.LifecycleRepository); ok {
+		return repo.CommitAssessmentLifecycle(ctx, tenantID, mutation, events)
+	}
+	if err := fallback(); err != nil {
+		return err
+	}
+	return publish()
 }
 
 // --- Assessment requests. ---
@@ -99,11 +121,17 @@ func (s *Service) CreateAssessment(ctx context.Context, actor auth.Actor, req Cr
 	if err != nil {
 		return nil, err
 	}
-	if err := s.repo.CreateAssessment(ctx, tenantID, assessment); err != nil {
+	events := []ports.LifecycleEvent{{EventType: "assessment.created.v1", Payload: ports.AssessmentEventData(assessment, nil)}}
+	if err := s.commitLifecycle(
+		ctx,
+		tenantID,
+		ports.LifecycleMutation{Kind: ports.AssessmentMutationCreate, Assessment: assessment},
+		events,
+		func() error { return s.repo.CreateAssessment(ctx, tenantID, assessment) },
+		func() error { return s.pub.PublishAssessment(ctx, "assessment.created.v1", assessment, nil) },
+	); err != nil {
 		return nil, err
 	}
-	//nolint:errcheck // Event publishing is best-effort after the assessment is persisted.
-	_ = s.pub.PublishAssessment(ctx, "assessment.created.v1", assessment, nil)
 	return assessment, nil
 }
 
@@ -114,6 +142,20 @@ func (s *Service) ListAssessments(ctx context.Context, actor auth.Actor, filter 
 		return nil, "", err
 	}
 	filter.Limit = normalizeLimit(filter.Limit)
+	if scopedRole(actor.Role) {
+		if s.scope == nil {
+			return nil, "", domain.ErrUnavailable
+		}
+		role := strings.ToLower(strings.TrimSpace(actor.Role))
+		scope, err := s.scope.Resolve(ctx, actor.TenantID, actor.UserID, role)
+		if err != nil {
+			return nil, "", err
+		}
+		filter.ClassIDs = scope.ClassIDs
+		if role == "student" || role == "parent" {
+			filter.Status = string(domain.StatusPublished)
+		}
+	}
 	return s.repo.ListAssessments(ctx, tenantID, filter)
 }
 
@@ -123,7 +165,39 @@ func (s *Service) GetAssessment(ctx context.Context, actor auth.Actor, id string
 	if err != nil {
 		return nil, err
 	}
-	return s.repo.GetAssessmentByID(ctx, tenantID, id)
+	assessment, err := s.repo.GetAssessmentByID(ctx, tenantID, id)
+	if err != nil {
+		return nil, err
+	}
+	if scopedRole(actor.Role) { //nolint:nestif // Role and assignment scope must be evaluated together.
+		if s.scope == nil {
+			return nil, domain.ErrUnavailable
+		}
+		role := strings.ToLower(strings.TrimSpace(actor.Role))
+		scope, err := s.scope.Resolve(ctx, actor.TenantID, actor.UserID, role)
+		if err != nil {
+			return nil, err
+		}
+		allowed := false
+		for _, assigned := range scope.ClassIDs {
+			for _, target := range assessment.ClassIDs {
+				if assigned == target {
+					allowed = true
+					break
+				}
+			}
+			if allowed {
+				break
+			}
+		}
+		if !allowed {
+			return nil, domain.ErrNotFound
+		}
+		if (role == "student" || role == "parent") && assessment.Status != string(domain.StatusPublished) {
+			return nil, domain.ErrNotFound
+		}
+	}
+	return assessment, nil
 }
 
 // UpdateAssessment patches an assessment.
@@ -147,14 +221,28 @@ func (s *Service) UpdateAssessment(ctx context.Context, actor auth.Actor, id str
 	if err := assessment.Validate(); err != nil {
 		return nil, err
 	}
-	if err := s.repo.UpdateAssessment(ctx, tenantID, assessment); err != nil {
-		return nil, err
-	}
-	//nolint:errcheck // Event publishing is best-effort after the assessment is updated.
-	_ = s.pub.PublishAssessment(ctx, "assessment.updated.v1", assessment, map[string]any{"changed_fields": changed})
+	meta := map[string]any{"changed_fields": changed}
+	events := []ports.LifecycleEvent{{EventType: "assessment.updated.v1", Payload: ports.AssessmentEventData(assessment, meta)}}
 	if prevStatus != string(domain.StatusPublished) && assessment.Status == string(domain.StatusPublished) {
-		//nolint:errcheck // Event publishing is best-effort after the assessment is updated.
-		_ = s.pub.PublishAssessment(ctx, "assessment.published.v1", assessment, nil)
+		events = append(events, ports.LifecycleEvent{EventType: "assessment.published.v1", Payload: ports.AssessmentEventData(assessment, nil)})
+	}
+	if err := s.commitLifecycle(
+		ctx,
+		tenantID,
+		ports.LifecycleMutation{Kind: ports.AssessmentMutationUpdate, Assessment: assessment},
+		events,
+		func() error { return s.repo.UpdateAssessment(ctx, tenantID, assessment) },
+		func() error {
+			if err := s.pub.PublishAssessment(ctx, "assessment.updated.v1", assessment, meta); err != nil {
+				return err
+			}
+			if len(events) > 1 {
+				return s.pub.PublishAssessment(ctx, "assessment.published.v1", assessment, nil)
+			}
+			return nil
+		},
+	); err != nil {
+		return nil, err
 	}
 	return assessment, nil
 }
@@ -169,12 +257,15 @@ func (s *Service) DeleteAssessment(ctx context.Context, actor auth.Actor, id str
 	if err != nil {
 		return err
 	}
-	if err := s.repo.DeleteAssessment(ctx, tenantID, id); err != nil {
-		return err
-	}
-	//nolint:errcheck // Event publishing is best-effort after the assessment is deleted.
-	_ = s.pub.PublishAssessment(ctx, "assessment.deleted.v1", assessment, nil)
-	return nil
+	events := []ports.LifecycleEvent{{EventType: "assessment.deleted.v1", Payload: ports.AssessmentEventData(assessment, nil)}}
+	return s.commitLifecycle(
+		ctx,
+		tenantID,
+		ports.LifecycleMutation{Kind: ports.AssessmentMutationDelete, Assessment: assessment},
+		events,
+		func() error { return s.repo.DeleteAssessment(ctx, tenantID, id) },
+		func() error { return s.pub.PublishAssessment(ctx, "assessment.deleted.v1", assessment, nil) },
+	)
 }
 
 // --- Score requests. ---
@@ -204,15 +295,24 @@ func (s *Service) CreateScore(ctx context.Context, actor auth.Actor, req CreateS
 	if err != nil {
 		return nil, err
 	}
+	if err := s.authorizeTeacherStudent(ctx, actor, req.StudentID); err != nil {
+		return nil, err
+	}
 	score, err := domain.NewScore(tenantID, req.AssessmentID, req.StudentID, req.Score, req.RecordedBy, req.Notes, assessment.MaxScore)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.repo.CreateScore(ctx, tenantID, score); err != nil {
+	meta := scoreEventMeta(assessment, score, nil)
+	events := []ports.LifecycleEvent{{EventType: "assessment.score_recorded.v1", Payload: ports.ScoreEventData(score, meta)}}
+	if err := s.commitLifecycle(
+		ctx, tenantID,
+		ports.LifecycleMutation{Kind: ports.AssessmentMutationScoreCreate, Score: score},
+		events,
+		func() error { return s.repo.CreateScore(ctx, tenantID, score) },
+		func() error { return s.pub.PublishScore(ctx, "assessment.score_recorded.v1", score, meta) },
+	); err != nil {
 		return nil, err
 	}
-	//nolint:errcheck // Event publishing is best-effort after the score is recorded.
-	_ = s.pub.PublishScore(ctx, "assessment.score_recorded.v1", score, map[string]any{"assessment_id": assessment.ID})
 	return score, nil
 }
 
@@ -223,6 +323,10 @@ func (s *Service) ListScores(ctx context.Context, actor auth.Actor, assessmentID
 		return nil, "", err
 	}
 	filter.Limit = normalizeLimit(filter.Limit)
+	filter, err = s.applyScoreScope(ctx, actor, filter)
+	if err != nil {
+		return nil, "", err
+	}
 	return s.repo.ListScores(ctx, tenantID, assessmentID, filter)
 }
 
@@ -232,7 +336,68 @@ func (s *Service) GetScore(ctx context.Context, actor auth.Actor, assessmentID, 
 	if err != nil {
 		return nil, err
 	}
-	return s.repo.GetScoreByID(ctx, tenantID, assessmentID, scoreID)
+	score, err := s.repo.GetScoreByID(ctx, tenantID, assessmentID, scoreID)
+	if err != nil {
+		return nil, err
+	}
+	if scopedRole(actor.Role) {
+		filter, scopeErr := s.applyScoreScope(ctx, actor, ports.ScoreListFilter{StudentID: score.StudentID})
+		if scopeErr != nil {
+			return nil, scopeErr
+		}
+		if len(filter.StudentIDs) == 0 {
+			return nil, domain.ErrNotFound
+		}
+	}
+	return score, nil
+}
+
+func scopedRole(role string) bool {
+	role = strings.ToLower(strings.TrimSpace(role))
+	return role == "parent" || role == "student" || role == "teacher"
+}
+func (s *Service) applyScoreScope(ctx context.Context, actor auth.Actor, filter ports.ScoreListFilter) (ports.ScoreListFilter, error) {
+	if !scopedRole(actor.Role) {
+		return filter, nil
+	}
+	if s.scope == nil {
+		return filter, domain.ErrUnavailable
+	}
+	scope, err := s.scope.Resolve(ctx, actor.TenantID, actor.UserID, strings.ToLower(strings.TrimSpace(actor.Role)))
+	if err != nil {
+		return filter, err
+	}
+	if filter.StudentID != "" {
+		for _, id := range scope.StudentIDs {
+			if id == filter.StudentID {
+				filter.StudentIDs = []string{id}
+				filter.StudentID = ""
+				return filter, nil
+			}
+		}
+		return filter, domain.ErrNotFound
+	}
+	filter.StudentIDs = scope.StudentIDs
+	return filter, nil
+}
+
+func (s *Service) authorizeTeacherStudent(ctx context.Context, actor auth.Actor, studentID string) error {
+	if strings.ToLower(strings.TrimSpace(actor.Role)) != "teacher" {
+		return nil
+	}
+	if s.scope == nil {
+		return domain.ErrUnavailable
+	}
+	scope, err := s.scope.Resolve(ctx, actor.TenantID, actor.UserID, "teacher")
+	if err != nil {
+		return err
+	}
+	for _, id := range scope.StudentIDs {
+		if id == studentID {
+			return nil
+		}
+	}
+	return domain.ErrNotFound
 }
 
 // UpdateScore patches a score.
@@ -249,6 +414,9 @@ func (s *Service) UpdateScore(ctx context.Context, actor auth.Actor, assessmentI
 	if err != nil {
 		return nil, err
 	}
+	if err := s.authorizeTeacherStudent(ctx, actor, score.StudentID); err != nil {
+		return nil, err
+	}
 	changed, err := score.ApplyUpdate(req.Score, req.Notes, assessment.MaxScore)
 	if err != nil {
 		return nil, err
@@ -259,12 +427,39 @@ func (s *Service) UpdateScore(ctx context.Context, actor auth.Actor, assessmentI
 	if err := score.Validate(); err != nil {
 		return nil, err
 	}
-	if err := s.repo.UpdateScore(ctx, tenantID, score); err != nil {
+	meta := scoreEventMeta(assessment, score, map[string]any{"changed_fields": changed})
+	events := []ports.LifecycleEvent{{EventType: "assessment.score_updated.v1", Payload: ports.ScoreEventData(score, meta)}}
+	if err := s.commitLifecycle(
+		ctx, tenantID,
+		ports.LifecycleMutation{Kind: ports.AssessmentMutationScoreUpdate, Score: score},
+		events,
+		func() error { return s.repo.UpdateScore(ctx, tenantID, score) },
+		func() error { return s.pub.PublishScore(ctx, "assessment.score_updated.v1", score, meta) },
+	); err != nil {
 		return nil, err
 	}
-	//nolint:errcheck // Event publishing is best-effort after the score is updated.
-	_ = s.pub.PublishScore(ctx, "assessment.score_updated.v1", score, map[string]any{"assessment_id": assessment.ID, "changed_fields": changed})
 	return score, nil
+}
+
+// scoreEventMeta carries the assessment context consumers need without
+// coupling them to the Assessment Service database. Keep this payload aligned
+// with contracts/events/assessment.score_recorded.v1.json.
+func scoreEventMeta(assessment *domain.Assessment, score *domain.Score, extra map[string]any) map[string]any {
+	meta := map[string]any{
+		"assessment_id":    assessment.ID,
+		"subject_id":       assessment.SubjectID,
+		"academic_year_id": assessment.AcademicYearID,
+		"max_score":        assessment.MaxScore,
+		"recorded_at":      score.CreatedAt.UTC().Format(time.RFC3339),
+		"updated_at":       score.UpdatedAt.UTC().Format(time.RFC3339),
+	}
+	if len(assessment.ClassIDs) > 0 {
+		meta["class_ids"] = append([]string(nil), assessment.ClassIDs...)
+	}
+	for key, value := range extra {
+		meta[key] = value
+	}
+	return meta
 }
 
 // DeleteScore removes a score.
@@ -277,12 +472,22 @@ func (s *Service) DeleteScore(ctx context.Context, actor auth.Actor, assessmentI
 	if err != nil {
 		return err
 	}
-	if err := s.repo.DeleteScore(ctx, tenantID, assessmentID, scoreID); err != nil {
+	if err := s.authorizeTeacherStudent(ctx, actor, score.StudentID); err != nil {
 		return err
 	}
-	//nolint:errcheck // Event publishing is best-effort after the score is deleted.
-	_ = s.pub.PublishScore(ctx, "assessment.score_deleted.v1", score, map[string]any{"assessment_id": assessmentID})
-	return nil
+	assessment, err := s.repo.GetAssessmentByID(ctx, tenantID, assessmentID)
+	if err != nil {
+		return err
+	}
+	meta := scoreEventMeta(assessment, score, map[string]any{"deleted_at": time.Now().UTC().Format(time.RFC3339)})
+	events := []ports.LifecycleEvent{{EventType: "assessment.score_deleted.v1", Payload: ports.ScoreEventData(score, meta)}}
+	return s.commitLifecycle(
+		ctx, tenantID,
+		ports.LifecycleMutation{Kind: ports.AssessmentMutationScoreDelete, Score: score},
+		events,
+		func() error { return s.repo.DeleteScore(ctx, tenantID, assessmentID, scoreID) },
+		func() error { return s.pub.PublishScore(ctx, "assessment.score_deleted.v1", score, meta) },
+	)
 }
 
 func (s *Service) requireAccess(ctx context.Context, actor auth.Actor, perm string) (string, error) {

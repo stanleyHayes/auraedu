@@ -60,15 +60,10 @@ func (r *Repository) List(ctx context.Context, tenantID string, limit int, curso
 		limit = 100
 	}
 
-	tid, err := uuid.Parse(tenantID)
-	if err != nil {
-		return nil, "", fmt.Errorf("audit: invalid tenant_id: %w", err)
-	}
-
 	var out []*domain.AuditLog
 	var nextCursor string
-	err = r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		rows, err := listQuery(ctx, tx, tid, limit, cursor)
+	err := r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		rows, err := listQuery(ctx, tx, tenantID, limit, cursor)
 		if err != nil {
 			return err
 		}
@@ -108,7 +103,7 @@ func (r *Repository) ListAll(ctx context.Context, limit int, cursor string) ([]*
 	if err != nil {
 		return nil, "", fmt.Errorf("audit: begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx) //nolint:errcheck // rollback after commit is a no-op
+	defer tx.Rollback(ctx)
 
 	if err := db.SetPlatformAdmin(ctx, tx); err != nil {
 		return nil, "", err
@@ -167,7 +162,7 @@ func listAllQuery(ctx context.Context, tx pgx.Tx, limit int, cursor string) (pgx
 	`, limit)
 }
 
-func listQuery(ctx context.Context, tx pgx.Tx, tenantID uuid.UUID, limit int, cursor string) (pgx.Rows, error) {
+func listQuery(ctx context.Context, tx pgx.Tx, tenantID string, limit int, cursor string) (pgx.Rows, error) {
 	if cursor != "" {
 		id, err := uuid.Parse(cursor)
 		if err != nil {

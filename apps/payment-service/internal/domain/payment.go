@@ -26,7 +26,7 @@ const (
 	PaymentStatusProcessing PaymentStatus = "processing"
 	PaymentStatusSuccess    PaymentStatus = "success"
 	PaymentStatusFailed     PaymentStatus = "failed"
-	PaymentStatusCancelled  PaymentStatus = "cancelled" //nolint:misspell // British spelling used by payment provider specs
+	PaymentStatusCancelled  PaymentStatus = "cancelled"
 )
 
 // DefaultCurrency is the currency used when none is supplied.
@@ -45,6 +45,7 @@ type Payment struct {
 	Metadata          json.RawMessage `json:"metadata,omitempty"`
 	InitiatedAt       time.Time       `json:"initiated_at"`
 	CompletedAt       *time.Time      `json:"completed_at,omitempty"`
+	CheckoutURL       *string         `json:"checkout_url,omitempty"` // transient provider response; never persisted
 	CreatedAt         time.Time       `json:"created_at"`
 	UpdatedAt         time.Time       `json:"updated_at"`
 }
@@ -109,7 +110,7 @@ func (p Payment) Validate() error {
 	}
 	if !isValidPaymentStatus(PaymentStatus(p.Status)) {
 		return fmt.Errorf("%w: status must be pending, processing, success, failed or "+
-			"cancelled", ErrValidation) //nolint:misspell // British spelling used by payment provider specs
+			"cancelled", ErrValidation)
 	}
 	return nil
 }
@@ -157,7 +158,7 @@ func (p *Payment) ApplyUpdate(patch PaymentPatch) ([]string, error) {
 	if patch.Status != nil {
 		if !isValidPaymentStatus(PaymentStatus(*patch.Status)) {
 			return nil, fmt.Errorf("%w: status must be pending, processing, success, failed or "+
-				"cancelled", ErrValidation) //nolint:misspell // British spelling used by payment provider specs
+				"cancelled", ErrValidation)
 		}
 		p.Status = *patch.Status
 		changed = append(changed, "status")

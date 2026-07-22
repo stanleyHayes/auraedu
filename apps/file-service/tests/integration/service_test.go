@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"os"
 	"testing"
 
 	"github.com/auraedu/file-service/internal/adapters/postgres"
@@ -15,6 +16,32 @@ import (
 	"github.com/auraedu/platform/tenancy"
 	"github.com/auraedu/platform/testkit"
 )
+
+func TestServiceCreateCompensatesStorageWhenOutboxCommitFails(t *testing.T) {
+	ctx := withTenant(context.Background(), tenantA)
+	tdb := testkit.NewPostgres(ctx, t, "../../migrations")
+	repo := postgres.NewRepository(tdb.DB)
+	dir := t.TempDir()
+	store := storage.NewLocalStorage(dir)
+	gates := flags.NewStaticSnapshot()
+	gates.Set(tenantA, application.FeatureFileManagement, true)
+	svc := application.NewService(repo, store, application.WithFeatureGate(gates))
+	actor := auth.Actor{UserID: "user-1", TenantID: tenantA, Permissions: []string{application.PermCreate}}
+	if _, err := tdb.DB.Pool().Exec(context.Background(), `DROP TABLE file_outbox`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Create(ctx, actor, application.CreateFileRequest{OriginalFilename: "orphan.txt", ContentType: "text/plain", Data: []byte("must be removed")}); err == nil {
+		t.Fatal("create must fail without outbox")
+	}
+	tenantDir := dir + "/" + tenantA
+	entries, err := os.ReadDir(tenantDir)
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("orphaned storage objects: %v", entries)
+	}
+}
 
 func TestService_UploadDownloadRoundtrip(t *testing.T) {
 	ctx := withTenant(context.Background(), tenantA)

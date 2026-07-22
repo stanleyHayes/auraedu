@@ -53,9 +53,9 @@ func seedStudent(t *testing.T, repo *fakeRepo, tenantID, first, last string, cla
 }
 
 // requestAs is request() with an explicit tenant (the shared helper pins tenantA).
-func requestAs(t *testing.T, tenantID, method, path string, perms ...string) *http.Request {
+func requestAs(t *testing.T, tenantID, path string, perms ...string) *http.Request {
 	t.Helper()
-	req := request(t, method, path, nil, perms...)
+	req := request(t, http.MethodGet, path, nil, perms...)
 	req.Header.Set(tenancy.HeaderTenantID, tenantID)
 	req.Header.Set(auth.HeaderTenant, tenantID)
 	return req
@@ -88,7 +88,11 @@ func listIDs(t *testing.T, got map[string]any) []string {
 		if !ok {
 			t.Fatalf("unexpected item: %v", item)
 		}
-		ids = append(ids, m["id"].(string))
+		id, ok := m["id"].(string)
+		if !ok {
+			t.Fatalf("missing student id: %v", m)
+		}
+		ids = append(ids, id)
 	}
 	return ids
 }
@@ -100,7 +104,7 @@ func TestHandler_ListStudents_FilterByClass(t *testing.T) {
 	seedStudent(t, repo, tenantA, "Esi", "Three", nil, nil)
 
 	// Filter set: only the roster of classX.
-	code, got := serveList(t, h, requestAs(t, tenantA, http.MethodGet, "/api/v1/students?class_id="+classX, application.PermRead))
+	code, got := serveList(t, h, requestAs(t, tenantA, "/api/v1/students?class_id="+classX, application.PermRead))
 	if code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", code)
 	}
@@ -108,19 +112,26 @@ func TestHandler_ListStudents_FilterByClass(t *testing.T) {
 	if len(ids) != 1 || ids[0] != s1.ID {
 		t.Fatalf("expected only student %s, got %v", s1.ID, ids)
 	}
-	row := got["data"].([]any)[0].(map[string]any)
+	data, ok := got["data"].([]any)
+	if !ok || len(data) == 0 {
+		t.Fatalf("missing student data: %v", got)
+	}
+	row, ok := data[0].(map[string]any)
+	if !ok {
+		t.Fatalf("invalid student row: %v", data[0])
+	}
 	if row["class_id"] != classX || row["academic_year_id"] != yearY {
 		t.Fatalf("DTO missing class fields: %v", row)
 	}
 
 	// Filter set to the other class.
-	_, got = serveList(t, h, requestAs(t, tenantA, http.MethodGet, "/api/v1/students?class_id="+classY, application.PermRead))
+	_, got = serveList(t, h, requestAs(t, tenantA, "/api/v1/students?class_id="+classY, application.PermRead))
 	if ids := listIDs(t, got); len(ids) != 1 {
 		t.Fatalf("expected 1 student for classY, got %v", ids)
 	}
 
 	// Filter unset: every student of the tenant.
-	_, got = serveList(t, h, requestAs(t, tenantA, http.MethodGet, "/api/v1/students", application.PermRead))
+	_, got = serveList(t, h, requestAs(t, tenantA, "/api/v1/students", application.PermRead))
 	if ids := listIDs(t, got); len(ids) != 3 {
 		t.Fatalf("expected 3 students without filter, got %v", ids)
 	}
@@ -132,7 +143,7 @@ func TestHandler_ListStudents_FilterCrossTenant(t *testing.T) {
 	sB := seedStudent(t, repo, tenantB, "Tenant", "B", ptr(classX), nil)
 
 	// Same class_id value, different tenant: the filter must stay tenant-scoped.
-	code, got := serveList(t, h, requestAs(t, tenantB, http.MethodGet, "/api/v1/students?class_id="+classX, application.PermRead))
+	code, got := serveList(t, h, requestAs(t, tenantB, "/api/v1/students?class_id="+classX, application.PermRead))
 	if code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", code)
 	}
@@ -142,7 +153,7 @@ func TestHandler_ListStudents_FilterCrossTenant(t *testing.T) {
 	}
 
 	// And with the filter unset tenant B must not see tenant A students.
-	_, got = serveList(t, h, requestAs(t, tenantB, http.MethodGet, "/api/v1/students", application.PermRead))
+	_, got = serveList(t, h, requestAs(t, tenantB, "/api/v1/students", application.PermRead))
 	if ids := listIDs(t, got); len(ids) != 1 || ids[0] != sB.ID {
 		t.Fatalf("tenant B should see only its own students, got %v", ids)
 	}
@@ -150,7 +161,7 @@ func TestHandler_ListStudents_FilterCrossTenant(t *testing.T) {
 
 func TestHandler_ListStudents_InvalidClassID(t *testing.T) {
 	h, _ := newClassFilterHandler()
-	code, _ := serveList(t, h, requestAs(t, tenantA, http.MethodGet, "/api/v1/students?class_id=not-a-uuid", application.PermRead))
+	code, _ := serveList(t, h, requestAs(t, tenantA, "/api/v1/students?class_id=not-a-uuid", application.PermRead))
 	if code != http.StatusUnprocessableEntity {
 		t.Fatalf("expected 422 for non-UUID class_id, got %d", code)
 	}
@@ -181,7 +192,7 @@ func TestHandler_CreateStudent_PersistsClassFields(t *testing.T) {
 	}
 
 	// The fields must round-trip through the read DTO as well.
-	code, got := serveList(t, h, requestAs(t, tenantA, http.MethodGet, "/api/v1/students?class_id="+classX, application.PermRead))
+	code, got := serveList(t, h, requestAs(t, tenantA, "/api/v1/students?class_id="+classX, application.PermRead))
 	if code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", code)
 	}
@@ -259,7 +270,7 @@ func TestHandler_ListStudents_BlankClassID(t *testing.T) {
 	h, repo := newClassFilterHandler()
 	seedStudent(t, repo, tenantA, "Ama", "One", ptr(classX), nil)
 
-	code, got := serveList(t, h, requestAs(t, tenantA, http.MethodGet, "/api/v1/students?class_id=", application.PermRead))
+	code, got := serveList(t, h, requestAs(t, tenantA, "/api/v1/students?class_id=", application.PermRead))
 	if code != http.StatusOK {
 		t.Fatalf("expected 200 for blank class_id, got %d", code)
 	}

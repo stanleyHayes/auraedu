@@ -4,6 +4,8 @@ info:
   version: 1.0.0
   description: >
     Assignments, tests, exams, and scores (spec \u00a77). Owned by lane L2 (EP-14). Feature flags: assessments, assignments.
+  contact:
+    name: AuraEDU Engineering
 servers:
   - url: /api/v1
 tags:
@@ -16,6 +18,7 @@ paths:
     /assessments:
       get:
             operationId: listAssessments
+            description: Executes the list assessments workflow within this AuraEDU API boundary.
             tags: ['assessments']
             summary: List assessments
             parameters:
@@ -34,6 +37,7 @@ paths:
               '401': { $ref: '#/components/responses/Unauthorized' }
       post:
             operationId: createAssessment
+            description: Executes the create assessment workflow within this AuraEDU API boundary.
             tags: ['assessments']
             summary: Create an assessment
             parameters:
@@ -56,11 +60,12 @@ paths:
     /assessments/{assessment_id}:
       get:
             operationId: getAssessment
+            description: Executes the get assessment workflow within this AuraEDU API boundary.
             tags: ['assessments']
             summary: Get an assessment
             parameters:
               - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/TenantId'
+              - $ref: '#/components/parameters/AssessmentId'
             responses:
               '200':
                 description: OK
@@ -71,14 +76,72 @@ paths:
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
+      patch:
+        operationId: updateAssessment
+        description: Executes the update assessment workflow within this AuraEDU API boundary.
+        tags: ['assessments']
+        summary: Update an assessment
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/AssessmentId'
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UpdateAssessment' }
+        responses:
+          '200':
+            description: Updated assessment
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/Assessment' }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+      delete:
+        operationId: deleteAssessment
+        description: Executes the delete assessment workflow within this AuraEDU API boundary.
+        tags: ['assessments']
+        summary: Delete an assessment
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/AssessmentId'
+        responses:
+          '204': { description: Assessment deleted }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
     /assessments/{assessment_id}/scores:
+      get:
+        operationId: listScores
+        description: Executes the list scores workflow within this AuraEDU API boundary.
+        tags: ['scores']
+        summary: List scores for an assessment
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/AssessmentId'
+          - $ref: '#/components/parameters/Limit'
+          - $ref: '#/components/parameters/Cursor'
+          - name: student_id
+            in: query
+            schema: { type: string, format: uuid }
+        responses:
+          '200':
+            description: Scores
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/ScoreList' }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
       post:
             operationId: recordScore
+            description: Executes the record score workflow within this AuraEDU API boundary.
             tags: ['scores']
             summary: Record a score
             parameters:
               - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/TenantId'
+              - $ref: '#/components/parameters/AssessmentId'
             requestBody:
               required: true
               content:
@@ -94,10 +157,68 @@ paths:
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
+    /assessments/{assessment_id}/scores/{score_id}:
+      get:
+        operationId: getScore
+        description: Executes the get score workflow within this AuraEDU API boundary.
+        tags: ['scores']
+        summary: Get a score
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/AssessmentId'
+          - $ref: '#/components/parameters/ScoreId'
+        responses:
+          '200':
+            description: Score
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/Score' }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+      patch:
+        operationId: updateScore
+        description: Executes the update score workflow within this AuraEDU API boundary.
+        tags: ['scores']
+        summary: Update a score
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/AssessmentId'
+          - $ref: '#/components/parameters/ScoreId'
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UpdateScore' }
+        responses:
+          '200':
+            description: Updated score
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/Score' }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+      delete:
+        operationId: deleteScore
+        description: Executes the delete score workflow within this AuraEDU API boundary.
+        tags: ['scores']
+        summary: Delete a score
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/AssessmentId'
+          - $ref: '#/components/parameters/ScoreId'
+        responses:
+          '204': { description: Score deleted }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
 
     /assignments:
       get:
             operationId: listAssignments
+            description: Executes the list assignments workflow within this AuraEDU API boundary.
             tags: ['assignments']
             summary: List assignments
             parameters:
@@ -130,6 +251,7 @@ paths:
               '401': { $ref: '#/components/responses/Unauthorized' }
       post:
             operationId: createAssignment
+            description: Executes the create assignment workflow within this AuraEDU API boundary.
             tags: ['assignments']
             summary: Create an assignment
             parameters:
@@ -152,6 +274,7 @@ paths:
     /assignments/{assignment_id}:
       get:
             operationId: getAssignment
+            description: Executes the get assignment workflow within this AuraEDU API boundary.
             tags: ['assignments']
             summary: Get an assignment
             parameters:
@@ -169,6 +292,7 @@ paths:
               '401': { $ref: '#/components/responses/Unauthorized' }
       patch:
             operationId: updateAssignment
+            description: Executes the update assignment workflow within this AuraEDU API boundary.
             tags: ['assignments']
             summary: Update an assignment
             parameters:
@@ -191,6 +315,7 @@ paths:
               '401': { $ref: '#/components/responses/Unauthorized' }
       delete:
             operationId: deleteAssignment
+            description: Executes the delete assignment workflow within this AuraEDU API boundary.
             tags: ['assignments']
             summary: Delete an assignment
             parameters:
@@ -205,6 +330,7 @@ paths:
     /assignments/{assignment_id}/publish:
       post:
             operationId: publishAssignment
+            description: Executes the publish assignment workflow within this AuraEDU API boundary.
             tags: ['assignments']
             summary: Publish an assignment (emits assignment.published.v1)
             parameters:
@@ -223,6 +349,7 @@ paths:
     /gradebook:
       get:
             operationId: getGradebook
+            description: Executes the get gradebook workflow within this AuraEDU API boundary.
             tags: ['gradebook']
             summary: Per-student or per-class gradebook summary (per-subject averages + overall)
             parameters:
@@ -256,8 +383,13 @@ paths:
 
 components:
   parameters:
-    TenantId:
-      name: tenant_id
+    AssessmentId:
+      name: assessment_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ScoreId:
+      name: score_id
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -313,6 +445,15 @@ components:
           term_id: { type: [string, 'null'], format: uuid }
           max_score: { type: number, minimum: 0 }
           scheduled_at: { type: [string, 'null'], format: date-time }
+    UpdateAssessment:
+        type: object
+        properties:
+          title: { type: string }
+          description: { type: string }
+          type: { type: string, enum: [test, exam, quiz, assignment] }
+          max_score: { type: integer, minimum: 1 }
+          due_date: { type: [string, 'null'], format: date-time }
+          status: { type: string, enum: [draft, published, archived] }
     Score:
         type: object
         required: [id, assessment_id, student_id, score]
@@ -330,6 +471,16 @@ components:
           student_id: { type: string, format: uuid }
           score: { type: number, minimum: 0 }
           max_score: { type: [number, 'null'], minimum: 0 }
+    UpdateScore:
+        type: object
+        properties:
+          score: { type: integer, minimum: 0 }
+          notes: { type: string }
+    ScoreList:
+        type: object
+        properties:
+          data: { type: array, items: { $ref: '#/components/schemas/Score' } }
+          next_cursor: { type: [string, 'null'] }
     Assignment:
         type: object
         required: [id, tenant_id, title, subject_id]
@@ -441,4 +592,3 @@ components:
 
 security:
   - bearerAuth: []
-

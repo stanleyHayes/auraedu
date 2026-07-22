@@ -1,6 +1,4 @@
 // Package http provides the HTTP adapter for the billing service.
-//
-//nolint:misspell // British spelling "cancelled" is intentional for the billing domain.
 package http
 
 import (
@@ -30,6 +28,7 @@ func NewHandler(svc *application.Service) *Handler { return &Handler{svc: svc} }
 
 // Register mounts the service routes.
 func (h *Handler) Register(mux *http.ServeMux) {
+	mux.HandleFunc("GET /api/v1/public/billing/plans", h.listPublicPlans)
 	mux.HandleFunc("GET /api/v1/billing/plans", h.listPlans)
 	mux.HandleFunc("POST /api/v1/billing/plans", h.createPlan)
 	mux.HandleFunc("GET /api/v1/billing/plans/{plan_id}", h.getPlan)
@@ -50,6 +49,19 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/v1/billing/invoices/{invoice_id}", h.deleteInvoice)
 	mux.HandleFunc("POST /api/v1/billing/invoices/{invoice_id}/pay", h.markInvoicePaid)
 	mux.HandleFunc("POST /api/v1/billing/invoices/{invoice_id}/void", h.markInvoiceVoid)
+}
+
+func (h *Handler) listPublicPlans(w http.ResponseWriter, r *http.Request) {
+	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
+	if err != nil {
+		limit = 0
+	}
+	records, nextCursor, err := h.svc.ListPublicPlans(r.Context(), ports.PlanFilter{Limit: limit, Cursor: r.URL.Query().Get("cursor")})
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, map[string]any{"data": records, "next_cursor": nullIfEmpty(nextCursor)})
 }
 
 // --- Plan handlers ---

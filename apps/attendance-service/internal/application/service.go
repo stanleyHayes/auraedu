@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"sort"
 	"strings"
 
@@ -32,6 +31,7 @@ type Service struct {
 	repo  ports.Repository
 	pub   ports.EventPublisher
 	gates flags.Gate
+	scope ports.LearnerScopeResolver
 }
 
 // Option configures the service.
@@ -42,6 +42,9 @@ func WithPublisher(pub ports.EventPublisher) Option { return func(s *Service) { 
 
 // WithFeatureGate sets the feature-flag gate.
 func WithFeatureGate(g flags.Gate) Option { return func(s *Service) { s.gates = g } }
+func WithLearnerScopeResolver(r ports.LearnerScopeResolver) Option {
+	return func(s *Service) { s.scope = r }
+}
 
 type noopPublisher struct{}
 
@@ -56,6 +59,31 @@ func NewService(repo ports.Repository, opts ...Option) *Service {
 		o(s)
 	}
 	return s
+}
+func (s *Service) commitLifecycle(
+	ctx context.Context,
+	tenantID, mutation string,
+	records []*domain.AttendanceRecord,
+	eventType string,
+	metas []map[string]any,
+	fallback func() error,
+) error {
+	if repo, ok := s.repo.(ports.LifecycleRepository); ok {
+		return repo.CommitAttendanceLifecycle(ctx, tenantID, mutation, records, eventType, metas)
+	}
+	if err := fallback(); err != nil {
+		return err
+	}
+	for i, record := range records {
+		var meta map[string]any
+		if i < len(metas) {
+			meta = metas[i]
+		}
+		if err := s.pub.Publish(ctx, eventType, record, meta); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // CreateAttendanceRequest is the input for marking attendance.
@@ -81,15 +109,19 @@ func (s *Service) Create(ctx context.Context, actor auth.Actor, req CreateAttend
 	if err != nil {
 		return nil, err
 	}
+	if err := s.authorizeTeacherStudents(ctx, actor, []string{req.StudentID}, nil); err != nil {
+		return nil, err
+	}
 	record, err := domain.NewAttendanceRecord(tenantID, req.StudentID, req.AcademicYearID, req.Date, req.Status, req.MarkedBy, req.Reason)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.repo.Create(ctx, tenantID, record); err != nil {
+	if err := s.commitLifecycle(
+		ctx, tenantID, ports.AttendanceMutationCreate,
+		[]*domain.AttendanceRecord{record}, "attendance.marked.v1", nil,
+		func() error { return s.repo.Create(ctx, tenantID, record) },
+	); err != nil {
 		return nil, err
-	}
-	if err := s.pub.Publish(ctx, "attendance.marked.v1", record, nil); err != nil {
-		slog.Default().ErrorContext(ctx, "failed to publish attendance marked event", "err", err)
 	}
 	return record, nil
 }
@@ -149,6 +181,13 @@ func (s *Service) BulkMark(ctx context.Context, actor auth.Actor, req BulkMarkRe
 		return nil, err
 	}
 	classID := nilIfBlank(req.ClassID)
+	studentIDs := make([]string, 0, len(req.Records))
+	for _, row := range req.Records {
+		studentIDs = append(studentIDs, row.StudentID)
+	}
+	if err := s.authorizeTeacherStudents(ctx, actor, studentIDs, classID); err != nil {
+		return nil, err
+	}
 	subjectID := nilIfBlank(req.SubjectID)
 	records := make([]*domain.AttendanceRecord, 0, len(req.Records))
 	for _, row := range req.Records {
@@ -160,13 +199,11 @@ func (s *Service) BulkMark(ctx context.Context, actor auth.Actor, req BulkMarkRe
 		record.SubjectID = subjectID
 		records = append(records, record)
 	}
-	if err := s.repo.UpsertMany(ctx, tenantID, records); err != nil {
+	if err := s.commitLifecycle(
+		ctx, tenantID, ports.AttendanceMutationBulkUpsert, records, "attendance.marked.v1", nil,
+		func() error { return s.repo.UpsertMany(ctx, tenantID, records) },
+	); err != nil {
 		return nil, err
-	}
-	for _, record := range records {
-		if err := s.pub.Publish(ctx, "attendance.marked.v1", record, nil); err != nil {
-			slog.Default().ErrorContext(ctx, "failed to publish attendance marked event", "err", err, "attendance_id", record.ID)
-		}
 	}
 	return records, nil
 }
@@ -234,6 +271,10 @@ func (s *Service) List(ctx context.Context, actor auth.Actor, filter ports.ListF
 		return nil, "", err
 	}
 	filter.Limit = normalizeLimit(filter.Limit)
+	filter, err = s.applyLearnerScope(ctx, actor, filter)
+	if err != nil {
+		return nil, "", err
+	}
 	return s.repo.List(ctx, tenantID, filter)
 }
 
@@ -243,7 +284,86 @@ func (s *Service) Get(ctx context.Context, actor auth.Actor, id string) (*domain
 	if err != nil {
 		return nil, err
 	}
-	return s.repo.GetByID(ctx, tenantID, id)
+	record, err := s.repo.GetByID(ctx, tenantID, id)
+	if err != nil {
+		return nil, err
+	}
+	if isScopedRole(actor.Role) {
+		filter, scopeErr := s.applyLearnerScope(ctx, actor, ports.ListFilter{StudentID: record.StudentID})
+		if scopeErr != nil {
+			return nil, scopeErr
+		}
+		if len(filter.StudentIDs) == 0 {
+			return nil, domain.ErrNotFound
+		}
+	}
+	return record, nil
+}
+
+func isScopedRole(role string) bool {
+	role = strings.ToLower(strings.TrimSpace(role))
+	return role == "parent" || role == "student" || role == "teacher"
+}
+
+func (s *Service) applyLearnerScope(ctx context.Context, actor auth.Actor, filter ports.ListFilter) (ports.ListFilter, error) {
+	if !isScopedRole(actor.Role) {
+		return filter, nil
+	}
+	if s.scope == nil {
+		return filter, domain.ErrUnavailable
+	}
+	scope, err := s.scope.Resolve(ctx, actor.TenantID, actor.UserID, strings.ToLower(strings.TrimSpace(actor.Role)))
+	if err != nil {
+		return filter, err
+	}
+	if filter.StudentID != "" {
+		allowed := false
+		for _, id := range scope.StudentIDs {
+			if id == filter.StudentID {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			return filter, domain.ErrNotFound
+		}
+		filter.StudentIDs = []string{filter.StudentID}
+		filter.StudentID = ""
+		return filter, nil
+	}
+	filter.StudentIDs = scope.StudentIDs
+	return filter, nil
+}
+
+func (s *Service) authorizeTeacherStudents(ctx context.Context, actor auth.Actor, studentIDs []string, classID *string) error {
+	if strings.ToLower(strings.TrimSpace(actor.Role)) != "teacher" {
+		return nil
+	}
+	if s.scope == nil {
+		return domain.ErrUnavailable
+	}
+	scope, err := s.scope.Resolve(ctx, actor.TenantID, actor.UserID, "teacher")
+	if err != nil {
+		return err
+	}
+	allowedStudents := make(map[string]struct{}, len(scope.StudentIDs))
+	for _, id := range scope.StudentIDs {
+		allowedStudents[id] = struct{}{}
+	}
+	for _, id := range studentIDs {
+		if _, ok := allowedStudents[id]; !ok {
+			return domain.ErrNotFound
+		}
+	}
+	if classID != nil {
+		for _, id := range scope.ClassIDs {
+			if id == *classID {
+				return nil
+			}
+		}
+		return domain.ErrNotFound
+	}
+	return nil
 }
 
 // Update patches an attendance record.
@@ -256,6 +376,9 @@ func (s *Service) Update(ctx context.Context, actor auth.Actor, id string, req U
 	if err != nil {
 		return nil, err
 	}
+	if err := s.authorizeTeacherStudents(ctx, actor, []string{record.StudentID}, record.ClassID); err != nil {
+		return nil, err
+	}
 	changed, err := record.ApplyUpdate(req.Status, req.Reason, req.MarkedBy)
 	if err != nil {
 		return nil, err
@@ -266,11 +389,13 @@ func (s *Service) Update(ctx context.Context, actor auth.Actor, id string, req U
 	if err := record.Validate(); err != nil {
 		return nil, err
 	}
-	if err := s.repo.Update(ctx, tenantID, record); err != nil {
+	meta := map[string]any{"changed_fields": changed}
+	if err := s.commitLifecycle(
+		ctx, tenantID, ports.AttendanceMutationUpdate,
+		[]*domain.AttendanceRecord{record}, "attendance.updated.v1", []map[string]any{meta},
+		func() error { return s.repo.Update(ctx, tenantID, record) },
+	); err != nil {
 		return nil, err
-	}
-	if err := s.pub.Publish(ctx, "attendance.updated.v1", record, map[string]any{"changed_fields": changed}); err != nil {
-		slog.Default().ErrorContext(ctx, "failed to publish attendance updated event", "err", err)
 	}
 	return record, nil
 }
@@ -285,13 +410,14 @@ func (s *Service) Delete(ctx context.Context, actor auth.Actor, id string) error
 	if err != nil {
 		return err
 	}
-	if err := s.repo.Delete(ctx, tenantID, id); err != nil {
+	if err := s.authorizeTeacherStudents(ctx, actor, []string{record.StudentID}, record.ClassID); err != nil {
 		return err
 	}
-	if err := s.pub.Publish(ctx, "attendance.deleted.v1", record, nil); err != nil {
-		slog.Default().ErrorContext(ctx, "failed to publish attendance deleted event", "err", err)
-	}
-	return nil
+	return s.commitLifecycle(
+		ctx, tenantID, ports.AttendanceMutationDelete,
+		[]*domain.AttendanceRecord{record}, "attendance.deleted.v1", nil,
+		func() error { return s.repo.Delete(ctx, tenantID, id) },
+	)
 }
 
 func (s *Service) requireAccess(ctx context.Context, actor auth.Actor, perm string) (string, error) {

@@ -3,19 +3,25 @@ import { PageHeader, DataTable, EmptyState } from "@auraedu/ui";
 import type { OpenAPI } from "@auraedu/shared-types";
 import { createServerClient } from "@/lib/api";
 
-// paid_at/method are display-only legacy fields not present in the contract Payment.
-type Payment = OpenAPI.payment_v1.components["schemas"]["Payment"] & {
-  paid_at?: string;
-  method?: string;
-};
+type Payment = OpenAPI.payment_v1.components["schemas"]["Payment"];
+
+function formatMoney(amountCents: number, currency: string) {
+  try {
+    return new Intl.NumberFormat("en-GH", {
+      style: "currency",
+      currency,
+    }).format(amountCents / 100);
+  } catch {
+    return `${currency} ${(amountCents / 100).toFixed(2)}`;
+  }
+}
 
 export default async function ParentPaymentsPage() {
   const client = await createServerClient();
   let payments: Payment[];
   try {
-    // The contract declares no PaymentList schema, so type the envelope inline.
-    const res = await client.get<{ data?: Payment[]; next_cursor?: string | null }>(
-      "/api/v1/payments",
+    const res = await client.get<OpenAPI.payment_v1.components["schemas"]["PaymentList"]>(
+      "/api/v1/payments?limit=50",
     );
     payments = res.data ?? [];
   } catch {
@@ -35,9 +41,21 @@ export default async function ParentPaymentsPage() {
           <DataTable
             caption="Payments made to the school"
             columns={[
-              { key: "amount", header: "Amount", cell: (r) => r.amount },
-              { key: "paid_at", header: "Date", cell: (r) => r.paid_at },
-              { key: "method", header: "Method", cell: (r) => r.method },
+              {
+                key: "amount",
+                header: "Amount",
+                cell: (r) => formatMoney(r.amount_cents, r.currency),
+              },
+              {
+                key: "paid_at",
+                header: "Date",
+                cell: (r) => new Date(r.completed_at ?? r.initiated_at).toLocaleDateString("en-GH"),
+              },
+              {
+                key: "method",
+                header: "Provider",
+                cell: (r) => <span className="capitalize">{r.provider}</span>,
+              },
               {
                 key: "status",
                 header: "Status",

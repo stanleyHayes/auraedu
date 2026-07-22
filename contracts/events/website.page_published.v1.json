@@ -18,7 +18,7 @@
       "const": "1.0"
     },
     "type": {
-      "const": "website.page_published"
+      "const": "website.page_published.v1"
     },
     "source": {
       "const": "website-service"
@@ -59,7 +59,23 @@
             "null"
           ]
         }
+      },
+      "additionalProperties": false
+    }
+  },
+  "examples": [
+    {
+      "specversion": "1.0",
+      "type": "website.page_published.v1",
+      "source": "website-service",
+      "id": "example-id",
+      "time": "2026-07-19T10:00:00Z",
+      "tenant_id": "school-a",
+      "data": {
+        "page_id": "11111111-1111-4111-8111-111111111111",
+        "slug": "example-slug"
       }
     }
-  }
+  ],
+  "additionalProperties": false
 }

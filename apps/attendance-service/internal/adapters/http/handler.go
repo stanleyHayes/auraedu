@@ -223,6 +223,8 @@ func (h *Handler) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 		httpx.Forbidden(w, r, "not permitted for this actor or tenant")
 	case errors.Is(err, domain.ErrMissingTenant):
 		httpx.TenantMismatch(w, r)
+	case errors.Is(err, domain.ErrUnavailable):
+		httpx.RespondJSON(w, r, http.StatusServiceUnavailable, map[string]string{"code": "service_unavailable", "message": err.Error()})
 	default:
 		httpx.RespondError(w, r, httpx.ErrorFrom(err))
 	}

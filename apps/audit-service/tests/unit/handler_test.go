@@ -1,6 +1,7 @@
 package unit
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -25,7 +26,7 @@ func newTestMux(repo *memory.Repository) *http.ServeMux {
 // doGet issues a GET against the mux with the gateway-injected actor headers.
 func doGet(t *testing.T, mux *http.ServeMux, path string, headers map[string]string) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodGet, path, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, path, nil)
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}

@@ -9,22 +9,23 @@ permissions:
 jobs:
   go:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     env:
       GOFLAGS: -mod=readonly
       GOTOOLCHAIN: local
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with: { go-version: '1.26.5' }
-      - name: Go gates per module (build, vet, govulncheck)
+      - name: Go gates per module (test, build, vet, govulncheck)
         run: |
           set -euo pipefail
           mods=$(find platform apps -name go.mod -exec dirname {} \; | sort)
           echo "modules: $mods"
           for m in $mods; do
             echo "::group::$m"
-            ( cd "$m" && GOWORK=off go build ./... && GOWORK=off go vet ./... \
-              && GOWORK=off go run golang.org/x/vuln/cmd/govulncheck@latest ./... )
+            ( cd "$m" && GOWORK=off go test ./... && GOWORK=off go build ./... && GOWORK=off go vet ./... \
+              && GOWORK=off go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./... )
             echo "::endgroup::"
           done
       - name: gofmt

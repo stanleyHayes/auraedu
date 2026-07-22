@@ -1,4 +1,4 @@
-// Package tenancy is a minimal local stub for platform/tenancy (AURA-2.3).
+// Package tenancy adapts Identity's actor context to its repository boundary.
 package tenancy
 
 import (

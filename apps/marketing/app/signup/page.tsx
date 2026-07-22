@@ -3,8 +3,8 @@ import { SignupForm } from "./signup-form";
 import { Skeleton } from "@auraedu/ui";
 
 export const metadata = {
-  title: "Sign up your school · AuraEDU",
-  description: "Create your AuraEDU tenant and start a free trial.",
+  title: "Start your school",
+  description: "Submit a secure AuraEDU onboarding request for your school.",
 };
 
 export default function SignupPage() {

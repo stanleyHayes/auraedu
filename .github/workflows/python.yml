@@ -9,9 +9,26 @@ permissions:
 jobs:
   python:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ai_rls
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ai_rls"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      AI_RLS_TEST_DSN: postgresql://postgres:postgres@127.0.0.1:5432/ai_rls
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081 # v5
       - name: Python gates
         run: |
           if [ ! -f uv.lock ]; then
@@ -20,4 +37,7 @@ jobs:
           fi
           uv sync
           uv run ruff check .
+          uv run ruff format --check .
+          uv run mypy apps/ai-recommendation-service/src apps/ai-prediction-service/src apps/career-guidance-service/src
+          uv run pyright apps/ai-recommendation-service/src apps/ai-prediction-service/src apps/career-guidance-service/src
           uv run pytest

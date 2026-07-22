@@ -14,9 +14,16 @@ import { Button, StatCard, Reveal, Watermark } from "@auraedu/ui";
 
 interface StudentDashboardProps {
   userName?: string;
+  summary: {
+    classesToday: number | null;
+    activeAssignments: number | null;
+    publishedResults: number | null;
+    upcomingExams: number | null;
+    lessons: { id: string; time: string; title: string; room?: string | null }[] | null;
+  };
 }
 
-export function StudentDashboard({ userName }: StudentDashboardProps) {
+export function StudentDashboard({ userName, summary }: StudentDashboardProps) {
   const router = useRouter();
   const greeting = userName ? `Welcome back, ${userName}` : "Welcome back";
 
@@ -26,11 +33,11 @@ export function StudentDashboard({ userName }: StudentDashboardProps) {
         Learn
       </Watermark>
       <Reveal>
-        <section className="card card-hover rounded-[var(--radius-md)] p-6">
+        <section className="portal-hero card card-hover p-6 sm:p-8">
           <div className="flex items-start gap-3.5">
             <span
               aria-hidden="true"
-              className="grid size-12 flex-none place-items-center rounded-[var(--radius-lg)] bg-gradient-to-br from-[var(--color-brand)] to-[var(--color-burgundy)] text-white"
+              className="grid size-12 flex-none place-items-center rounded-[var(--radius-lg)] bg-gradient-to-br from-[var(--color-brand)] to-[var(--color-forest)] text-white"
             >
               <GraduationCap className="size-6" />
             </span>
@@ -56,10 +63,20 @@ export function StudentDashboard({ userName }: StudentDashboardProps) {
 
       <Reveal delay={80}>
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Classes today" value="—" unit="sessions" />
-          <StatCard label="Pending assignments" value="—" unit="due" tone="warn" />
-          <StatCard label="Results published" value="—" unit="records" tone="ok" />
-          <StatCard label="CBT exams" value="—" unit="upcoming" />
+          <StatCard label="Classes today" value={summary.classesToday ?? "—"} unit="sessions" />
+          <StatCard
+            label="Active assignments"
+            value={summary.activeAssignments ?? "—"}
+            unit="published"
+            tone="warn"
+          />
+          <StatCard
+            label="Results published"
+            value={summary.publishedResults ?? "—"}
+            unit="scores"
+            tone="ok"
+          />
+          <StatCard label="CBT exams" value={summary.upcomingExams ?? "—"} unit="available" />
         </section>
       </Reveal>
 
@@ -67,16 +84,45 @@ export function StudentDashboard({ userName }: StudentDashboardProps) {
         <Reveal delay={120}>
           <div className="card card-hover h-full rounded-[var(--radius-md)] p-5">
             <h3 className="font-sans font-semibold tracking-tight">Today&apos;s classes</h3>
-            <ul className="mt-4 space-y-2 text-sm text-[var(--muted-foreground)]">
-              <li className="flex items-center gap-2">
-                <CalendarDays className="size-4 text-[var(--primary)]" aria-hidden="true" />
-                <span>Timetable integration is coming soon.</span>
-              </li>
-              <li className="flex items-center gap-2">
-                <BookOpen className="size-4 text-[var(--primary)]" aria-hidden="true" />
-                <span>No classes starting in the next hour.</span>
-              </li>
-            </ul>
+            {summary.lessons === null ? (
+              <div className="mt-4 flex items-center gap-2 rounded-[var(--radius-sm)] border border-dashed border-[var(--border)] p-4 text-sm text-[var(--muted-foreground)]">
+                <CalendarDays
+                  className="size-4 shrink-0 text-[var(--primary)]"
+                  aria-hidden="true"
+                />
+                Today&apos;s timetable is temporarily unavailable.
+              </div>
+            ) : summary.lessons.length > 0 ? (
+              <ol className="mt-4 divide-y divide-[var(--border)]">
+                {summary.lessons.map((lesson) => (
+                  <li key={lesson.id} className="flex gap-3 py-3 first:pt-0 last:pb-0">
+                    <CalendarDays
+                      className="mt-0.5 size-4 shrink-0 text-[var(--primary)]"
+                      aria-hidden="true"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <strong className="block truncate text-sm">{lesson.title}</strong>
+                      <small className="text-[var(--muted-foreground)]">
+                        {lesson.time}
+                        {lesson.room ? ` · Room ${lesson.room}` : ""}
+                      </small>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <button
+                type="button"
+                onClick={() => router.push("/student/timetable")}
+                className="mt-4 inline-flex items-center gap-2 text-left text-sm text-[var(--muted-foreground)] hover:text-foreground hover:underline"
+              >
+                <CalendarDays
+                  className="size-4 shrink-0 text-[var(--primary)]"
+                  aria-hidden="true"
+                />
+                No active lessons are scheduled for today. Open the full timetable.
+              </button>
+            )}
           </div>
         </Reveal>
         <Reveal delay={160}>
@@ -97,7 +143,10 @@ export function StudentDashboard({ userName }: StudentDashboardProps) {
               </li>
               <li className="flex items-center gap-2">
                 <Sparkles className="size-4 text-[var(--primary)]" aria-hidden="true" />
-                <a href="/student/recommendations" className="hover:text-foreground hover:underline">
+                <a
+                  href="/student/recommendations"
+                  className="hover:text-foreground hover:underline"
+                >
                   Learning recommendations
                 </a>
               </li>

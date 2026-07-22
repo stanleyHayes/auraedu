@@ -1,17 +1,19 @@
 // Package postgres provides the Postgres implementations of the billing repository ports.
-//
-//nolint:misspell // British spelling "cancelled" is intentional for the billing domain.
 package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/auraedu/billing-service/internal/domain"
 	"github.com/auraedu/billing-service/internal/ports"
+	"github.com/auraedu/platform/auth"
 	"github.com/auraedu/platform/db"
+	"github.com/auraedu/platform/tenancy"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -25,9 +27,12 @@ type SubscriptionRepository struct{ db *db.DB }
 type SaaSInvoiceRepository struct{ db *db.DB }
 
 var (
-	_ ports.PlanRepository         = (*PlanRepository)(nil)
-	_ ports.SubscriptionRepository = (*SubscriptionRepository)(nil)
-	_ ports.SaaSInvoiceRepository  = (*SaaSInvoiceRepository)(nil)
+	_ ports.PlanRepository                  = (*PlanRepository)(nil)
+	_ ports.SubscriptionRepository          = (*SubscriptionRepository)(nil)
+	_ ports.SaaSInvoiceRepository           = (*SaaSInvoiceRepository)(nil)
+	_ ports.SubscriptionLifecycleRepository = (*SubscriptionRepository)(nil)
+	_ ports.InvoiceLifecycleRepository      = (*SaaSInvoiceRepository)(nil)
+	_ ports.OutboxRepository                = (*SubscriptionRepository)(nil)
 )
 
 // NewPlanRepository creates a Postgres-backed plan repository.
@@ -464,4 +469,154 @@ func datePtr(t *time.Time) *time.Time {
 	}
 	utc := t.UTC()
 	return &utc
+}
+
+func (r *SubscriptionRepository) CommitSubscriptionLifecycle(
+	ctx context.Context,
+	tenantID, mutation string,
+	subscription *domain.Subscription,
+	events []ports.LifecycleEvent,
+) error {
+	if subscription == nil || len(events) == 0 {
+		return errors.New("billing: subscription lifecycle requires a subscription and events")
+	}
+	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		switch mutation {
+		case ports.BillingMutationSubscriptionCreate:
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO billing_subscriptions (
+					id, tenant_id, plan_id, status, current_period_start, current_period_end,
+					trial_ends_at, cancelled_at, created_at, updated_at
+				) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+			`, subscriptionInsertArgs(subscription, tenantID)...); err != nil {
+				return fmt.Errorf("billing: create subscription lifecycle: %w", err)
+			}
+		case ports.BillingMutationSubscriptionUpdate:
+			result, err := tx.Exec(ctx, `
+				UPDATE billing_subscriptions
+				SET plan_id=$3,status=$4,current_period_start=$5,current_period_end=$6,
+					trial_ends_at=$7,cancelled_at=$8,updated_at=$9
+				WHERE id=$1 AND tenant_id=$2
+			`, subscriptionUpdateArgs(subscription, tenantID)...)
+			if err != nil {
+				return fmt.Errorf("billing: update subscription lifecycle: %w", err)
+			}
+			if result.RowsAffected() == 0 {
+				return domain.ErrNotFound
+			}
+		default:
+			return fmt.Errorf("billing: unsupported subscription lifecycle mutation %q", mutation)
+		}
+		return enqueueBillingEvents(ctx, tx, events)
+	})
+}
+
+func (r *SaaSInvoiceRepository) CommitInvoiceLifecycle(
+	ctx context.Context,
+	tenantID, mutation string,
+	invoice *domain.SaaSInvoice,
+	events []ports.LifecycleEvent,
+) error {
+	if invoice == nil || len(events) == 0 {
+		return errors.New("billing: invoice lifecycle requires an invoice and events")
+	}
+	if mutation != ports.BillingMutationInvoiceCreate {
+		return fmt.Errorf("billing: unsupported invoice lifecycle mutation %q", mutation)
+	}
+	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO billing_invoices (id,tenant_id,subscription_id,amount_cents,status,due_date,paid_at,created_at,updated_at)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+		`, invoice.ID, tenantID, invoice.SubscriptionID, invoice.AmountCents,
+			invoice.Status, datePtr(invoice.DueDate), invoice.PaidAt,
+			invoice.CreatedAt, invoice.UpdatedAt,
+		); err != nil {
+			return fmt.Errorf("billing: create invoice lifecycle: %w", err)
+		}
+		return enqueueBillingEvents(ctx, tx, events)
+	})
+}
+
+func enqueueBillingEvents(ctx context.Context, tx pgx.Tx, events []ports.LifecycleEvent) error {
+	for _, event := range events {
+		payload, err := json.Marshal(event.Payload)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO billing_outbox(id,tenant_id,event_type,payload)
+			VALUES($1,$2,$3,$4)`, uuid.NewString(), event.TenantID, event.EventType, payload); err != nil {
+			return fmt.Errorf("billing: enqueue lifecycle event: %w", err)
+		}
+	}
+	return nil
+}
+
+func subscriptionInsertArgs(subscription *domain.Subscription, tenantID string) []any {
+	return []any{
+		subscription.ID, tenantID, subscription.PlanID, subscription.Status,
+		subscription.CurrentPeriodStart, subscription.CurrentPeriodEnd,
+		subscription.TrialEndsAt, subscription.CancelledAt,
+		subscription.CreatedAt, subscription.UpdatedAt,
+	}
+}
+
+func subscriptionUpdateArgs(subscription *domain.Subscription, tenantID string) []any {
+	return []any{
+		subscription.ID, tenantID, subscription.PlanID, subscription.Status,
+		subscription.CurrentPeriodStart, subscription.CurrentPeriodEnd,
+		subscription.TrialEndsAt, subscription.CancelledAt, subscription.UpdatedAt,
+	}
+}
+
+func billingOutboxContext(ctx context.Context) context.Context {
+	ctx = auth.WithActor(ctx, auth.Actor{Role: auth.RolePlatformSuperAdmin, PlatformAdmin: true})
+	return tenancy.WithContext(ctx, tenancy.TenantContext{TenantID: "__billing_outbox__"})
+}
+
+func (r *SubscriptionRepository) ClaimPendingBillingEvents(ctx context.Context, limit int) ([]ports.OutboxEvent, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 25
+	}
+	items := make([]ports.OutboxEvent, 0, limit)
+	err := r.db.WithTx(billingOutboxContext(ctx), func(ctx context.Context, tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			UPDATE billing_outbox
+			SET attempts=attempts+1,
+				next_attempt_at=now()+(LEAST(300,power(2,attempts))*interval '1 second')
+			WHERE id IN (
+				SELECT id FROM billing_outbox
+				WHERE published_at IS NULL AND next_attempt_at<=now()
+				ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT $1
+			)
+			RETURNING id::text,tenant_id,event_type,payload
+		`, limit)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var item ports.OutboxEvent
+			if err := rows.Scan(&item.ID, &item.TenantID, &item.EventType, &item.Payload); err != nil {
+				return err
+			}
+			items = append(items, item)
+		}
+		return rows.Err()
+	})
+	return items, err
+}
+
+func (r *SubscriptionRepository) MarkBillingEventPublished(ctx context.Context, id string) error {
+	return r.db.WithTx(billingOutboxContext(ctx), func(ctx context.Context, tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `UPDATE billing_outbox SET published_at=now(),last_error=NULL WHERE id=$1`, id)
+		return err
+	})
+}
+
+func (r *SubscriptionRepository) MarkBillingEventFailed(ctx context.Context, id, message string) error {
+	return r.db.WithTx(billingOutboxContext(ctx), func(ctx context.Context, tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `UPDATE billing_outbox SET last_error=left($2,1000) WHERE id=$1`, id, message)
+		return err
+	})
 }

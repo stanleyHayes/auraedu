@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "build": "echo \"@auraedu/logger: source-only package\"",
-    "test": "echo \"no tests yet\""
+    "test": "node --test test/*.test.ts"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",

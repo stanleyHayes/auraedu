@@ -9,4 +9,5 @@ var (
 	ErrMissingTenant = errors.New("report: tenant context required")
 	ErrForbidden     = errors.New("report: forbidden")
 	ErrConflict      = errors.New("report: conflict")
+	ErrUnavailable   = errors.New("report: dependency unavailable")
 )

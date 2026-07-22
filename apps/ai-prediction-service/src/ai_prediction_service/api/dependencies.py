@@ -6,7 +6,7 @@ from typing import Annotated, Any
 from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ai_prediction_service.db import AsyncSessionLocal
+from ai_prediction_service.db import AsyncSessionLocal, set_tenant_context
 from ai_prediction_service.feature_flags import is_enabled
 
 
@@ -29,8 +29,18 @@ class Actor:
         return permission in self.permissions
 
 
-async def get_db() -> AsyncGenerator[AsyncSession]:
+async def get_db(
+    x_tenant_id: Annotated[str | None, Header()] = None,
+    x_tenant_code: Annotated[str | None, Header()] = None,
+) -> AsyncGenerator[AsyncSession]:
+    tenant_id = x_tenant_id or x_tenant_code
+    if not tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "validation_error", "message": "Tenant header required"},
+        )
     async with AsyncSessionLocal() as session:
+        await set_tenant_context(session, tenant_id)
         yield session
         await session.commit()
 
@@ -61,7 +71,17 @@ CurrentActor = Annotated[Actor, Depends(require_actor)]
 
 
 def require_permission(permission: str) -> Any:
-    def checker(actor: CurrentActor) -> Actor:
+    def checker(
+        actor: CurrentActor,
+        x_tenant_id: Annotated[str | None, Header()] = None,
+        x_tenant_code: Annotated[str | None, Header()] = None,
+    ) -> Actor:
+        tenant_id = x_tenant_id or x_tenant_code
+        if not tenant_id or actor.tenant_id != tenant_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"code": "tenant_mismatch", "message": "Actor tenant mismatch"},
+            )
         if not actor.has_permission(permission):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

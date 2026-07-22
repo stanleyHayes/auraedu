@@ -86,7 +86,7 @@ func TestRepository_Update(t *testing.T) {
 
 	s := mustCreate(ctx, t, repo, "Yaa", "Asantewaa", "teacher")
 	newName := "Nana"
-	if _, err := s.ApplyUpdate(&newName, nil, nil, nil, nil); err != nil {
+	if _, err := s.ApplyUpdate(&newName, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("apply update: %v", err)
 	}
 	if err := repo.Update(ctx, tenantA, s); err != nil {
@@ -99,6 +99,29 @@ func TestRepository_Update(t *testing.T) {
 	}
 	if got.FirstName != "Nana" {
 		t.Fatalf("first name not updated: %q", got.FirstName)
+	}
+}
+
+func TestRepository_GetByUserID(t *testing.T) {
+	ctx := withTenant(context.Background(), tenantA)
+	repo := newRepo(t)
+
+	s := mustCreate(ctx, t, repo, "Ama", "Mensah", "teacher")
+	userID := "33333333-3333-4333-8333-333333333333"
+	s.UserID = &userID
+	if err := repo.Update(ctx, tenantA, s); err != nil {
+		t.Fatalf("link identity user: %v", err)
+	}
+
+	got, err := repo.GetByUserID(ctx, tenantA, userID)
+	if err != nil {
+		t.Fatalf("get by user id: %v", err)
+	}
+	if got.ID != s.ID || got.UserID == nil || *got.UserID != userID {
+		t.Fatalf("linked staff mismatch: %+v", got)
+	}
+	if _, err := repo.GetByUserID(withTenant(context.Background(), tenantB), tenantB, userID); err == nil {
+		t.Fatal("tenant B must not resolve tenant A's staff identity")
 	}
 }
 
@@ -133,5 +156,82 @@ func TestRepository_TenantIsolation(t *testing.T) {
 	}
 	if len(list) != 0 {
 		t.Fatalf("tenant B should see 0 staff, got %d", len(list))
+	}
+}
+
+func TestRepository_LifecycleMutationAndOutboxAreAtomic(t *testing.T) {
+	ctx := withTenant(context.Background(), tenantA)
+	tdb := testkit.NewPostgres(context.Background(), t, "../../migrations")
+	repo := postgres.NewRepository(tdb.DB)
+	staff, err := domain.NewStaff(tenantA, "Durable", "Teacher", "teacher")
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := ports.StaffEventData(staff, nil)
+	if err := repo.CommitStaffLifecycle(ctx, tenantA, staff, ports.StaffMutationCreate, "staff.created.v1", payload); err != nil {
+		t.Fatalf("commit lifecycle: %v", err)
+	}
+	items, err := repo.ClaimPendingStaffEvents(context.Background(), 10)
+	if err != nil {
+		t.Fatalf("claim outbox: %v", err)
+	}
+	if len(items) != 1 || items[0].EventType != "staff.created.v1" || items[0].TenantID != tenantA {
+		t.Fatalf("unexpected outbox items: %+v", items)
+	}
+
+	rollbackStaff, err := domain.NewStaff(tenantA, "Rollback", "Teacher", "teacher")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tdb.DB.Pool().Exec(context.Background(), `DROP TABLE staff_outbox`); err != nil {
+		t.Fatalf("drop outbox: %v", err)
+	}
+	if err := repo.CommitStaffLifecycle(ctx, tenantA, rollbackStaff, ports.StaffMutationCreate, "staff.created.v1", ports.StaffEventData(rollbackStaff, nil)); err == nil {
+		t.Fatal("expected outbox failure")
+	}
+	if _, err := repo.GetByID(ctx, tenantA, rollbackStaff.ID); err == nil {
+		t.Fatal("staff mutation must roll back when outbox insert fails")
+	}
+}
+
+func TestRepository_AssignmentScopeAndEventAreTenantIsolated(t *testing.T) {
+	ctx := withTenant(context.Background(), tenantA)
+	tdb := testkit.NewPostgres(context.Background(), t, "../../migrations")
+	repo := postgres.NewRepository(tdb.DB)
+	staff := mustCreate(ctx, t, repo, "Scoped", "Teacher", "teacher")
+	assignment, err := domain.NewAssignment(tenantA, staff.ID, "44444444-4444-4444-8444-444444444444", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CreateAssignment(ctx, tenantA, assignment, ports.AssignmentEventData(assignment)); err != nil {
+		t.Fatalf("create assignment: %v", err)
+	}
+	rows, _, err := repo.ListAssignments(ctx, tenantA, staff.ID, 25, "")
+	if err != nil || len(rows) != 1 || rows[0].ClassID != assignment.ClassID {
+		t.Fatalf("assignments=%+v err=%v", rows, err)
+	}
+	classIDs, err := repo.ListAssignmentClassIDs(ctx, tenantA, staff.ID)
+	if err != nil || len(classIDs) != 1 || classIDs[0] != assignment.ClassID {
+		t.Fatalf("class_ids=%v err=%v", classIDs, err)
+	}
+	otherRows, _, err := repo.ListAssignments(withTenant(context.Background(), tenantB), tenantB, staff.ID, 25, "")
+	if err != nil || len(otherRows) != 0 {
+		t.Fatalf("tenant B assignments=%+v err=%v", otherRows, err)
+	}
+	items, err := repo.ClaimPendingStaffEvents(context.Background(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, item := range items {
+		if item.EventType == "staff.assigned.v1" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("staff.assigned.v1 event not queued: %+v", items)
+	}
+	if err := repo.DeleteAssignment(ctx, tenantA, staff.ID, assignment.ID); err != nil {
+		t.Fatal(err)
 	}
 }

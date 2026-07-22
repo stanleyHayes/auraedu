@@ -7,16 +7,25 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/auraedu/platform/auth"
+	"github.com/auraedu/platform/config"
 	"gopkg.in/yaml.v3"
 )
 
 var ErrFeatureDisabled = errors.New("flags: feature is disabled")
+
+const (
+	tenantServiceTimeout    = 4 * time.Second
+	maxFeatureResponseBytes = 1 << 20
+)
 
 type Gate interface {
 	IsEnabled(ctx context.Context, tenantID, key string) bool
@@ -58,8 +67,8 @@ func NewTenantServiceClient(baseURL string, fallback Gate) *TenantServiceClient 
 		fallback = NewStaticSnapshot()
 	}
 	return &TenantServiceClient{
-		baseURL:  strings.TrimRight(baseURL, "/"),
-		client:   http.DefaultClient,
+		baseURL:  config.ServiceURL(baseURL),
+		client:   &http.Client{Timeout: tenantServiceTimeout},
 		fallback: fallback,
 	}
 }
@@ -80,7 +89,16 @@ func (c *TenantServiceClient) IsEnabled(ctx context.Context, tenantID, key strin
 		return c.fallback.IsEnabled(ctx, tenantID, key)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/features?tenant="+tenantID, nil)
+	endpoint, err := url.Parse(c.baseURL)
+	if err != nil {
+		return c.fallback.IsEnabled(ctx, tenantID, key)
+	}
+	endpoint = endpoint.JoinPath("api", "v1", "features")
+	query := endpoint.Query()
+	query.Set("tenant", tenantID)
+	endpoint.RawQuery = query.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
 	if err != nil {
 		return c.fallback.IsEnabled(ctx, tenantID, key)
 	}
@@ -104,8 +122,12 @@ func (c *TenantServiceClient) IsEnabled(ctx context.Context, tenantID, key strin
 		return c.fallback.IsEnabled(ctx, tenantID, key)
 	}
 
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxFeatureResponseBytes+1))
+	if err != nil || len(body) > maxFeatureResponseBytes {
+		return c.fallback.IsEnabled(ctx, tenantID, key)
+	}
 	var fr featureResponse
-	if err := json.NewDecoder(resp.Body).Decode(&fr); err != nil {
+	if err := json.Unmarshal(body, &fr); err != nil {
 		return c.fallback.IsEnabled(ctx, tenantID, key)
 	}
 

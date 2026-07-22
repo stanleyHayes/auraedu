@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/auraedu/notification-service/internal/domain"
 	"github.com/auraedu/notification-service/internal/ports"
@@ -64,6 +65,13 @@ func (s *Service) ListAnnouncements(ctx context.Context, actor auth.Actor, filte
 		return nil, "", err
 	}
 	filter.Limit = normalizeLimit(filter.Limit)
+	if audience := roleAudience(actor.Role); audience != "" {
+		if filter.Audience != "" && filter.Audience != "all" && filter.Audience != audience {
+			return nil, "", domain.ErrForbidden
+		}
+		filter.Audience = ""
+		filter.Audiences = []string{"all", audience}
+	}
 	return s.announcementRepo.List(ctx, tenantID, filter)
 }
 
@@ -73,7 +81,27 @@ func (s *Service) GetAnnouncement(ctx context.Context, actor auth.Actor, id stri
 	if err != nil {
 		return nil, err
 	}
-	return s.announcementRepo.GetByID(ctx, tenantID, id)
+	announcement, err := s.announcementRepo.GetByID(ctx, tenantID, id)
+	if err != nil {
+		return nil, err
+	}
+	if audience := roleAudience(actor.Role); audience != "" && announcement.Audience != "all" && announcement.Audience != audience {
+		return nil, domain.ErrNotFound
+	}
+	return announcement, nil
+}
+
+func roleAudience(role string) string {
+	switch strings.ToLower(strings.TrimSpace(role)) {
+	case "teacher":
+		return "staff"
+	case "parent":
+		return "guardians"
+	case "student":
+		return "students"
+	default:
+		return ""
+	}
 }
 
 // DeleteAnnouncement removes an announcement.

@@ -129,6 +129,11 @@ features:
     description: WhatsApp notifications
     defaults: { upshs: optional, aboom: optional }
 
+  - key: push_notifications
+    plan_required: starter
+    description: Native mobile push notifications
+    defaults: { upshs: on, aboom: on }
+
   - key: analytics
     plan_required: professional
     description: Dashboards & KPIs
@@ -163,3 +168,64 @@ features:
     plan_required: core
     description: File uploads and storage
     defaults: { upshs: on, aboom: on }
+
+  # AuraEDU Growth — recruitment, admissions conversion and controlled AI automation.
+  - key: growth_crm
+    plan_required: growth
+    description: Recruitment CRM, lead pipeline, assignment and interaction history
+    defaults: { upshs: off, aboom: off }
+
+  - key: growth_campaigns
+    plan_required: professional
+    description: Campaign planning, approval, attribution and performance
+    defaults: { upshs: off, aboom: off }
+
+  - key: growth_content_ai
+    plan_required: ai_plus
+    description: Institution-grounded draft content generation and review
+    defaults: { upshs: off, aboom: off }
+
+  - key: growth_website_chat
+    plan_required: ai_plus
+    description: Source-cited public website admissions assistant
+    defaults: { upshs: off, aboom: off }
+
+  - key: growth_whatsapp
+    plan_required: professional
+    description: Consent-aware WhatsApp admissions journeys
+    defaults: { upshs: off, aboom: off }
+
+  - key: growth_lead_scoring
+    plan_required: professional
+    description: Explainable rules-based lead scoring
+    defaults: { upshs: off, aboom: off }
+
+  - key: growth_application_assistant
+    plan_required: professional
+    description: Application checklist, reminders and human escalation
+    defaults: { upshs: off, aboom: off }
+
+  - key: growth_reputation_monitor
+    plan_required: enterprise
+    description: Approved-source reputation monitoring and response drafting
+    defaults: { upshs: off, aboom: off }
+
+  - key: growth_competitor_monitor
+    plan_required: enterprise
+    description: Lawful competitor programme and campaign intelligence
+    defaults: { upshs: off, aboom: off }
+
+  - key: growth_predictive_analytics
+    plan_required: ai_plus
+    description: Enrolment forecasts and funnel anomaly detection
+    defaults: { upshs: off, aboom: off }
+
+  - key: growth_autonomous_actions
+    plan_required: enterprise
+    description: Policy-controlled low-risk AI action execution
+    defaults: { upshs: off, aboom: off }
+
+  - key: growth_alumni_marketing
+    plan_required: enterprise
+    description: Alumni referral and engagement campaigns
+    defaults: { upshs: off, aboom: off }

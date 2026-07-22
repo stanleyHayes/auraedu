@@ -1,8 +1,12 @@
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import type { TenantData } from "@/lib/tenant";
 import { fetchTenantBranding } from "@/lib/tenant";
 import { fetchWebsitePages, type WebsitePage } from "@/lib/website";
 import { PillNav, Watermark } from "@auraedu/ui";
+import { AdmissionsAssistant } from "@/components/admissions-assistant";
+import { AuraEduLogo } from "@/components/auraedu-logo";
+import { isFeatureEnabled } from "@/lib/features";
 
 interface PublicLayoutProps {
   children: React.ReactNode;
@@ -54,16 +58,32 @@ function PublicShell({
     label: page.title,
     href: page.slug === "home" ? homeHref : `/${tenantCode}/${page.slug}`,
   }));
+  if (isFeatureEnabled(tenant.features, "admissions")) {
+    navItems.push({
+      id: "programme-catalogue",
+      label: "Programmes",
+      href: `${homeHref}/programmes`,
+    });
+  }
 
   return (
-    <div className="relative flex min-h-screen flex-col bg-background text-foreground" style={themeStyle}>
+    <div
+      className="school-site relative flex min-h-screen flex-col bg-background text-foreground"
+      style={themeStyle}
+    >
+      <a className="app-skip-link" href="#school-site-main">
+        Skip to school content
+      </a>
       <PublicHeader tenant={tenant} tenantCode={tenantCode} navItems={navItems} />
-      <main className="relative flex-1 overflow-hidden">
+      <main id="school-site-main" className="relative flex-1 overflow-hidden" tabIndex={-1}>
         <Watermark className="pointer-events-none absolute left-1/2 top-24 -translate-x-1/2 text-[14rem] opacity-[0.025]">
           {tenant.short}
         </Watermark>
         {children}
       </main>
+      {isFeatureEnabled(tenant.features, "growth_website_chat") ? (
+        <AdmissionsAssistant tenantCode={tenantCode} schoolName={tenant.name} />
+      ) : null}
       <PublicFooter tenant={tenant} />
     </div>
   );
@@ -81,43 +101,63 @@ function PublicHeader({
   const homeHref = `/${tenantCode}`;
 
   return (
-    <header className="sticky top-0 z-30 border-b border-[var(--border)] bg-background/90 backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <Link href={homeHref} className="flex items-center gap-3">
+    <header className="school-site-header sticky top-0 z-30 border-b border-[var(--border)] bg-background/88 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-5 py-3.5 sm:px-6">
+        <Link href={homeHref} className="flex min-w-0 items-center gap-3">
           {tenant.branding.logo_url ? (
             <img
               src={tenant.branding.logo_url}
               alt=""
-              className="size-10 rounded-[var(--radius-sm)] object-contain"
+              className="size-11 rounded-xl border border-[var(--border)] bg-[var(--surface)] object-contain p-1.5 shadow-sm"
             />
           ) : (
-            <span className="grid size-10 place-items-center rounded-[var(--radius-sm)] bg-[var(--primary)] font-sans text-lg font-extrabold text-[var(--primary-foreground)]">
+            <span className="grid size-11 place-items-center rounded-xl bg-gradient-to-br from-[var(--primary)] to-[var(--color-navy)] font-sans text-lg font-extrabold text-[var(--primary-foreground)] shadow-md">
               {tenant.short.charAt(0)}
             </span>
           )}
-          <span className="font-sans text-xl font-bold text-[var(--foreground)]">
-            {tenant.name}
+          <span className="min-w-0">
+            <span className="block truncate font-sans text-base font-extrabold tracking-tight text-[var(--foreground)] sm:text-lg">
+              {tenant.name}
+            </span>
+            <span className="block font-mono text-[8px] font-black uppercase tracking-[0.18em] text-[var(--muted-foreground)] sm:text-[9px]">
+              Learning · community · progress
+            </span>
           </span>
         </Link>
 
-        {navItems.length > 0 ? (
-          <nav aria-label="School website" className="hidden md:block">
-            <PillNav items={navItems} />
-          </nav>
-        ) : null}
+        <Link
+          href="/login"
+          className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-[var(--color-navy)] px-3.5 text-xs font-extrabold text-white shadow-md transition-transform hover:-translate-y-px md:hidden"
+        >
+          Portal <ArrowRight className="size-3.5" aria-hidden="true" />
+        </Link>
+
+        <div className="hidden items-center gap-3 md:flex">
+          {navItems.length > 0 ? (
+            <nav aria-label="School website">
+              <PillNav items={navItems} />
+            </nav>
+          ) : null}
+          <Link
+            href="/login"
+            className="inline-flex h-10 items-center gap-2 rounded-full bg-[var(--color-navy)] px-4 text-sm font-extrabold text-white shadow-md transition-transform hover:-translate-y-px"
+          >
+            Portal <ArrowRight className="size-4" aria-hidden="true" />
+          </Link>
+        </div>
       </div>
 
       {navItems.length > 0 ? (
         <nav
           aria-label="School website mobile"
-          className="border-t border-[var(--border)] md:hidden"
+          className="border-t border-[var(--border)] bg-[var(--surface)]/76 md:hidden"
         >
-          <ul className="flex items-center gap-4 overflow-x-auto px-6 py-3">
+          <ul className="flex items-center gap-2 overflow-x-auto px-5 py-3">
             {navItems.map((page) => (
               <li key={page.id} className="shrink-0">
                 <a
                   href={page.href}
-                  className="rounded-[var(--radius-sm)] px-3 py-2 text-sm font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+                  className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs font-bold text-[var(--muted-foreground)] transition-colors hover:border-[var(--primary)] hover:text-[var(--foreground)]"
                 >
                   {page.label}
                 </a>
@@ -132,17 +172,25 @@ function PublicHeader({
 
 function PublicFooter({ tenant }: { tenant: TenantData }) {
   return (
-    <footer className="border-t border-[var(--border)] bg-[var(--surface)]">
-      <div className="mx-auto max-w-6xl px-6 py-8">
-        <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
-          <div className="flex items-center gap-2">
-            <span className="font-sans text-lg font-bold text-[var(--foreground)]">
-              {tenant.name}
-            </span>
+    <footer className="border-t border-white/10 bg-[var(--color-navy)] text-white">
+      <div className="mx-auto max-w-7xl px-6 py-10">
+        <div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-end">
+          <div>
+            <span className="font-sans text-xl font-extrabold tracking-tight">{tenant.name}</span>
+            <p className="mt-2 max-w-md text-sm leading-6 text-white/58">
+              A focused digital home for admissions, learning and the life of the school.
+            </p>
           </div>
-          <p className="text-sm text-[var(--muted-foreground)]">
-            © {new Date().getFullYear()} {tenant.name}. Powered by AuraEDU.
-          </p>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-2 text-sm text-white/58 md:justify-end">
+            <span>
+              © {new Date().getFullYear()} {tenant.name}.
+            </span>
+            <span className="text-white/35">Powered by</span>
+            <AuraEduLogo
+              tone="light"
+              className="h-5 w-auto opacity-80 transition-opacity hover:opacity-100"
+            />
+          </div>
         </div>
       </div>
     </footer>

@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "build": "echo \"@auraedu/api-client: source-only package\"",
-    "test": "echo \"no tests yet\""
+    "test": "node --test test/*.test.ts"
   },
   "dependencies": {
     "@auraedu/shared-types": "workspace:*"

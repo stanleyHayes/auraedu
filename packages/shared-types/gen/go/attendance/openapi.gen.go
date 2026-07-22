@@ -9,15 +9,35 @@ import (
 
 // AttendanceRecord generated from OpenAPI schema.
 type AttendanceRecord struct {
-	Id         string  `json:"id"`
-	TenantId   string  `json:"tenant_id"`
-	StudentId  string  `json:"student_id"`
-	ClassId    *string `json:"class_id,omitempty"`
-	SubjectId  *string `json:"subject_id,omitempty"`
-	Date       string  `json:"date"`
-	Status     string  `json:"status"`
-	RecordedBy *string `json:"recorded_by,omitempty"`
-	RecordedAt *string `json:"recorded_at,omitempty"`
+	Id             string  `json:"id"`
+	TenantId       string  `json:"tenant_id"`
+	StudentId      string  `json:"student_id"`
+	AcademicYearId *string `json:"academic_year_id,omitempty"`
+	ClassId        *string `json:"class_id,omitempty"`
+	SubjectId      *string `json:"subject_id,omitempty"`
+	Date           string  `json:"date"`
+	Status         string  `json:"status"`
+	Reason         *string `json:"reason,omitempty"`
+	MarkedBy       *string `json:"marked_by,omitempty"`
+	CreatedAt      *string `json:"created_at,omitempty"`
+	UpdatedAt      *string `json:"updated_at,omitempty"`
+}
+
+// CreateAttendance generated from OpenAPI schema.
+type CreateAttendance struct {
+	StudentId      string  `json:"student_id"`
+	AcademicYearId string  `json:"academic_year_id"`
+	Date           string  `json:"date"`
+	Status         string  `json:"status"`
+	Reason         *string `json:"reason,omitempty"`
+	MarkedBy       string  `json:"marked_by"`
+}
+
+// UpdateAttendance generated from OpenAPI schema.
+type UpdateAttendance struct {
+	Status   *string `json:"status,omitempty"`
+	Reason   *string `json:"reason,omitempty"`
+	MarkedBy *string `json:"marked_by,omitempty"`
 }
 
 // BulkAttendanceRequest generated from OpenAPI schema.
@@ -42,13 +62,19 @@ type AttendanceRecordList struct {
 // ServerInterface is implemented by the service HTTP adapter.
 type ServerInterface interface {
 	listAttendance(w http.ResponseWriter, r *http.Request)
+	createAttendance(w http.ResponseWriter, r *http.Request)
 	markAttendanceBulk(w http.ResponseWriter, r *http.Request)
-	getStudentAttendance(w http.ResponseWriter, r *http.Request)
+	getAttendance(w http.ResponseWriter, r *http.Request)
+	updateAttendance(w http.ResponseWriter, r *http.Request)
+	deleteAttendance(w http.ResponseWriter, r *http.Request)
 }
 
 // ClientInterface is the generated consumer stub for this service.
 type ClientInterface interface {
 	listAttendance(ctx context.Context) (*http.Response, error)
+	createAttendance(ctx context.Context) (*http.Response, error)
 	markAttendanceBulk(ctx context.Context) (*http.Response, error)
-	getStudentAttendance(ctx context.Context) (*http.Response, error)
+	getAttendance(ctx context.Context) (*http.Response, error)
+	updateAttendance(ctx context.Context) (*http.Response, error)
+	deleteAttendance(ctx context.Context) (*http.Response, error)
 }

@@ -23,7 +23,7 @@ func TestPaymentEventData_ContractFields(t *testing.T) {
 		t.Fatalf("apply update: %v", err)
 	}
 
-	data := events.PaymentEventData(p, map[string]any{"reason": "provider reported status failed"})
+	data := events.PaymentEventData("payment.received.v1", p, nil)
 
 	for _, key := range []string{"payment_id", "invoice_id", "amount", "gateway"} {
 		if _, ok := data[key]; !ok {
@@ -42,14 +42,16 @@ func TestPaymentEventData_ContractFields(t *testing.T) {
 	if data["gateway"] != "paystack" {
 		t.Fatalf("gateway mismatch: %v", data["gateway"])
 	}
-	if data["provider_reference"] != ref {
-		t.Fatalf("provider_reference mismatch: %v", data["provider_reference"])
+	if _, leaked := data["provider_reference"]; leaked {
+		t.Fatalf("received event leaked provider reference: %v", data)
 	}
-	if data["reason"] != "provider reported status failed" {
-		t.Fatalf("meta merge lost reason: %v", data)
-	}
-	if _, ok := data["completed_at"]; !ok {
-		t.Fatal("completed_at should be serialized when set")
+	failed := events.PaymentEventData(
+		"payment.failed.v1",
+		p,
+		map[string]any{"reason": "provider reported status failed"},
+	)
+	if failed["reason"] != "provider reported status failed" {
+		t.Fatalf("failed event lost reason: %v", failed)
 	}
 
 	// The whole payload must stay JSON-marshalable (CloudEvent data).

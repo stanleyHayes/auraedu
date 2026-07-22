@@ -4,6 +4,8 @@ info:
   version: 1.0.0
   description: >
     Daily and subject attendance (spec \u00a77). Owned by lane L2 (EP-13). Feature flag: attendance.
+  contact:
+    name: AuraEDU Engineering
 servers:
   - url: /api/v1
 tags:
@@ -13,12 +15,25 @@ paths:
     /attendance:
       get:
             operationId: listAttendance
+            description: Executes the list attendance workflow within this AuraEDU API boundary.
             tags: ['attendance']
             summary: List attendance records
             parameters:
               - $ref: '#/components/parameters/TenantHeader'
               - $ref: '#/components/parameters/Limit'
               - $ref: '#/components/parameters/Cursor'
+              - name: student_id
+                in: query
+                schema: { type: string, format: uuid }
+              - name: academic_year_id
+                in: query
+                schema: { type: string, format: uuid }
+              - name: date
+                in: query
+                schema: { type: string, format: date }
+              - name: status
+                in: query
+                schema: { type: string, enum: [present, absent, late, excused] }
             responses:
               '200':
                 description: OK
@@ -29,9 +44,31 @@ paths:
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
+      post:
+        operationId: createAttendance
+        description: Executes the create attendance workflow within this AuraEDU API boundary.
+        tags: ['attendance']
+        summary: Create an attendance record
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateAttendance' }
+        responses:
+          '201':
+            description: Attendance record
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/AttendanceRecord' }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '422': { $ref: '#/components/responses/ValidationError' }
     /attendance/bulk:
       post:
             operationId: markAttendanceBulk
+            description: Executes the mark attendance bulk workflow within this AuraEDU API boundary.
             tags: ['attendance']
             summary: Mark attendance in bulk
             parameters:
@@ -51,31 +88,66 @@ paths:
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
-    /students/{student_id}/attendance:
+    /attendance/{attendance_id}:
       get:
-            operationId: getStudentAttendance
+            operationId: getAttendance
+            description: Executes the get attendance workflow within this AuraEDU API boundary.
             tags: ['attendance']
-            summary: Get attendance for a student
+            summary: Get an attendance record
             parameters:
               - $ref: '#/components/parameters/TenantHeader'
-              - $ref: '#/components/parameters/TenantId'
-              - $ref: '#/components/parameters/Limit'
-              - $ref: '#/components/parameters/Cursor'
+              - $ref: '#/components/parameters/AttendanceId'
             responses:
               '200':
                 description: OK
                 content:
                   application/json:
-                    schema: { $ref: '#/components/schemas/AttendanceRecordList' }
+                    schema: { $ref: '#/components/schemas/AttendanceRecord' }
               '403': { $ref: '#/components/responses/Forbidden' }
               '404': { $ref: '#/components/responses/NotFound' }
               '422': { $ref: '#/components/responses/ValidationError' }
               '401': { $ref: '#/components/responses/Unauthorized' }
+      patch:
+        operationId: updateAttendance
+        description: Executes the update attendance workflow within this AuraEDU API boundary.
+        tags: ['attendance']
+        summary: Update an attendance record
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/AttendanceId'
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UpdateAttendance' }
+        responses:
+          '200':
+            description: Updated attendance record
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/AttendanceRecord' }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
+          '422': { $ref: '#/components/responses/ValidationError' }
+      delete:
+        operationId: deleteAttendance
+        description: Executes the delete attendance workflow within this AuraEDU API boundary.
+        tags: ['attendance']
+        summary: Delete an attendance record
+        parameters:
+          - $ref: '#/components/parameters/TenantHeader'
+          - $ref: '#/components/parameters/AttendanceId'
+        responses:
+          '204': { description: Attendance record deleted }
+          '401': { $ref: '#/components/responses/Unauthorized' }
+          '403': { $ref: '#/components/responses/Forbidden' }
+          '404': { $ref: '#/components/responses/NotFound' }
 
 components:
   parameters:
-    TenantId:
-      name: tenant_id
+    AttendanceId:
+      name: attendance_id
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -107,14 +179,33 @@ components:
         required: [id, tenant_id, student_id, date, status]
         properties:
           id: { type: string, format: uuid }
-          tenant_id: { type: string, format: uuid }
+          tenant_id: { type: string }
           student_id: { type: string, format: uuid }
+          academic_year_id: { type: string, format: uuid }
           class_id: { type: [string, 'null'], format: uuid }
           subject_id: { type: [string, 'null'], format: uuid }
           date: { type: string, format: date }
           status: { type: string, enum: [present, absent, late, excused] }
-          recorded_by: { type: string, format: uuid }
-          recorded_at: { type: string, format: date-time }
+          reason: { type: [string, 'null'] }
+          marked_by: { type: string }
+          created_at: { type: string, format: date-time }
+          updated_at: { type: string, format: date-time }
+    CreateAttendance:
+        type: object
+        required: [student_id, academic_year_id, date, status, marked_by]
+        properties:
+          student_id: { type: string, format: uuid }
+          academic_year_id: { type: string, format: uuid }
+          date: { type: string, format: date }
+          status: { type: string, enum: [present, absent, late, excused] }
+          reason: { type: [string, 'null'] }
+          marked_by: { type: string }
+    UpdateAttendance:
+        type: object
+        properties:
+          status: { type: string, enum: [present, absent, late, excused] }
+          reason: { type: [string, 'null'] }
+          marked_by: { type: string }
     BulkAttendanceRequest:
         type: object
         required: [date, academic_year_id, records]
@@ -167,4 +258,3 @@ components:
 
 security:
   - bearerAuth: []
-

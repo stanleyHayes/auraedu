@@ -31,7 +31,7 @@ type ReportCard struct {
 	TermID         string     `json:"term_id,omitempty"`
 	TemplateID     string     `json:"template_id,omitempty"`
 	Status         string     `json:"status"`
-	PDFPath        *string    `json:"pdf_path,omitempty"`
+	PDFPath        *string    `json:"-"` // internal storage key; never expose through REST
 	GeneratedAt    *time.Time `json:"generated_at,omitempty"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`

@@ -2,3 +2,311 @@
 @import "@auraedu/tokens/globals.css";
 
 @source "../../../packages/ui/src";
+
+:root {
+  --font-outfit: "Avenir Next", Avenir, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-spline-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+.app-skip-link {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 100;
+  transform: translateY(-160%);
+  border-radius: var(--radius-sm);
+  background: var(--primary);
+  padding: 0.75rem 1rem;
+  color: var(--primary-foreground);
+  font-size: 0.875rem;
+  font-weight: 800;
+  transition: transform 160ms ease;
+}
+
+.app-skip-link:focus {
+  transform: translateY(0);
+  outline: 3px solid var(--background);
+  outline-offset: 2px;
+}
+
+/* Portal atmosphere — calm enough for daily work, distinctive enough to feel like AuraEDU. */
+.portal-frame {
+  --portal-accent: var(--color-brand);
+  --portal-accent-soft: var(--color-teal-bright);
+  --portal-signal: var(--color-signal);
+  --portal-glow: color-mix(in oklab, var(--portal-accent) 14%, transparent);
+  background: var(--background);
+}
+
+.portal-frame[data-role="teacher"] {
+  --portal-accent: #087f8c;
+  --portal-accent-soft: #63d5da;
+}
+
+.portal-frame[data-role="parent"] {
+  --portal-accent: #f46c2f;
+  --portal-accent-soft: #ffd1bd;
+}
+
+.portal-frame[data-role="student"],
+.portal-frame[data-role="applicant"] {
+  --portal-accent: #1557ff;
+  --portal-accent-soft: #63d5da;
+}
+
+.portal-sidebar {
+  background:
+    radial-gradient(
+      circle at 12% 4%,
+      color-mix(in oklab, var(--portal-accent) 42%, transparent),
+      transparent 24rem
+    ),
+    radial-gradient(
+      circle at 96% 88%,
+      color-mix(in oklab, var(--portal-accent-soft) 22%, transparent),
+      transparent 20rem
+    ),
+    linear-gradient(165deg, #071a39 0%, var(--color-navy) 52%, #041026 100%);
+}
+
+.portal-workspace {
+  background:
+    radial-gradient(circle at 82% 4%, var(--portal-glow), transparent 30rem),
+    radial-gradient(
+      circle at 12% 92%,
+      color-mix(in oklab, var(--color-forest) 8%, transparent),
+      transparent 34rem
+    ),
+    var(--background);
+}
+
+.portal-workspace::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+  background-image:
+    linear-gradient(color-mix(in oklab, var(--border) 28%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--border) 28%, transparent) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.38), transparent 56%);
+  opacity: 0.36;
+}
+
+.portal-topbar {
+  box-shadow: 0 12px 30px color-mix(in oklab, var(--color-navy) 5%, transparent);
+}
+
+.portal-main > div > * {
+  animation: portal-enter 0.52s var(--ease-spring) both;
+}
+
+.portal-main .card {
+  border-radius: 16px;
+  box-shadow: 0 10px 36px color-mix(in oklab, var(--color-navy) 5%, transparent);
+}
+
+.portal-main .card:hover {
+  border-color: color-mix(in oklab, var(--portal-accent) 28%, var(--border));
+}
+
+/* Give legacy module wrappers the same depth as the shared cards without forcing
+   every route to fork a new component. */
+.portal-main :is(section, article)[class*="bg-[var(--surface)]"][class*="border"] {
+  box-shadow: 0 12px 38px color-mix(in oklab, var(--color-navy) 5%, transparent);
+  transition:
+    border-color 220ms var(--ease-out-quart),
+    box-shadow 220ms var(--ease-out-quart),
+    transform 220ms var(--ease-spring);
+}
+
+.portal-main :is(section, article)[class*="bg-[var(--surface)]"][class*="border"]:hover {
+  border-color: color-mix(in oklab, var(--portal-accent) 26%, var(--border));
+  box-shadow: 0 18px 48px color-mix(in oklab, var(--color-navy) 8%, transparent);
+}
+
+.portal-main :is(input, select, textarea) {
+  background: color-mix(in oklab, var(--surface) 94%, var(--portal-accent));
+}
+
+.portal-hero {
+  isolation: isolate;
+  position: relative;
+  overflow: hidden;
+  border-color: color-mix(in oklab, var(--portal-accent) 22%, var(--border));
+  background:
+    radial-gradient(
+      circle at 92% 10%,
+      color-mix(in oklab, var(--portal-accent) 17%, transparent),
+      transparent 17rem
+    ),
+    linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--surface) 96%, var(--portal-accent)) 0%,
+      var(--surface) 60%
+    );
+}
+
+.portal-hero::before {
+  position: absolute;
+  right: -3rem;
+  bottom: -4.5rem;
+  z-index: -1;
+  width: 13rem;
+  height: 13rem;
+  border: 1px solid color-mix(in oklab, var(--portal-accent) 18%, transparent);
+  border-radius: 999px;
+  content: "";
+  box-shadow:
+    0 0 0 2.5rem color-mix(in oklab, var(--portal-accent) 4%, transparent),
+    0 0 0 5rem color-mix(in oklab, var(--portal-accent-soft) 4%, transparent);
+}
+
+.portal-page-header::after {
+  position: absolute;
+  right: 1.5rem;
+  bottom: 1.25rem;
+  width: 4.5rem;
+  height: 0.35rem;
+  border-radius: 999px;
+  content: "";
+  background: linear-gradient(
+    90deg,
+    var(--portal-accent),
+    var(--portal-accent-soft),
+    var(--portal-signal)
+  );
+  opacity: 0.65;
+}
+
+.portal-main :is(button, a, input, select, textarea) {
+  transition-duration: 200ms;
+  transition-timing-function: var(--ease-out-quart);
+}
+
+.portal-main :is(input, select, textarea):focus-visible {
+  border-color: var(--portal-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--portal-accent) 14%, transparent);
+}
+
+@keyframes portal-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-main > div > * {
+    animation: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .portal-page-header::after {
+    display: none;
+  }
+}
+
+.auth-story {
+  background:
+    linear-gradient(rgba(6, 22, 49, 0.25), rgba(6, 22, 49, 0.72)),
+    radial-gradient(circle at 75% 18%, rgba(21, 87, 255, 0.55), transparent 34rem),
+    linear-gradient(145deg, #0c2857, #061631 58%, #041026);
+}
+
+/* Tenant public websites share AuraEDU's product polish while the live tenant
+   colour remains the lead accent. */
+.school-site {
+  --portal-accent: var(--color-brand);
+  --portal-accent-soft: var(--color-teal-bright);
+  background:
+    radial-gradient(
+      circle at 82% 0%,
+      color-mix(in oklab, var(--color-brand) 13%, transparent),
+      transparent 31rem
+    ),
+    linear-gradient(color-mix(in oklab, var(--border) 24%, transparent) 1px, transparent 1px),
+    linear-gradient(
+      90deg,
+      color-mix(in oklab, var(--border) 24%, transparent) 1px,
+      transparent 1px
+    ),
+    var(--background);
+  background-size:
+    auto,
+    48px 48px,
+    48px 48px,
+    auto;
+}
+
+.school-site-header {
+  box-shadow: 0 14px 42px color-mix(in oklab, var(--color-navy) 7%, transparent);
+}
+
+.school-site-hero {
+  background:
+    radial-gradient(
+      circle at 80% 18%,
+      color-mix(in oklab, var(--color-brand) 58%, transparent),
+      transparent 28rem
+    ),
+    radial-gradient(
+      circle at 18% 92%,
+      color-mix(in oklab, var(--color-forest) 28%, transparent),
+      transparent 24rem
+    ),
+    linear-gradient(145deg, #0c2857 0%, #061631 64%, #041026 100%);
+}
+
+.school-site-card {
+  box-shadow: 0 16px 46px color-mix(in oklab, var(--color-navy) 8%, transparent);
+  transition:
+    transform 240ms var(--ease-spring),
+    border-color 240ms var(--ease-out-quart),
+    box-shadow 240ms var(--ease-out-quart);
+}
+
+.school-site-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in oklab, var(--color-brand) 34%, var(--border));
+  box-shadow: 0 22px 58px color-mix(in oklab, var(--color-navy) 11%, transparent);
+}
+
+.journey-input {
+  margin-top: 0.5rem;
+  min-height: 2.75rem;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--background);
+  padding: 0.65rem 0.75rem;
+  font-weight: 400;
+  color: var(--foreground);
+  outline: none;
+  transition:
+    border-color 180ms var(--ease-out-quart),
+    box-shadow 180ms var(--ease-out-quart),
+    background-color 180ms var(--ease-out-quart);
+}
+
+.journey-input:focus-visible {
+  border-color: var(--primary);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 18%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .school-site-card,
+  .portal-main :is(section, article)[class*="bg-[var(--surface)]"][class*="border"] {
+    transition: none;
+  }
+
+  .school-site-card:hover {
+    transform: none;
+  }
+}

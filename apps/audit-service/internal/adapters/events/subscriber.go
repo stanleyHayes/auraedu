@@ -3,53 +3,56 @@ package events
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/auraedu/audit-service/internal/ports"
 	"github.com/auraedu/platform/eventbus"
+	"github.com/auraedu/platform/observ"
 	"github.com/auraedu/platform/tenancy"
-	"github.com/nats-io/nats.go"
 )
 
-const subjectAll = "AURA.>"
-
-// envelope extends the platform CloudEvent with the actorid extension, which is
-// not part of the base type.
-type envelope struct {
-	tenancy.CloudEvent
-	ActorID string `json:"actorid,omitempty"`
-}
+const subjectAll = ">"
 
 // Subscriber consumes all events from the NATS JetStream event bus and
 // dispatches them to a ports.Handler.
 type Subscriber struct {
 	js      eventbus.JetStreamContext
-	sub     *nats.Subscription
+	sub     *eventbus.Subscription
 	handler ports.Handler
 	log     *slog.Logger
+	metrics *observ.WorkerMetrics
 }
 
 // NewSubscriber creates a NATS JetStream subscriber.
-func NewSubscriber(js eventbus.JetStreamContext, log *slog.Logger) *Subscriber {
-	return &Subscriber{js: js, log: log}
+func NewSubscriber(js eventbus.JetStreamContext, log *slog.Logger, metrics ...*observ.WorkerMetrics) *Subscriber {
+	if log == nil {
+		log = slog.Default()
+	}
+	var workerMetrics *observ.WorkerMetrics
+	if len(metrics) > 0 {
+		workerMetrics = metrics[0]
+	}
+	return &Subscriber{js: js, log: log, metrics: workerMetrics}
 }
 
 // Start registers a durable consumer named "audit-sink" on all AURA events.
 func (s *Subscriber) Start(_ context.Context, handler ports.Handler) error {
 	s.handler = handler
-	sub, err := s.js.Subscribe(subjectAll, s.handleMsg,
-		nats.Durable("audit-sink"),
-		nats.ManualAck(),
-		nats.AckWait(30*time.Second),
+	sub, err := eventbus.Subscribe(
+		s.js,
+		eventbus.EventStreamName,
+		"audit-sink",
+		subjectAll,
+		s.handleEvent,
+		nil,
 	)
 	if err != nil {
 		return fmt.Errorf("events: subscribe: %w", err)
 	}
 	s.sub = sub
-	s.log.Info("audit sink subscriber started", "subject", subjectAll, "consumer", "audit-sink")
+	s.log.Info("audit sink subscriber started", "subject", "AURA.>", "consumer", "audit-sink")
 	return nil
 }
 
@@ -64,29 +67,13 @@ func (s *Subscriber) Stop() error {
 	return nil
 }
 
-func (s *Subscriber) handleMsg(msg *nats.Msg) {
-	ctx := context.Background()
-	var env envelope
-	if err := json.Unmarshal(msg.Data, &env); err != nil {
-		s.log.Error("events: unmarshal message", "err", err)
-		_ = msg.Nak()
-		return
-	}
-	if err := env.Validate(); err != nil {
-		s.log.Error("events: invalid cloudevent", "err", err)
-		_ = msg.Nak()
-		return
-	}
-
-	ctx = tenancy.WithContext(ctx, tenancy.TenantContext{
-		TenantID: env.TenantID,
-		ActorID:  env.ActorID,
-	})
-
-	if err := s.handler(ctx, env.CloudEvent); err != nil {
+func (s *Subscriber) handleEvent(ctx context.Context, event tenancy.CloudEvent) error {
+	started := time.Now()
+	if err := s.handler(ctx, event); err != nil {
+		s.metrics.Observe(ctx, "audit-sink", started, err)
 		s.log.Error("events: handler failed", "err", err)
-		_ = msg.Term()
-		return
+		return err
 	}
-	_ = msg.Ack()
+	s.metrics.Observe(ctx, "audit-sink", started, nil)
+	return nil
 }

@@ -16,7 +16,12 @@ import (
 )
 
 func newBulkMux(gates *flags.StaticSnapshot) *http.ServeMux {
-	svc := application.NewService(&fakeRepo{}, application.WithPublisher(&fakePublisher{}), application.WithFeatureGate(gates))
+	svc := application.NewService(
+		&fakeRepo{},
+		application.WithPublisher(&fakePublisher{}),
+		application.WithFeatureGate(gates),
+		application.WithLearnerScopeResolver(scopeResolver{ids: []string{bulkStu1, bulkStu2}, classIDs: []string{bulkClass}}),
+	)
 	mux := http.NewServeMux()
 	httpadapter.NewHandler(svc).Register(mux)
 	return mux

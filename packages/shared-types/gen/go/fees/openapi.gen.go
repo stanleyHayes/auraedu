@@ -9,78 +9,135 @@ import (
 
 // FeeStructure generated from OpenAPI schema.
 type FeeStructure struct {
-	Id       string    `json:"id"`
-	TenantId string    `json:"tenant_id"`
-	Name     string    `json:"name"`
-	ClassIds *[]string `json:"class_ids,omitempty"`
-	Amount   *float64  `json:"amount,omitempty"`
-	TermId   *string   `json:"term_id,omitempty"`
+	Id             string  `json:"id"`
+	TenantId       string  `json:"tenant_id"`
+	Name           string  `json:"name"`
+	AcademicYearId string  `json:"academic_year_id"`
+	AmountCents    int     `json:"amount_cents"`
+	Currency       string  `json:"currency"`
+	Recurrence     string  `json:"recurrence"`
+	Target         string  `json:"target"`
+	DueDay         *int    `json:"due_day,omitempty"`
+	Description    *string `json:"description,omitempty"`
+	Status         string  `json:"status"`
+	CreatedAt      string  `json:"created_at"`
+	UpdatedAt      string  `json:"updated_at"`
 }
 
 // CreateFeeStructure generated from OpenAPI schema.
 type CreateFeeStructure struct {
-	Name     string    `json:"name"`
-	ClassIds *[]string `json:"class_ids,omitempty"`
-	Amount   float64   `json:"amount"`
-	TermId   *string   `json:"term_id,omitempty"`
+	Name           string  `json:"name"`
+	AcademicYearId string  `json:"academic_year_id"`
+	AmountCents    int     `json:"amount_cents"`
+	Currency       *string `json:"currency,omitempty"`
+	Recurrence     string  `json:"recurrence"`
+	Target         string  `json:"target"`
+	DueDay         *int    `json:"due_day,omitempty"`
+	Description    *string `json:"description,omitempty"`
+}
+
+// UpdateFeeStructure generated from OpenAPI schema.
+type UpdateFeeStructure struct {
+	Name           *string `json:"name,omitempty"`
+	AcademicYearId *string `json:"academic_year_id,omitempty"`
+	AmountCents    *int    `json:"amount_cents,omitempty"`
+	Currency       *string `json:"currency,omitempty"`
+	Recurrence     *string `json:"recurrence,omitempty"`
+	Target         *string `json:"target,omitempty"`
+	DueDay         *int    `json:"due_day,omitempty"`
+	Description    *string `json:"description,omitempty"`
+	Status         *string `json:"status,omitempty"`
 }
 
 // Invoice generated from OpenAPI schema.
 type Invoice struct {
-	Id         string   `json:"id"`
-	TenantId   string   `json:"tenant_id"`
-	StudentId  string   `json:"student_id"`
-	AmountDue  float64  `json:"amount_due"`
-	AmountPaid *float64 `json:"amount_paid,omitempty"`
-	DueDate    *string  `json:"due_date,omitempty"`
-	Status     *string  `json:"status,omitempty"`
+	Id             string  `json:"id"`
+	TenantId       string  `json:"tenant_id"`
+	StudentId      string  `json:"student_id"`
+	FeeStructureId string  `json:"fee_structure_id"`
+	AmountCents    int     `json:"amount_cents"`
+	BalanceCents   int     `json:"balance_cents"`
+	Status         string  `json:"status"`
+	DueDate        *string `json:"due_date,omitempty"`
+	IssuedAt       string  `json:"issued_at"`
+	Notes          *string `json:"notes,omitempty"`
+	CreatedAt      string  `json:"created_at"`
+	UpdatedAt      string  `json:"updated_at"`
 }
 
 // CreateInvoice generated from OpenAPI schema.
 type CreateInvoice struct {
-	StudentId string  `json:"student_id"`
-	AmountDue float64 `json:"amount_due"`
-	DueDate   *string `json:"due_date,omitempty"`
+	StudentId      string  `json:"student_id"`
+	FeeStructureId string  `json:"fee_structure_id"`
+	AmountCents    *int    `json:"amount_cents,omitempty"`
+	BalanceCents   *int    `json:"balance_cents,omitempty"`
+	DueDate        *string `json:"due_date,omitempty"`
+	Notes          *string `json:"notes,omitempty"`
+}
+
+// UpdateInvoice generated from OpenAPI schema.
+type UpdateInvoice struct {
+	AmountCents  *int    `json:"amount_cents,omitempty"`
+	BalanceCents *int    `json:"balance_cents,omitempty"`
+	Status       *string `json:"status,omitempty"`
+	DueDate      *string `json:"due_date,omitempty"`
+	Notes        *string `json:"notes,omitempty"`
+}
+
+// CurrencyBalance generated from OpenAPI schema.
+type CurrencyBalance struct {
+	Currency           string `json:"currency"`
+	TotalInvoicedCents int    `json:"total_invoiced_cents"`
+	TotalPaidCents     int    `json:"total_paid_cents"`
+	OutstandingCents   int    `json:"outstanding_cents"`
 }
 
 // Balance generated from OpenAPI schema.
 type Balance struct {
-	StudentId   string   `json:"student_id"`
-	TotalDue    float64  `json:"total_due"`
-	TotalPaid   float64  `json:"total_paid"`
-	Outstanding *float64 `json:"outstanding,omitempty"`
+	StudentId string            `json:"student_id"`
+	Totals    []CurrencyBalance `json:"totals"`
 }
 
 // Receipt generated from OpenAPI schema.
 type Receipt struct {
-	Id        string  `json:"id"`
-	TenantId  string  `json:"tenant_id"`
-	InvoiceId string  `json:"invoice_id"`
-	Amount    float64 `json:"amount"`
-	PaymentId *string `json:"payment_id,omitempty"`
-	IssuedAt  *string `json:"issued_at,omitempty"`
+	Id                string  `json:"id"`
+	TenantId          string  `json:"tenant_id"`
+	InvoiceId         string  `json:"invoice_id"`
+	StudentId         string  `json:"student_id"`
+	PaymentId         string  `json:"payment_id"`
+	AmountCents       int     `json:"amount_cents"`
+	AppliedCents      int     `json:"applied_cents"`
+	OverpaymentCents  int     `json:"overpayment_cents"`
+	Currency          string  `json:"currency"`
+	ProviderReference *string `json:"provider_reference,omitempty"`
+	IssuedAt          string  `json:"issued_at"`
 }
 
 // FeeStructureList generated from OpenAPI schema.
 type FeeStructureList struct {
-	Data       *[]FeeStructure `json:"data,omitempty"`
-	NextCursor *string         `json:"next_cursor,omitempty"`
+	Data       []FeeStructure `json:"data"`
+	NextCursor *string        `json:"next_cursor"`
 }
 
 // InvoiceList generated from OpenAPI schema.
 type InvoiceList struct {
-	Data       *[]Invoice `json:"data,omitempty"`
-	NextCursor *string    `json:"next_cursor,omitempty"`
+	Data       []Invoice `json:"data"`
+	NextCursor *string   `json:"next_cursor"`
 }
 
 // ServerInterface is implemented by the service HTTP adapter.
 type ServerInterface interface {
 	listFeeStructures(w http.ResponseWriter, r *http.Request)
 	createFeeStructure(w http.ResponseWriter, r *http.Request)
+	getFeeStructure(w http.ResponseWriter, r *http.Request)
+	updateFeeStructure(w http.ResponseWriter, r *http.Request)
+	deleteFeeStructure(w http.ResponseWriter, r *http.Request)
 	listInvoices(w http.ResponseWriter, r *http.Request)
 	createInvoice(w http.ResponseWriter, r *http.Request)
 	getInvoice(w http.ResponseWriter, r *http.Request)
-	getBalance(w http.ResponseWriter, r *http.Request)
+	updateInvoice(w http.ResponseWriter, r *http.Request)
+	deleteInvoice(w http.ResponseWriter, r *http.Request)
+	getStudentBalance(w http.ResponseWriter, r *http.Request)
 	getReceipt(w http.ResponseWriter, r *http.Request)
 }
 
@@ -88,9 +145,14 @@ type ServerInterface interface {
 type ClientInterface interface {
 	listFeeStructures(ctx context.Context) (*http.Response, error)
 	createFeeStructure(ctx context.Context) (*http.Response, error)
+	getFeeStructure(ctx context.Context) (*http.Response, error)
+	updateFeeStructure(ctx context.Context) (*http.Response, error)
+	deleteFeeStructure(ctx context.Context) (*http.Response, error)
 	listInvoices(ctx context.Context) (*http.Response, error)
 	createInvoice(ctx context.Context) (*http.Response, error)
 	getInvoice(ctx context.Context) (*http.Response, error)
-	getBalance(ctx context.Context) (*http.Response, error)
+	updateInvoice(ctx context.Context) (*http.Response, error)
+	deleteInvoice(ctx context.Context) (*http.Response, error)
+	getStudentBalance(ctx context.Context) (*http.Response, error)
 	getReceipt(ctx context.Context) (*http.Response, error)
 }

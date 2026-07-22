@@ -1,0 +1,81 @@
+{
+  "name": "auraedu-authenticated-core",
+  "environment": "staging",
+  "base_url": "https://staging-api.auraedu.example",
+  "duration": "5m",
+  "concurrency": 50,
+  "rate_per_second": 100,
+  "min_requests_per_second": 90,
+  "timeout": "5s",
+  "max_error_rate": 0.01,
+  "p95_ms": 750,
+  "p99_ms": 1500,
+  "required_tenant_count": 2,
+  "require_authentication": true,
+  "tenants": [
+    { "code": "school-a", "token": "replace-at-runtime" },
+    { "code": "school-b", "token": "replace-at-runtime" }
+  ],
+  "requests": [
+    {
+      "name": "students",
+      "method": "GET",
+      "path": "/api/v1/students?limit=25",
+      "expected_status": [200]
+    },
+    {
+      "name": "staff",
+      "method": "GET",
+      "path": "/api/v1/staff?limit=25",
+      "expected_status": [200]
+    },
+    {
+      "name": "academic",
+      "method": "GET",
+      "path": "/api/v1/academic-years?limit=25",
+      "expected_status": [200]
+    },
+    {
+      "name": "attendance",
+      "method": "GET",
+      "path": "/api/v1/attendance?limit=25",
+      "expected_status": [200]
+    },
+    {
+      "name": "assessments",
+      "method": "GET",
+      "path": "/api/v1/assessments?limit=25",
+      "expected_status": [200]
+    },
+    {
+      "name": "reports",
+      "method": "GET",
+      "path": "/api/v1/report-cards?limit=25",
+      "expected_status": [200]
+    },
+    {
+      "name": "fees",
+      "method": "GET",
+      "path": "/api/v1/invoices?limit=25",
+      "expected_status": [200]
+    },
+    {
+      "name": "notifications",
+      "method": "GET",
+      "path": "/api/v1/messages?limit=25",
+      "expected_status": [200]
+    },
+    {
+      "name": "website",
+      "method": "GET",
+      "path": "/api/v1/website/pages?limit=25",
+      "expected_status": [200]
+    },
+    {
+      "name": "analytics",
+      "method": "GET",
+      "path": "/api/v1/analytics/metrics?limit=25",
+      "expected_status": [200]
+    }
+  ]
+}

@@ -9,15 +9,34 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List fee structures */
+        /** @description Executes the list fee structures workflow within this AuraEDU API boundary. */
         get: operations["listFeeStructures"];
         put?: never;
-        /** Create a fee structure */
+        /** @description Executes the create fee structure workflow within this AuraEDU API boundary. */
         post: operations["createFeeStructure"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/fee-structures/{fee_structure_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Executes the get fee structure workflow within this AuraEDU API boundary. */
+        get: operations["getFeeStructure"];
+        put?: never;
+        post?: never;
+        /** @description Executes the delete fee structure workflow within this AuraEDU API boundary. */
+        delete: operations["deleteFeeStructure"];
+        options?: never;
+        head?: never;
+        /** @description Executes the update fee structure workflow within this AuraEDU API boundary. */
+        patch: operations["updateFeeStructure"];
         trace?: never;
     };
     "/invoices": {
@@ -27,10 +46,10 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List invoices */
+        /** @description Executes the list invoices workflow within this AuraEDU API boundary. */
         get: operations["listInvoices"];
         put?: never;
-        /** Create an invoice */
+        /** @description Executes the create invoice workflow within this AuraEDU API boundary. */
         post: operations["createInvoice"];
         delete?: never;
         options?: never;
@@ -45,14 +64,16 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get an invoice */
+        /** @description Executes the get invoice workflow within this AuraEDU API boundary. */
         get: operations["getInvoice"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** @description Executes the delete invoice workflow within this AuraEDU API boundary. */
+        delete: operations["deleteInvoice"];
         options?: never;
         head?: never;
-        patch?: never;
+        /** @description Executes the update invoice workflow within this AuraEDU API boundary. */
+        patch: operations["updateInvoice"];
         trace?: never;
     };
     "/balances/{student_id}": {
@@ -62,8 +83,11 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get a student balance */
-        get: operations["getBalance"];
+        /**
+         * Derive the learner invoice ledger grouped by currency
+         * @description Executes the get student balance workflow within this AuraEDU API boundary.
+         */
+        get: operations["getStudentBalance"];
         put?: never;
         post?: never;
         delete?: never;
@@ -79,7 +103,7 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get a receipt */
+        /** @description Executes the get receipt workflow within this AuraEDU API boundary. */
         get: operations["getReceipt"];
         put?: never;
         post?: never;
@@ -102,70 +126,133 @@ export type components = {
         FeeStructure: {
             /** Format: uuid */
             id: string;
-            /** Format: uuid */
             tenant_id: string;
             name: string;
-            class_ids?: string[];
-            amount?: number;
             /** Format: uuid */
-            term_id?: string | null;
+            academic_year_id: string;
+            amount_cents: number;
+            currency: string;
+            /** @enum {string} */
+            recurrence: "one_time" | "termly" | "monthly" | "annually";
+            /** @enum {string} */
+            target: "all_students" | "specific_student";
+            due_day?: number | null;
+            description?: string | null;
+            /** @enum {string} */
+            status: "active" | "archived";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
         };
         CreateFeeStructure: {
             name: string;
-            class_ids?: string[];
-            amount: number;
             /** Format: uuid */
-            term_id?: string | null;
+            academic_year_id: string;
+            amount_cents: number;
+            /** @default GHS */
+            currency: string;
+            /** @enum {string} */
+            recurrence: "one_time" | "termly" | "monthly" | "annually";
+            /** @enum {string} */
+            target: "all_students" | "specific_student";
+            due_day?: number | null;
+            description?: string | null;
+        };
+        UpdateFeeStructure: {
+            name?: string;
+            /** Format: uuid */
+            academic_year_id?: string;
+            amount_cents?: number;
+            currency?: string;
+            /** @enum {string} */
+            recurrence?: "one_time" | "termly" | "monthly" | "annually";
+            /** @enum {string} */
+            target?: "all_students" | "specific_student";
+            due_day?: number | null;
+            description?: string | null;
+            /** @enum {string} */
+            status?: "active" | "archived";
         };
         Invoice: {
             /** Format: uuid */
             id: string;
-            /** Format: uuid */
             tenant_id: string;
             /** Format: uuid */
             student_id: string;
-            amount_due: number;
-            /** @default 0 */
-            amount_paid: number;
-            /** Format: date */
-            due_date?: string | null;
+            /** Format: uuid */
+            fee_structure_id: string;
+            amount_cents: number;
+            balance_cents: number;
             /** @enum {string} */
-            status?: "pending" | "partial" | "paid" | "overdue";
+            status: "draft" | "pending" | "partial" | "paid" | "overdue" | "cancelled";
+            /** @description YYYY-MM-DD or an empty string when no due date is configured. */
+            due_date?: string;
+            /** Format: date-time */
+            issued_at: string;
+            notes?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
         };
         CreateInvoice: {
             /** Format: uuid */
             student_id: string;
-            amount_due: number;
+            /** Format: uuid */
+            fee_structure_id: string;
+            /** @description Zero or omitted derives the amount from the fee structure. */
+            amount_cents?: number;
+            balance_cents?: number;
             /** Format: date */
-            due_date?: string | null;
+            due_date?: string;
+            notes?: string | null;
+        };
+        UpdateInvoice: {
+            amount_cents?: number;
+            balance_cents?: number;
+            /** @enum {string} */
+            status?: "draft" | "pending" | "partial" | "paid" | "overdue" | "cancelled";
+            /** Format: date */
+            due_date?: string;
+            notes?: string | null;
+        };
+        CurrencyBalance: {
+            currency: string;
+            total_invoiced_cents: number;
+            total_paid_cents: number;
+            outstanding_cents: number;
         };
         Balance: {
             /** Format: uuid */
             student_id: string;
-            total_due: number;
-            total_paid: number;
-            outstanding?: number;
+            totals: components["schemas"]["CurrencyBalance"][];
         };
         Receipt: {
             /** Format: uuid */
             id: string;
-            /** Format: uuid */
             tenant_id: string;
             /** Format: uuid */
             invoice_id: string;
-            amount: number;
             /** Format: uuid */
-            payment_id?: string | null;
+            student_id: string;
+            /** Format: uuid */
+            payment_id: string;
+            amount_cents: number;
+            applied_cents: number;
+            overpayment_cents: number;
+            currency: string;
+            provider_reference?: string | null;
             /** Format: date-time */
-            issued_at?: string;
+            issued_at: string;
         };
         FeeStructureList: {
-            data?: components["schemas"]["FeeStructure"][];
-            next_cursor?: string | null;
+            data: components["schemas"]["FeeStructure"][];
+            next_cursor: string | null;
         };
         InvoiceList: {
-            data?: components["schemas"]["Invoice"][];
-            next_cursor?: string | null;
+            data: components["schemas"]["Invoice"][];
+            next_cursor: string | null;
         };
     };
     responses: {
@@ -175,16 +262,10 @@ export type components = {
                 [name: string]: unknown;
             };
             content: {
-                /**
-                 * @example {
-                 *       "code": "unauthorized",
-                 *       "message": "Authentication required"
-                 *     }
-                 */
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description Not permitted (auth, tenant scope, RBAC, or feature disabled) */
+        /** @description Not permitted by authentication, tenant scope, RBAC or feature policy */
         Forbidden: {
             headers: {
                 [name: string]: unknown;
@@ -193,18 +274,12 @@ export type components = {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description Resource not found */
+        /** @description Resource not found or hidden by learner ownership */
         NotFound: {
             headers: {
                 [name: string]: unknown;
             };
             content: {
-                /**
-                 * @example {
-                 *       "code": "not_found",
-                 *       "message": "Resource not found"
-                 *     }
-                 */
                 "application/json": components["schemas"]["Error"];
             };
         };
@@ -214,19 +289,16 @@ export type components = {
                 [name: string]: unknown;
             };
             content: {
-                /**
-                 * @example {
-                 *       "code": "validation_error",
-                 *       "message": "request body is invalid"
-                 *     }
-                 */
                 "application/json": components["schemas"]["Error"];
             };
         };
     };
     parameters: {
-        TenantId: string;
-        /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+        FeeStructureId: string;
+        InvoiceId: string;
+        StudentId: string;
+        ReceiptId: string;
+        /** @description Optional tenant code when the gateway cannot derive it from the host. */
         TenantHeader: string;
         Limit: number;
         Cursor: string;
@@ -242,9 +314,11 @@ export interface operations {
             query?: {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
+                academic_year_id?: string;
+                status?: "active" | "archived";
             };
             header?: {
-                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                /** @description Optional tenant code when the gateway cannot derive it from the host. */
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path?: never;
@@ -252,7 +326,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description OK */
+            /** @description Fee structures */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -263,15 +337,13 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            422: components["responses"]["ValidationError"];
         };
     };
     createFeeStructure: {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                /** @description Optional tenant code when the gateway cannot derive it from the host. */
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path?: never;
@@ -283,7 +355,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description OK */
+            /** @description Created fee structure */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -294,6 +366,86 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getFeeStructure: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                fee_structure_id: components["parameters"]["FeeStructureId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Fee structure */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeeStructure"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteFeeStructure: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                fee_structure_id: components["parameters"]["FeeStructureId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Fee structure deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateFeeStructure: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                fee_structure_id: components["parameters"]["FeeStructureId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateFeeStructure"];
+            };
+        };
+        responses: {
+            /** @description Updated fee structure */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeeStructure"];
+                };
+            };
             404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationError"];
         };
@@ -303,9 +455,12 @@ export interface operations {
             query?: {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
+                student_id?: string;
+                fee_structure_id?: string;
+                status?: "draft" | "pending" | "partial" | "paid" | "overdue" | "cancelled";
             };
             header?: {
-                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                /** @description Optional tenant code when the gateway cannot derive it from the host. */
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path?: never;
@@ -313,7 +468,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description OK */
+            /** @description Invoices */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -324,15 +479,13 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            422: components["responses"]["ValidationError"];
         };
     };
     createInvoice: {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                /** @description Optional tenant code when the gateway cannot derive it from the host. */
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path?: never;
@@ -344,7 +497,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description OK */
+            /** @description Created invoice */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -355,7 +508,6 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationError"];
         };
     };
@@ -363,17 +515,17 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                /** @description Optional tenant code when the gateway cannot derive it from the host. */
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                invoice_id: components["parameters"]["InvoiceId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description OK */
+            /** @description Invoice */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -382,27 +534,79 @@ export interface operations {
                     "application/json": components["schemas"]["Invoice"];
                 };
             };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            422: components["responses"]["ValidationError"];
         };
     };
-    getBalance: {
+    deleteInvoice: {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                /** @description Optional tenant code when the gateway cannot derive it from the host. */
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                invoice_id: components["parameters"]["InvoiceId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description OK */
+            /** @description Invoice deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateInvoice: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                invoice_id: components["parameters"]["InvoiceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateInvoice"];
+            };
+        };
+        responses: {
+            /** @description Updated invoice */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invoice"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getStudentBalance: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional tenant code when the gateway cannot derive it from the host. */
+                "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                student_id: components["parameters"]["StudentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Currency-safe balance */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -414,24 +618,23 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            422: components["responses"]["ValidationError"];
         };
     };
     getReceipt: {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
+                /** @description Optional tenant code when the gateway cannot derive it from the host. */
                 "X-Tenant-Code"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                tenant_id: components["parameters"]["TenantId"];
+                receipt_id: components["parameters"]["ReceiptId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description OK */
+            /** @description Immutable payment receipt */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -443,7 +646,6 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            422: components["responses"]["ValidationError"];
         };
     };
 }

@@ -4,7 +4,6 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
   Baby,
-  CalendarCheck,
   ClipboardList,
   CreditCard,
   FileText,
@@ -16,9 +15,15 @@ import { Button, StatCard, Reveal, Watermark } from "@auraedu/ui";
 
 interface ParentDashboardProps {
   userName?: string;
+  summary: {
+    children: { id: string; name: string; code: string; status: string }[] | null;
+    attendanceRate: string | null;
+    openInvoices: number | null;
+    publishedResults: number | null;
+  };
 }
 
-export function ParentDashboard({ userName }: ParentDashboardProps) {
+export function ParentDashboard({ userName, summary }: ParentDashboardProps) {
   const router = useRouter();
   const greeting = userName ? `Welcome back, ${userName}` : "Welcome back";
 
@@ -28,7 +33,7 @@ export function ParentDashboard({ userName }: ParentDashboardProps) {
         Family
       </Watermark>
       <Reveal>
-        <section className="card card-hover rounded-[var(--radius-md)] p-6">
+        <section className="portal-hero card card-hover p-6 sm:p-8">
           <div className="flex items-start gap-3.5">
             <span
               aria-hidden="true"
@@ -58,10 +63,20 @@ export function ParentDashboard({ userName }: ParentDashboardProps) {
 
       <Reveal delay={80}>
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Children" value="—" unit="enrolled" />
-          <StatCard label="Attendance" value="—" unit="this week" tone="ok" />
-          <StatCard label="Outstanding fees" value="—" unit="due" tone="warn" />
-          <StatCard label="Results" value="—" unit="published" />
+          <StatCard label="Children" value={summary.children?.length ?? "—"} unit="linked" />
+          <StatCard
+            label="Attendance"
+            value={summary.attendanceRate ?? "—"}
+            unit="last 7 days"
+            tone="ok"
+          />
+          <StatCard
+            label="Open invoices"
+            value={summary.openInvoices ?? "—"}
+            unit="due"
+            tone="warn"
+          />
+          <StatCard label="Results" value={summary.publishedResults ?? "—"} unit="published" />
         </section>
       </Reveal>
 
@@ -69,16 +84,47 @@ export function ParentDashboard({ userName }: ParentDashboardProps) {
         <Reveal delay={120}>
           <div className="card card-hover h-full rounded-[var(--radius-md)] p-5">
             <h3 className="font-sans font-semibold tracking-tight">Children overview</h3>
-            <ul className="mt-4 space-y-2 text-sm text-[var(--muted-foreground)]">
-              <li className="flex items-center gap-2">
+            {summary.children === null ? (
+              <div className="mt-4 flex items-center gap-2 rounded-[var(--radius-sm)] border border-dashed border-[var(--border)] p-4 text-sm text-[var(--muted-foreground)]">
+                <GraduationCap
+                  className="size-4 shrink-0 text-[var(--primary)]"
+                  aria-hidden="true"
+                />
+                Learner profiles are temporarily unavailable.
+              </div>
+            ) : summary.children.length > 0 ? (
+              <ul className="mt-4 divide-y divide-[var(--border)]">
+                {summary.children.map((child) => (
+                  <li key={child.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[var(--color-brand-tint)] font-bold text-[var(--primary)]">
+                      {child.name
+                        .split(" ")
+                        .map((part) => part[0])
+                        .join("")
+                        .slice(0, 2)}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <strong className="block truncate text-sm">{child.name}</strong>
+                      <small className="font-mono text-[var(--muted-foreground)]">
+                        {child.code}
+                      </small>
+                    </span>
+                    <span className="text-xs font-semibold capitalize text-[var(--muted-foreground)]">
+                      {child.status}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <button
+                type="button"
+                onClick={() => router.push("/parent/children")}
+                className="mt-4 inline-flex items-center gap-2 text-left text-sm text-[var(--muted-foreground)] hover:text-foreground hover:underline"
+              >
                 <GraduationCap className="size-4 text-[var(--primary)]" aria-hidden="true" />
-                <span>Children profiles and class information will appear here.</span>
-              </li>
-              <li className="flex items-center gap-2">
-                <CalendarCheck className="size-4 text-[var(--primary)]" aria-hidden="true" />
-                <span>Recent attendance records will be shown for each child.</span>
-              </li>
-            </ul>
+                No learner profile is linked to this guardian account.
+              </button>
+            )}
           </div>
         </Reveal>
         <Reveal delay={160}>

@@ -13,6 +13,22 @@ type Health struct {
 	Checks *map[string]interface{} `json:"checks,omitempty"`
 }
 
+// DependencyHealthCheck generated from OpenAPI schema.
+type DependencyHealthCheck struct {
+	Service   string `json:"service"`
+	Endpoint  string `json:"endpoint"`
+	Status    string `json:"status"`
+	Detail    string `json:"detail"`
+	LatencyMs int    `json:"latency_ms"`
+}
+
+// PlatformHealthReport generated from OpenAPI schema.
+type PlatformHealthReport struct {
+	Status      string                  `json:"status"`
+	GeneratedAt string                  `json:"generated_at"`
+	Checks      []DependencyHealthCheck `json:"checks"`
+}
+
 // Route generated from OpenAPI schema.
 type Route struct {
 	PathPrefix  string `json:"path_prefix"`
@@ -40,6 +56,7 @@ type ServerInterface interface {
 	healthCheck(w http.ResponseWriter, r *http.Request)
 	readyCheck(w http.ResponseWriter, r *http.Request)
 	listRoutes(w http.ResponseWriter, r *http.Request)
+	getPlatformDependencyHealth(w http.ResponseWriter, r *http.Request)
 	createRoute(w http.ResponseWriter, r *http.Request)
 }
 
@@ -48,5 +65,6 @@ type ClientInterface interface {
 	healthCheck(ctx context.Context) (*http.Response, error)
 	readyCheck(ctx context.Context) (*http.Response, error)
 	listRoutes(ctx context.Context) (*http.Response, error)
+	getPlatformDependencyHealth(ctx context.Context) (*http.Response, error)
 	createRoute(ctx context.Context) (*http.Response, error)
 }

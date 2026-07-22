@@ -15,8 +15,8 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(function 
       <select
         ref={ref}
         className={cn(
-          "h-11 w-full appearance-none rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--color-parchment)] px-3.5 pr-9 text-sm text-[var(--foreground)] shadow-sm",
-          "focus-visible:border-[var(--color-gold)] focus-visible:bg-[var(--surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]/40",
+          "h-11 w-full appearance-none rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--input)] px-3.5 pr-9 text-sm text-[var(--foreground)] shadow-sm",
+          "focus-visible:border-[var(--portal-accent,var(--color-brand))] focus-visible:bg-[var(--input-focus)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]/40",
           "disabled:cursor-not-allowed disabled:opacity-60",
           "transition-[border-color,background-color,box-shadow] duration-150",
           className,
@@ -31,4 +31,4 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(function 
       />
     </div>
   );
-})
+});

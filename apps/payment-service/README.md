@@ -12,9 +12,9 @@ The gateway adapter is selected at boot via env:
 
 | Env | Default | Notes |
 |---|---|---|
-| `PAYMENTS_PROVIDER` | `mock` | `mock` (deterministic, local/dev) or `paystack` |
-| `PAYSTACK_SECRET_KEY` | — | Required when `PAYMENTS_PROVIDER=paystack`. Sent only as `Authorization: Bearer …`; never logged |
-| `PAYSTACK_BASE_URL` | `https://api.paystack.co` | Override for tests/staging |
+| `PAYMENTS_PROVIDER` | `mock` | `mock` (deterministic, local/dev only) or `paystack`; production rejects `mock` |
+| `PAYSTACK_SECRET_KEY` | — | Required for Paystack. Production requires a live-key shape; sent only as `Authorization: Bearer …` and never logged |
+| `PAYSTACK_BASE_URL` | `https://api.paystack.co` | Override for tests/staging; production permits only the canonical Paystack origin |
 
 The Paystack adapter (`internal/adapters/provider/paystack.go`) implements the same
 `ports.PaymentProvider` interface as the mock:
@@ -57,8 +57,11 @@ scopes all DB access (RLS).
   webhooks: the duplicate is recorded for audit but state is never re-applied (no double
   transactions, no duplicate events).
 - **Transitions only** — `pending/processing → success` sets `completed_at`, records a
-  `credit/success` transaction and emits `payment.received.v1`; `→ failed` records a
-  `debit/failed` transaction and emits `payment.failed.v1`. Already-applied outcomes are
+  `credit/success` transaction and queues `payment.received.v1`; `→ failed` records a
+  `debit/failed` transaction and queues `payment.failed.v1`. Payment state, transaction,
+  and event outbox row commit atomically. A separately deployed worker dispatches with a
+  stable CloudEvent ID and exponential backoff, so broker downtime cannot lose or duplicate
+  the money event. Already-applied outcomes are
   no-ops; `success` is absorbing (a late failure never regresses a received payment); a
   `failed` payment may be corrected to `success` (reconciliation fix-up).
 - **Manual verify** — `GET /api/v1/payments/{id}/verify` (perm `payments.initiate`)
@@ -67,6 +70,13 @@ scopes all DB access (RLS).
 
 Event payloads conform to `contracts/events/payment.received.v1.json` /
 `payment.failed.v1.json` (`payment_id`, `invoice_id`, `amount`, `gateway`, …).
+
+Payment lifecycle mutations use the same transactional outbox. Create, meaningful
+updates, successful provider initiation and delete commit their aggregate change
+with `payment.created.v1`, `payment.updated.v1`, `payment.initiated.v1` or
+`payment.deleted.v1`. The payment worker drains both lifecycle and reconciliation
+records with stable IDs, so a broker outage never converts a successful API mutation
+into a missing integration event.
 
 ## Development
 

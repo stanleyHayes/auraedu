@@ -33,6 +33,39 @@ func newRepo(t *testing.T) ports.Repository {
 	return postgres.NewRepository(tdb.DB)
 }
 
+func TestLifecycleMutationAndOutboxAreAtomic(t *testing.T) {
+	ctx := withTenant(context.Background(), tenantA)
+	tdb := testkit.NewPostgres(context.Background(), t, "../../migrations")
+	repo := postgres.NewRepository(tdb.DB)
+	question, err := domain.NewQuestionBank(tenantA, ay1, subject1, "Durable question", "multiple_choice", "a", 1, []string{"a", "b"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	events := []ports.LifecycleEvent{{EventType: "cbt.question_created.v1", Payload: ports.QuestionEventData(question, nil)}}
+	if err := repo.CommitCBTLifecycle(ctx, tenantA, ports.LifecycleMutation{Kind: ports.CBTMutationQuestionCreate, Question: question}, events); err != nil {
+		t.Fatal(err)
+	}
+	items, err := repo.ClaimPendingCBTEvents(context.Background(), 10)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("items=%+v err=%v", items, err)
+	}
+	rollback, err := domain.NewQuestionBank(
+		tenantA, ay1, subject1, "Rollback question", "multiple_choice", "a", 1, []string{"a", "b"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tdb.DB.Pool().Exec(context.Background(), `DROP TABLE cbt_outbox`); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CommitCBTLifecycle(ctx, tenantA, ports.LifecycleMutation{Kind: ports.CBTMutationQuestionCreate, Question: rollback}, []ports.LifecycleEvent{{EventType: "cbt.question_created.v1", Payload: ports.QuestionEventData(rollback, nil)}}); err == nil {
+		t.Fatal("expected outbox failure")
+	}
+	if _, err := repo.GetQuestionByID(ctx, tenantA, rollback.ID); err == nil {
+		t.Fatal("question mutation must roll back")
+	}
+}
+
 func withTenant(ctx context.Context, tenantID string) context.Context {
 	return tenancy.WithContext(ctx, tenancy.TenantContext{TenantID: tenantID})
 }
@@ -43,6 +76,12 @@ func actorWithPerms(tenantID string, perms ...string) auth.Actor {
 
 func actorStudent(tenantID, studentID string, perms ...string) auth.Actor {
 	return auth.Actor{UserID: studentID, TenantID: tenantID, Permissions: perms}
+}
+
+type learnerScopeStub struct{ studentIDs []string }
+
+func (s learnerScopeStub) ResolveStudentIDs(context.Context, string, string, string) ([]string, error) {
+	return s.studentIDs, nil
 }
 
 func mustCreateQuestion(ctx context.Context, t *testing.T, repo ports.Repository, academicYearID, subjectID, text, correct string, marks int, options []string) *domain.QuestionBank {
@@ -421,12 +460,11 @@ func TestService_ExamLifecycleAndAutoGrade(t *testing.T) {
 
 	gates := flags.NewStaticSnapshot()
 	gates.Set(tenantA, application.FeatureCBTExams, true)
-	svc := application.NewService(repo, application.WithFeatureGate(gates))
+	svc := application.NewService(repo, application.WithFeatureGate(gates), application.WithLearnerScopeResolver(learnerScopeStub{studentIDs: []string{studentA}}))
 
 	author := actorWithPerms(tenantA, application.PermAuthor)
 	reader := actorWithPerms(tenantA, application.PermRead)
-	student := actorStudent(tenantA, studentA, application.PermTake)
-	grader := actorWithPerms(tenantA, application.PermGrade)
+	student := auth.Actor{UserID: "identity-student-a", TenantID: tenantA, Role: "student", Permissions: []string{application.PermTake}}
 
 	q1, err := svc.CreateQuestion(ctx, author, application.CreateQuestionRequest{
 		AcademicYearID: ay1, SubjectID: subject1, QuestionText: "Q1", QuestionType: "multiple_choice",
@@ -466,6 +504,13 @@ func TestService_ExamLifecycleAndAutoGrade(t *testing.T) {
 	if sub.Status != string(domain.SubmissionStatusInProgress) {
 		t.Fatalf("expected in_progress, got %q", sub.Status)
 	}
+	questions, err := svc.GetSubmissionQuestions(ctx, student, sub.ID)
+	if err != nil {
+		t.Fatalf("get answer-safe questions: %v", err)
+	}
+	if len(questions) != 2 || questions[0].QuestionText == "" || len(questions[0].Options) == 0 {
+		t.Fatalf("unexpected answer-safe questions: %+v", questions)
+	}
 
 	// Starting a second submission should fail.
 	_, err = svc.StartSubmission(ctx, student, e.ID, studentA)
@@ -481,23 +526,14 @@ func TestService_ExamLifecycleAndAutoGrade(t *testing.T) {
 	if err != nil {
 		t.Fatalf("submit answers: %v", err)
 	}
-	if submitted.Status != string(domain.SubmissionStatusSubmitted) {
-		t.Fatalf("expected submitted, got %q", submitted.Status)
+	if submitted.Status != string(domain.SubmissionStatusGraded) {
+		t.Fatalf("expected auto-graded, got %q", submitted.Status)
 	}
-
-	// Grade the submission.
-	graded, err := svc.GradeSubmission(ctx, grader, sub.ID)
-	if err != nil {
-		t.Fatalf("grade submission: %v", err)
+	if submitted.Score == nil || *submitted.Score != 2 {
+		t.Fatalf("expected score 2, got %v", submitted.Score)
 	}
-	if graded.Status != string(domain.SubmissionStatusGraded) {
-		t.Fatalf("expected graded, got %q", graded.Status)
-	}
-	if graded.Score == nil || *graded.Score != 2 {
-		t.Fatalf("expected score 2, got %v", graded.Score)
-	}
-	if graded.MaxScore != 3 {
-		t.Fatalf("expected max_score 3, got %d", graded.MaxScore)
+	if submitted.MaxScore != 3 {
+		t.Fatalf("expected max_score 3, got %d", submitted.MaxScore)
 	}
 
 	// List filtered by student.

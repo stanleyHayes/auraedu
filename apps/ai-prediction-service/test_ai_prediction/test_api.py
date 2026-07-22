@@ -2,13 +2,15 @@
 
 from datetime import UTC, datetime
 
+import pytest
+from ai_prediction_service.api import routes
 from httpx import AsyncClient
 
 HEADERS = {
     "X-Actor-User": "teacher-1",
     "X-Actor-Role": "teacher",
     "X-Actor-Tenant": "tenant-a",
-    "X-Actor-Permissions": "predictions:read,predictions:write",
+    "X-Actor-Permissions": "ai.view_predictions,ai.approve_predictions",
 }
 
 
@@ -28,6 +30,24 @@ async def test_health_check(client: AsyncClient):
     assert response.json()["status"] == "ok"
 
 
+async def test_readiness_checks_database(client: AsyncClient):
+    response = await client.get("/ready")
+    assert response.status_code == 200
+    assert response.json()["status"] == "ready"
+
+
+async def test_readiness_fails_closed_without_database(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+):
+    async def unavailable() -> bool:
+        return False
+
+    monkeypatch.setattr(routes, "database_ready", unavailable)
+    response = await client.get("/ready")
+    assert response.status_code == 503
+    assert response.json()["code"] == "not_ready"
+
+
 async def test_ingest_and_list_metrics(client: AsyncClient):
     payload = _metric("11111111-1111-1111-1111-111111111111", "average_score", 55.0)
     response = await client.post(
@@ -39,6 +59,17 @@ async def test_ingest_and_list_metrics(client: AsyncClient):
     body = response.json()
     assert body["student_id"] == "11111111-1111-1111-1111-111111111111"
     assert body["metric_key"] == "average_score"
+
+
+async def test_permission_rejects_actor_tenant_header_confusion(client: AsyncClient):
+    response = await client.post(
+        "/feature-store/metrics",
+        json=_metric("11111111-1111-1111-1111-111111111111", "average_score", 55.0),
+        headers={**HEADERS, "X-Tenant-Id": "tenant-a", "X-Actor-Tenant": "other-school"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "tenant_mismatch"
 
 
 async def test_generate_predictions(client: AsyncClient):
@@ -94,6 +125,12 @@ async def test_get_prediction(client: AsyncClient):
     response = await client.get(f"/predictions/{prediction_id}", headers=tenant_headers)
     assert response.status_code == 200
     assert response.json()["id"] == prediction_id
+    gateway_response = await client.get(
+        f"/api/v1/ai/predictions/{prediction_id}",
+        headers=tenant_headers,
+    )
+    assert gateway_response.status_code == 200
+    assert gateway_response.json()["id"] == prediction_id
 
 
 async def test_explain_prediction(client: AsyncClient):

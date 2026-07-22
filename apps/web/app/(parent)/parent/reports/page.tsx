@@ -1,32 +1,37 @@
 import { FileText, ClipboardList } from "lucide-react";
 import { PageHeader, DataTable, EmptyState } from "@auraedu/ui";
 import type { OpenAPI } from "@auraedu/shared-types";
-import { publicApiUrl } from "@auraedu/config";
 import { createServerClient } from "@/lib/api";
 
-// The live report-service DTO is ahead of the published contract: status and
-// pdf_path/generated_at (set only once published) are not in report_v1 yet, and
-// academic_year_id/template_id may be omitted on event-created drafts.
-type ReportCard = OpenAPI.report_v1.components["schemas"]["ReportCard"] & {
-  status?: string;
-  academic_year_id?: string;
-  template_id?: string;
-  pdf_path?: string | null;
-  created_at?: string;
-  updated_at?: string;
-};
+type ReportCard = OpenAPI.report_v1.components["schemas"]["ReportCard"];
 
 export default async function ParentReportsPage() {
   let cards: ReportCard[] = [];
+  let students: Record<string, string> = {};
+  let terms: Record<string, string> = {};
   let error: string | null = null;
 
   try {
     const client = await createServerClient();
-    // Parents read their own children's records; scoping is enforced server-side.
-    const list = await client.get<{ data?: ReportCard[]; next_cursor?: string | null }>(
-      "/api/v1/report-cards",
-    );
+    const [list, family] = await Promise.all([
+      client.get<{ data?: ReportCard[]; next_cursor?: string | null }>("/api/v1/report-cards"),
+      client.get<OpenAPI.student_v1.components["schemas"]["GuardianChildren"]>(
+        "/api/v1/guardians/me/children",
+      ),
+    ]);
     cards = list.data ?? [];
+    students = Object.fromEntries(
+      family.students.map((student) => [student.id, `${student.first_name} ${student.last_name}`]),
+    );
+    try {
+      const termList =
+        await client.get<OpenAPI.academic_v1.components["schemas"]["TermList"]>(
+          "/api/v1/terms?limit=100",
+        );
+      terms = Object.fromEntries((termList.data ?? []).map((term) => [term.id, term.name]));
+    } catch {
+      terms = {};
+    }
   } catch {
     error = "Could not load report cards right now.";
   }
@@ -51,8 +56,20 @@ export default async function ParentReportsPage() {
             <DataTable
               caption="Children's report cards"
               columns={[
-                { key: "student_id", header: "Student ID", cell: (c) => c.student_id },
-                { key: "term_id", header: "Term", cell: (c) => c.term_id ?? "—" },
+                {
+                  key: "student_id",
+                  header: "Learner",
+                  cell: (c) => (
+                    <span className="font-semibold">
+                      {students[c.student_id] ?? "Linked learner"}
+                    </span>
+                  ),
+                },
+                {
+                  key: "term_id",
+                  header: "Term",
+                  cell: (c) => (c.term_id ? (terms[c.term_id] ?? "Published term") : "—"),
+                },
                 {
                   key: "status",
                   header: "Status",
@@ -70,9 +87,7 @@ export default async function ParentReportsPage() {
                   cell: (c) =>
                     c.status === "published" ? (
                       <a
-                        href={`${publicApiUrl}/api/v1/report-cards/${c.id}/download`}
-                        target="_blank"
-                        rel="noreferrer"
+                        href={`/api/reports/${c.id}/download`}
                         className="text-sm font-medium text-[var(--primary)] hover:underline"
                       >
                         Download PDF

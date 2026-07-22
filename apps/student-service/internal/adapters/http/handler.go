@@ -3,6 +3,7 @@ package http
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
@@ -34,9 +35,14 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/students", h.list)
 	mux.HandleFunc("POST /api/v1/students", h.create)
 	mux.HandleFunc("POST /api/v1/students/import", h.importStudents)
+	// Literal segments win over {student_id} in Go 1.22+ ServeMux, so /students/me
+	// resolves the caller's own record (AURA-10.12).
+	mux.HandleFunc("GET /api/v1/students/me", h.getMyStudent)
 	mux.HandleFunc("GET /api/v1/students/{student_id}", h.get)
 	mux.HandleFunc("PATCH /api/v1/students/{student_id}", h.update)
 	mux.HandleFunc("DELETE /api/v1/students/{student_id}", h.delete)
+	mux.HandleFunc("GET /api/v1/students/{student_id}/enrollments", h.listEnrollments)
+	mux.HandleFunc("POST /api/v1/students/{student_id}/enrollments", h.createEnrollment)
 
 	// Student ↔ Guardian links
 	mux.HandleFunc("GET /api/v1/students/{student_id}/guardians", h.listStudentGuardians)
@@ -45,9 +51,67 @@ func (h *Handler) Register(mux *http.ServeMux) {
 
 	// Guardians
 	mux.HandleFunc("POST /api/v1/guardians", h.createGuardian)
+	mux.HandleFunc("GET /api/v1/guardians/me/children", h.getMyGuardianChildren)
 	mux.HandleFunc("GET /api/v1/guardians/{guardian_id}", h.getGuardian)
 	mux.HandleFunc("PATCH /api/v1/guardians/{guardian_id}", h.updateGuardian)
 	mux.HandleFunc("DELETE /api/v1/guardians/{guardian_id}", h.deleteGuardian)
+}
+
+func (h *Handler) listEnrollments(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	enrollments, next, err := h.svc.ListEnrollments(ctx, actor, r.PathValue("student_id"), parseLimit(r.URL.Query().Get("limit")), r.URL.Query().Get("cursor"))
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, map[string]any{"data": enrollments, "next_cursor": nullIfEmpty(next)})
+}
+
+func (h *Handler) createEnrollment(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	var body struct {
+		ClassID        string `json:"class_id"`
+		AcademicYearID string `json:"academic_year_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		httpx.ValidationError(w, r, map[string]any{"body": "invalid JSON"})
+		return
+	}
+	enrollment, err := h.svc.CreateEnrollment(
+		ctx,
+		actor,
+		r.PathValue("student_id"),
+		application.CreateEnrollmentRequest{ClassID: body.ClassID, AcademicYearID: body.AcademicYearID},
+	)
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusCreated, enrollment)
+}
+
+func (h *Handler) RegisterInternal(mux *http.ServeMux, token string) {
+	mux.HandleFunc("GET /internal/v1/learner-scope", func(w http.ResponseWriter, r *http.Request) {
+		provided, expected := r.Header.Get("Authorization"), "Bearer "+token
+		if token == "" || len(provided) != len(expected) || subtle.ConstantTimeCompare([]byte(provided), []byte(expected)) != 1 {
+			httpx.Unauthorized(w, r, "valid service credentials are required")
+			return
+		}
+		tenantID := strings.TrimSpace(r.Header.Get(tenancy.HeaderTenantID))
+		ctx := tenancy.WithContext(r.Context(), tenancy.TenantContext{TenantID: tenantID})
+		scope, err := h.svc.ResolveLearnerScope(ctx, tenantID, r.URL.Query().Get("user_id"), r.URL.Query().Get("role"))
+		if err != nil {
+			h.writeErr(w, r, err)
+			return
+		}
+		httpx.RespondJSON(w, r, http.StatusOK, scope)
+	})
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
@@ -77,6 +141,7 @@ type createBody struct {
 	Gender         *string `json:"gender"`
 	ClassID        *string `json:"class_id"`
 	AcademicYearID *string `json:"academic_year_id"`
+	UserID         *string `json:"user_id"`
 }
 
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
@@ -96,6 +161,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		Gender:         body.Gender,
 		ClassID:        body.ClassID,
 		AcademicYearID: body.AcademicYearID,
+		UserID:         body.UserID,
 	})
 	if err != nil {
 		h.writeErr(w, r, err)
@@ -198,6 +264,8 @@ func csvRowToImportRow(header map[string]int, record []string) (application.Impo
 		GuardianLastName:  get("guardian_last_name"),
 		GuardianPhone:     get("guardian_phone"),
 		GuardianEmail:     get("guardian_email"),
+		UserID:            get("user_id"),
+		GuardianUserID:    get("guardian_user_id"),
 	}, nil
 }
 
@@ -214,11 +282,26 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 	httpx.RespondJSON(w, r, http.StatusOK, student)
 }
 
+// getMyStudent resolves the caller's own student record from the actor's user id
+// (AURA-10.12); 404 when the identity user has no linked student.
+func (h *Handler) getMyStudent(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	student, err := h.svc.GetMyStudent(ctx, actor)
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, student)
+}
+
 type updateBody struct {
-	FirstName *string `json:"first_name"`
-	LastName  *string `json:"last_name"`
-	Status    *string `json:"status"`
-	ClassID   *string `json:"class_id"`
+	FirstName *string         `json:"first_name"`
+	LastName  *string         `json:"last_name"`
+	Status    *string         `json:"status"`
+	UserID    json.RawMessage `json:"user_id"`
 }
 
 func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
@@ -231,17 +314,37 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 		httpx.ValidationError(w, r, map[string]any{"body": "invalid JSON"})
 		return
 	}
-	_ = body.ClassID
+	userID, err := nullableStringPatch(body.UserID)
+	if err != nil {
+		httpx.ValidationError(w, r, map[string]any{"user_id": "must be a UUID string or null"})
+		return
+	}
 	student, err := h.svc.Update(ctx, actor, r.PathValue("student_id"), application.UpdateStudentRequest{
 		FirstName: body.FirstName,
 		LastName:  body.LastName,
 		Status:    body.Status,
+		UserID:    userID,
 	})
 	if err != nil {
 		h.writeErr(w, r, err)
 		return
 	}
 	httpx.RespondJSON(w, r, http.StatusOK, student)
+}
+
+func nullableStringPatch(raw json.RawMessage) (*string, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	if string(raw) == "null" {
+		empty := ""
+		return &empty, nil
+	}
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return nil, err
+	}
+	return &value, nil
 }
 
 func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
@@ -264,6 +367,7 @@ type createGuardianBody struct {
 	Relationship string  `json:"relationship"`
 	Phone        *string `json:"phone"`
 	Email        *string `json:"email"`
+	UserID       *string `json:"user_id"`
 }
 
 func (h *Handler) createGuardian(w http.ResponseWriter, r *http.Request) {
@@ -282,12 +386,29 @@ func (h *Handler) createGuardian(w http.ResponseWriter, r *http.Request) {
 		Relationship: body.Relationship,
 		Phone:        body.Phone,
 		Email:        body.Email,
+		UserID:       body.UserID,
 	})
 	if err != nil {
 		h.writeErr(w, r, err)
 		return
 	}
 	httpx.RespondJSON(w, r, http.StatusCreated, g)
+}
+
+// getMyGuardianChildren resolves the caller's guardian record from the actor's user
+// id and returns it with the linked students (AURA-10.12); 404 when the identity
+// user has no linked guardian.
+func (h *Handler) getMyGuardianChildren(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	result, err := h.svc.GetMyGuardianChildren(ctx, actor)
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, result)
 }
 
 func (h *Handler) getGuardian(w http.ResponseWriter, r *http.Request) {
@@ -424,12 +545,16 @@ func (h *Handler) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 		httpx.ValidationError(w, r, map[string]any{"detail": err.Error()})
 	case errors.Is(err, domain.ErrNotFound):
 		httpx.NotFound(w, r, "student")
+	case errors.Is(err, domain.ErrConflict):
+		httpx.RespondJSON(w, r, http.StatusConflict, map[string]any{"error": "conflict", "message": err.Error()})
 	case errors.Is(err, flags.ErrFeatureDisabled):
 		httpx.FeatureDisabled(w, r, application.FeatureStudentManagement)
 	case errors.Is(err, domain.ErrForbidden):
 		httpx.Forbidden(w, r, "not permitted for this actor or tenant")
 	case errors.Is(err, domain.ErrMissingTenant):
 		httpx.TenantMismatch(w, r)
+	case errors.Is(err, domain.ErrUnavailable):
+		httpx.RespondJSON(w, r, http.StatusServiceUnavailable, httpx.Error{Code: httpx.ErrInternal, Message: "teacher class scope is unavailable"})
 	default:
 		httpx.RespondError(w, r, httpx.ErrorFrom(err))
 	}

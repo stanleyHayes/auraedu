@@ -13,7 +13,7 @@ type GradeRow struct {
 	MaxScore  int
 }
 
-// GradeAggregate summarises scores over a set of assessments. Average is the
+// GradeAggregate summarizes scores over a set of assessments. Average is the
 // arithmetic mean of per-assessment percentages; WeightedAverage weights each
 // assessment by its max_score (total_score / total_max_score * 100). Both are
 // percentages in [0, 100], nil when there are no scores.

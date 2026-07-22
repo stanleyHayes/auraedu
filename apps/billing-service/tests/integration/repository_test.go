@@ -28,6 +28,47 @@ func newRepos(t *testing.T) (ports.PlanRepository, ports.SubscriptionRepository,
 	return postgres.NewPlanRepository(tdb.DB), postgres.NewSubscriptionRepository(tdb.DB), postgres.NewSaaSInvoiceRepository(tdb.DB)
 }
 
+func TestLifecycleMutationsAndOutboxAreAtomic(t *testing.T) {
+	ctx := withTenant(context.Background(), tenantA)
+	tdb := testkit.NewPostgres(context.Background(), t, "../../migrations")
+	planRepo := postgres.NewPlanRepository(tdb.DB)
+	subRepo := postgres.NewSubscriptionRepository(tdb.DB)
+	invRepo := postgres.NewSaaSInvoiceRepository(tdb.DB)
+	plan := mustCreatePlan(ctx, t, planRepo, "Durable", "durable", 1500)
+	now := time.Now().UTC()
+	trialEnd := now.AddDate(0, 0, 14)
+	subscription, err := domain.NewSubscription(tenantA, plan.ID, now, now.AddDate(0, 1, 0), string(domain.SubscriptionStatusTrialing), &trialEnd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	events := []ports.LifecycleEvent{
+		{EventType: "billing.subscription_changed.v1", TenantID: tenantA, Payload: ports.SubscriptionEventData(subscription, map[string]any{"plan_key": plan.Code})},
+		{EventType: "billing.trial_started.v1", TenantID: tenantA, Payload: ports.SubscriptionEventData(subscription, map[string]any{"plan_key": plan.Code, "trial_ends_at": trialEnd.Format(time.RFC3339)})},
+	}
+	if err := subRepo.CommitSubscriptionLifecycle(ctx, tenantA, ports.BillingMutationSubscriptionCreate, subscription, events); err != nil {
+		t.Fatal(err)
+	}
+	items, err := subRepo.ClaimPendingBillingEvents(context.Background(), 10)
+	if err != nil || len(items) != 2 {
+		t.Fatalf("items=%+v err=%v", items, err)
+	}
+
+	invoice, err := domain.NewSaaSInvoice(tenantA, subscription.ID, 1500, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tdb.DB.Pool().Exec(context.Background(), `DROP TABLE billing_outbox`); err != nil {
+		t.Fatal(err)
+	}
+	invoiceEvents := []ports.LifecycleEvent{{EventType: "billing.invoice_created.v1", TenantID: tenantA, Payload: ports.InvoiceEventData(invoice, nil)}}
+	if err := invRepo.CommitInvoiceLifecycle(ctx, tenantA, ports.BillingMutationInvoiceCreate, invoice, invoiceEvents); err == nil {
+		t.Fatal("expected outbox failure")
+	}
+	if _, err := invRepo.GetByID(ctx, tenantA, invoice.ID); err == nil {
+		t.Fatal("invoice mutation must roll back when outbox insert fails")
+	}
+}
+
 func withTenant(ctx context.Context, tenantID string) context.Context {
 	return tenancy.WithContext(ctx, tenancy.TenantContext{TenantID: tenantID})
 }
@@ -145,6 +186,28 @@ func TestPlanRepository_ListPagination(t *testing.T) {
 	}
 	if len(page2) != 1 || page2[0].ID != p2.ID {
 		t.Fatalf("expected second plan, got %+v", page2)
+	}
+}
+
+func TestService_ListPublicPlansReturnsOnlyActiveCatalogue(t *testing.T) {
+	ctx := withTenant(context.Background(), tenantA)
+	planRepo, subscriptionRepo, invoiceRepo := newRepos(t)
+	active := mustCreatePlan(ctx, t, planRepo, "Starter", "starter", 125000)
+	archived := mustCreatePlan(ctx, t, planRepo, "Legacy", "legacy", 50000)
+	status := string(domain.PlanStatusArchived)
+	if _, err := archived.ApplyUpdate(domain.PlanPatch{Status: &status}); err != nil {
+		t.Fatal(err)
+	}
+	if err := planRepo.Update(ctx, archived); err != nil {
+		t.Fatal(err)
+	}
+	svc := application.NewService(planRepo, subscriptionRepo, invoiceRepo)
+	plans, _, err := svc.ListPublicPlans(ctx, ports.PlanFilter{Limit: 100, Status: string(domain.PlanStatusArchived)})
+	if err != nil {
+		t.Fatalf("list public plans: %v", err)
+	}
+	if len(plans) != 1 || plans[0].ID != active.ID {
+		t.Fatalf("public catalogue = %+v", plans)
 	}
 }
 

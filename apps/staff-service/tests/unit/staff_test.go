@@ -63,7 +63,7 @@ func TestStaff_ApplyUpdate(t *testing.T) {
 	first := "Kofi"
 	staffType := "non_teaching"
 	status := string(domain.StatusInactive)
-	changed, err := e.ApplyUpdate(&first, nil, &staffType, nil, &status)
+	changed, err := e.ApplyUpdate(&first, nil, &staffType, nil, &status, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -118,6 +118,39 @@ func TestStaff_InvalidEmail(t *testing.T) {
 	}
 }
 
+func TestStaff_UserIDMustBeUUID(t *testing.T) {
+	e, err := domain.NewStaff("tenant-1", "Kwame", "Nkrumah", "teacher")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	invalid := "not-a-user-id"
+	e.UserID = &invalid
+	if err := e.Validate(); err == nil {
+		t.Fatal("expected invalid identity user id to be rejected")
+	}
+}
+
+func TestStaff_ApplyUpdateClearsOptionalIdentityAndEmail(t *testing.T) {
+	e, err := domain.NewStaff("tenant-1", "Ama", "Mensah", "teacher")
+	if err != nil {
+		t.Fatal(err)
+	}
+	email := "ama@school.edu.gh"
+	userID := "33333333-3333-4333-8333-333333333333"
+	e.Email, e.UserID = &email, &userID
+	empty := ""
+	changed, err := e.ApplyUpdate(nil, nil, nil, &empty, nil, &empty)
+	if err != nil {
+		t.Fatalf("clear optional fields: %v", err)
+	}
+	if e.Email != nil || e.UserID != nil {
+		t.Fatalf("optional links were not cleared: email=%v user_id=%v", e.Email, e.UserID)
+	}
+	if len(changed) != 2 || changed[0] != "email" || changed[1] != "user_id" {
+		t.Fatalf("unexpected changed fields: %v", changed)
+	}
+}
+
 func TestStaff_ActivateDeactivate(t *testing.T) {
 	e, err := domain.NewStaff("tenant-1", "Kwame", "Nkrumah", "teacher")
 	if err != nil {
@@ -130,5 +163,28 @@ func TestStaff_ActivateDeactivate(t *testing.T) {
 	e.Activate()
 	if e.Status != string(domain.StatusActive) {
 		t.Fatalf("expected active, got %q", e.Status)
+	}
+}
+
+func TestNewAssignmentValidatesCrossServiceIdentifiers(t *testing.T) {
+	staffID := "33333333-3333-4333-8333-333333333333"
+	classID := "44444444-4444-4444-8444-444444444444"
+	subjectID := "55555555-5555-4555-8555-555555555555"
+	role := "  Mathematics teacher  "
+	assignment, err := domain.NewAssignment("school-one", staffID, classID, &subjectID, &role)
+	if err != nil {
+		t.Fatalf("new assignment: %v", err)
+	}
+	if assignment.StaffID != staffID || assignment.ClassID != classID || assignment.SubjectID == nil || *assignment.SubjectID != subjectID {
+		t.Fatalf("unexpected assignment: %+v", assignment)
+	}
+	if assignment.Role == nil || *assignment.Role != "Mathematics teacher" {
+		t.Fatalf("role was not normalized: %+v", assignment.Role)
+	}
+	if _, err := domain.NewAssignment("school-one", "invalid", classID, nil, nil); err == nil {
+		t.Fatal("invalid staff identifier must be rejected")
+	}
+	if _, err := domain.NewAssignment("school-one", staffID, "invalid", nil, nil); err == nil {
+		t.Fatal("invalid class identifier must be rejected")
 	}
 }

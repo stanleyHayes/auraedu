@@ -8,4 +8,6 @@ var (
 	ErrValidation    = errors.New("student: validation failed")
 	ErrMissingTenant = errors.New("student: tenant context required")
 	ErrForbidden     = errors.New("student: forbidden")
+	ErrConflict      = errors.New("student: conflict")
+	ErrUnavailable   = errors.New("student: dependency unavailable")
 )

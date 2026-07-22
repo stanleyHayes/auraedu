@@ -9,8 +9,12 @@ export interface TeacherActionResult {
   error?: string;
 }
 
-type BulkAttendanceRequest =
-  OpenAPI.attendance_v1.components["schemas"]["BulkAttendanceRequest"];
+export interface TeacherRosterResult {
+  students?: OpenAPI.student_v1.components["schemas"]["Student"][];
+  error?: string;
+}
+
+type BulkAttendanceRequest = OpenAPI.attendance_v1.components["schemas"]["BulkAttendanceRequest"];
 type CreateAssignment = OpenAPI.assessment_v1.components["schemas"]["CreateAssignment"];
 type UpdateAssignment = OpenAPI.assessment_v1.components["schemas"]["UpdateAssignment"];
 
@@ -19,6 +23,27 @@ function field(formData: FormData, key: string): string {
 }
 
 const ATTENDANCE_STATUSES = new Set(["present", "absent", "late", "excused"]);
+
+export async function loadTeacherClassRosterAction(classId: string): Promise<TeacherRosterResult> {
+  const normalized = classId.trim();
+  if (!normalized) return { error: "Choose a class to load its register." };
+  const client = await createServerClient();
+  try {
+    const response = await client.get<OpenAPI.student_v1.components["schemas"]["StudentList"]>(
+      `/api/v1/students?class_id=${encodeURIComponent(normalized)}&limit=100`,
+    );
+    return {
+      students: (response.data ?? []).filter(
+        (student) => !student.status || student.status === "active",
+      ),
+    };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error ? error.message : "The assigned class register could not be loaded.",
+    };
+  }
+}
 
 export async function markAttendanceBulkAction(
   _prev: TeacherActionResult,

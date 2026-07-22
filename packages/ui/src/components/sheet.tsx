@@ -14,7 +14,14 @@ export interface SheetProps {
 }
 
 /** Modal drawer using the native <dialog> element with slide-in motion. */
-export function Sheet({ open, onClose, children, side = "left", className, closeButtonClassName }: SheetProps) {
+export function Sheet({
+  open,
+  onClose,
+  children,
+  side = "left",
+  className,
+  closeButtonClassName,
+}: SheetProps) {
   const ref = React.useRef<HTMLDialogElement>(null);
   const [mounted, setMounted] = React.useState(false);
 
@@ -48,7 +55,11 @@ export function Sheet({ open, onClose, children, side = "left", className, close
         side === "left" ? "left-0" : "right-0",
         "[&:modal]:max-w-full [&:modal]:max-h-none",
         "motion-safe:transition-[transform,opacity] motion-safe:duration-300 motion-safe:[--ease-spring:cubic-bezier(0.22,1,0.36,1)]",
-        mounted ? "translate-x-0 opacity-100" : side === "left" ? "-translate-x-8 opacity-0" : "translate-x-8 opacity-0",
+        mounted
+          ? "translate-x-0 opacity-100"
+          : side === "left"
+            ? "-translate-x-8 opacity-0"
+            : "translate-x-8 opacity-0",
         className,
       )}
     >

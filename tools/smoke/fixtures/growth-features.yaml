@@ -1,0 +1,46 @@
+version: 1
+features:
+  - key: admissions
+    plan_required: growth
+    description: Growth smoke admissions conversion
+    defaults: { upshs: on }
+  - key: growth_crm
+    plan_required: growth
+    description: Growth smoke CRM
+    defaults: { upshs: on }
+  - key: growth_website_chat
+    plan_required: ai_plus
+    description: Growth smoke website assistant
+    defaults: { upshs: on }
+  - key: growth_campaigns
+    plan_required: professional
+    description: Growth smoke campaign control
+    defaults: { upshs: on }
+  - key: analytics
+    plan_required: professional
+    description: Growth smoke analytics
+    defaults: { upshs: on }
+  - key: growth_lead_scoring
+    plan_required: professional
+    description: Growth smoke explainable lead scoring
+    defaults: { upshs: on }
+  - key: notifications
+    plan_required: starter
+    description: Growth smoke notifications
+    defaults: { upshs: on }
+  - key: email_notifications
+    plan_required: starter
+    description: Growth smoke email notifications
+    defaults: { upshs: on }
+  - key: growth_reputation_monitor
+    plan_required: enterprise
+    description: Growth smoke reputation monitor
+    defaults: { upshs: on }
+  - key: growth_competitor_monitor
+    plan_required: enterprise
+    description: Growth smoke competitor monitor
+    defaults: { upshs: on }
+  - key: growth_autonomous_actions
+    plan_required: enterprise
+    description: Growth smoke controlled low-risk actions
+    defaults: { upshs: on }

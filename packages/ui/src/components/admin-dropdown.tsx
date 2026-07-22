@@ -24,7 +24,9 @@ function MenuRow({ item }: { item: AdminDropdownItem }) {
   const content = (
     <>
       {item.icon ? (
-        <span className="mt-0.5 size-4 shrink-0 text-[var(--color-gold)]">{item.icon}</span>
+        <span className="mt-0.5 size-4 shrink-0 text-[var(--portal-accent,var(--color-brand))]">
+          {item.icon}
+        </span>
       ) : null}
       <span className="flex min-w-0 flex-col">
         <span className="text-sm font-semibold text-[var(--foreground)]">{item.label}</span>
@@ -93,10 +95,16 @@ export function AdminDropdown({
           open && "bg-[var(--muted)]",
         )}
       >
-        <Layers className="size-4 text-[var(--color-gold)]" aria-hidden="true" />
+        <Layers
+          className="size-4 text-[var(--portal-accent,var(--color-brand))]"
+          aria-hidden="true"
+        />
         <span className="hidden sm:inline">{label}</span>
         <ChevronDown
-          className={cn("size-4 text-[var(--muted-foreground)] transition-transform", open && "rotate-180")}
+          className={cn(
+            "size-4 text-[var(--muted-foreground)] transition-transform",
+            open && "rotate-180",
+          )}
           aria-hidden="true"
         />
       </button>

@@ -1,0 +1,375 @@
+openapi: 3.1.0
+info:
+  title: AuraEDU Growth Market Intelligence API
+  version: 1.0.0
+  description: Tenant-isolated, review-gated reputation and competitor evidence. The API never publishes public responses or performs unrestricted crawling.
+  contact:
+    name: AuraEDU Engineering
+servers: [{ url: /api/v1 }]
+tags:
+  - name: intelligence
+
+paths:
+  /intelligence/sources:
+    get:
+      operationId: listIntelligenceSources
+      description: Executes the list intelligence sources workflow within this AuraEDU API boundary.
+      tags: ['intelligence']
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/TenantCode' }
+        - { name: kind, in: query, schema: { $ref: '#/components/schemas/SourceKind' } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200': { description: Tenant source list }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      operationId: createIntelligenceSource
+      description: Executes the create intelligence source workflow within this AuraEDU API boundary.
+      tags: ['intelligence']
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/TenantCode' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateSource' } } }
+      responses:
+        '201': { description: Source awaiting compliance review, content: { application/json: { schema: { $ref: '#/components/schemas/Source' } } } }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /intelligence/sources/{source_id}/review:
+    post:
+      operationId: reviewIntelligenceSource
+      tags: ['intelligence']
+      description: Four-eyes legal/compliance review. The creator cannot review their own source.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/TenantCode' }, { $ref: '#/components/parameters/SourceId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision, review_note]
+              properties:
+                decision: { type: string, enum: [approved, rejected] }
+                review_note: { type: string, minLength: 3, maxLength: 1000 }
+              additionalProperties: false
+      responses:
+        '200': { description: Reviewed source, content: { application/json: { schema: { $ref: '#/components/schemas/Source' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /intelligence/observations:
+    get:
+      operationId: listIntelligenceObservations
+      description: Executes the list intelligence observations workflow within this AuraEDU API boundary.
+      tags: ['intelligence']
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/TenantCode' }
+        - { name: kind, in: query, schema: { $ref: '#/components/schemas/SourceKind' } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/ReviewStatus' } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200': { description: Tenant observation list }
+    post:
+      operationId: createIntelligenceObservation
+      tags: ['intelligence']
+      description: Records bounded evidence from an approved manual or official API source. No fetch is performed by this operation.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/TenantCode' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateObservation' } } }
+      responses:
+        '201': { description: Observation awaiting review, content: { application/json: { schema: { $ref: '#/components/schemas/Observation' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /intelligence/observations/{observation_id}/review:
+    post:
+      operationId: reviewIntelligenceObservation
+      tags: ['intelligence']
+      description: Human review of evidence and any response draft. Approval never publishes the response.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/TenantCode' }, { $ref: '#/components/parameters/ObservationId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision, review_note]
+              properties:
+                decision: { type: string, enum: [approved, rejected] }
+                review_note: { type: string, minLength: 3, maxLength: 1000 }
+              additionalProperties: false
+      responses:
+        '200': { description: Reviewed observation, content: { application/json: { schema: { $ref: '#/components/schemas/Observation' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /intelligence/observations/{observation_id}/resolve:
+    post:
+      operationId: resolveIntelligenceObservation
+      tags: ['intelligence']
+      description: Closes an approved reputation issue. This records internal resolution only and does not publish externally.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/TenantCode' }, { $ref: '#/components/parameters/ObservationId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resolution_note]
+              properties: { resolution_note: { type: string, minLength: 3, maxLength: 2000 } }
+              additionalProperties: false
+      responses:
+        '200': { description: Resolved observation, content: { application/json: { schema: { $ref: '#/components/schemas/Observation' } } } }
+  /intelligence/alert-rule:
+    get:
+      operationId: getReputationAlertRule
+      description: Executes the get reputation alert rule workflow within this AuraEDU API boundary.
+      tags: ['intelligence']
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/TenantCode' }]
+      responses:
+        '200': { description: Effective deterministic reputation alert rule, content: { application/json: { schema: { $ref: '#/components/schemas/AlertRule' } } } }
+    put:
+      operationId: updateReputationAlertRule
+      tags: ['intelligence']
+      description: Configures the count and time-window threshold. No model inference is used.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/TenantCode' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [threshold, window_days]
+              properties:
+                threshold: { type: integer, minimum: 2, maximum: 20 }
+                window_days: { type: integer, minimum: 1, maximum: 90 }
+              additionalProperties: false
+      responses:
+        '200': { description: Updated alert rule, content: { application/json: { schema: { $ref: '#/components/schemas/AlertRule' } } } }
+  /intelligence/alerts:
+    get:
+      operationId: listReputationAlerts
+      description: Executes the list reputation alerts workflow within this AuraEDU API boundary.
+      tags: ['intelligence']
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/TenantCode' }
+        - { name: status, in: query, schema: { type: string, enum: [open, acknowledged] } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200': { description: Explainable tenant reputation alerts }
+  /intelligence/alerts/{alert_id}/acknowledge:
+    post:
+      operationId: acknowledgeReputationAlert
+      tags: ['intelligence']
+      description: Human acknowledgement only; this does not publish or resolve public content.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/TenantCode' }, { $ref: '#/components/parameters/AlertId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [acknowledgement_note]
+              properties: { acknowledgement_note: { type: string, minLength: 3, maxLength: 1000 } }
+              additionalProperties: false
+      responses:
+        '200': { description: Acknowledged alert, content: { application/json: { schema: { $ref: '#/components/schemas/Alert' } } } }
+  /intelligence/competitor-summaries:
+    get:
+      operationId: listCompetitorSummaries
+      description: Executes the list competitor summaries workflow within this AuraEDU API boundary.
+      tags: ['intelligence']
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/TenantCode' }
+        - { name: status, in: query, schema: { type: string, enum: [pending_review, approved, rejected] } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200': { description: Reviewable competitor comparison summaries }
+    post:
+      operationId: generateCompetitorSummary
+      tags: ['intelligence']
+      description: Deterministically compares approved observation versions. It does not fetch or copy source pages.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/TenantCode' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [period_from, period_to]
+              properties:
+                period_from: { type: string, format: date-time }
+                period_to: { type: string, format: date-time }
+              additionalProperties: false
+      responses:
+        '201': { description: Summary awaiting independent review, content: { application/json: { schema: { $ref: '#/components/schemas/CompetitorSummary' } } } }
+  /intelligence/competitor-summaries/{summary_id}/review:
+    post:
+      operationId: reviewCompetitorSummary
+      description: Executes the review competitor summary workflow within this AuraEDU API boundary.
+      tags: ['intelligence']
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/TenantCode' }, { $ref: '#/components/parameters/SummaryId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision, review_note]
+              properties:
+                decision: { type: string, enum: [approved, rejected] }
+                review_note: { type: string, minLength: 3, maxLength: 1000 }
+              additionalProperties: false
+      responses:
+        '200': { description: Reviewed summary, content: { application/json: { schema: { $ref: '#/components/schemas/CompetitorSummary' } } } }
+components:
+  securitySchemes: { bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT } }
+  parameters:
+    TenantCode: { name: X-Tenant-Code, in: header, required: true, schema: { type: string, pattern: '^[a-z0-9][a-z0-9-]{1,62}$' } }
+    SourceId: { name: source_id, in: path, required: true, schema: { type: string, format: uuid } }
+    ObservationId: { name: observation_id, in: path, required: true, schema: { type: string, format: uuid } }
+    AlertId: { name: alert_id, in: path, required: true, schema: { type: string, format: uuid } }
+    SummaryId: { name: summary_id, in: path, required: true, schema: { type: string, format: uuid } }
+  schemas:
+    SourceKind: { type: string, enum: [reputation, competitor] }
+    CollectionMethod: { type: string, enum: [manual, official_api] }
+    ReviewStatus: { type: string, enum: [pending_review, approved, rejected, resolved] }
+    CreateSource:
+      type: object
+      required: [kind, name, canonical_url, collection_method, terms_reference]
+      properties:
+        kind: { $ref: '#/components/schemas/SourceKind' }
+        name: { type: string, minLength: 3, maxLength: 160 }
+        canonical_url: { type: string, format: uri, maxLength: 2048 }
+        collection_method: { $ref: '#/components/schemas/CollectionMethod' }
+        terms_reference: { type: string, minLength: 3, maxLength: 1000, description: Link or note establishing lawful collection authority. }
+      additionalProperties: false
+    Source:
+      allOf:
+        - { $ref: '#/components/schemas/CreateSource' }
+        - type: object
+          required: [id, tenant_id, compliance_status, created_by, created_at, updated_at]
+          properties:
+            id: { type: string, format: uuid }
+            tenant_id: { type: string }
+            compliance_status: { type: string, enum: [pending_review, approved, rejected] }
+            created_by: { type: string }
+            reviewed_by: { type: [string, 'null'] }
+            reviewed_at: { type: [string, 'null'], format: date-time }
+            review_note: { type: [string, 'null'] }
+            created_at: { type: string, format: date-time }
+            updated_at: { type: string, format: date-time }
+    CreateObservation:
+      type: object
+      required: [source_id, category, title, evidence_excerpt, observed_at]
+      properties:
+        source_id: { type: string, format: uuid }
+        category: { type: string, enum: [mention, recurring_issue, misinformation, programme, fee, scholarship, deadline, campaign] }
+        title: { type: string, minLength: 3, maxLength: 240 }
+        evidence_excerpt: { type: string, minLength: 3, maxLength: 1000 }
+        sentiment: { type: string, enum: [positive, neutral, negative, unknown], default: unknown }
+        programme_id: { type: [string, 'null'], format: uuid }
+        campus_id: { type: [string, 'null'], format: uuid }
+        response_draft: { type: string, maxLength: 4000, description: Internal draft only; this API exposes no public publishing operation. }
+        observed_at: { type: string, format: date-time }
+      additionalProperties: false
+    Observation:
+      allOf:
+        - { $ref: '#/components/schemas/CreateObservation' }
+        - type: object
+          required: [id, tenant_id, kind, evidence_sha256, status, created_by, created_at, updated_at]
+          properties:
+            id: { type: string, format: uuid }
+            tenant_id: { type: string }
+            kind: { $ref: '#/components/schemas/SourceKind' }
+            evidence_sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+            status: { $ref: '#/components/schemas/ReviewStatus' }
+            created_by: { type: string }
+            reviewed_by: { type: [string, 'null'] }
+            reviewed_at: { type: [string, 'null'], format: date-time }
+            review_note: { type: [string, 'null'] }
+            resolution_note: { type: [string, 'null'] }
+            resolved_by: { type: [string, 'null'] }
+            resolved_at: { type: [string, 'null'], format: date-time }
+            created_at: { type: string, format: date-time }
+            updated_at: { type: string, format: date-time }
+    AlertRule:
+      type: object
+      required: [tenant_id, threshold, window_days, updated_by, updated_at]
+      properties:
+        tenant_id: { type: string }
+        threshold: { type: integer, minimum: 2, maximum: 20 }
+        window_days: { type: integer, minimum: 1, maximum: 90 }
+        updated_by: { type: string }
+        updated_at: { type: string, format: date-time }
+      additionalProperties: false
+    Alert:
+      type: object
+      required: [id, tenant_id, fingerprint, category, observation_count, threshold, window_days, first_observed_at, last_observed_at, reason, status, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string }
+        fingerprint: { type: string }
+        category: { type: string, enum: [recurring_issue, misinformation] }
+        programme_id: { type: [string, 'null'], format: uuid }
+        campus_id: { type: [string, 'null'], format: uuid }
+        observation_count: { type: integer, minimum: 2 }
+        threshold: { type: integer, minimum: 2, maximum: 20 }
+        window_days: { type: integer, minimum: 1, maximum: 90 }
+        first_observed_at: { type: string, format: date-time }
+        last_observed_at: { type: string, format: date-time }
+        reason: { type: string }
+        status: { type: string, enum: [open, acknowledged] }
+        acknowledged_by: { type: [string, 'null'] }
+        acknowledged_at: { type: [string, 'null'], format: date-time }
+        acknowledgement_note: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+      additionalProperties: false
+    SummaryItem:
+      type: object
+      required: [source_id, category, change_type, latest_title, latest_excerpt, latest_evidence_sha256, latest_observed_at]
+      properties:
+        source_id: { type: string, format: uuid }
+        category: { type: string, enum: [programme, fee, scholarship, deadline, campaign] }
+        programme_id: { type: [string, 'null'], format: uuid }
+        campus_id: { type: [string, 'null'], format: uuid }
+        change_type: { type: string, enum: [first_seen, changed] }
+        latest_title: { type: string }
+        latest_excerpt: { type: string, maxLength: 280 }
+        latest_evidence_sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+        latest_observed_at: { type: string, format: date-time }
+        previous_excerpt: { type: [string, 'null'], maxLength: 280 }
+        previous_evidence_sha256: { type: [string, 'null'] }
+        previous_observed_at: { type: [string, 'null'], format: date-time }
+      additionalProperties: false
+    CompetitorSummary:
+      type: object
+      required: [id, tenant_id, period_from, period_to, status, items, item_count, source_count, generated_by, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string }
+        period_from: { type: string, format: date-time }
+        period_to: { type: string, format: date-time }
+        status: { type: string, enum: [pending_review, approved, rejected] }
+        items: { type: array, items: { $ref: '#/components/schemas/SummaryItem' } }
+        item_count: { type: integer, minimum: 0 }
+        source_count: { type: integer, minimum: 0 }
+        generated_by: { type: string }
+        reviewed_by: { type: [string, 'null'] }
+        reviewed_at: { type: [string, 'null'], format: date-time }
+        review_note: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+      additionalProperties: false
+  responses:
+    Forbidden: { description: "Actor lacks tenant, permission, or feature access" }
+    ValidationError: { description: Request failed validation }
+    Conflict: { description: "Lifecycle, compliance, or separation-of-duties conflict" }

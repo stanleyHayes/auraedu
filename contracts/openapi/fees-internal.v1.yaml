@@ -1,0 +1,61 @@
+openapi: 3.1.0
+info:
+  title: AuraEDU Fees Internal API
+  version: 1.0.0
+  description: Authenticated private authorization for services that operate on learner-owned invoices.
+  contact:
+    name: AuraEDU Engineering
+tags:
+  - name: invoice-access
+
+servers: [{ url: / }]
+
+paths:
+  /internal/v1/invoice-access:
+    post:
+      operationId: resolveInvoiceAccess
+      description: Executes the resolve invoice access workflow within this AuraEDU API boundary.
+      tags: ['invoice-access']
+      summary: Return the requested invoice IDs owned by an authenticated parent or student
+      parameters:
+        - name: X-Tenant-ID
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, role, invoice_ids]
+              properties:
+                user_id: { type: string }
+                role: { type: string, enum: [parent, student] }
+                invoice_ids:
+                  type: array
+                  maxItems: 100
+                  items: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Authorized subset of the requested invoices
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [invoice_ids]
+                properties:
+                  invoice_ids:
+                    type: array
+                    items: { type: string, format: uuid }
+        '400': { description: Invalid request }
+        '401': { description: Invalid service credentials }
+        '403': { description: Unsupported role or tenant }
+        '503': { description: Learner ownership dependency unavailable }
+components:
+  securitySchemes:
+    serviceBearer:
+      type: http
+      scheme: bearer
+security:
+  - serviceBearer: []

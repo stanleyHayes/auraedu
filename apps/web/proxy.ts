@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { publicApiUrl, tenantHeaderName } from "@auraedu/config";
-import { resolveTenantFromHost, TENANT_NOT_FOUND_HEADER } from "@/lib/tenant";
+import { gatewayInternalUrl, tenantHeaderName } from "@auraedu/config";
+import {
+  canonicalTenantCode,
+  isTenantNeutralAppHost,
+  resolveTenantFromHost,
+  TENANT_NOT_FOUND_HEADER,
+} from "@/lib/tenant";
 
 const TENANT_COOKIE = "auraedu_tenant_code";
 const ACCESS_TOKEN_COOKIE = "auraedu_access_token";
@@ -22,7 +27,14 @@ interface TokenPair {
 
 export default function proxy(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
-  const tenantCode = resolveTenantFromHost(host);
+  const pathname = request.nextUrl.pathname;
+  const linkedTenant = isTenantBootstrapPath(pathname)
+    ? canonicalTenantCode(request.nextUrl.searchParams.get("tenant"))
+    : "";
+  const rememberedTenant = isTenantNeutralAppHost(host)
+    ? canonicalTenantCode(request.cookies.get(TENANT_COOKIE)?.value)
+    : "";
+  const tenantCode = linkedTenant || resolveTenantFromHost(host) || rememberedTenant;
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-pathname", request.nextUrl.pathname);
@@ -51,8 +63,6 @@ export default function proxy(request: NextRequest) {
     response.cookies.delete(TENANT_COOKIE);
   }
 
-  const pathname = request.nextUrl.pathname;
-
   if (!isProtectedPath(pathname)) {
     return response;
   }
@@ -73,18 +83,43 @@ export default function proxy(request: NextRequest) {
   return refreshTokens(request, tenantCode, refreshToken, response);
 }
 
+function isTenantBootstrapPath(pathname: string): boolean {
+  return ["/login", "/accept-invite", "/forgot-password", "/reset-password"].includes(pathname);
+}
+
 function isProtectedPath(pathname: string): boolean {
-  const publicPrefixes = ["/login", "/api", "/_next", "/favicon", "/sitemap", "/robots", "/not-found"];
+  const publicPrefixes = [
+    "/login",
+    "/api",
+    "/_next",
+    "/favicon",
+    "/sitemap",
+    "/robots",
+    "/not-found",
+  ];
   if (publicPrefixes.some((p) => pathname.startsWith(p))) return false;
-  const protectedPrefixes = ["/admin", "/teacher", "/student", "/parent", "/superadmin"];
+  const protectedPrefixes = [
+    "/admin",
+    "/teacher",
+    "/student",
+    "/parent",
+    "/applicant",
+    "/superadmin",
+    "/guide",
+  ];
   return protectedPrefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
 function redirectToLogin(request: NextRequest, tenantCode: string | null): NextResponse {
   const url = request.nextUrl.clone();
   url.pathname = "/login";
+  url.search = "";
   if (tenantCode) {
     url.searchParams.set("tenant", tenantCode);
+  }
+  const returnPath = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+  if (isProtectedPath(request.nextUrl.pathname) && returnPath.length <= 2048) {
+    url.searchParams.set("next", returnPath);
   }
   return NextResponse.redirect(url);
 }
@@ -96,7 +131,7 @@ async function refreshTokens(
   allowResponse: NextResponse,
 ): Promise<NextResponse> {
   try {
-    const res = await fetch(`${publicApiUrl}/api/v1/auth/refresh`, {
+    const res = await fetch(`${gatewayInternalUrl}/api/v1/auth/refresh`, {
       method: "POST",
       headers: {
         "content-type": "application/json",

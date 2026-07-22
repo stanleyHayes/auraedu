@@ -1,7 +1,9 @@
 # CLAUDE.md — AuraEDU operating rules for AI agents & engineers
 
 This file is loaded by AI coding agents. It is the short, enforceable contract.
-Full detail lives in [`agent_plan.md`](agent_plan.md) and [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md).
+Product and engineering authority lives in the [`AuraEDU Engineering Handbook`](docs/README.md);
+delivery state lives in [`agent_plan.md`](agent_plan.md), and interface mechanics live in
+[`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md).
 
 ## What AuraEDU is
 A **multi-tenant, feature-flag-configurable, microservices SaaS** school operating system.
@@ -34,7 +36,7 @@ Schools are **tenants** on one platform — never separate codebases. First tena
 Tenant-aware + RLS · correct feature flag (API/worker/UI) · RBAC enforced · resource-ownership check · OpenAPI/events updated · unit+integration+contract tests · **tenant-isolation test** · **feature-flag test** · FE handles on/off · logs+audit (no PII) · health/ready green · CI green · staging smoke.
 
 ## Before you code
-Read your story in `agent_plan.md`, confirm your **lane + owned directory** (`AGENTS.md` §lanes),
+Read the relevant handbook chapter and your story in `agent_plan.md`, confirm your **lane + owned directory** (`AGENTS.md` §lanes),
 build against **published contracts** (not other services' code/DB), and follow `DESIGN_SYSTEM.md` for any UI.
 
 ## Local dev

@@ -3,6 +3,7 @@ package http
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -27,6 +28,45 @@ func NewHandler(svc *application.Service) *Handler { return &Handler{svc: svc} }
 // Register mounts the service routes.
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/analytics/metrics", h.list)
+	mux.HandleFunc("GET /api/v1/analytics/executive/growth", h.growthExecutive)
+	mux.HandleFunc("POST /api/v1/analytics/executive/query", h.executiveQuery)
+}
+
+func (h *Handler) executiveQuery(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	var body struct {
+		Question string `json:"question"`
+		From     string `json:"from"`
+		To       string `json:"to"`
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&body) != nil {
+		h.writeErr(w, r, domain.ErrValidation)
+		return
+	}
+	answer, err := h.svc.AskExecutive(ctx, actor, application.ExecutiveQuery{Question: body.Question, From: body.From, To: body.To})
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, answer)
+}
+
+func (h *Handler) growthExecutive(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	report, err := h.svc.GrowthExecutive(ctx, actor, application.GrowthQuery{From: r.URL.Query().Get("from"), To: r.URL.Query().Get("to")})
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, report)
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
@@ -85,6 +125,8 @@ func (h *Handler) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 		httpx.Forbidden(w, r, "not permitted for this actor or tenant")
 	case errors.Is(err, domain.ErrMissingTenant):
 		httpx.TenantMismatch(w, r)
+	case errors.Is(err, domain.ErrUnavailable):
+		httpx.RespondError(w, r, httpx.ErrorFrom(err))
 	default:
 		httpx.RespondError(w, r, httpx.ErrorFrom(err))
 	}

@@ -8,6 +8,8 @@ apps/*/dist/**
 .turbo/**
 .pytest_cache/**
 .venv/**
+.impeccable/**
+.raven/**
 
 # Lockfiles
 **/pnpm-lock.yaml

@@ -7,33 +7,60 @@ import (
 	"net/http"
 )
 
-// InitiatePaymentRequest generated from OpenAPI schema.
-type InitiatePaymentRequest struct {
-	InvoiceId   string  `json:"invoice_id"`
-	Amount      float64 `json:"amount"`
-	Gateway     string  `json:"gateway"`
-	CallbackUrl *string `json:"callback_url,omitempty"`
-}
-
 // Payment generated from OpenAPI schema.
 type Payment struct {
-	Id        string  `json:"id"`
-	TenantId  string  `json:"tenant_id"`
-	InvoiceId string  `json:"invoice_id"`
-	Amount    float64 `json:"amount"`
-	Gateway   *string `json:"gateway,omitempty"`
-	Status    string  `json:"status"`
-	Reference *string `json:"reference,omitempty"`
+	Id                string                  `json:"id"`
+	TenantId          string                  `json:"tenant_id"`
+	InvoiceId         string                  `json:"invoice_id"`
+	AmountCents       int                     `json:"amount_cents"`
+	Currency          string                  `json:"currency"`
+	Provider          string                  `json:"provider"`
+	ProviderReference *string                 `json:"provider_reference,omitempty"`
+	Status            string                  `json:"status"`
+	Metadata          *map[string]interface{} `json:"metadata,omitempty"`
+	InitiatedAt       string                  `json:"initiated_at"`
+	CompletedAt       *string                 `json:"completed_at,omitempty"`
+	CheckoutUrl       *string                 `json:"checkout_url,omitempty"`
+	CreatedAt         string                  `json:"created_at"`
+	UpdatedAt         string                  `json:"updated_at"`
+}
+
+// CreatePayment generated from OpenAPI schema.
+type CreatePayment struct {
+	InvoiceId   string                  `json:"invoice_id"`
+	AmountCents int                     `json:"amount_cents"`
+	Currency    *string                 `json:"currency,omitempty"`
+	Provider    string                  `json:"provider"`
+	Metadata    *map[string]interface{} `json:"metadata,omitempty"`
+}
+
+// UpdatePayment generated from OpenAPI schema.
+type UpdatePayment struct {
+	AmountCents       *int                    `json:"amount_cents,omitempty"`
+	Currency          *string                 `json:"currency,omitempty"`
+	Provider          *string                 `json:"provider,omitempty"`
+	ProviderReference *string                 `json:"provider_reference,omitempty"`
+	Status            *string                 `json:"status,omitempty"`
+	Metadata          *map[string]interface{} `json:"metadata,omitempty"`
+	CompletedAt       *string                 `json:"completed_at,omitempty"`
+}
+
+// PaymentList generated from OpenAPI schema.
+type PaymentList struct {
+	Data       []Payment `json:"data"`
+	NextCursor *string   `json:"next_cursor"`
 }
 
 // Transaction generated from OpenAPI schema.
 type Transaction struct {
-	Id               string  `json:"id"`
-	TenantId         string  `json:"tenant_id"`
-	PaymentId        string  `json:"payment_id"`
-	Amount           float64 `json:"amount"`
-	GatewayReference *string `json:"gateway_reference,omitempty"`
-	RecordedAt       *string `json:"recorded_at,omitempty"`
+	Id          string `json:"id"`
+	TenantId    string `json:"tenant_id"`
+	PaymentId   string `json:"payment_id"`
+	Type        string `json:"type"`
+	Status      string `json:"status"`
+	AmountCents int    `json:"amount_cents"`
+	Reference   string `json:"reference"`
+	CreatedAt   string `json:"created_at"`
 }
 
 // WebhookPayload generated from OpenAPI schema.
@@ -44,30 +71,67 @@ type WebhookPayload struct {
 
 // WebhookEvent generated from OpenAPI schema.
 type WebhookEvent struct {
-	Id        string `json:"id"`
-	Provider  string `json:"provider"`
-	Event     string `json:"event"`
-	Processed *bool  `json:"processed,omitempty"`
+	Id          string                 `json:"id"`
+	TenantId    *string                `json:"tenant_id,omitempty"`
+	Provider    string                 `json:"provider"`
+	EventType   string                 `json:"event_type"`
+	Payload     map[string]interface{} `json:"payload"`
+	Signature   *string                `json:"signature,omitempty"`
+	Processed   bool                   `json:"processed"`
+	ProcessedAt *string                `json:"processed_at,omitempty"`
+	CreatedAt   string                 `json:"created_at"`
+}
+
+// CreateWebhookEvent generated from OpenAPI schema.
+type CreateWebhookEvent struct {
+	Provider  string                 `json:"provider"`
+	EventType string                 `json:"event_type"`
+	Payload   map[string]interface{} `json:"payload"`
+	Signature *string                `json:"signature,omitempty"`
 }
 
 // TransactionList generated from OpenAPI schema.
 type TransactionList struct {
-	Data       *[]Transaction `json:"data,omitempty"`
-	NextCursor *string        `json:"next_cursor,omitempty"`
+	Data       []Transaction `json:"data"`
+	NextCursor *string       `json:"next_cursor"`
+}
+
+// WebhookEventList generated from OpenAPI schema.
+type WebhookEventList struct {
+	Data       []WebhookEvent `json:"data"`
+	NextCursor *string        `json:"next_cursor"`
 }
 
 // ServerInterface is implemented by the service HTTP adapter.
 type ServerInterface interface {
-	initiatePayment(w http.ResponseWriter, r *http.Request)
+	listPayments(w http.ResponseWriter, r *http.Request)
+	createPayment(w http.ResponseWriter, r *http.Request)
 	getPayment(w http.ResponseWriter, r *http.Request)
-	listTransactions(w http.ResponseWriter, r *http.Request)
+	updatePayment(w http.ResponseWriter, r *http.Request)
+	deletePayment(w http.ResponseWriter, r *http.Request)
+	initiatePayment(w http.ResponseWriter, r *http.Request)
+	verifyPayment(w http.ResponseWriter, r *http.Request)
+	listPaymentTransactions(w http.ResponseWriter, r *http.Request)
+	getTransaction(w http.ResponseWriter, r *http.Request)
+	listWebhookEvents(w http.ResponseWriter, r *http.Request)
+	createWebhookEvent(w http.ResponseWriter, r *http.Request)
+	getWebhookEvent(w http.ResponseWriter, r *http.Request)
 	receiveWebhook(w http.ResponseWriter, r *http.Request)
 }
 
 // ClientInterface is the generated consumer stub for this service.
 type ClientInterface interface {
-	initiatePayment(ctx context.Context) (*http.Response, error)
+	listPayments(ctx context.Context) (*http.Response, error)
+	createPayment(ctx context.Context) (*http.Response, error)
 	getPayment(ctx context.Context) (*http.Response, error)
-	listTransactions(ctx context.Context) (*http.Response, error)
+	updatePayment(ctx context.Context) (*http.Response, error)
+	deletePayment(ctx context.Context) (*http.Response, error)
+	initiatePayment(ctx context.Context) (*http.Response, error)
+	verifyPayment(ctx context.Context) (*http.Response, error)
+	listPaymentTransactions(ctx context.Context) (*http.Response, error)
+	getTransaction(ctx context.Context) (*http.Response, error)
+	listWebhookEvents(ctx context.Context) (*http.Response, error)
+	createWebhookEvent(ctx context.Context) (*http.Response, error)
+	getWebhookEvent(ctx context.Context) (*http.Response, error)
 	receiveWebhook(ctx context.Context) (*http.Response, error)
 }

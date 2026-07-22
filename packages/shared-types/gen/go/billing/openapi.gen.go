@@ -9,37 +9,105 @@ import (
 
 // Plan generated from OpenAPI schema.
 type Plan struct {
-	Id           string    `json:"id"`
-	Key          string    `json:"key"`
-	Name         string    `json:"name"`
-	Features     *[]string `json:"features,omitempty"`
-	PriceMonthly *float64  `json:"price_monthly,omitempty"`
+	Id              string   `json:"id"`
+	Code            string   `json:"code"`
+	Name            string   `json:"name"`
+	Description     *string  `json:"description,omitempty"`
+	Features        []string `json:"features"`
+	PriceCents      int      `json:"price_cents"`
+	Currency        string   `json:"currency"`
+	BillingInterval string   `json:"billing_interval"`
+	Status          string   `json:"status"`
+	CreatedAt       *string  `json:"created_at,omitempty"`
+	UpdatedAt       *string  `json:"updated_at,omitempty"`
+}
+
+// CreatePlan generated from OpenAPI schema.
+type CreatePlan struct {
+	Name            string   `json:"name"`
+	Code            string   `json:"code"`
+	Description     *string  `json:"description,omitempty"`
+	PriceCents      int      `json:"price_cents"`
+	Currency        string   `json:"currency"`
+	BillingInterval string   `json:"billing_interval"`
+	Features        []string `json:"features"`
+}
+
+// UpdatePlan generated from OpenAPI schema.
+type UpdatePlan struct {
+	Name            *string   `json:"name,omitempty"`
+	Code            *string   `json:"code,omitempty"`
+	Description     *string   `json:"description,omitempty"`
+	PriceCents      *int      `json:"price_cents,omitempty"`
+	Currency        *string   `json:"currency,omitempty"`
+	BillingInterval *string   `json:"billing_interval,omitempty"`
+	Features        *[]string `json:"features,omitempty"`
+	Status          *string   `json:"status,omitempty"`
 }
 
 // Subscription generated from OpenAPI schema.
 type Subscription struct {
 	Id                 string  `json:"id"`
 	TenantId           string  `json:"tenant_id"`
-	PlanKey            string  `json:"plan_key"`
+	PlanId             string  `json:"plan_id"`
 	Status             string  `json:"status"`
-	CurrentPeriodStart *string `json:"current_period_start,omitempty"`
-	CurrentPeriodEnd   *string `json:"current_period_end,omitempty"`
+	CurrentPeriodStart string  `json:"current_period_start"`
+	CurrentPeriodEnd   string  `json:"current_period_end"`
+	TrialEndsAt        *string `json:"trial_ends_at,omitempty"`
+	CancelledAt        *string `json:"cancelled_at,omitempty"`
+	CreatedAt          string  `json:"created_at"`
+	UpdatedAt          string  `json:"updated_at"`
 }
 
 // CreateSubscription generated from OpenAPI schema.
 type CreateSubscription struct {
-	TenantId     string  `json:"tenant_id"`
-	PlanKey      string  `json:"plan_key"`
-	BillingEmail *string `json:"billing_email,omitempty"`
+	PlanId             string  `json:"plan_id"`
+	Status             *string `json:"status,omitempty"`
+	CurrentPeriodStart *string `json:"current_period_start,omitempty"`
+	CurrentPeriodEnd   *string `json:"current_period_end,omitempty"`
+	TrialEndsAt        *string `json:"trial_ends_at,omitempty"`
+}
+
+// UpdateSubscription generated from OpenAPI schema.
+type UpdateSubscription struct {
+	Status             *string `json:"status,omitempty"`
+	CurrentPeriodStart *string `json:"current_period_start,omitempty"`
+	CurrentPeriodEnd   *string `json:"current_period_end,omitempty"`
+	TrialEndsAt        *string `json:"trial_ends_at,omitempty"`
+	CancelledAt        *string `json:"cancelled_at,omitempty"`
+}
+
+// ChangePlan generated from OpenAPI schema.
+type ChangePlan struct {
+	PlanId string `json:"plan_id"`
 }
 
 // SaasInvoice generated from OpenAPI schema.
 type SaasInvoice struct {
-	Id       string  `json:"id"`
-	TenantId string  `json:"tenant_id"`
-	Amount   float64 `json:"amount"`
-	Status   string  `json:"status"`
-	DueDate  *string `json:"due_date,omitempty"`
+	Id             string  `json:"id"`
+	TenantId       string  `json:"tenant_id"`
+	SubscriptionId string  `json:"subscription_id"`
+	AmountCents    int     `json:"amount_cents"`
+	Status         string  `json:"status"`
+	DueDate        *string `json:"due_date,omitempty"`
+	PaidAt         *string `json:"paid_at,omitempty"`
+	CreatedAt      string  `json:"created_at"`
+	UpdatedAt      string  `json:"updated_at"`
+}
+
+// CreateSaasInvoice generated from OpenAPI schema.
+type CreateSaasInvoice struct {
+	SubscriptionId string  `json:"subscription_id"`
+	AmountCents    int     `json:"amount_cents"`
+	DueDate        *string `json:"due_date,omitempty"`
+}
+
+// UpdateSaasInvoice generated from OpenAPI schema.
+type UpdateSaasInvoice struct {
+	AmountCents *int    `json:"amount_cents,omitempty"`
+	Status      *string `json:"status,omitempty"`
+	DueDate     *string `json:"due_date,omitempty"`
+	PaidAt      *string `json:"paid_at,omitempty"`
 }
 
 // PlanList generated from OpenAPI schema.
@@ -62,16 +130,46 @@ type SaasInvoiceList struct {
 
 // ServerInterface is implemented by the service HTTP adapter.
 type ServerInterface interface {
+	listPublicPlans(w http.ResponseWriter, r *http.Request)
 	listPlans(w http.ResponseWriter, r *http.Request)
+	createPlan(w http.ResponseWriter, r *http.Request)
+	getPlan(w http.ResponseWriter, r *http.Request)
+	updatePlan(w http.ResponseWriter, r *http.Request)
+	deletePlan(w http.ResponseWriter, r *http.Request)
 	listSubscriptions(w http.ResponseWriter, r *http.Request)
 	createSubscription(w http.ResponseWriter, r *http.Request)
+	getSubscription(w http.ResponseWriter, r *http.Request)
+	updateSubscription(w http.ResponseWriter, r *http.Request)
+	deleteSubscription(w http.ResponseWriter, r *http.Request)
+	changeSubscriptionPlan(w http.ResponseWriter, r *http.Request)
 	listSaasInvoices(w http.ResponseWriter, r *http.Request)
+	createSaasInvoice(w http.ResponseWriter, r *http.Request)
+	getSaasInvoice(w http.ResponseWriter, r *http.Request)
+	updateSaasInvoice(w http.ResponseWriter, r *http.Request)
+	deleteSaasInvoice(w http.ResponseWriter, r *http.Request)
+	markSaasInvoicePaid(w http.ResponseWriter, r *http.Request)
+	markSaasInvoiceVoid(w http.ResponseWriter, r *http.Request)
 }
 
 // ClientInterface is the generated consumer stub for this service.
 type ClientInterface interface {
+	listPublicPlans(ctx context.Context) (*http.Response, error)
 	listPlans(ctx context.Context) (*http.Response, error)
+	createPlan(ctx context.Context) (*http.Response, error)
+	getPlan(ctx context.Context) (*http.Response, error)
+	updatePlan(ctx context.Context) (*http.Response, error)
+	deletePlan(ctx context.Context) (*http.Response, error)
 	listSubscriptions(ctx context.Context) (*http.Response, error)
 	createSubscription(ctx context.Context) (*http.Response, error)
+	getSubscription(ctx context.Context) (*http.Response, error)
+	updateSubscription(ctx context.Context) (*http.Response, error)
+	deleteSubscription(ctx context.Context) (*http.Response, error)
+	changeSubscriptionPlan(ctx context.Context) (*http.Response, error)
 	listSaasInvoices(ctx context.Context) (*http.Response, error)
+	createSaasInvoice(ctx context.Context) (*http.Response, error)
+	getSaasInvoice(ctx context.Context) (*http.Response, error)
+	updateSaasInvoice(ctx context.Context) (*http.Response, error)
+	deleteSaasInvoice(ctx context.Context) (*http.Response, error)
+	markSaasInvoicePaid(ctx context.Context) (*http.Response, error)
+	markSaasInvoiceVoid(ctx context.Context) (*http.Response, error)
 }

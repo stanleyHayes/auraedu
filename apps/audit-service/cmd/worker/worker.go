@@ -17,29 +17,40 @@ import (
 	"github.com/auraedu/platform/config"
 	"github.com/auraedu/platform/db"
 	"github.com/auraedu/platform/eventbus"
+	"github.com/auraedu/platform/observ"
 
 	// Register pgx SQL driver for database/sql based migrations.
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/nats-io/nats.go"
 )
 
-const service = "audit-service"
+const service = "audit-service-worker"
 
 // version is injected via -ldflags "-X main.version=<sha>" (Dockerfile); falls back to env.
 var version = ""
 
-func main() {
-	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+func run() error {
+	log := observ.DefaultLogger()
 	slog.SetDefault(log)
 	if version == "" {
 		version = config.Getenv("GIT_SHA", "dev")
 	}
 
 	ctx := context.Background()
+	shutdownTelemetry, err := observ.InitTracing(service, version)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := shutdownTelemetry(shutdownCtx); err != nil {
+			log.Error("flush audit worker telemetry", "err", err)
+		}
+	}()
 	database, err := openDB(ctx)
 	if err != nil {
-		log.Error("failed to open database", "err", err)
-		os.Exit(1)
+		return err
 	}
 	defer database.Close()
 
@@ -48,20 +59,18 @@ func main() {
 
 	nc, js, err := connectNATS(log)
 	if err != nil {
-		log.Error("failed to connect to NATS", "err", err)
-		return
+		return err
 	}
 	defer nc.Close()
 
 	if _, err := eventbus.EnsureStream(js, "AURA"); err != nil {
-		log.Error("failed to ensure NATS stream", "err", err)
-		return
+		return err
 	}
 
-	sub := events.NewSubscriber(js, log)
+	metrics := observ.NewWorkerMetrics(service, "audit-sink")
+	sub := events.NewSubscriber(js, log, metrics)
 	if err := sub.Start(ctx, sink.Process); err != nil {
-		log.Error("failed to start subscriber", "err", err)
-		return
+		return err
 	}
 	defer func() {
 		if err := sub.Stop(); err != nil {
@@ -74,17 +83,8 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
-
-	ctxShutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if err := sub.Stop(); err != nil {
-		log.Error("subscriber stop error", "err", err)
-	}
-	nc.Close()
-	database.Close()
 	log.Info(service + " worker stopped")
-	_ = ctxShutdown
+	return nil
 }
 
 func openDB(ctx context.Context) (*db.DB, error) {
@@ -115,6 +115,5 @@ func connectNATS(log *slog.Logger) (*nats.Conn, eventbus.JetStreamContext, error
 
 // Run starts the audit-service background worker. It is invoked by the service CLI.
 func Run() error {
-	main()
-	return nil
+	return run()
 }

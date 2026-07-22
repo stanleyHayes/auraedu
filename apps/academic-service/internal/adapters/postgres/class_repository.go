@@ -86,6 +86,33 @@ func (r *ClassRepository) List(ctx context.Context, tenantID string, limit int, 
 	return out, nextCursor, err
 }
 
+func (r *ClassRepository) ListIDsByTeacher(ctx context.Context, tenantID, staffID string) ([]string, error) {
+	var ids []string
+	err := r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			SELECT id FROM classes
+			WHERE tenant_id = $1 AND class_teacher_id = $2
+			ORDER BY id
+		`, tenantID, staffID)
+		if err != nil {
+			return fmt.Errorf("academic: list teacher class ids: %w", err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				return fmt.Errorf("academic: scan teacher class id: %w", err)
+			}
+			ids = append(ids, id)
+		}
+		return rows.Err()
+	})
+	if ids == nil {
+		ids = []string{}
+	}
+	return ids, err
+}
+
 func listClassesQuery(ctx context.Context, tx pgx.Tx, tenantID string, limit int, cursor string) (pgx.Rows, error) {
 	if cursor != "" {
 		return tx.Query(ctx, `

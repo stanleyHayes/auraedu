@@ -1,15 +1,28 @@
 """CloudEvent publisher for generated predictions."""
 
-import json
+from __future__ import annotations
+
 import uuid
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ai_prediction_service.config import settings
+from ai_prediction_service.events.envelope import encode_event
 from ai_prediction_service.events.transport import get_transport
 
 if TYPE_CHECKING:
     from ai_prediction_service.models import Prediction
+
+
+def prediction_event_data(prediction: Prediction) -> dict[str, Any]:
+    """Build the contract-owned data object for every publication path."""
+    return {
+        "student_id": prediction.student_id,
+        "prediction_type": prediction.prediction_type,
+        "value": prediction.value,
+        "confidence": prediction.confidence,
+        "explanation": prediction.explanation,
+    }
 
 
 async def publish_predictions(
@@ -30,11 +43,6 @@ async def publish_predictions(
             "tenant_id": tenant_id,
             "datacontenttype": "application/json",
             "subject": f"students/{prediction.student_id}",
-            "data": {
-                "student_id": prediction.student_id,
-                "prediction_type": prediction.prediction_type,
-                "confidence": prediction.confidence,
-                "explanation": prediction.explanation,
-            },
+            "data": prediction_event_data(prediction),
         }
-        await transport.publish("ai.prediction_generated.v1", json.dumps(event).encode())
+        await transport.publish("ai.prediction_generated.v1", encode_event(event))

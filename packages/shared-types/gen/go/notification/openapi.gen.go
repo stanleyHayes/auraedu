@@ -7,59 +7,175 @@ import (
 	"net/http"
 )
 
-// Message generated from OpenAPI schema.
-type Message struct {
-	Id          string  `json:"id"`
-	TenantId    string  `json:"tenant_id"`
-	Channel     string  `json:"channel"`
-	RecipientId string  `json:"recipient_id"`
-	Subject     *string `json:"subject,omitempty"`
-	Body        *string `json:"body,omitempty"`
-	Status      string  `json:"status"`
+// JourneyStatus generated from OpenAPI schema.
+type JourneyStatus struct {
 }
 
-// SendMessageRequest generated from OpenAPI schema.
-type SendMessageRequest struct {
-	Channel     string                  `json:"channel"`
+// JourneyEvent generated from OpenAPI schema.
+type JourneyEvent struct {
+}
+
+// JourneyConditionOperator generated from OpenAPI schema.
+type JourneyConditionOperator struct {
+}
+
+// CreateJourneyStep generated from OpenAPI schema.
+type CreateJourneyStep struct {
+	Channel           string                   `json:"channel"`
+	TemplateId        string                   `json:"template_id"`
+	DelayMinutes      int                      `json:"delay_minutes"`
+	ConditionOperator JourneyConditionOperator `json:"condition_operator"`
+	ConditionField    *string                  `json:"condition_field,omitempty"`
+	ConditionValue    *string                  `json:"condition_value,omitempty"`
+}
+
+// JourneyStep generated from OpenAPI schema.
+type JourneyStep struct {
+}
+
+// CreateCommunicationJourney generated from OpenAPI schema.
+type CreateCommunicationJourney struct {
+	Name                  string              `json:"name"`
+	TriggerEvent          JourneyEvent        `json:"trigger_event"`
+	Timezone              string              `json:"timezone"`
+	QuietHoursStartMinute *int                `json:"quiet_hours_start_minute,omitempty"`
+	QuietHoursEndMinute   *int                `json:"quiet_hours_end_minute,omitempty"`
+	FrequencyWindowHours  int                 `json:"frequency_window_hours"`
+	FrequencyLimit        int                 `json:"frequency_limit"`
+	CancelOnEvents        []JourneyEvent      `json:"cancel_on_events"`
+	Steps                 []CreateJourneyStep `json:"steps"`
+}
+
+// CommunicationJourney generated from OpenAPI schema.
+type CommunicationJourney struct {
+}
+
+// JourneyStats generated from OpenAPI schema.
+type JourneyStats struct {
+	Enrolled   int `json:"enrolled"`
+	Scheduled  int `json:"scheduled"`
+	Sent       int `json:"sent"`
+	Failed     int `json:"failed"`
+	Cancelled  int `json:"cancelled"`
+	Skipped    int `json:"skipped"`
+	Accepted   int `json:"accepted"`
+	Delivered  int `json:"delivered"`
+	Delayed    int `json:"delayed"`
+	Bounced    int `json:"bounced"`
+	Complained int `json:"complained"`
+	Suppressed int `json:"suppressed"`
+}
+
+// Channel generated from OpenAPI schema.
+type Channel struct {
+}
+
+// MessageStatus generated from OpenAPI schema.
+type MessageStatus struct {
+}
+
+// TemplateStatus generated from OpenAPI schema.
+type TemplateStatus struct {
+}
+
+// Message generated from OpenAPI schema.
+type Message struct {
+	Id               string                  `json:"id"`
+	TenantId         string                  `json:"tenant_id"`
+	RecipientId      string                  `json:"recipient_id"`
+	Channel          Channel                 `json:"channel"`
+	TemplateId       *string                 `json:"template_id,omitempty"`
+	Subject          string                  `json:"subject"`
+	Body             string                  `json:"body"`
+	Status           MessageStatus           `json:"status"`
+	Metadata         *map[string]interface{} `json:"metadata,omitempty"`
+	ScheduledAt      *string                 `json:"scheduled_at,omitempty"`
+	SentAt           *string                 `json:"sent_at,omitempty"`
+	Error            *string                 `json:"error,omitempty"`
+	Provider         *string                 `json:"provider,omitempty"`
+	DeliveryStatus   *string                 `json:"delivery_status,omitempty"`
+	DeliveryStatusAt *string                 `json:"delivery_status_at,omitempty"`
+	CreatedAt        string                  `json:"created_at"`
+	UpdatedAt        string                  `json:"updated_at"`
+}
+
+// CreateMessage generated from OpenAPI schema.
+type CreateMessage struct {
 	RecipientId string                  `json:"recipient_id"`
+	Channel     Channel                 `json:"channel"`
+	TemplateId  *string                 `json:"template_id,omitempty"`
+	Subject     string                  `json:"subject"`
+	Body        string                  `json:"body"`
+	Metadata    *map[string]interface{} `json:"metadata,omitempty"`
+	ScheduledAt *string                 `json:"scheduled_at,omitempty"`
+}
+
+// UpdateMessage generated from OpenAPI schema.
+type UpdateMessage struct {
+	RecipientId *string                 `json:"recipient_id,omitempty"`
+	Channel     *Channel                `json:"channel,omitempty"`
+	TemplateId  *string                 `json:"template_id,omitempty"`
 	Subject     *string                 `json:"subject,omitempty"`
 	Body        *string                 `json:"body,omitempty"`
-	TemplateId  *string                 `json:"template_id,omitempty"`
-	Variables   *map[string]interface{} `json:"variables,omitempty"`
+	Status      *MessageStatus          `json:"status,omitempty"`
+	Metadata    *map[string]interface{} `json:"metadata,omitempty"`
+	ScheduledAt *string                 `json:"scheduled_at,omitempty"`
+	SentAt      *string                 `json:"sent_at,omitempty"`
+	Error       *string                 `json:"error,omitempty"`
 }
 
 // Template generated from OpenAPI schema.
 type Template struct {
-	Id              string  `json:"id"`
-	TenantId        string  `json:"tenant_id"`
-	Name            string  `json:"name"`
-	Channel         string  `json:"channel"`
-	SubjectTemplate *string `json:"subject_template,omitempty"`
-	BodyTemplate    *string `json:"body_template,omitempty"`
+	Id              string         `json:"id"`
+	TenantId        string         `json:"tenant_id"`
+	Name            string         `json:"name"`
+	Channel         Channel        `json:"channel"`
+	SubjectTemplate string         `json:"subject_template"`
+	BodyTemplate    string         `json:"body_template"`
+	Status          TemplateStatus `json:"status"`
+	CreatedAt       string         `json:"created_at"`
+	UpdatedAt       string         `json:"updated_at"`
 }
 
 // CreateTemplate generated from OpenAPI schema.
 type CreateTemplate struct {
 	Name            string  `json:"name"`
-	Channel         string  `json:"channel"`
+	Channel         Channel `json:"channel"`
 	SubjectTemplate *string `json:"subject_template,omitempty"`
 	BodyTemplate    string  `json:"body_template"`
 }
 
+// UpdateTemplate generated from OpenAPI schema.
+type UpdateTemplate struct {
+	Name            *string         `json:"name,omitempty"`
+	Channel         *Channel        `json:"channel,omitempty"`
+	SubjectTemplate *string         `json:"subject_template,omitempty"`
+	BodyTemplate    *string         `json:"body_template,omitempty"`
+	Status          *TemplateStatus `json:"status,omitempty"`
+}
+
 // Subscription generated from OpenAPI schema.
 type Subscription struct {
-	Id        string `json:"id"`
-	TenantId  string `json:"tenant_id"`
-	UserId    string `json:"user_id"`
-	Channel   string `json:"channel"`
-	IsEnabled *bool  `json:"is_enabled,omitempty"`
+	Id        string  `json:"id"`
+	TenantId  string  `json:"tenant_id"`
+	UserId    string  `json:"user_id"`
+	Channel   Channel `json:"channel"`
+	IsEnabled *bool   `json:"is_enabled,omitempty"`
+	CreatedAt *string `json:"created_at,omitempty"`
+	UpdatedAt *string `json:"updated_at,omitempty"`
 }
 
 // CreateSubscription generated from OpenAPI schema.
 type CreateSubscription struct {
-	UserId    string `json:"user_id"`
-	Channel   string `json:"channel"`
-	IsEnabled *bool  `json:"is_enabled,omitempty"`
+	UserId    string  `json:"user_id"`
+	Channel   Channel `json:"channel"`
+	IsEnabled *bool   `json:"is_enabled,omitempty"`
+}
+
+// UpdateSubscription generated from OpenAPI schema.
+type UpdateSubscription struct {
+	Channel   *Channel `json:"channel,omitempty"`
+	IsEnabled *bool    `json:"is_enabled,omitempty"`
 }
 
 // MessageList generated from OpenAPI schema.
@@ -98,6 +214,24 @@ type CreateAnnouncement struct {
 	Audience *string `json:"audience,omitempty"`
 }
 
+// RegisterDeviceToken generated from OpenAPI schema.
+type RegisterDeviceToken struct {
+	DeviceId string `json:"device_id"`
+	Platform string `json:"platform"`
+	Token    string `json:"token"`
+}
+
+// DeviceToken generated from OpenAPI schema.
+type DeviceToken struct {
+	Id         string `json:"id"`
+	TenantId   string `json:"tenant_id"`
+	UserId     string `json:"user_id"`
+	DeviceId   string `json:"device_id"`
+	Platform   string `json:"platform"`
+	Status     string `json:"status"`
+	LastSeenAt string `json:"last_seen_at"`
+}
+
 // AnnouncementList generated from OpenAPI schema.
 type AnnouncementList struct {
 	Data       *[]Announcement `json:"data,omitempty"`
@@ -106,28 +240,72 @@ type AnnouncementList struct {
 
 // ServerInterface is implemented by the service HTTP adapter.
 type ServerInterface interface {
+	processResendDeliveryWebhook(w http.ResponseWriter, r *http.Request)
+	processTwilioDeliveryWebhook(w http.ResponseWriter, r *http.Request)
+	unsubscribeEmail(w http.ResponseWriter, r *http.Request)
 	listMessages(w http.ResponseWriter, r *http.Request)
+	createMessage(w http.ResponseWriter, r *http.Request)
+	getMessage(w http.ResponseWriter, r *http.Request)
+	updateMessage(w http.ResponseWriter, r *http.Request)
+	deleteMessage(w http.ResponseWriter, r *http.Request)
 	sendMessage(w http.ResponseWriter, r *http.Request)
 	listTemplates(w http.ResponseWriter, r *http.Request)
 	createTemplate(w http.ResponseWriter, r *http.Request)
+	getTemplate(w http.ResponseWriter, r *http.Request)
+	updateTemplate(w http.ResponseWriter, r *http.Request)
+	deleteTemplate(w http.ResponseWriter, r *http.Request)
 	listSubscriptions(w http.ResponseWriter, r *http.Request)
 	createSubscription(w http.ResponseWriter, r *http.Request)
+	getSubscription(w http.ResponseWriter, r *http.Request)
+	updateSubscription(w http.ResponseWriter, r *http.Request)
+	deleteSubscription(w http.ResponseWriter, r *http.Request)
 	listAnnouncements(w http.ResponseWriter, r *http.Request)
 	createAnnouncement(w http.ResponseWriter, r *http.Request)
+	listCommunicationJourneys(w http.ResponseWriter, r *http.Request)
+	createCommunicationJourney(w http.ResponseWriter, r *http.Request)
+	getCommunicationJourney(w http.ResponseWriter, r *http.Request)
+	activateCommunicationJourney(w http.ResponseWriter, r *http.Request)
+	pauseCommunicationJourney(w http.ResponseWriter, r *http.Request)
+	archiveCommunicationJourney(w http.ResponseWriter, r *http.Request)
+	getCommunicationJourneyStats(w http.ResponseWriter, r *http.Request)
 	getAnnouncement(w http.ResponseWriter, r *http.Request)
 	deleteAnnouncement(w http.ResponseWriter, r *http.Request)
+	registerDeviceToken(w http.ResponseWriter, r *http.Request)
+	unregisterDeviceToken(w http.ResponseWriter, r *http.Request)
 }
 
 // ClientInterface is the generated consumer stub for this service.
 type ClientInterface interface {
+	processResendDeliveryWebhook(ctx context.Context) (*http.Response, error)
+	processTwilioDeliveryWebhook(ctx context.Context) (*http.Response, error)
+	unsubscribeEmail(ctx context.Context) (*http.Response, error)
 	listMessages(ctx context.Context) (*http.Response, error)
+	createMessage(ctx context.Context) (*http.Response, error)
+	getMessage(ctx context.Context) (*http.Response, error)
+	updateMessage(ctx context.Context) (*http.Response, error)
+	deleteMessage(ctx context.Context) (*http.Response, error)
 	sendMessage(ctx context.Context) (*http.Response, error)
 	listTemplates(ctx context.Context) (*http.Response, error)
 	createTemplate(ctx context.Context) (*http.Response, error)
+	getTemplate(ctx context.Context) (*http.Response, error)
+	updateTemplate(ctx context.Context) (*http.Response, error)
+	deleteTemplate(ctx context.Context) (*http.Response, error)
 	listSubscriptions(ctx context.Context) (*http.Response, error)
 	createSubscription(ctx context.Context) (*http.Response, error)
+	getSubscription(ctx context.Context) (*http.Response, error)
+	updateSubscription(ctx context.Context) (*http.Response, error)
+	deleteSubscription(ctx context.Context) (*http.Response, error)
 	listAnnouncements(ctx context.Context) (*http.Response, error)
 	createAnnouncement(ctx context.Context) (*http.Response, error)
+	listCommunicationJourneys(ctx context.Context) (*http.Response, error)
+	createCommunicationJourney(ctx context.Context) (*http.Response, error)
+	getCommunicationJourney(ctx context.Context) (*http.Response, error)
+	activateCommunicationJourney(ctx context.Context) (*http.Response, error)
+	pauseCommunicationJourney(ctx context.Context) (*http.Response, error)
+	archiveCommunicationJourney(ctx context.Context) (*http.Response, error)
+	getCommunicationJourneyStats(ctx context.Context) (*http.Response, error)
 	getAnnouncement(ctx context.Context) (*http.Response, error)
 	deleteAnnouncement(ctx context.Context) (*http.Response, error)
+	registerDeviceToken(ctx context.Context) (*http.Response, error)
+	unregisterDeviceToken(ctx context.Context) (*http.Response, error)
 }

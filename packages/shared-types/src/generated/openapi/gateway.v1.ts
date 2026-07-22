@@ -9,7 +9,10 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Gateway health */
+        /**
+         * Gateway health
+         * @description Executes the health check workflow within this AuraEDU API boundary.
+         */
         get: operations["healthCheck"];
         put?: never;
         post?: never;
@@ -26,7 +29,10 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Gateway readiness */
+        /**
+         * Gateway readiness
+         * @description Executes the ready check workflow within this AuraEDU API boundary.
+         */
         get: operations["readyCheck"];
         put?: never;
         post?: never;
@@ -43,10 +49,36 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List configured upstream routes */
+        /**
+         * List configured upstream routes
+         * @description Executes the list routes workflow within this AuraEDU API boundary.
+         */
         get: operations["listRoutes"];
         put?: never;
-        /** Register an upstream route */
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/platform/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read current private-service readiness
+         * @description Platform-super-admin-only, tenant-optional report produced by bounded concurrent gateway probes. Private hosts and raw transport errors are never returned.
+         */
+        get: operations["getPlatformDependencyHealth"];
+        put?: never;
+        /**
+         * Register an upstream route
+         * @description Executes the create route workflow within this AuraEDU API boundary.
+         */
         post: operations["createRoute"];
         delete?: never;
         options?: never;
@@ -70,6 +102,22 @@ export type components = {
             checks?: {
                 [key: string]: unknown;
             };
+        };
+        DependencyHealthCheck: {
+            service: string;
+            /** @enum {string} */
+            endpoint: "/ready" | "/health" | "/healthz";
+            /** @enum {string} */
+            status: "healthy" | "degraded" | "unreachable";
+            detail: string;
+            latency_ms: number;
+        };
+        PlatformHealthReport: {
+            /** @enum {string} */
+            status: "healthy" | "degraded" | "down";
+            /** Format: date-time */
+            generated_at: string;
+            checks: components["schemas"]["DependencyHealthCheck"][];
         };
         Route: {
             path_prefix: string;
@@ -149,7 +197,6 @@ export type components = {
         };
     };
     parameters: {
-        TenantId: string;
         /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
         TenantHeader: string;
         Limit: number;
@@ -243,6 +290,29 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationError"];
+        };
+    };
+    getPlatformDependencyHealth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current dependency report; degraded/down dependencies remain data in a successful operator response. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlatformHealthReport"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
     createRoute: {

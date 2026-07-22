@@ -15,7 +15,7 @@ GO_MODULES := $(shell find platform apps -name go.mod -exec dirname {} \; | sort
 # Prefer the golangci-lint installed via `go install` in GOPATH/bin; fall back
 # to PATH. This avoids stale Homebrew builds shadowing a Go-1.26.5-compiled
 # binary when running `make lint-go` locally.
-GOLANGCI_LINT := $(shell test -x "$$(go env GOPATH)/bin/golangci-lint" && echo "$$(go env GOPATH)/bin/golangci-lint" || command -v golangci-lint)
+GOLANGCI_LINT := $(shell if command -v go >/dev/null 2>&1; then test -x "$$(go env GOPATH)/bin/golangci-lint" && echo "$$(go env GOPATH)/bin/golangci-lint" || command -v golangci-lint; else command -v golangci-lint; fi)
 
 # ---- Toolchain bootstrap ---------------------------------------------------
 .PHONY: bootstrap
@@ -26,25 +26,33 @@ bootstrap: ## Install all toolchains + workspace deps (JS, Go, Python)
 	@echo "Bootstrap complete."
 
 # ---- Local development -----------------------------------------------------
+.PHONY: local-config
+local-config: ## Generate secure, ignored local secrets and migration URL map
+	node tools/dev/generate-local-config.mjs
+
 .PHONY: dev
-dev: ## Boot the full local stack (infra + backend services + web + marketing)
-	docker compose -f deploy/docker-compose.yml up --build -d
+dev: local-config ## Boot the full local stack (infra + backend services + web + marketing)
+	docker compose --env-file .env -f deploy/docker-compose.yml up --build -d
 	@echo "==> AuraEDU stack is starting up."
-	@echo "    Gateway:   http://localhost:8080"
-	@echo "    Web:       http://localhost:3000"
-	@echo "    Marketing: http://localhost:3001"
+	@echo "    Gateway:   $$(docker compose --env-file .env -f deploy/docker-compose.yml port api-gateway 8080)"
+	@echo "    Web:       $$(docker compose --env-file .env -f deploy/docker-compose.yml port web 3000)"
+	@echo "    Marketing: $$(docker compose --env-file .env -f deploy/docker-compose.yml port marketing 3001)"
 
 .PHONY: dev-down
 dev-down: ## Stop the full local stack
-	docker compose -f deploy/docker-compose.yml down
+	docker compose --env-file .env -f deploy/docker-compose.yml down
+
+.PHONY: dev-verify
+dev-verify: ## Verify the complete local topology, restarts, and readiness endpoints
+	./tools/dev/verify-local-runtime.sh
 
 .PHONY: infra-up
-infra-up: ## Start local infra (Postgres, Redis, NATS, OTel) via docker compose
-	docker compose -f deploy/docker-compose.infra.yml up -d
+infra-up: local-config ## Start local infra (Postgres, Redis, NATS, OTel) via docker compose
+	docker compose --env-file .env -f deploy/docker-compose.infra.yml up -d
 
 .PHONY: infra-down
 infra-down: ## Stop local infra
-	docker compose -f deploy/docker-compose.infra.yml down
+	docker compose --env-file .env -f deploy/docker-compose.infra.yml down
 
 # ---- Quality ---------------------------------------------------------------
 .PHONY: lint
@@ -52,7 +60,7 @@ lint: lint-go lint-python lint-web ## Run all linters (Go + Python + TS/Web)
 
 .PHONY: lint-go
 lint-go: ## Lint all Go modules (golangci-lint)
-	@test -n "$(GOLANGCI_LINT)" || (echo "golangci-lint not found; install with: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest" && exit 1)
+	@test -n "$(GOLANGCI_LINT)" || (echo "golangci-lint not found; install with: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2" && exit 1)
 	@for d in $(GO_MODULES); do \
 		echo "==> golangci-lint $$d"; \
 		(cd "$$d" && GOWORK=off $(GOLANGCI_LINT) run --concurrency 1 ./...) || exit 1; \
@@ -107,11 +115,11 @@ contracts: ## Regenerate types/stubs from contracts/ (OpenAPI + events)
 	@echo "==> contracts generation complete"
 
 .PHONY: contracts-lint
-contracts-lint: ## Lint OpenAPI + validate event JSON schemas
-	@command -v spectral >/dev/null 2>&1 || \
-		(echo "spectral not installed; run: npm install -g @stoplight/spectral-cli" && exit 1)
-	spectral lint --fail-severity error 'contracts/openapi/*.yaml'
-	@echo "==> event JSON schema validation: TODO (AURA-1.2)"
+contracts-lint: ## Lint OpenAPI + validate event producer/consumer and runtime route parity
+	node tools/codegen/src/normalize-openapi-metadata.ts
+	pnpm exec spectral lint --fail-severity warn 'contracts/openapi/*.yaml'
+	node tools/codegen/src/validate-events.ts
+	node tools/codegen/src/validate-routes.ts
 
 # ---- Scaffolding -----------------------------------------------------------
 .PHONY: new-service
@@ -121,8 +129,12 @@ new-service: ## Generate a new hexagonal Go service: make new-service NAME=stude
 
 # ---- Migrations / seed -----------------------------------------------------
 .PHONY: migrate
-migrate: ## Run all service DB migrations
-	@echo "migrate: TODO (per-service, AURA-2.5)"
+migrate: local-config ## Apply every service migration using a chmod-600 service-to-URL secret file
+	AURA_MIGRATION_DATABASE_URLS_FILE="$${AURA_MIGRATION_DATABASE_URLS_FILE:-$(CURDIR)/.auraedu-local/migration-database-urls.json}" node tools/migrations/orchestrate.mjs
+
+.PHONY: migrate-check
+migrate-check: ## Validate migration inventory, sequencing, markers, and executable runners
+	node tools/migrations/orchestrate.mjs --check
 
 .PHONY: seed
 seed: ## Seed the two initial tenants (UPSHS, Aboom)
@@ -135,9 +147,22 @@ compose-validate: ## Validate docker compose files with `docker compose config`
 	docker compose -f deploy/docker-compose.yml config >/dev/null
 	@echo "==> docker compose files are valid"
 
+.PHONY: smoke-onboarding-activation
+smoke-onboarding-activation: ## Prove approval, invite, outage recovery, tenant activation, and admin login
+	./tools/smoke/onboarding-activation.sh
+
 # ---- CI convenience --------------------------------------------------------
 .PHONY: ci-check
 ci-check: lint test contracts compose-validate ## Run the local subset of CI gates
+
+.PHONY: release-evidence-validate
+release-evidence-validate: ## Validate release evidence structure, hashes, and ledger parity
+	node --test tools/release/verify-readiness.test.mjs
+	node tools/release/verify-readiness.mjs
+
+.PHONY: release-readiness
+release-readiness: ## Fail unless every production release evidence item is verified
+	node tools/release/verify-readiness.mjs --assert-ready
 
 # ---- Help ------------------------------------------------------------------
 .PHONY: help

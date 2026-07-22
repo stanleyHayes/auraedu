@@ -2,10 +2,11 @@ import { notFound } from "next/navigation";
 import { Building2, Settings2 } from "lucide-react";
 import { PageHeader, Reveal, Watermark } from "@auraedu/ui";
 import type { OpenAPI } from "@auraedu/shared-types";
-import { createServerClient } from "@/lib/api";
+import { createServerClientForTenant } from "@/lib/api";
 import { requireAuth } from "@/lib/auth";
 import { TenantForm } from "@/components/tenant-form";
 import { TenantSettingsForm } from "@/components/tenant-settings-form";
+import { CustomDomainCard } from "@/components/custom-domain-card";
 
 interface TenantDetailPageProps {
   params: Promise<{ code: string }>;
@@ -15,20 +16,26 @@ export default async function TenantDetailPage({ params }: TenantDetailPageProps
   const { code } = await params;
   await requireAuth();
 
-  const client = await createServerClient();
+  const client = await createServerClientForTenant(code);
 
   let tenant: OpenAPI.tenant_v1.components["schemas"]["Tenant"] | null = null;
   let settings: OpenAPI.tenant_v1.components["schemas"]["Settings"] | undefined;
+  let customDomain: OpenAPI.tenant_v1.components["schemas"]["CustomDomain"] | undefined;
   let error: string | null = null;
 
   try {
-    [tenant, settings] = await Promise.all([
+    [tenant, settings, customDomain] = await Promise.all([
       client.get<OpenAPI.tenant_v1.components["schemas"]["Tenant"]>(
         `/api/v1/tenants/${encodeURIComponent(code)}`,
       ),
       client
         .get<OpenAPI.tenant_v1.components["schemas"]["Settings"]>(
           `/api/v1/tenants/${encodeURIComponent(code)}/settings`,
+        )
+        .catch(() => undefined),
+      client
+        .get<OpenAPI.tenant_v1.components["schemas"]["CustomDomain"]>(
+          `/api/v1/tenants/${encodeURIComponent(code)}/custom-domain`,
         )
         .catch(() => undefined),
     ]);
@@ -69,10 +76,14 @@ export default async function TenantDetailPage({ params }: TenantDetailPageProps
         <section className="card rounded-[var(--radius-lg)] p-6">
           <h2 className="mb-1 font-heading text-lg font-bold">Profile & branding</h2>
           <p className="mb-6 text-sm text-muted-foreground">
-            Core identity, domain, plan, and logo for this school.
+            Core identity, plan, and logo for this school.
           </p>
           <TenantForm mode="edit" tenantCode={code} initial={tenant} />
         </section>
+      </Reveal>
+
+      <Reveal delay={100}>
+        <CustomDomainCard tenantCode={code} initial={customDomain} platformAdmin />
       </Reveal>
 
       <Reveal delay={120}>

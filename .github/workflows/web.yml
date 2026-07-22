@@ -9,11 +9,17 @@ permissions:
 jobs:
   web:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ENVIRONMENT: production
+      NEXT_PUBLIC_API_URL: https://api.auraedu.com
+      NEXT_PUBLIC_APP_URL: https://auraedugh.vercel.app
+      AURAEDU_API_URL: https://api.auraedu.com
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
         with: { version: '11.11.0' }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '26.5.0'
           cache: 'pnpm'
@@ -25,3 +31,11 @@ jobs:
         run: pnpm typecheck
       - name: Test
         run: pnpm test
+      - name: Validate Vercel projects
+        run: |
+          node --test tools/dev/generate-local-config.test.mjs
+          node --test tools/vercel/validate-environment.test.mjs
+          node tools/vercel/validate-environment.mjs web
+          node tools/vercel/validate-environment.mjs marketing
+      - name: Production build
+        run: pnpm build

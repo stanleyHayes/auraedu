@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -16,15 +17,20 @@ import (
 	"github.com/auraedu/platform/db"
 	"github.com/auraedu/platform/eventbus"
 	"github.com/auraedu/platform/flags"
+	"github.com/auraedu/platform/observ"
 	"github.com/auraedu/platform/tenancy"
 
 	// Register pgx SQL driver for database/sql based migrations.
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/nats-io/nats.go"
 
+	svcevents "github.com/auraedu/report-service/internal/adapters/events"
+	"github.com/auraedu/report-service/internal/adapters/pdf"
 	"github.com/auraedu/report-service/internal/adapters/postgres"
+	"github.com/auraedu/report-service/internal/adapters/storage"
 	"github.com/auraedu/report-service/internal/application"
 	"github.com/auraedu/report-service/internal/domain"
+	"github.com/auraedu/report-service/internal/ports"
 )
 
 const service = "report-service-worker"
@@ -32,61 +38,173 @@ const service = "report-service-worker"
 // version is injected via -ldflags "-X main.version=<sha>" (Dockerfile); falls back to env.
 var version = ""
 
-func main() {
-	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+func run() error {
+	log := observ.DefaultLogger()
 	slog.SetDefault(log)
 	if version == "" {
 		version = config.Getenv("GIT_SHA", "dev")
 	}
 
-	ctx := context.Background()
+	ctx, cancelWorker := context.WithCancel(context.Background())
+	defer cancelWorker()
+	shutdownTelemetry, err := observ.InitTracing(service, version)
+	if err != nil {
+		return fmt.Errorf("initialize worker telemetry: %w", err)
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := shutdownTelemetry(shutdownCtx); err != nil {
+			log.Error("flush report worker telemetry", "err", err)
+		}
+	}()
 	database, err := openDB(ctx)
 	if err != nil {
-		log.Error("failed to open database", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("open database: %w", err)
 	}
+	defer database.Close()
 
 	nc, js, err := connectNATS(log)
 	if err != nil {
-		log.Error("failed to connect to NATS", "err", err)
-		database.Close()
-		os.Exit(1)
+		return err
 	}
+	defer nc.Close()
 
 	if _, err := eventbus.EnsureStream(js, "AURA"); err != nil {
-		log.Error("failed to ensure NATS stream", "err", err)
-		nc.Close()
-		database.Close()
-		os.Exit(1)
+		return fmt.Errorf("ensure NATS stream: %w", err)
 	}
 
 	repo := postgres.NewRepository(database)
-	svc := application.NewService(repo, application.WithFeatureGate(featureGates(log)))
+	reportStorage, err := initStorage()
+	if err != nil {
+		return fmt.Errorf("initialize report storage: %w", err)
+	}
+	publisher := svcevents.NewPublisher(eventbus.NewPublisher(js))
+	svc := application.NewService(repo,
+		application.WithFeatureGate(featureGates(log)),
+		application.WithPDFGenerator(pdf.NewGenerator()),
+		application.WithStorage(reportStorage),
+		application.WithPublisher(publisher),
+	)
 
-	consumer := newConsumer(js, svc, log)
+	metrics := observ.NewWorkerMetrics(service, "materialize-report")
+	consumer := newConsumer(js, svc, log, metrics)
 	if err := consumer.Start(ctx); err != nil {
-		log.Error("failed to start consumer", "err", err)
-		nc.Close()
-		database.Close()
-		os.Exit(1)
+		return fmt.Errorf("start consumer: %w", err)
 	}
 	defer func() {
 		if err := consumer.Stop(); err != nil {
 			log.Error("consumer stop error", "err", err)
 		}
 	}()
-	defer database.Close()
+	generationDone := make(chan struct{})
+	go func() {
+		defer close(generationDone)
+		runGenerationQueue(ctx, svc, repo, publisher, log, observ.NewWorkerMetrics(service, "generate-report", "outbox-publish"))
+	}()
 
 	log.Info(service+" started", "version", version)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
+	cancelWorker()
+	<-generationDone
 
-	_, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	nc.Close()
 	log.Info(service + " stopped")
+	return nil
+}
+
+func initStorage() (ports.ReportStorage, error) {
+	backend := config.Getenv("REPORT_STORAGE_BACKEND", "local")
+	if config.Getenv("ENVIRONMENT", "development") == "production" && backend != "cloudinary" {
+		return nil, errors.New("production report storage must use cloudinary")
+	}
+	switch backend {
+	case "local":
+		return storage.NewLocal(config.Getenv("REPORT_OUTPUT_DIR", application.DefaultReportOutputDir))
+	case "cloudinary":
+		cloudURL, err := config.MustGetenv("CLOUDINARY_URL")
+		if err != nil {
+			return nil, err
+		}
+		return storage.NewCloudinary(cloudURL)
+	default:
+		return nil, errors.New("unsupported REPORT_STORAGE_BACKEND")
+	}
+}
+
+func runGenerationQueue(
+	ctx context.Context,
+	svc *application.Service,
+	repo ports.OutboxRepository,
+	publisher *svcevents.Publisher,
+	log *slog.Logger,
+	metrics *observ.WorkerMetrics,
+) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			// Bound generation work per tick so a continuously busy renderer cannot
+			// starve publication events waiting in the transactional outbox.
+			for range 25 {
+				started := time.Now()
+				processed, err := svc.ProcessNextGeneration(ctx, 2*time.Minute, 5)
+				metrics.Observe(ctx, "generate-report", started, err)
+				if err != nil {
+					log.Error("report generation job failed", "err", err)
+				}
+				if !processed || err != nil {
+					break
+				}
+			}
+			if err := dispatchReportOutbox(ctx, repo, publisher, log, metrics); err != nil {
+				log.Error("report outbox dispatch failed", "err", err)
+			}
+		}
+	}
+}
+
+func dispatchReportOutbox(
+	ctx context.Context,
+	repo ports.OutboxRepository,
+	publisher *svcevents.Publisher,
+	log *slog.Logger,
+	metrics *observ.WorkerMetrics,
+) error {
+	items, err := repo.ClaimPendingReportEvents(ctx, 25)
+	if err != nil {
+		return err
+	}
+	for _, item := range items {
+		started := time.Now()
+		var payload map[string]any
+		if err := json.Unmarshal(item.Payload, &payload); err != nil {
+			metrics.Observe(ctx, "outbox-publish", started, err)
+			if markErr := repo.MarkReportEventFailed(ctx, item.ID, "invalid outbox payload"); markErr != nil {
+				return errors.Join(err, markErr)
+			}
+			continue
+		}
+		if err := publisher.PublishWithID(ctx, item.ID, item.EventType, item.TenantID, payload); err != nil {
+			metrics.Observe(ctx, "outbox-publish", started, err)
+			if markErr := repo.MarkReportEventFailed(ctx, item.ID, err.Error()); markErr != nil {
+				return errors.Join(err, markErr)
+			}
+			log.Warn("report event publish deferred", "outbox_id", item.ID, "event_type", item.EventType, "err", err)
+			continue
+		}
+		if err := repo.MarkReportEventPublished(ctx, item.ID); err != nil {
+			metrics.Observe(ctx, "outbox-publish", started, err)
+			return err
+		}
+		metrics.Observe(ctx, "outbox-publish", started, nil)
+	}
+	return nil
 }
 
 func openDB(ctx context.Context) (*db.DB, error) {
@@ -129,32 +247,35 @@ func featureGates(log *slog.Logger) flags.Gate {
 		fallback = reg.SnapshotFromRegistry()
 	}
 
-	// Live per-tenant overrides come from tenant-service (same wiring as the
-	// api-gateway); without SERVICE_TENANT_URL the static snapshot rules.
-	if tenantURL := config.Getenv("SERVICE_TENANT_URL", ""); tenantURL != "" {
-		return flags.NewTenantServiceClient(tenantURL, flags.WarnOnceFallback(fallback, log))
-	}
-	return fallback
+	return flags.NewRuntimeGate(config.Getenv("SERVICE_TENANT_URL", ""), fallback, log)
 }
 
 type consumer struct {
-	js   eventbus.JetStreamContext
-	svc  *application.Service
-	subs []*nats.Subscription
-	log  *slog.Logger
+	js      eventbus.JetStreamContext
+	svc     *application.Service
+	subs    []*eventbus.Subscription
+	log     *slog.Logger
+	metrics *observ.WorkerMetrics
 }
 
-func newConsumer(js eventbus.JetStreamContext, svc *application.Service, log *slog.Logger) *consumer {
-	return &consumer{js: js, svc: svc, log: log}
+func newConsumer(js eventbus.JetStreamContext, svc *application.Service, log *slog.Logger, metrics ...*observ.WorkerMetrics) *consumer {
+	var workerMetrics *observ.WorkerMetrics
+	if len(metrics) > 0 {
+		workerMetrics = metrics[0]
+	}
+	return &consumer{js: js, svc: svc, log: log, metrics: workerMetrics}
 }
 
 func (c *consumer) Start(ctx context.Context) error {
 	for _, eventType := range []string{"assessment.score_recorded.v1", "attendance.marked.v1"} {
 		subject := eventbus.Subject("AURA", eventType)
-		sub, err := c.js.Subscribe(subject, c.handleMsg,
-			nats.Durable("report-worker-"+eventType),
-			nats.ManualAck(),
-			nats.AckWait(30*time.Second),
+		sub, err := eventbus.Subscribe(
+			c.js,
+			eventbus.EventStreamName,
+			"report-worker-"+strings.ReplaceAll(eventType, ".", "-"),
+			eventType,
+			c.handleEvent,
+			nil,
 		)
 		if err != nil {
 			return fmt.Errorf("subscribe to %s: %w", subject, err)
@@ -178,44 +299,20 @@ func (c *consumer) Stop() error {
 	return nil
 }
 
-func (c *consumer) handleMsg(msg *nats.Msg) {
-	var event tenancy.CloudEvent
-	if err := json.Unmarshal(msg.Data, &event); err != nil {
-		c.log.Error("unmarshal message", "err", err)
-		if nerr := msg.Nak(); nerr != nil {
-			c.log.Error("failed to nak message", "err", nerr)
-		}
-		return
-	}
-	if err := event.Validate(); err != nil {
-		c.log.Error("invalid cloudevent", "err", err)
-		if nerr := msg.Nak(); nerr != nil {
-			c.log.Error("failed to nak message", "err", nerr)
-		}
-		return
-	}
-
-	// Tenant context is required for Postgres RLS (app.tenant_id).
-	ctx := tenancy.WithContext(context.Background(), event.TenantContext())
+func (c *consumer) handleEvent(ctx context.Context, event tenancy.CloudEvent) error {
+	started := time.Now()
 	err := c.materialize(ctx, event)
+	c.metrics.Observe(ctx, "materialize-report", started, err)
 	switch {
 	case err == nil:
-		c.ack(msg)
+		return nil
 	case errors.Is(err, domain.ErrValidation) || errors.Is(err, domain.ErrMissingTenant):
-		// Poison message: retrying cannot fix a malformed event. Ack to drop it.
+		// Poison message: retrying cannot fix a malformed event.
 		c.log.Error("dropping invalid event", "type", event.Type, "id", event.ID, "err", err)
-		c.ack(msg)
+		return nil
 	default:
 		c.log.Error("materialization failed; will redeliver", "type", event.Type, "id", event.ID, "err", err)
-		if nerr := msg.Nak(); nerr != nil {
-			c.log.Error("failed to nak message", "err", nerr)
-		}
-	}
-}
-
-func (c *consumer) ack(msg *nats.Msg) {
-	if err := msg.Ack(); err != nil {
-		c.log.Error("failed to ack message", "err", err)
+		return err
 	}
 }
 
@@ -234,7 +331,7 @@ func (c *consumer) materialize(ctx context.Context, event tenancy.CloudEvent) er
 			MaxScore     *float64 `json:"max_score"`
 		}
 		if err := json.Unmarshal(event.Data, &data); err != nil {
-			return fmt.Errorf("%w: score_recorded data: %v", domain.ErrValidation, err)
+			return fmt.Errorf("%w: score_recorded data: %w", domain.ErrValidation, err)
 		}
 		return c.svc.MaterializeScore(ctx, application.ScoreRecordedInput{
 			EventID:      event.ID,
@@ -254,7 +351,7 @@ func (c *consumer) materialize(ctx context.Context, event tenancy.CloudEvent) er
 			Status    string `json:"status"`
 		}
 		if err := json.Unmarshal(event.Data, &data); err != nil {
-			return fmt.Errorf("%w: attendance.marked data: %v", domain.ErrValidation, err)
+			return fmt.Errorf("%w: attendance.marked data: %w", domain.ErrValidation, err)
 		}
 		return c.svc.MaterializeAttendance(ctx, application.AttendanceMarkedInput{
 			EventID:   event.ID,
@@ -270,6 +367,5 @@ func (c *consumer) materialize(ctx context.Context, event tenancy.CloudEvent) er
 
 // Run starts the report-service background worker. It is invoked by the service CLI.
 func Run() error {
-	main()
-	return nil
+	return run()
 }

@@ -5,9 +5,13 @@
   "type": "module",
   "description": "AuraEDU contract codegen: OpenAPI → Go/TS, CloudEvents JSON Schema → validators/types.",
   "scripts": {
-    "generate": "tsx src/generate.ts",
+    "generate": "tsc -p tsconfig.json && node dist/generate.js",
+    "validate:events": "tsc -p tsconfig.json && node dist/validate-events.js",
+    "validate:routes": "tsc -p tsconfig.json && node dist/validate-routes.js",
+    "normalize:openapi": "tsc -p tsconfig.json && node dist/normalize-openapi-metadata.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint .",
+    "test": "tsc -p tsconfig.json && node --test dist/*.test.js",
     "build": "tsc -p tsconfig.json"
   },
   "devDependencies": {

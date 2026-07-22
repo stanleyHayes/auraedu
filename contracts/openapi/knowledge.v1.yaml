@@ -1,0 +1,232 @@
+openapi: 3.1.0
+info:
+  title: AuraEDU Growth Knowledge API
+  version: 1.0.0
+  description: Tenant-isolated, review-gated knowledge ingestion and source-cited retrieval.
+  contact:
+    name: AuraEDU Engineering
+servers:
+  - url: /
+tags:
+  - name: knowledge
+  - name: retrieval
+paths:
+  /api/v1/knowledge/sources:
+    post:
+      operationId: createKnowledgeSource
+      description: Executes the create knowledge source workflow within this AuraEDU API boundary.
+      tags: [knowledge]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/TenantCode' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateSource' }
+      responses:
+        '201':
+          description: Draft source created
+          content: { application/json: { schema: { $ref: '#/components/schemas/Source' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    get:
+      operationId: listKnowledgeSources
+      description: Executes the list knowledge sources workflow within this AuraEDU API boundary.
+      tags: [knowledge]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/TenantCode' }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/SourceStatus' } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+      responses:
+        '200':
+          description: Tenant source page
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Source' } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/knowledge/sources/{source_id}:
+    get:
+      operationId: getKnowledgeSource
+      description: Executes the get knowledge source workflow within this AuraEDU API boundary.
+      tags: [knowledge]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/TenantCode' }
+        - { $ref: '#/components/parameters/SourceId' }
+      responses:
+        '200':
+          description: Tenant source
+          content: { application/json: { schema: { $ref: '#/components/schemas/Source' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/knowledge/sources/{source_id}/approve:
+    post:
+      operationId: approveKnowledgeSource
+      description: Executes the approve knowledge source workflow within this AuraEDU API boundary.
+      tags: [knowledge]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/TenantCode' }
+        - { $ref: '#/components/parameters/SourceId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [review_note]
+              properties:
+                review_note: { type: string, minLength: 3, maxLength: 500 }
+              additionalProperties: false
+      responses:
+        '200':
+          description: Approved version activated
+          content: { application/json: { schema: { $ref: '#/components/schemas/Source' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/knowledge/sources/{source_id}/retire:
+    post:
+      operationId: retireKnowledgeSource
+      description: Executes the retire knowledge source workflow within this AuraEDU API boundary.
+      tags: [knowledge]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/TenantCode' }
+        - { $ref: '#/components/parameters/SourceId' }
+      responses:
+        '200':
+          description: Source retired from retrieval
+          content: { application/json: { schema: { $ref: '#/components/schemas/Source' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /internal/v1/knowledge/search:
+    post:
+      operationId: searchApprovedKnowledge
+      description: Executes the search approved knowledge workflow within this AuraEDU API boundary.
+      tags: [retrieval]
+      security: [{ serviceAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/TenantCode' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query: { type: string, minLength: 2, maxLength: 500 }
+                locale: { type: string, enum: [en, en-GH, fr, fr-GH], default: en }
+                limit: { type: integer, minimum: 1, maximum: 10, default: 5 }
+                as_of: { type: string, format: date-time }
+              additionalProperties: false
+      responses:
+        '200':
+          description: Ranked, approved, effective tenant passages
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [results]
+                properties:
+                  results: { type: array, items: { $ref: '#/components/schemas/SearchResult' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+    serviceAuth: { type: http, scheme: bearer }
+  parameters:
+    TenantCode:
+      name: X-Tenant-Code
+      in: header
+      required: true
+      schema: { type: string, pattern: '^[a-z0-9][a-z0-9-]{1,62}$' }
+    SourceId:
+      name: source_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  schemas:
+    SourceStatus:
+      type: string
+      enum: [draft, approved, retired]
+    CreateSource:
+      type: object
+      required: [source_type, title, owner, content, effective_at, confidentiality]
+      properties:
+        source_type: { type: string, enum: [programme, admissions, fees, scholarship, calendar, policy, campus, accommodation, faq, announcement, marketing, support] }
+        title: { type: string, minLength: 3, maxLength: 200 }
+        owner: { type: string, minLength: 2, maxLength: 120 }
+        content: { type: string, minLength: 20, maxLength: 100000 }
+        effective_at: { type: string, format: date-time }
+        expires_at: { type: [string, 'null'], format: date-time }
+        programme: { type: [string, 'null'], maxLength: 160 }
+        campus: { type: [string, 'null'], maxLength: 160 }
+        intake: { type: [string, 'null'], maxLength: 120 }
+        confidentiality: { type: string, enum: [public, internal] }
+        locale: { type: string, enum: [en, en-GH, fr, fr-GH], default: en }
+      additionalProperties: false
+    Source:
+      type: object
+      required: [id, tenant_id, source_type, title, owner, content, status, confidentiality, locale, version, effective_at, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string }
+        source_type: { type: string }
+        title: { type: string }
+        owner: { type: string }
+        content: { type: string }
+        status: { $ref: '#/components/schemas/SourceStatus' }
+        confidentiality: { type: string, enum: [public, internal] }
+        locale: { type: string }
+        version: { type: integer, minimum: 1 }
+        effective_at: { type: string, format: date-time }
+        expires_at: { type: [string, 'null'], format: date-time }
+        programme: { type: [string, 'null'] }
+        campus: { type: [string, 'null'] }
+        intake: { type: [string, 'null'] }
+        approved_by: { type: [string, 'null'] }
+        approved_at: { type: [string, 'null'], format: date-time }
+        review_note: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    SearchResult:
+      type: object
+      required: [source_id, title, passage, source_type, locale, version, score, effective_at]
+      properties:
+        source_id: { type: string, format: uuid }
+        title: { type: string }
+        passage: { type: string }
+        source_type: { type: string }
+        locale: { type: string }
+        version: { type: integer }
+        score: { type: number, minimum: 0, maximum: 1 }
+        effective_at: { type: string, format: date-time }
+        expires_at: { type: [string, 'null'], format: date-time }
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Forbidden:
+      description: Permission or tenant scope denied
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    NotFound:
+      description: Source not found in tenant
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Conflict:
+      description: Invalid source lifecycle transition
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    ValidationError:
+      description: Request failed validation
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }

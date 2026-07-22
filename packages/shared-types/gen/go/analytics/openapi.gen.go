@@ -7,45 +7,100 @@ import (
 	"net/http"
 )
 
-// KpiSnapshot generated from OpenAPI schema.
-type KpiSnapshot struct {
-	Id         string  `json:"id"`
-	TenantId   string  `json:"tenant_id"`
-	MetricKey  string  `json:"metric_key"`
-	Value      float64 `json:"value"`
-	RecordedAt *string `json:"recorded_at,omitempty"`
+// Metric generated from OpenAPI schema.
+type Metric struct {
+	Id          string                  `json:"id"`
+	TenantId    string                  `json:"tenant_id"`
+	MetricName  string                  `json:"metric_name"`
+	BucketDate  string                  `json:"bucket_date"`
+	Value       float64                 `json:"value"`
+	Unit        string                  `json:"unit"`
+	Dimensions  *map[string]interface{} `json:"dimensions,omitempty"`
+	SampleCount *int                    `json:"sample_count,omitempty"`
+	CreatedAt   string                  `json:"created_at"`
+	UpdatedAt   string                  `json:"updated_at"`
 }
 
-// Projection generated from OpenAPI schema.
-type Projection struct {
-	Id             string  `json:"id"`
-	TenantId       string  `json:"tenant_id"`
-	MetricKey      string  `json:"metric_key"`
-	ProjectedValue float64 `json:"projected_value"`
-	Horizon        *string `json:"horizon,omitempty"`
-	GeneratedAt    *string `json:"generated_at,omitempty"`
+// MetricList generated from OpenAPI schema.
+type MetricList struct {
+	Data       []Metric `json:"data"`
+	NextCursor *string  `json:"next_cursor"`
 }
 
-// KpiSnapshotList generated from OpenAPI schema.
-type KpiSnapshotList struct {
-	Data       *[]KpiSnapshot `json:"data,omitempty"`
-	NextCursor *string        `json:"next_cursor,omitempty"`
+// FunnelStep generated from OpenAPI schema.
+type FunnelStep struct {
+	Stage                  string   `json:"stage"`
+	Count                  int      `json:"count"`
+	ConversionFromPrevious *float64 `json:"conversion_from_previous"`
+	ConversionFromLead     *float64 `json:"conversion_from_lead"`
 }
 
-// ProjectionList generated from OpenAPI schema.
-type ProjectionList struct {
-	Data       *[]Projection `json:"data,omitempty"`
-	NextCursor *string       `json:"next_cursor,omitempty"`
+// GrowthBreakdown generated from OpenAPI schema.
+type GrowthBreakdown struct {
+	Key                    string   `json:"key"`
+	Leads                  int      `json:"leads"`
+	ApplicationsStarted    int      `json:"applications_started"`
+	ApplicationsSubmitted  int      `json:"applications_submitted"`
+	Admitted               int      `json:"admitted"`
+	OffersIssued           int      `json:"offers_issued"`
+	OffersAccepted         int      `json:"offers_accepted"`
+	LeadToApplicationRate  *float64 `json:"lead_to_application_rate"`
+	ApplicationToOfferRate *float64 `json:"application_to_offer_rate"`
+}
+
+// EnrolmentForecast generated from OpenAPI schema.
+type EnrolmentForecast struct {
+	HorizonDays               int      `json:"horizon_days"`
+	ProjectedOfferAcceptances float64  `json:"projected_offer_acceptances"`
+	ObservedDays              int      `json:"observed_days"`
+	Method                    string   `json:"method"`
+	Confidence                string   `json:"confidence"`
+	CalculationNotes          []string `json:"calculation_notes"`
+}
+
+// GrowthExecutive generated from OpenAPI schema.
+type GrowthExecutive struct {
+	GeneratedAt string            `json:"generated_at"`
+	From        string            `json:"from"`
+	To          string            `json:"to"`
+	Funnel      []FunnelStep      `json:"funnel"`
+	BySource    []GrowthBreakdown `json:"by_source"`
+	ByProgramme []GrowthBreakdown `json:"by_programme"`
+	Forecast    EnrolmentForecast `json:"forecast"`
+	DataQuality struct {
+		UnattributedApplicationEvents int `json:"unattributed_application_events"`
+	} `json:"data_quality"`
+}
+
+// ExecutiveQuestion generated from OpenAPI schema.
+type ExecutiveQuestion struct {
+	Question string  `json:"question"`
+	From     *string `json:"from,omitempty"`
+	To       *string `json:"to,omitempty"`
+}
+
+// ExecutiveAnswer generated from OpenAPI schema.
+type ExecutiveAnswer struct {
+	Answer           string                 `json:"answer"`
+	Confidence       string                 `json:"confidence"`
+	SourceDatasets   []string               `json:"source_datasets"`
+	From             string                 `json:"from"`
+	To               string                 `json:"to"`
+	Filters          map[string]interface{} `json:"filters"`
+	CalculationNotes []string               `json:"calculation_notes"`
+	DashboardUrl     string                 `json:"dashboard_url"`
 }
 
 // ServerInterface is implemented by the service HTTP adapter.
 type ServerInterface interface {
-	listKpis(w http.ResponseWriter, r *http.Request)
-	listProjections(w http.ResponseWriter, r *http.Request)
+	listMetrics(w http.ResponseWriter, r *http.Request)
+	getGrowthExecutiveAnalytics(w http.ResponseWriter, r *http.Request)
+	askExecutiveAnalytics(w http.ResponseWriter, r *http.Request)
 }
 
 // ClientInterface is the generated consumer stub for this service.
 type ClientInterface interface {
-	listKpis(ctx context.Context) (*http.Response, error)
-	listProjections(ctx context.Context) (*http.Response, error)
+	listMetrics(ctx context.Context) (*http.Response, error)
+	getGrowthExecutiveAnalytics(ctx context.Context) (*http.Response, error)
+	askExecutiveAnalytics(ctx context.Context) (*http.Response, error)
 }

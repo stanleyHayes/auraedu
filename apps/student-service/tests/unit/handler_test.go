@@ -27,17 +27,35 @@ const tenantA = "11111111-1111-1111-1111-111111111111"
 
 // fakeRepo is an in-memory ports.Repository for fast handler tests.
 type fakeRepo struct {
-	mu        sync.Mutex
-	students  map[string]*domain.Student
-	guardians map[string]*domain.Guardian
-	links     map[string]*domain.StudentGuardian
+	mu          sync.Mutex
+	students    map[string]*domain.Student
+	guardians   map[string]*domain.Guardian
+	links       map[string]*domain.StudentGuardian
+	enrollments map[string]*domain.Enrollment
 }
 
 func newFakeRepo() *fakeRepo {
 	return &fakeRepo{
-		students:  make(map[string]*domain.Student),
-		guardians: make(map[string]*domain.Guardian),
-		links:     make(map[string]*domain.StudentGuardian),
+		students:    make(map[string]*domain.Student),
+		guardians:   make(map[string]*domain.Guardian),
+		links:       make(map[string]*domain.StudentGuardian),
+		enrollments: make(map[string]*domain.Enrollment),
+	}
+}
+
+func mustNewStudent(t *testing.T, firstName, lastName string) *domain.Student {
+	t.Helper()
+	student, err := domain.NewStudent(tenantA, firstName, lastName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return student
+}
+
+func mustStoreStudent(t *testing.T, repo *fakeRepo, student *domain.Student) {
+	t.Helper()
+	if err := repo.Create(context.Background(), tenantA, student); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -46,7 +64,62 @@ func (r *fakeRepo) Create(_ context.Context, tenantID string, s *domain.Student)
 	defer r.mu.Unlock()
 	s.TenantID = tenantID
 	r.students[s.ID] = s
+	if s.ClassID != nil && s.AcademicYearID != nil {
+		enrollment, err := domain.NewEnrollment(tenantID, s.ID, *s.ClassID, *s.AcademicYearID, s.CreatedAt)
+		if err != nil {
+			return err
+		}
+		r.enrollments[enrollment.ID] = enrollment
+	}
 	return nil
+}
+
+func (r *fakeRepo) CreateEnrollment(_ context.Context, tenantID string, enrollment *domain.Enrollment) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	student, ok := r.students[enrollment.StudentID]
+	if !ok || student.TenantID != tenantID {
+		return domain.ErrNotFound
+	}
+	for _, existing := range r.enrollments {
+		if existing.TenantID == tenantID && existing.StudentID == enrollment.StudentID && existing.AcademicYearID == enrollment.AcademicYearID {
+			return domain.ErrConflict
+		}
+	}
+	r.enrollments[enrollment.ID] = enrollment
+	student.ClassID = &enrollment.ClassID
+	student.AcademicYearID = &enrollment.AcademicYearID
+	return nil
+}
+
+func (r *fakeRepo) ListEnrollments(_ context.Context, tenantID, studentID string, limit int, cursor string) ([]*domain.Enrollment, string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var all []*domain.Enrollment
+	for _, enrollment := range r.enrollments {
+		if enrollment.TenantID == tenantID && enrollment.StudentID == studentID {
+			all = append(all, enrollment)
+		}
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].EnrolledAt.Before(all[j].EnrolledAt) })
+	start := 0
+	if cursor != "" {
+		for i, enrollment := range all {
+			if enrollment.ID == cursor {
+				start = i + 1
+				break
+			}
+		}
+	}
+	end := start + limit
+	if end > len(all) {
+		end = len(all)
+	}
+	next := ""
+	if end < len(all) && end > start {
+		next = all[end-1].ID
+	}
+	return all[start:end], next, nil
 }
 
 func (r *fakeRepo) GetByID(_ context.Context, tenantID, id string) (*domain.Student, error) {
@@ -57,6 +130,48 @@ func (r *fakeRepo) GetByID(_ context.Context, tenantID, id string) (*domain.Stud
 		return nil, domain.ErrNotFound
 	}
 	return s, nil
+}
+
+func (r *fakeRepo) GetStudentByUserID(_ context.Context, tenantID, userID string) (*domain.Student, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, s := range r.students {
+		if s.TenantID == tenantID && s.UserID != nil && *s.UserID == userID {
+			return s, nil
+		}
+	}
+	return nil, domain.ErrNotFound
+}
+
+func (r *fakeRepo) GetGuardianByUserID(_ context.Context, tenantID, userID string) (*domain.Guardian, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, g := range r.guardians {
+		if g.TenantID == tenantID && g.UserID != nil && *g.UserID == userID {
+			return g, nil
+		}
+	}
+	return nil, domain.ErrNotFound
+}
+
+func (r *fakeRepo) ListStudentsByGuardian(_ context.Context, tenantID, guardianID string) ([]*domain.Student, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []*domain.Student
+	for _, link := range r.links {
+		if link.TenantID == tenantID && link.GuardianID == guardianID {
+			if s, ok := r.students[link.StudentID]; ok && s.TenantID == tenantID {
+				out = append(out, s)
+			}
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].CreatedAt.Equal(out[j].CreatedAt) {
+			return out[i].ID < out[j].ID
+		}
+		return out[i].CreatedAt.Before(out[j].CreatedAt)
+	})
+	return out, nil
 }
 
 func (r *fakeRepo) List(_ context.Context, tenantID string, classID *string, limit int, cursor string) ([]*domain.Student, string, error) {
@@ -97,6 +212,26 @@ func (r *fakeRepo) List(_ context.Context, tenantID string, classID *string, lim
 		next = out[end-1].ID
 	}
 	return page, next, nil
+}
+
+func (r *fakeRepo) ListStudentIDsByClassIDs(_ context.Context, tenantID string, classIDs []string) ([]string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	allowed := make(map[string]struct{}, len(classIDs))
+	for _, id := range classIDs {
+		allowed[id] = struct{}{}
+	}
+	ids := []string{}
+	for _, student := range r.students {
+		if student.TenantID != tenantID || student.ClassID == nil || student.Status != string(domain.StatusActive) {
+			continue
+		}
+		if _, ok := allowed[*student.ClassID]; ok {
+			ids = append(ids, student.ID)
+		}
+	}
+	sort.Strings(ids)
+	return ids, nil
 }
 
 func (r *fakeRepo) Update(_ context.Context, tenantID string, s *domain.Student) error {
@@ -207,6 +342,38 @@ func newTestHandler() (*svchttp.Handler, *fakeRepo) {
 	gates.Set(tenantA, application.FeatureStudentManagement, true)
 	svc := application.NewService(repo, application.WithFeatureGate(gates))
 	return svchttp.NewHandler(svc), repo
+}
+
+func TestHandler_EnrollmentHistoryAndYearConflict(t *testing.T) {
+	h, repo := newTestHandler()
+	student, err := domain.NewStudent(tenantA, "Ama", "Mensah")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Create(context.Background(), tenantA, student); err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	h.Register(mux)
+	body := map[string]any{
+		"class_id":         "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+		"academic_year_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+	}
+	create := httptest.NewRecorder()
+	mux.ServeHTTP(create, request(t, http.MethodPost, "/api/v1/students/"+student.ID+"/enrollments", body, application.PermUpdate))
+	if create.Code != http.StatusCreated {
+		t.Fatalf("create enrollment: %d %s", create.Code, create.Body.String())
+	}
+	list := httptest.NewRecorder()
+	mux.ServeHTTP(list, request(t, http.MethodGet, "/api/v1/students/"+student.ID+"/enrollments", nil, application.PermRead))
+	if list.Code != http.StatusOK || !strings.Contains(list.Body.String(), "academic_year_id") {
+		t.Fatalf("list enrollments: %d %s", list.Code, list.Body.String())
+	}
+	duplicate := httptest.NewRecorder()
+	mux.ServeHTTP(duplicate, request(t, http.MethodPost, "/api/v1/students/"+student.ID+"/enrollments", body, application.PermUpdate))
+	if duplicate.Code != http.StatusConflict {
+		t.Fatalf("duplicate enrollment: %d %s", duplicate.Code, duplicate.Body.String())
+	}
 }
 
 func request(t *testing.T, method, path string, body any, perms ...string) *http.Request {
@@ -326,6 +493,52 @@ func TestHandler_GetStudent_NotFound(t *testing.T) {
 	}
 }
 
+func TestHandler_GetMyStudent(t *testing.T) {
+	h, repo := newTestHandler()
+	ctx := context.Background()
+	userID := "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+	student, err := domain.NewStudent(tenantA, "Ama", "Mensah")
+	if err != nil {
+		t.Fatalf("new student: %v", err)
+	}
+	student.UserID = &userID
+	if err := repo.Create(ctx, tenantA, student); err != nil {
+		t.Fatalf("create student: %v", err)
+	}
+
+	req := request(t, http.MethodGet, "/api/v1/students/me", nil, application.PermRead)
+	req.Header.Set(auth.HeaderUserID, userID)
+	rr := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	h.Register(mux)
+	mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var got domain.Student
+	if err := json.Unmarshal(rr.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if got.ID != student.ID || got.UserID == nil || *got.UserID != userID {
+		t.Fatalf("unexpected student: %+v", got)
+	}
+}
+
+func TestHandler_GetMyStudent_UnlinkedUser(t *testing.T) {
+	h, _ := newTestHandler()
+	req := request(t, http.MethodGet, "/api/v1/students/me", nil, application.PermRead)
+	req.Header.Set(auth.HeaderUserID, "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb")
+	rr := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	h.Register(mux)
+	mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestHandler_FeatureDisabled(t *testing.T) {
 	repo := newFakeRepo()
 	gates := flags.NewStaticSnapshot() // all disabled
@@ -425,5 +638,155 @@ func TestHandler_CreateAndLinkGuardian(t *testing.T) {
 	}
 	if got["relationship"] != "mother" {
 		t.Fatalf("unexpected guardian: %v", got)
+	}
+}
+
+func TestHandler_GetMyGuardianChildren(t *testing.T) {
+	h, repo := newTestHandler()
+	ctx := context.Background()
+	userID := "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+
+	guardian, err := domain.NewGuardian(tenantA, "Efua", "Owusu", "mother")
+	if err != nil {
+		t.Fatalf("new guardian: %v", err)
+	}
+	guardian.UserID = &userID
+	if err := repo.CreateGuardian(ctx, tenantA, guardian); err != nil {
+		t.Fatalf("create guardian: %v", err)
+	}
+	student, err := domain.NewStudent(tenantA, "Kojo", "Owusu")
+	if err != nil {
+		t.Fatalf("new student: %v", err)
+	}
+	if err := repo.Create(ctx, tenantA, student); err != nil {
+		t.Fatalf("create student: %v", err)
+	}
+	link, err := domain.NewStudentGuardian(tenantA, student.ID, guardian.ID, nil, true)
+	if err != nil {
+		t.Fatalf("new guardian link: %v", err)
+	}
+	if err := repo.LinkGuardianToStudent(ctx, tenantA, link); err != nil {
+		t.Fatalf("link guardian: %v", err)
+	}
+
+	req := request(t, http.MethodGet, "/api/v1/guardians/me/children", nil, application.PermRead)
+	req.Header.Set(auth.HeaderUserID, userID)
+	rr := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	h.Register(mux)
+	mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var got application.GuardianChildren
+	if err := json.Unmarshal(rr.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if got.Guardian == nil || got.Guardian.ID != guardian.ID {
+		t.Fatalf("unexpected guardian: %+v", got.Guardian)
+	}
+	if len(got.Students) != 1 || got.Students[0].ID != student.ID {
+		t.Fatalf("unexpected students: %+v", got.Students)
+	}
+}
+
+func TestInternalLearnerScopeRequiresTokenAndReturnsOwnStudent(t *testing.T) {
+	h, repo := newTestHandler()
+	userID := "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+	student := mustNewStudent(t, "Ama", "Mensah")
+	student.UserID = &userID
+	if err := repo.Create(context.Background(), tenantA, student); err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	h.RegisterInternal(mux, "internal-secret")
+	unauthorized := httptest.NewRequestWithContext(
+		context.Background(), http.MethodGet,
+		"/internal/v1/learner-scope?user_id="+userID+"&role=student", nil,
+	)
+	unauthorized.Header.Set(tenancy.HeaderTenantID, tenantA)
+	denied := httptest.NewRecorder()
+	mux.ServeHTTP(denied, unauthorized)
+	if denied.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthorized=%d", denied.Code)
+	}
+	req := httptest.NewRequestWithContext(
+		context.Background(), http.MethodGet,
+		"/internal/v1/learner-scope?user_id="+userID+"&role=student", nil,
+	)
+	req.Header.Set("Authorization", "Bearer internal-secret")
+	req.Header.Set(tenancy.HeaderTenantID, tenantA)
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("scope=%d %s", rr.Code, rr.Body.String())
+	}
+	var body struct {
+		StudentIDs []string `json:"student_ids"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil || len(body.StudentIDs) != 1 || body.StudentIDs[0] != student.ID {
+		t.Fatalf("scope=%+v err=%v", body, err)
+	}
+}
+
+type fixedClassScope struct{ classIDs []string }
+
+func (s fixedClassScope) ResolveTeacherClasses(context.Context, string, string) ([]string, error) {
+	return s.classIDs, nil
+}
+
+func TestInternalLearnerScopeReturnsOnlyAssignedTeacherRoster(t *testing.T) {
+	repo := newFakeRepo()
+	classOwn := "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+	classOther := "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+	own := mustNewStudent(t, "Ama", "Assigned")
+	own.ClassID = &classOwn
+	other := mustNewStudent(t, "Kojo", "Other")
+	other.ClassID = &classOther
+	mustStoreStudent(t, repo, own)
+	mustStoreStudent(t, repo, other)
+	svc := application.NewService(repo, application.WithTeacherClassScopeResolver(fixedClassScope{classIDs: []string{classOwn}}))
+	h := svchttp.NewHandler(svc)
+	mux := http.NewServeMux()
+	h.RegisterInternal(mux, "internal-secret")
+	req := httptest.NewRequestWithContext(
+		context.Background(), http.MethodGet,
+		"/internal/v1/learner-scope?user_id=teacher-user&role=teacher", nil,
+	)
+	req.Header.Set("Authorization", "Bearer internal-secret")
+	req.Header.Set(tenancy.HeaderTenantID, tenantA)
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("scope=%d %s", rr.Code, rr.Body.String())
+	}
+	var scope application.ResolvedLearnerScope
+	if err := json.Unmarshal(rr.Body.Bytes(), &scope); err != nil || len(scope.StudentIDs) != 1 || scope.StudentIDs[0] != own.ID || len(scope.ClassIDs) != 1 || scope.ClassIDs[0] != classOwn {
+		t.Fatalf("scope=%+v err=%v", scope, err)
+	}
+}
+
+func TestTeacherStudentReadsAreAssignedRosterOnly(t *testing.T) {
+	repo := newFakeRepo()
+	classOwn := "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+	classOther := "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+	own := mustNewStudent(t, "Ama", "Assigned")
+	own.ClassID = &classOwn
+	other := mustNewStudent(t, "Kojo", "Other")
+	other.ClassID = &classOther
+	mustStoreStudent(t, repo, own)
+	mustStoreStudent(t, repo, other)
+	gates := flags.NewStaticSnapshot()
+	gates.Set(tenantA, application.FeatureStudentManagement, true)
+	svc := application.NewService(repo, application.WithFeatureGate(gates), application.WithTeacherClassScopeResolver(fixedClassScope{classIDs: []string{classOwn}}))
+	teacher := auth.Actor{UserID: "teacher-user", TenantID: tenantA, Role: "teacher", Permissions: []string{application.PermRead}}
+	ctx := tenancy.WithContext(context.Background(), tenancy.TenantContext{TenantID: tenantA})
+	students, _, err := svc.List(ctx, teacher, nil, 20, "")
+	if err != nil || len(students) != 1 || students[0].ID != own.ID {
+		t.Fatalf("students=%+v err=%v", students, err)
+	}
+	if _, err := svc.Get(ctx, teacher, other.ID); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("unassigned get=%v", err)
 	}
 }

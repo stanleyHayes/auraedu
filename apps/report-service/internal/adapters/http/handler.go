@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -40,6 +41,20 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/v1/report-cards/{report_card_id}", h.deleteReportCard)
 	mux.HandleFunc("POST /api/v1/report-cards/{report_card_id}/generate", h.generateReportCard)
 	mux.HandleFunc("GET /api/v1/report-cards/{report_card_id}/download", h.downloadReportCard)
+	mux.HandleFunc("GET /api/v1/transcripts/{student_id}", h.getTranscript)
+}
+
+func (h *Handler) getTranscript(w http.ResponseWriter, r *http.Request) {
+	ctx, actor, ok := h.context(r)
+	if !ok {
+		return
+	}
+	transcript, err := h.svc.GetTranscript(ctx, actor, r.PathValue("student_id"))
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.RespondJSON(w, r, http.StatusOK, transcript)
 }
 
 // --- Report templates. ---
@@ -261,12 +276,12 @@ func (h *Handler) generateReportCard(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	c, err := h.svc.GenerateReportCard(ctx, actor, r.PathValue("report_card_id"))
+	c, err := h.svc.RequestReportCardGeneration(ctx, actor, r.PathValue("report_card_id"))
 	if err != nil {
 		h.writeErr(w, r, err)
 		return
 	}
-	httpx.RespondJSON(w, r, http.StatusOK, c)
+	httpx.RespondJSON(w, r, http.StatusAccepted, c)
 }
 
 func (h *Handler) downloadReportCard(w http.ResponseWriter, r *http.Request) {
@@ -274,13 +289,24 @@ func (h *Handler) downloadReportCard(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	path, _, err := h.svc.DownloadReportCardPath(ctx, actor, r.PathValue("report_card_id"))
+	reader, card, err := h.svc.DownloadReportCard(ctx, actor, r.PathValue("report_card_id"))
 	if err != nil {
 		h.writeErr(w, r, err)
 		return
 	}
-	//nolint:gosec // path is generated and confined to the report output directory by the service.
-	http.ServeFile(w, r, path)
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", `attachment; filename="report-card-`+card.ID+`.pdf"`)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusOK)
+	if _, err := io.Copy(w, reader); err != nil {
+		if closeErr := reader.Close(); closeErr != nil {
+			return
+		}
+		return
+	}
+	if err := reader.Close(); err != nil {
+		return
+	}
 }
 
 // --- Helpers. ---
@@ -308,13 +334,15 @@ func (h *Handler) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, domain.ErrNotFound):
 		httpx.NotFound(w, r, "report template or report card")
 	case errors.Is(err, domain.ErrConflict):
-		httpx.RespondError(w, r, httpx.Error{Code: httpx.ErrInternal, Message: err.Error()})
+		httpx.RespondJSON(w, r, http.StatusConflict, httpx.Error{Code: httpx.ErrValidation, Message: err.Error()})
 	case errors.Is(err, flags.ErrFeatureDisabled):
 		httpx.FeatureDisabled(w, r, application.FeatureReportCards)
 	case errors.Is(err, domain.ErrForbidden):
 		httpx.Forbidden(w, r, "not permitted for this actor or tenant")
 	case errors.Is(err, domain.ErrMissingTenant):
 		httpx.TenantMismatch(w, r)
+	case errors.Is(err, domain.ErrUnavailable):
+		httpx.RespondJSON(w, r, http.StatusServiceUnavailable, httpx.Error{Code: httpx.ErrInternal, Message: "learner scope is unavailable"})
 	default:
 		httpx.RespondError(w, r, httpx.ErrorFrom(err))
 	}

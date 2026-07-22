@@ -9,6 +9,7 @@ import (
 
 	"github.com/auraedu/assessment-service/internal/domain"
 	"github.com/auraedu/platform/eventbus"
+	"github.com/auraedu/platform/testkit"
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 )
@@ -58,6 +59,45 @@ func assignmentPublishedContract(t *testing.T) map[string]any {
 	return schema
 }
 
+func assessmentScoreRecordedContract(t *testing.T) map[string]any {
+	t.Helper()
+	raw, err := os.ReadFile("../../../../../contracts/events/assessment.score_recorded.v1.json")
+	if err != nil {
+		t.Fatalf("read contract: %v", err)
+	}
+	var schema map[string]any
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		t.Fatalf("parse contract: %v", err)
+	}
+	return schema
+}
+
+func assessmentScoreUpdatedContract(t *testing.T) map[string]any {
+	t.Helper()
+	raw, err := os.ReadFile("../../../../../contracts/events/assessment.score_updated.v1.json")
+	if err != nil {
+		t.Fatalf("read contract: %v", err)
+	}
+	var schema map[string]any
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		t.Fatalf("parse contract: %v", err)
+	}
+	return schema
+}
+
+func assessmentScoreDeletedContract(t *testing.T) map[string]any {
+	t.Helper()
+	raw, err := os.ReadFile("../../../../../contracts/events/assessment.score_deleted.v1.json")
+	if err != nil {
+		t.Fatalf("read contract: %v", err)
+	}
+	var schema map[string]any
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		t.Fatalf("parse contract: %v", err)
+	}
+	return schema
+}
+
 func objectAt(t *testing.T, m map[string]any, key string) map[string]any {
 	t.Helper()
 	v, ok := m[key].(map[string]any)
@@ -95,9 +135,7 @@ func asString(t *testing.T, m map[string]any, key string) string {
 
 // assertContractConformance validates the emitted event against the parts of
 // the contract the bus can guarantee: required envelope/data keys, const
-// values, and declared uuid/date-time formats. The "type" const is checked
-// separately: contracts name the base type ("assignment.published") while the
-// bus convention versions it ("assignment.published.v1").
+// values, and declared uuid/date-time formats.
 func assertContractConformance(t *testing.T, schema map[string]any, event map[string]any) {
 	t.Helper()
 	for _, key := range stringSlice(t, schema["required"]) {
@@ -112,7 +150,7 @@ func assertContractConformance(t *testing.T, schema map[string]any, event map[st
 			continue
 		}
 		got, present := event[key]
-		if c, ok := prop["const"].(string); ok && present && key != "type" {
+		if c, ok := prop["const"].(string); ok && present {
 			if got != c {
 				t.Errorf("envelope key %q: expected const %q, got %v", key, c, got)
 			}
@@ -159,14 +197,21 @@ func assertContractConformance(t *testing.T, schema map[string]any, event map[st
 				t.Errorf("data[%q]: expected array, got %T", key, value)
 				continue
 			}
+			itemSchema, ok := prop["items"].(map[string]any)
+			if !ok {
+				t.Errorf("data[%q]: missing array item schema", key)
+				continue
+			}
 			for i, item := range items {
 				s, ok := item.(string)
 				if !ok {
 					t.Errorf("data[%q][%d]: expected string item, got %T", key, i, item)
 					continue
 				}
-				if _, err := uuid.Parse(s); err != nil {
-					t.Errorf("data[%q][%d]: invalid uuid %q", key, i, s)
+				if itemSchema["format"] == "uuid" {
+					if _, err := uuid.Parse(s); err != nil {
+						t.Errorf("data[%q][%d]: invalid uuid %q", key, i, s)
+					}
 				}
 			}
 		}
@@ -197,11 +242,7 @@ func publishOne(t *testing.T, pub *Publisher, js *fakeJS, eventType string, a *d
 	if want := "AURA." + eventType; msg.Subject != want {
 		t.Fatalf("subject: expected %q, got %q", want, msg.Subject)
 	}
-	var event map[string]any
-	if err := json.Unmarshal(msg.Data, &event); err != nil {
-		t.Fatalf("unmarshal published event: %v", err)
-	}
-	return event
+	return testkit.AssertEventContract(t, eventType, msg.Data)
 }
 
 func TestPublisher_AssignmentPublished_ConformsToContract(t *testing.T) {
@@ -267,6 +308,129 @@ func TestPublisher_AssignmentPublished_OmitsEmptyOptionalFields(t *testing.T) {
 	}
 	if _, ok := data["due_date"]; ok {
 		t.Errorf("data.due_date should be omitted when unset, got %v", data["due_date"])
+	}
+}
+
+func TestPublisher_AssessmentScoreRecorded_ConformsToContract(t *testing.T) {
+	js := &fakeJS{}
+	pub := NewPublisher(eventbus.NewPublisher(js))
+	studentID := "99999999-9999-4999-8999-999999999999"
+	assessmentID := "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+	score, err := domain.NewScore(testTenant, assessmentID, studentID, 72, "teacher-1", "", 100)
+	if err != nil {
+		t.Fatalf("new score: %v", err)
+	}
+	meta := map[string]any{
+		"assessment_id":    assessmentID,
+		"subject_id":       testSubject,
+		"academic_year_id": testYear,
+		"max_score":        100,
+		"recorded_at":      score.CreatedAt.UTC().Format(time.RFC3339),
+		"class_ids":        []string{testClass1, testClass2},
+	}
+	if err := pub.PublishScore(context.Background(), "assessment.score_recorded.v1", score, meta); err != nil {
+		t.Fatalf("publish score: %v", err)
+	}
+	if len(js.published) != 1 {
+		t.Fatalf("expected one published event, got %d", len(js.published))
+	}
+	var event map[string]any
+	if err := json.Unmarshal(js.published[0].Data, &event); err != nil {
+		t.Fatalf("unmarshal event: %v", err)
+	}
+	assertContractConformance(t, assessmentScoreRecordedContract(t), event)
+	if got := event["type"]; got != "assessment.score_recorded.v1" {
+		t.Fatalf("event type = %v", got)
+	}
+	if got := event["subject"]; got != score.ID {
+		t.Fatalf("event subject = %v, want %s", got, score.ID)
+	}
+	data := objectAt(t, event, "data")
+	for key, want := range map[string]any{
+		"score_id":         score.ID,
+		"assessment_id":    assessmentID,
+		"student_id":       studentID,
+		"subject_id":       testSubject,
+		"academic_year_id": testYear,
+		"score":            float64(72),
+		"max_score":        float64(100),
+	} {
+		if got := data[key]; got != want {
+			t.Errorf("data[%s] = %v, want %v", key, got, want)
+		}
+	}
+}
+
+func TestPublisher_AssessmentScoreLifecycleEvents_ConformToContracts(t *testing.T) {
+	studentID := "99999999-9999-4999-8999-999999999999"
+	assessmentID := "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+	score, err := domain.NewScore(testTenant, assessmentID, studentID, 72, "teacher-1", "", 100)
+	if err != nil {
+		t.Fatalf("new score: %v", err)
+	}
+	baseMeta := map[string]any{
+		"assessment_id":    assessmentID,
+		"subject_id":       testSubject,
+		"academic_year_id": testYear,
+		"max_score":        100,
+		"recorded_at":      score.CreatedAt.UTC().Format(time.RFC3339),
+		"updated_at":       score.UpdatedAt.UTC().Format(time.RFC3339),
+		"class_ids":        []string{testClass1, testClass2},
+	}
+
+	tests := []struct {
+		name      string
+		eventType string
+		contract  func(*testing.T) map[string]any
+		extraMeta map[string]any
+		required  string
+	}{
+		{
+			name:      "updated",
+			eventType: "assessment.score_updated.v1",
+			contract:  assessmentScoreUpdatedContract,
+			extraMeta: map[string]any{"changed_fields": []string{"score"}},
+			required:  "changed_fields",
+		},
+		{
+			name:      "deleted",
+			eventType: "assessment.score_deleted.v1",
+			contract:  assessmentScoreDeletedContract,
+			extraMeta: map[string]any{"deleted_at": time.Now().UTC().Format(time.RFC3339)},
+			required:  "deleted_at",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			js := &fakeJS{}
+			pub := NewPublisher(eventbus.NewPublisher(js))
+			meta := make(map[string]any, len(baseMeta)+len(tc.extraMeta))
+			for key, value := range baseMeta {
+				meta[key] = value
+			}
+			for key, value := range tc.extraMeta {
+				meta[key] = value
+			}
+			if err := pub.PublishScore(context.Background(), tc.eventType, score, meta); err != nil {
+				t.Fatalf("publish score: %v", err)
+			}
+			if len(js.published) != 1 {
+				t.Fatalf("expected one published event, got %d", len(js.published))
+			}
+			var event map[string]any
+			if err := json.Unmarshal(js.published[0].Data, &event); err != nil {
+				t.Fatalf("unmarshal event: %v", err)
+			}
+			assertContractConformance(t, tc.contract(t), event)
+			if got := event["type"]; got != tc.eventType {
+				t.Errorf("event type = %v, want %s", got, tc.eventType)
+			}
+			data := objectAt(t, event, "data")
+			if _, ok := data[tc.required]; !ok {
+				t.Errorf("data missing lifecycle field %q", tc.required)
+			}
+		})
 	}
 }
 

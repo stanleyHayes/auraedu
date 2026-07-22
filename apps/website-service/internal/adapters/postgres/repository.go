@@ -7,9 +7,12 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/auraedu/platform/auth"
 	"github.com/auraedu/platform/db"
+	"github.com/auraedu/platform/tenancy"
 	"github.com/auraedu/website-service/internal/domain"
 	"github.com/auraedu/website-service/internal/ports"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -21,7 +24,11 @@ type Repository struct {
 	db *db.DB
 }
 
-var _ ports.Repository = (*Repository)(nil)
+var (
+	_ ports.Repository          = (*Repository)(nil)
+	_ ports.LifecycleRepository = (*Repository)(nil)
+	_ ports.OutboxRepository    = (*Repository)(nil)
+)
 
 // NewRepository creates a Postgres-backed website repository.
 func NewRepository(database *db.DB) *Repository { return &Repository{db: database} }
@@ -300,6 +307,165 @@ func (r *Repository) DeleteSectionsByPage(ctx context.Context, tenantID, pageID 
 			return fmt.Errorf("website: delete sections by page: %w", err)
 		}
 		return nil
+	})
+}
+
+func insertPage(ctx context.Context, tx pgx.Tx, tenantID string, p *domain.Page) error {
+	_, err := tx.Exec(ctx, `
+		INSERT INTO website_pages
+			(id, tenant_id, slug, title, status, meta_description, layout, created_at, updated_at, published_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+	`, p.ID, tenantID, p.Slug, p.Title, p.Status, p.MetaDescription, p.Layout,
+		p.CreatedAt, p.UpdatedAt, p.PublishedAt)
+	return err
+}
+
+func insertSection(ctx context.Context, tx pgx.Tx, tenantID string, s *domain.Section) error {
+	content, err := json.Marshal(s.Content)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `
+		INSERT INTO website_sections
+			(id, tenant_id, page_id, type, content, sort_order, status, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,COALESCE($5,'{}'::jsonb),$6,$7,$8,$9)
+	`, s.ID, tenantID, s.PageID, s.Type, content, s.SortOrder, s.Status, s.CreatedAt, s.UpdatedAt)
+	return err
+}
+
+func enqueueWebsiteEvents(ctx context.Context, tx pgx.Tx, tenantID string, events []ports.LifecycleEvent) error {
+	for _, event := range events {
+		payload, err := json.Marshal(event.Payload)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO website_outbox (id, tenant_id, event_type, payload)
+			VALUES ($1,$2,$3,$4)
+		`, uuid.NewString(), tenantID, event.EventType, payload); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *Repository) CommitWebsiteLifecycle(
+	ctx context.Context,
+	tenantID string,
+	mutation string,
+	page *domain.Page,
+	section *domain.Section,
+	events []ports.LifecycleEvent,
+) error {
+	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		var err error
+		switch mutation {
+		case ports.WebsiteMutationPageCreate:
+			err = insertPage(ctx, tx, tenantID, page)
+		case ports.WebsiteMutationPageUpdate:
+			_, err = tx.Exec(ctx, `
+				UPDATE website_pages
+				SET slug=$3, title=$4, status=$5, meta_description=$6, layout=$7,
+				    updated_at=$8, published_at=$9
+				WHERE id=$1 AND tenant_id=$2
+			`, page.ID, tenantID, page.Slug, page.Title, page.Status,
+				page.MetaDescription, page.Layout, page.UpdatedAt, page.PublishedAt)
+		case ports.WebsiteMutationPageDelete:
+			_, err = tx.Exec(ctx, `DELETE FROM website_pages WHERE id=$1 AND tenant_id=$2`, page.ID, tenantID)
+		case ports.WebsiteMutationSectionCreate:
+			err = insertSection(ctx, tx, tenantID, section)
+		case ports.WebsiteMutationSectionUpdate:
+			var content []byte
+			content, err = json.Marshal(section.Content)
+			if err == nil {
+				_, err = tx.Exec(ctx, `
+					UPDATE website_sections
+					SET type=$3, content=COALESCE($4,'{}'::jsonb), sort_order=$5,
+					    status=$6, updated_at=$7
+					WHERE id=$1 AND tenant_id=$2
+				`, section.ID, tenantID, section.Type, content,
+					section.SortOrder, section.Status, section.UpdatedAt)
+			}
+		case ports.WebsiteMutationSectionDelete:
+			_, err = tx.Exec(ctx, `DELETE FROM website_sections WHERE id=$1 AND tenant_id=$2`, section.ID, tenantID)
+		default:
+			return fmt.Errorf("website: unsupported lifecycle mutation %q", mutation)
+		}
+		if err != nil {
+			return fmt.Errorf("website: lifecycle mutation: %w", err)
+		}
+		if err := enqueueWebsiteEvents(ctx, tx, tenantID, events); err != nil {
+			return fmt.Errorf("website: enqueue lifecycle event: %w", err)
+		}
+		return nil
+	})
+}
+
+func (r *Repository) ProvisionDefaultWebsite(
+	ctx context.Context,
+	tenantID string,
+	page *domain.Page,
+	section *domain.Section,
+	events []ports.LifecycleEvent,
+) error {
+	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		if err := insertPage(ctx, tx, tenantID, page); err != nil {
+			return err
+		}
+		if err := insertSection(ctx, tx, tenantID, section); err != nil {
+			return err
+		}
+		return enqueueWebsiteEvents(ctx, tx, tenantID, events)
+	})
+}
+
+func websiteOutboxContext(ctx context.Context) context.Context {
+	ctx = auth.WithActor(ctx, auth.Actor{Role: auth.RolePlatformSuperAdmin, PlatformAdmin: true})
+	return tenancy.WithContext(ctx, tenancy.TenantContext{TenantID: "__website_outbox__"})
+}
+
+func (r *Repository) ClaimPendingWebsiteEvents(ctx context.Context, limit int) ([]ports.OutboxEvent, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 25
+	}
+	items := make([]ports.OutboxEvent, 0, limit)
+	err := r.db.WithTx(websiteOutboxContext(ctx), func(ctx context.Context, tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			UPDATE website_outbox
+			SET attempts=attempts+1,
+			    next_attempt_at=now()+(LEAST(300,power(2,attempts))*interval '1 second')
+			WHERE id IN (
+				SELECT id FROM website_outbox
+				WHERE published_at IS NULL AND next_attempt_at<=now()
+				ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT $1
+			)
+			RETURNING id::text, tenant_id, event_type, payload
+		`, limit)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var item ports.OutboxEvent
+			if err := rows.Scan(&item.ID, &item.TenantID, &item.EventType, &item.Payload); err != nil {
+				return err
+			}
+			items = append(items, item)
+		}
+		return rows.Err()
+	})
+	return items, err
+}
+func (r *Repository) MarkWebsiteEventPublished(ctx context.Context, id string) error {
+	return r.db.WithTx(websiteOutboxContext(ctx), func(ctx context.Context, tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `UPDATE website_outbox SET published_at=now(),last_error=NULL WHERE id=$1`, id)
+		return err
+	})
+}
+func (r *Repository) MarkWebsiteEventFailed(ctx context.Context, id, message string) error {
+	return r.db.WithTx(websiteOutboxContext(ctx), func(ctx context.Context, tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `UPDATE website_outbox SET last_error=left($2,1000) WHERE id=$1`, id, message)
+		return err
 	})
 }
 

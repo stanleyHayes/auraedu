@@ -42,7 +42,13 @@ export function ClassForm({ mode, classId, initial, years, staff, onSuccess }: C
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="name">Class name</Label>
-          <Input id="name" name="name" defaultValue={initial?.name} required placeholder="Form 1A" />
+          <Input
+            id="name"
+            name="name"
+            defaultValue={initial?.name}
+            required
+            placeholder="Form 1A"
+          />
         </div>
 
         <div className="space-y-1.5">

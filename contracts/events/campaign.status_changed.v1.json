@@ -1,0 +1,82 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://contracts.auraedu.dev/events/campaign.status_changed.v1.json",
+  "type": "object",
+  "required": [
+    "specversion",
+    "type",
+    "source",
+    "id",
+    "time",
+    "tenant_id",
+    "data"
+  ],
+  "properties": {
+    "specversion": {
+      "const": "1.0"
+    },
+    "type": {
+      "const": "campaign.status_changed.v1"
+    },
+    "source": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tenant_id": {
+      "type": "string"
+    },
+    "datacontenttype": {
+      "const": "application/json"
+    },
+    "data": {
+      "type": "object",
+      "required": [
+        "campaign_id",
+        "previous_status",
+        "status",
+        "changed_at"
+      ],
+      "properties": {
+        "campaign_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "previous_status": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "changed_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "specversion": "1.0",
+      "type": "campaign.status_changed.v1",
+      "source": "example-source",
+      "id": "11111111-1111-4111-8111-111111111111",
+      "time": "2026-07-20T10:00:00Z",
+      "tenant_id": "school-a",
+      "data": {
+        "campaign_id": "11111111-1111-4111-8111-111111111111",
+        "previous_status": "example-previous.status",
+        "status": "example-status",
+        "changed_at": "2026-07-19T10:00:00Z"
+      }
+    }
+  ]
+}

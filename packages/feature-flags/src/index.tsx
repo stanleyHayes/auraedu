@@ -1,17 +1,9 @@
 "use client";
 
 import * as React from "react";
+import { buildFlagMap, isFeatureEnabled, type FeatureSnapshot } from "./core";
 
-export interface FeatureFlag {
-  feature_key: string;
-  is_enabled: boolean;
-  plan_required?: string;
-}
-
-export interface FeatureSnapshot {
-  tenantCode: string;
-  flags: FeatureFlag[];
-}
+export { buildFlagMap, isFeatureEnabled, type FeatureFlag, type FeatureSnapshot } from "./core";
 
 export interface FeatureFlagsProviderProps {
   snapshot: FeatureSnapshot;
@@ -26,17 +18,6 @@ export function FeatureFlagsProvider({ snapshot, children }: FeatureFlagsProvide
 
 export function useFeatureSnapshot(): FeatureSnapshot | null {
   return React.useContext(FeatureContext);
-}
-
-function buildFlagMap(snapshot: FeatureSnapshot | null): Map<string, FeatureFlag> {
-  const map = new Map<string, FeatureFlag>();
-  if (!snapshot) return map;
-  for (const flag of snapshot.flags) map.set(flag.feature_key, flag);
-  return map;
-}
-
-export function isFeatureEnabled(snapshot: FeatureSnapshot | null, key: string): boolean {
-  return buildFlagMap(snapshot).get(key)?.is_enabled ?? false;
 }
 
 export function useFeature(key: string): boolean {

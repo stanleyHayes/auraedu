@@ -1,6 +1,7 @@
 package httpx
 
 import (
+	"mime"
 	"net/http"
 	"strings"
 
@@ -11,7 +12,13 @@ import (
 
 const RequestIDHeader = "X-Request-Id"
 
+const (
+	maxStandardRequestBodyBytes  int64 = 1 << 20
+	maxMultipartRequestBodyBytes int64 = 40 << 20
+)
+
 func RequestIDMiddleware(next http.Handler) http.Handler {
+	bounded := RequestBoundaryMiddleware(next)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := strings.TrimSpace(r.Header.Get(RequestIDHeader))
 		if id == "" {
@@ -19,8 +26,31 @@ func RequestIDMiddleware(next http.Handler) http.Handler {
 			r.Header.Set(RequestIDHeader, id)
 		}
 		w.Header().Set(RequestIDHeader, id)
+		bounded.ServeHTTP(w, r)
+	})
+}
+
+// RequestBoundaryMiddleware caps inbound bodies before a service handler can
+// allocate or decode them. RequestIDMiddleware includes this boundary; the API
+// Gateway uses it directly because its own middleware owns request-ID context.
+func RequestBoundaryMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		limit := requestBodyLimit(r.Header.Get("Content-Type"))
+		if r.ContentLength > limit {
+			PayloadTooLarge(w, r)
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, limit)
 		next.ServeHTTP(w, r)
 	})
+}
+
+func requestBodyLimit(contentType string) int64 {
+	mediaType, _, err := mime.ParseMediaType(strings.TrimSpace(contentType))
+	if err == nil && strings.EqualFold(mediaType, "multipart/form-data") {
+		return maxMultipartRequestBodyBytes
+	}
+	return maxStandardRequestBodyBytes
 }
 
 // RequirePermission returns HTTP middleware that allows the request only if the

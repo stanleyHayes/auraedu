@@ -9,19 +9,19 @@ permissions:
 jobs:
   migrations:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with: { fetch-depth: 0 }
-      - name: Migration validation placeholder
+      - name: Enforce additive migration history
         run: |
           set -euo pipefail
           base=${GITHUB_BASE_REF:-main}
-          git fetch origin "$base" --depth=1 || true
-          changed=$(git diff --name-only "origin/$base"...HEAD | grep -E '^apps/[^/]+/migrations/' || true)
-          if [ -z "$changed" ]; then
-            echo "::notice::No migrations changed."
-            exit 0
-          fi
-          echo "Changed migrations:"
-          echo "$changed"
-          echo "TODO: run per-service migration lint/validate (AURA-2.5, EP-07)"
+          git fetch origin "$base" --depth=1
+          bash tools/ci/check-migrations.sh "origin/$base"
+      - name: Enforce tenant RLS coverage
+        run: bash tools/ci/check-tenant-rls.sh
+      - name: Validate executable migration inventory
+        run: |
+          node --test tools/migrations/orchestrate.test.mjs
+          make migrate-check

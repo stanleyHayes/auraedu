@@ -34,9 +34,9 @@ func main() {
 	})
 	root.AddCommand(&cobra.Command{
 		Use:   "worker",
-		Short: "Run the " + serviceName + " background worker",
+		Short: "Dispatch durable file lifecycle events and storage cleanup",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return workercmd.Run()
+			return workercmd.Run(version)
 		},
 	})
 	root.AddCommand(&cobra.Command{

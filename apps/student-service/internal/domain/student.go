@@ -28,20 +28,23 @@ const (
 
 // Student is the aggregate root of the student service. Every record is tenant-scoped.
 type Student struct {
-	ID          string    `json:"id"`
-	TenantID    string    `json:"tenant_id"`
-	FirstName   string    `json:"first_name"`
-	LastName    string    `json:"last_name"`
-	StudentCode string    `json:"student_code"`
-	DateOfBirth *string   `json:"date_of_birth,omitempty"`
-	Gender      *string   `json:"gender,omitempty"`
-	Status      string    `json:"status"`
+	ID          string  `json:"id"`
+	TenantID    string  `json:"tenant_id"`
+	FirstName   string  `json:"first_name"`
+	LastName    string  `json:"last_name"`
+	StudentCode string  `json:"student_code"`
+	DateOfBirth *string `json:"date_of_birth,omitempty"`
+	Gender      *string `json:"gender,omitempty"`
+	Status      string  `json:"status"`
 	// ClassID and AcademicYearID are the student's current class assignment
 	// (soft references to academic-service aggregates; no cross-service FK).
-	ClassID        *string   `json:"class_id,omitempty"`
-	AcademicYearID *string   `json:"academic_year_id,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ClassID        *string `json:"class_id,omitempty"`
+	AcademicYearID *string `json:"academic_year_id,omitempty"`
+	// UserID is the soft link to the identity-service user that owns this record
+	// (no cross-service FK, AURA-10.12). Nil while the record is unlinked.
+	UserID    *string   `json:"user_id,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // FullName returns the student's display name.
@@ -95,12 +98,15 @@ func (s Student) Validate() error {
 	if s.AcademicYearID != nil && !isValidUUID(*s.AcademicYearID) {
 		return ErrValidation
 	}
+	if s.UserID != nil && !isValidUUID(*s.UserID) {
+		return ErrValidation
+	}
 	return nil
 }
 
 // ApplyUpdate mutates the student with non-empty patch fields. It returns the
 // names of fields that changed, or ErrValidation if a supplied value is invalid.
-func (s *Student) ApplyUpdate(firstName, lastName, status *string) ([]string, error) {
+func (s *Student) ApplyUpdate(firstName, lastName, status, userID *string) ([]string, error) {
 	var changed []string
 	if firstName != nil {
 		if strings.TrimSpace(*firstName) == "" {
@@ -122,6 +128,18 @@ func (s *Student) ApplyUpdate(firstName, lastName, status *string) ([]string, er
 		}
 		s.Status = *status
 		changed = append(changed, "status")
+	}
+	if userID != nil {
+		value := strings.TrimSpace(*userID)
+		if value == "" {
+			s.UserID = nil
+		} else {
+			if !isValidUUID(value) {
+				return nil, ErrValidation
+			}
+			s.UserID = &value
+		}
+		changed = append(changed, "user_id")
 	}
 	if len(changed) > 0 {
 		s.UpdatedAt = time.Now().UTC()

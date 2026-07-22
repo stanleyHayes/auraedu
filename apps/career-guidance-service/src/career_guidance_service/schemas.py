@@ -32,7 +32,7 @@ class FeatureStoreMetricSchema(BaseModel):
 
 
 class GenerateGuidanceRequest(BaseModel):
-    student_id: str
+    student_id: str | None = None
     guidance_types: list[str] | None = None
 
 

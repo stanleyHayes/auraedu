@@ -1,6 +1,5 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { Shield } from "lucide-react";
 import { SuperAdminShell } from "@/components/superadmin-shell";
 import { fetchTenantBranding, getTenantCodeFromHeaders, SUPERADMIN_NAV } from "@/lib/tenant";
 import { requireAuth, isSuperAdmin } from "@/lib/auth";
@@ -23,6 +22,7 @@ export default async function SuperAdminLayout({ children }: { children: React.R
   }
 
   const user = {
+    id: session.user_id ?? session.sub,
     name: session.name ?? session.email ?? "Super Admin",
     email: session.email ?? "",
     role: session.role,
@@ -37,17 +37,7 @@ export default async function SuperAdminLayout({ children }: { children: React.R
   };
 
   return (
-    <SuperAdminShell
-      tenant={tenant}
-      navGroups={SUPERADMIN_NAV}
-      showMobileMenu
-      user={user}
-      page={{
-        icon: <Shield className="size-7" />,
-        title: "Super Admin",
-        description: "Platform-wide tenant, billing, and system management.",
-      }}
-    >
+    <SuperAdminShell tenant={tenant} navGroups={SUPERADMIN_NAV} showMobileMenu user={user}>
       {children}
     </SuperAdminShell>
   );

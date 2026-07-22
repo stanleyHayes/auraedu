@@ -14,7 +14,12 @@ export function TenantCreateSheet() {
         <Plus className="mr-2 size-4" />
         Add school
       </Button>
-      <Sheet open={open} onClose={() => setOpen(false)} side="right" className="w-full max-w-xl bg-[var(--surface)] p-0">
+      <Sheet
+        open={open}
+        onClose={() => setOpen(false)}
+        side="right"
+        className="w-full max-w-xl bg-[var(--surface)] p-0"
+      >
         <div className="flex h-full flex-col">
           <div className="border-b border-[var(--border)] bg-[var(--muted)] px-6 py-4">
             <h2 className="font-heading text-lg font-bold">Add school</h2>

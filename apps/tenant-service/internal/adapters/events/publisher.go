@@ -23,13 +23,20 @@ func NewPublisher(bus *eventbus.Publisher) *Publisher { return &Publisher{bus: b
 
 // Publish emits a CloudEvent for the given tenant domain event on the JetStream AURA stream.
 func (p *Publisher) Publish(ctx context.Context, eventType, tenantCode string, payload map[string]any) error {
+	return p.PublishWithID(ctx, newEventID(), eventType, tenantCode, payload)
+}
+
+// PublishWithID emits a replay-safe outbox event. The stable outbox UUID is
+// used as both CloudEvent id and JetStream idempotency key.
+func (p *Publisher) PublishWithID(ctx context.Context, eventID, eventType, tenantCode string, payload map[string]any) error {
 	if p == nil || p.bus == nil {
 		return nil
 	}
-	event, err := tenancy.NewCloudEvent(eventType, "tenant-service", newEventID(), tenantCode, payload)
+	event, err := tenancy.NewCloudEvent(eventType, "tenant-service", eventID, tenantCode, payload)
 	if err != nil {
 		return fmt.Errorf("tenant: build event %q: %w", eventType, err)
 	}
+	event.IdempotencyKey = eventID
 	return p.bus.Publish(ctx, event)
 }
 
