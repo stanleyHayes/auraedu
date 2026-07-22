@@ -3,7 +3,7 @@
 **Prepared:** 2026-07-22 (Africa/Accra)
 **Repository:** `https://github.com/stanleyHayes/auraedu.git`
 **Branch:** `main`
-**Published baseline:** `a995316338c88253dfddd8faee3579912ecf64e2`
+**Verified Vercel deployment-attempt commit:** `4150015a6ba90b457c3cc4ae44d5aff2105d7f51`
 
 ## 1. Objective that must remain intact
 
@@ -19,8 +19,9 @@ Production readiness is proven only when every item in `release/evidence/manifes
 
 ## 2. Current Git state and publication history
 
-- `origin/main` and local `main` were aligned at
-  `a995316338c88253dfddd8faee3579912ecf64e2` before this handoff update.
+- `origin/main` and local `main` are aligned at
+  `4150015a6ba90b457c3cc4ae44d5aff2105d7f51` before the Node compatibility follow-up described
+  below.
 - Thirty previously local commits were pushed on 2026-07-22. GitHub initially rejected that range
   because commit `0a273ed` contained a Paystack unit-test fixture shaped like a Stripe test
   secret. The unpublished range was replayed in an isolated worktree, and only that fixture
@@ -129,8 +130,16 @@ Current provider facts:
   Marketing Vercel hostnames; wildcard access remains prohibited.
 - The Portal and Marketing local directories are linked to those projects. Vercel session files
   are ignored and mode `0600`; project IDs and credentials are intentionally not committed.
-- No deployment exists yet, so `https://auraedugh.vercel.app/` still returns Vercel
-  `404 DEPLOYMENT_NOT_FOUND`.
+- The push of `4150015` triggered one Production deployment in each project. Both cloned the
+  correct `main` commit, installed all 14 pnpm workspace projects, detected Next.js `16.2.10`, and
+  then stopped only at the fail-closed validator with
+  `NEXT_PUBLIC_API_URL is required in production`. Both deployments correctly remain `Error`, not
+  `READY`, and the Portal production alias still has no successful deployment.
+- Vercel's current managed build image uses Node `24.15.0`, while AuraEDU development and CI remain
+  pinned to Node `26.5.0`. The root engine range now explicitly supports maintained Node 24 on
+  Vercel as well as the pinned Node 26.5+ toolchain; `.nvmrc`, CI, and Docker pins are unchanged.
+  A local production-mode compatibility run under Node `24.12.0` compiled both applications,
+  completed TypeScript, and generated all 69 Portal and 24 Marketing routes.
 - The production API Gateway URL is still missing. The only local `NEXT_PUBLIC_API_URL` is a
   loopback development URL. Production builds intentionally fail closed on that value.
 - Render CLI `2.17.0` is installed at `/opt/homebrew/bin/render`, but it is not authenticated and
