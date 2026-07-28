@@ -18,9 +18,48 @@ void test("the marketing shell exposes one keyboard-navigable main landmark", ()
 void test("public trust statements are linked and discoverable", () => {
   const footer = source("../components/site-footer.tsx");
   const sitemap = source("../app/sitemap.ts");
-  for (const route of ["/privacy", "/security", "/accessibility"]) {
+  for (const route of ["/privacy", "/security", "/accessibility", "/terms", "/payment-policy"]) {
     assert.match(footer, new RegExp(`\\["${route}"`));
     assert.match(sitemap, new RegExp(`"${route}"`));
+  }
+});
+
+void test("adoption and help routes are discoverable from nav, footer and sitemap", () => {
+  const header = source("../components/site-header.tsx");
+  const footer = source("../components/site-footer.tsx");
+  const sitemap = source("../app/sitemap.ts");
+  for (const route of ["/faq", "/for-parents"]) {
+    assert.match(header, new RegExp(`"${route}"`));
+    assert.match(footer, new RegExp(`\\["${route}"`));
+    assert.match(sitemap, new RegExp(`"${route}"`));
+  }
+});
+
+void test("policy templates are marked as pending legal review", () => {
+  for (const route of ["terms", "payment-policy"]) {
+    const page = source(`../app/${route}/page.tsx`);
+    assert.match(page, /pending legal review/i);
+    assert.match(page, /AURAEDU_LEGAL_REVIEW_CONFIRMED/);
+  }
+});
+
+void test("the root layout ships Organization, WebSite and SoftwareApplication JSON-LD", () => {
+  const layout = source("../app/layout.tsx");
+  assert.match(layout, /application\/ld\+json/);
+  assert.match(layout, /"@type": "Organization"/);
+  assert.match(layout, /"@type": "WebSite"/);
+  assert.match(layout, /"@type": "SoftwareApplication"/);
+  assert.match(layout, /EducationalApplication/);
+});
+
+void test("the product tour keeps accessible tabs and a static screenshot manifest", () => {
+  const tour = source("../components/product-tour.tsx");
+  assert.match(tour, /role="tablist"/);
+  assert.match(tour, /role="tabpanel"/);
+  assert.match(tour, /aria-selected/);
+  assert.match(tour, /imageReady/);
+  for (const stop of ["admin-dashboard", "fees-momo", "report-cards", "parent-portal"]) {
+    assert.match(tour, new RegExp(`"${stop}"`));
   }
 });
 

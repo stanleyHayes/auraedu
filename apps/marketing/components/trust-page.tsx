@@ -14,12 +14,14 @@ export function TrustPage({
   title,
   introduction,
   updated,
+  notice,
   sections,
 }: {
   eyebrow: string;
   title: string;
   introduction: string;
   updated: string;
+  notice?: string;
   sections: readonly TrustSection[];
 }) {
   return (
@@ -34,6 +36,11 @@ export function TrustPage({
           <p className="mt-8 font-mono text-xs uppercase tracking-[0.14em] text-teal-bright">
             Last reviewed {updated}
           </p>
+          {notice ? (
+            <p className="mt-6 w-fit max-w-3xl rounded-lg border border-sun-signal/40 bg-sun-signal/10 px-4 py-3 text-sm leading-6 text-sun-signal">
+              {notice}
+            </p>
+          ) : null}
         </ScrollReveal>
       </section>
 

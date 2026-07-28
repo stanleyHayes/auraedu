@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Eyebrow } from "@/components/brand-primitives";
 import { ScrollReveal, StaggerChildren, StaggerItem } from "@/components/motion-primitives";
+import { TermFlow } from "@/components/term-flow";
 
 export const metadata = {
   title: "Platform",
@@ -221,6 +222,35 @@ export default function FeaturesPage() {
               );
             })}
           </div>
+        </div>
+      </section>
+
+      <section className="bg-cool-mist" aria-labelledby="term-motion-title">
+        <div className="mx-auto grid max-w-7xl gap-12 px-6 py-24 lg:grid-cols-2 lg:items-center">
+          <ScrollReveal>
+            <Eyebrow>Money in motion</Eyebrow>
+            <h2
+              id="term-motion-title"
+              className="mt-4 max-w-[14ch] text-balance text-4xl font-bold leading-[1.02] tracking-[-0.045em] text-navy-deep sm:text-5xl"
+            >
+              The fee lifecycle, visible end to end.
+            </h2>
+            <p className="mt-5 max-w-md leading-7 text-slate-600">
+              Invoices, mobile-money payments, reconciliation and receipts move as one flow.
+              Failures are surfaced with a retry path—never buried in a spreadsheet at the end of
+              term.
+            </p>
+            <Link href="/payment-policy" className="text-link group mt-7">
+              Read the payment policy
+              <ArrowRight
+                className="size-4 transition-transform group-hover:translate-x-1"
+                aria-hidden="true"
+              />
+            </Link>
+          </ScrollReveal>
+          <ScrollReveal delay={0.1}>
+            <TermFlow />
+          </ScrollReveal>
         </div>
       </section>
 

@@ -9,6 +9,8 @@ const nav = [
   { href: "/features", label: "Platform" },
   { href: "/#how-it-works", label: "How it works" },
   { href: "/pricing", label: "Pricing" },
+  { href: "/for-parents", label: "For parents" },
+  { href: "/faq", label: "FAQ" },
   { href: "/blog", label: "Resources" },
   { href: "/about", label: "About" },
   { href: "/contact", label: "Contact" },
@@ -37,7 +39,7 @@ export function SiteHeader() {
     <header className="site-header-shell sticky top-0 z-50 border-b">
       <div className="mx-auto flex h-[72px] max-w-[1440px] items-center gap-6 px-6 sm:px-10 lg:px-16">
         <Logo />
-        <nav className="ml-auto hidden items-center gap-7 lg:flex" aria-label="Primary">
+        <nav className="ml-auto hidden items-center gap-6 lg:flex" aria-label="Primary">
           {nav.map((item) => (
             <Link
               key={item.href}

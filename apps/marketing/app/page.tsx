@@ -20,6 +20,9 @@ import {
   UsersRound,
 } from "lucide-react";
 import { Eyebrow } from "@/components/brand-primitives";
+import { GrowthLoop } from "@/components/growth-loop";
+import { ProductTour } from "@/components/product-tour";
+import { TermFlow } from "@/components/term-flow";
 import {
   AnimatedCounter,
   Reveal3D,
@@ -337,6 +340,103 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section className="bg-white" aria-labelledby="tour-title">
+        <div className="mx-auto max-w-7xl px-6 py-24">
+          <ScrollReveal className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
+            <div>
+              <Eyebrow>Product tour</Eyebrow>
+              <h2
+                id="tour-title"
+                className="mt-4 max-w-[15ch] text-balance font-heading text-4xl font-bold leading-[1.02] tracking-[-0.04em] text-navy-deep sm:text-6xl"
+              >
+                See the system <span className="text-teal-strong">do the work.</span>
+              </h2>
+            </div>
+            <p className="max-w-lg leading-7 text-slate-600">
+              Four surfaces your school will live in every day—from the administrator’s morning view
+              to the portal a parent opens at night.
+            </p>
+          </ScrollReveal>
+          <ScrollReveal className="mt-12" delay={0.1}>
+            <ProductTour />
+          </ScrollReveal>
+        </div>
+      </section>
+
+      <section className="bg-cool-mist" aria-labelledby="term-title">
+        <div className="mx-auto grid max-w-7xl gap-12 px-6 py-24 lg:grid-cols-2 lg:items-center">
+          <ScrollReveal>
+            <Eyebrow>A term in motion</Eyebrow>
+            <h2
+              id="term-title"
+              className="mt-4 max-w-[14ch] text-balance font-heading text-4xl font-bold leading-[1.02] tracking-[-0.04em] text-navy-deep sm:text-5xl"
+            >
+              Watch one fee travel from invoice to receipt.
+            </h2>
+            <p className="mt-5 max-w-md leading-7 text-slate-600">
+              Fees are where trust is won or lost. AuraEDU keeps the whole lifecycle—invoice,
+              mobile-money payment, reconciliation and the parent’s receipt—in one visible flow,
+              with failures surfaced instead of hidden.
+            </p>
+            <Link href="/features#finance-communication" className="text-link group mt-7">
+              Explore fees & communication
+              <ArrowRight
+                className="size-4 transition-transform group-hover:translate-x-1"
+                aria-hidden="true"
+              />
+            </Link>
+          </ScrollReveal>
+          <ScrollReveal delay={0.1}>
+            <TermFlow />
+          </ScrollReveal>
+        </div>
+      </section>
+
+      <section className="border-y border-slate-200 bg-white" aria-labelledby="proof-title">
+        <div className="mx-auto max-w-7xl px-6 py-20">
+          <ScrollReveal>
+            <Eyebrow>What “working” means</Eyebrow>
+            <h2 id="proof-title" className="sr-only">
+              Product truths
+            </h2>
+          </ScrollReveal>
+          <StaggerChildren className="mt-8 grid gap-10 lg:grid-cols-3">
+            {[
+              {
+                number: "01",
+                statement: "Report cards published in a day, not a term.",
+                support:
+                  "Marks flow from the gradebook through review to release—no re-typing, no end-of-term scramble.",
+              },
+              {
+                number: "02",
+                statement: "Every payment reconciled to the cedi.",
+                support:
+                  "Each MoMo payment lands against the right learner with a reference both the bursar and the parent can trace.",
+              },
+              {
+                number: "03",
+                statement: "Parents reached in one tap.",
+                support:
+                  "Notices, receipts and results go straight to the guardian’s phone—approved by the school, seen by the family.",
+              },
+            ].map((proof) => (
+              <StaggerItem key={proof.number}>
+                <article className="border-t-2 border-navy-deep pt-6">
+                  <span className="font-mono text-xs font-bold tracking-[0.16em] text-teal-strong">
+                    {proof.number}
+                  </span>
+                  <h3 className="mt-4 max-w-[20ch] font-heading text-2xl font-bold leading-[1.15] tracking-[-0.03em] text-navy-deep sm:text-[1.7rem]">
+                    {proof.statement}
+                  </h3>
+                  <p className="mt-4 max-w-sm text-sm leading-6 text-slate-600">{proof.support}</p>
+                </article>
+              </StaggerItem>
+            ))}
+          </StaggerChildren>
+        </div>
+      </section>
+
       <section className="bg-white" aria-labelledby="roles-title">
         <div className="mx-auto max-w-7xl px-6 py-24">
           <ScrollReveal className="grid gap-7 lg:grid-cols-[0.75fr_1.25fr] lg:items-end">
@@ -380,6 +480,29 @@ export default function HomePage() {
               </StaggerItem>
             ))}
           </StaggerChildren>
+        </div>
+      </section>
+
+      <section className="bg-cool-mist" aria-labelledby="growth-loop-title">
+        <div className="mx-auto max-w-7xl px-6 py-24">
+          <ScrollReveal className="grid gap-8 lg:grid-cols-[0.72fr_1.28fr] lg:items-end">
+            <div>
+              <Eyebrow>The admissions growth loop</Eyebrow>
+              <h2
+                id="growth-loop-title"
+                className="mt-4 max-w-[14ch] text-balance font-heading text-4xl font-bold leading-[1.02] tracking-[-0.04em] text-navy-deep sm:text-5xl"
+              >
+                Enrolment that feeds the next enrolment.
+              </h2>
+            </div>
+            <p className="max-w-xl leading-7 text-slate-600 lg:justify-self-end">
+              Admissions is not a season; it is a loop. When the journey from first enquiry to
+              settled family runs cleanly, happy parents become the school’s best channel.
+            </p>
+          </ScrollReveal>
+          <ScrollReveal className="mt-12" delay={0.1}>
+            <GrowthLoop />
+          </ScrollReveal>
         </div>
       </section>
 

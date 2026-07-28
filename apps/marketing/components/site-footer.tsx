@@ -16,6 +16,8 @@ const groups = [
     links: [
       ["/about", "Why AuraEDU"],
       ["/blog", "Platform notes"],
+      ["/for-parents", "For parents"],
+      ["/faq", "FAQ"],
       ["/contact", "Contact"],
     ],
   },
@@ -32,6 +34,8 @@ const groups = [
     links: [
       ["/security", "Security"],
       ["/privacy", "Privacy"],
+      ["/terms", "Terms of service"],
+      ["/payment-policy", "Payment policy"],
       ["/accessibility", "Accessibility"],
     ],
   },
