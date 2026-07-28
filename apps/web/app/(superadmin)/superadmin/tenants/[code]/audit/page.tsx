@@ -1,16 +1,7 @@
 import { ScrollText } from "lucide-react";
-import {
-  PageHeader,
-  DataTable,
-  EmptyState,
-  Reveal,
-  Watermark,
-  Button,
-  Input,
-  Label,
-} from "@auraedu/ui";
+import { PageHeader, DataTable, EmptyState, Reveal, Button, Input, Label } from "@auraedu/ui";
 import type { OpenAPI } from "@auraedu/shared-types";
-import { createServerClient, createServerClientForTenant } from "@/lib/api";
+import { createServerClientForTenant } from "@/lib/api";
 import { requireAuth } from "@/lib/auth";
 import {
   drilldownQuery,
@@ -21,14 +12,12 @@ import {
   metadataString,
 } from "@/lib/superadmin-drilldown";
 import { SuperadminPagination } from "@/components/superadmin-pagination";
-import { SuperadminAuditTenantPicker } from "@/components/superadmin-audit-tenant-picker";
 
 type AuditLog = OpenAPI.audit_v1.components["schemas"]["AuditLog"];
-type Tenant = OpenAPI.tenant_v1.components["schemas"]["Tenant"];
 
-interface AuditLogsPageProps {
+interface TenantAuditPageProps {
+  params: Promise<{ code: string }>;
   searchParams: Promise<{
-    tenant?: string;
     event_type?: string;
     actor_id?: string;
     source_service?: string;
@@ -38,32 +27,17 @@ interface AuditLogsPageProps {
   }>;
 }
 
-export default async function AuditLogsPage({ searchParams }: AuditLogsPageProps) {
+export default async function TenantAuditPage({ params, searchParams }: TenantAuditPageProps) {
+  const { code } = await params;
   const filters = await searchParams;
   await requireAuth();
-
-  // Tenants power the picker; the explorer still renders if the lookup fails.
-  let tenants: Tenant[];
-  try {
-    const client = await createServerClient();
-    const res = await client.get<{ data?: Tenant[] }>("/api/v1/tenants?limit=100");
-    tenants = res.data ?? [];
-  } catch {
-    tenants = [];
-  }
-
-  const selectedTenant = filters.tenant?.trim() ?? "";
 
   let logs: AuditLog[] = [];
   let nextCursor: string | null = null;
   let error: string | null = null;
 
   try {
-    // "All tenants" omits the tenant pin so the audit service answers with the
-    // cross-tenant platform-admin feed; a picked tenant pins X-Tenant-Code instead.
-    const client = selectedTenant
-      ? await createServerClientForTenant(selectedTenant)
-      : await createServerClient();
+    const client = await createServerClientForTenant(code);
     const res = await client.get<{ data?: AuditLog[]; next_cursor?: string | null }>(
       `/api/v1/audit/logs?${drilldownQuery(
         {
@@ -82,24 +56,15 @@ export default async function AuditLogsPage({ searchParams }: AuditLogsPageProps
     error = e instanceof Error ? e.message : "Failed to load audit logs";
   }
 
-  const nextHref = nextPageHref("/superadmin/audit-logs", filters, nextCursor);
+  const nextHref = nextPageHref(`/superadmin/tenants/${code}/audit`, filters, nextCursor);
 
   return (
-    <div className="relative space-y-6">
-      <Watermark className="pointer-events-none absolute -right-6 -top-10 text-[10rem] opacity-[0.03]">
-        Audit
-      </Watermark>
+    <div className="space-y-6">
       <Reveal>
         <PageHeader
           icon={<ScrollText className="size-7" />}
-          title="Audit logs"
-          description="Cross-tenant explorer for platform activity. Pick a school or search across all tenants."
-          action={
-            <SuperadminAuditTenantPicker
-              tenants={tenants.map((t) => ({ tenant_code: t.tenant_code, name: t.name }))}
-              selected={selectedTenant}
-            />
-          }
+          title="Audit feed"
+          description={`Read-only audit activity for ${code}.`}
         />
       </Reveal>
 
@@ -108,7 +73,6 @@ export default async function AuditLogsPage({ searchParams }: AuditLogsPageProps
           method="get"
           className="card grid gap-3 rounded-[var(--radius-md)] p-4 sm:grid-cols-2 lg:grid-cols-6"
         >
-          {selectedTenant ? <input type="hidden" name="tenant" value={selectedTenant} /> : null}
           <div className="space-y-1.5">
             <Label htmlFor="event_type">Event type</Label>
             <Input
@@ -133,7 +97,7 @@ export default async function AuditLogsPage({ searchParams }: AuditLogsPageProps
               id="source_service"
               name="source_service"
               defaultValue={filters.source_service ?? ""}
-              placeholder="e.g. billing-service"
+              placeholder="e.g. student-service"
             />
           </div>
           <div className="space-y-1.5">
@@ -154,7 +118,7 @@ export default async function AuditLogsPage({ searchParams }: AuditLogsPageProps
 
       {error ? (
         <EmptyState
-          title="Could not load audit logs"
+          title="Audit feed unavailable"
           description={error}
           icon={<ScrollText className="size-8" />}
         />
@@ -162,39 +126,21 @@ export default async function AuditLogsPage({ searchParams }: AuditLogsPageProps
         <>
           <Reveal delay={80}>
             <DataTable
-              caption={
-                selectedTenant
-                  ? `Audit logs for ${selectedTenant}`
-                  : "Audit logs across all tenants"
-              }
+              caption={`Audit logs for tenant ${code}`}
               rows={logs}
               keyExtractor={(l) => l.id}
               columns={[
                 {
                   key: "time",
-                  header: "Occurred",
+                  header: "Time",
                   cell: (l) => (
                     <span className="font-mono text-xs">{formatDateTime(l.occurred_at)}</span>
                   ),
                 },
                 {
-                  key: "tenant",
-                  header: "Tenant",
-                  cell: (l) => <span className="font-mono text-xs">{l.tenant_id}</span>,
-                },
-                {
                   key: "event",
-                  header: "Event type",
+                  header: "Event",
                   cell: (l) => <span className="font-mono text-xs">{l.event_type}</span>,
-                },
-                {
-                  key: "source",
-                  header: "Source service",
-                  cell: (l) => (
-                    <span className="font-mono text-xs">
-                      {metadataString(l.metadata, "source_service")}
-                    </span>
-                  ),
                 },
                 {
                   key: "actor",
@@ -202,20 +148,27 @@ export default async function AuditLogsPage({ searchParams }: AuditLogsPageProps
                   cell: (l) => <span className="font-mono text-xs">{l.actor_id ?? "system"}</span>,
                 },
                 {
-                  key: "action",
-                  header: "Action",
+                  key: "source",
+                  header: "Source",
+                  cell: (l) => (
+                    <span className="font-mono text-xs">
+                      {metadataString(l.metadata, "source_service")}
+                    </span>
+                  ),
+                },
+                {
+                  key: "resource",
+                  header: "Resource",
                   cell: (l) =>
-                    metadataString(l.metadata, "action") !== "—"
-                      ? metadataString(l.metadata, "action")
-                      : l.resource_type
-                        ? `${l.resource_type}${l.resource_id ? `:${l.resource_id}` : ""}`
-                        : "—",
+                    l.resource_type
+                      ? `${l.resource_type}${l.resource_id ? `:${l.resource_id}` : ""}`
+                      : "—",
                 },
               ]}
               empty={
                 <EmptyState
-                  title="No audit logs"
-                  description="No events match these filters. Widen the date range or clear a filter."
+                  title="No audit events"
+                  description="No events match these filters for this school."
                   icon={<ScrollText className="size-8" />}
                 />
               }

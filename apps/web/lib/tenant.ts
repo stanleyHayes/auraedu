@@ -95,6 +95,7 @@ export const SUPERADMIN_NAV: NavGroupDef[] = [
     heading: "Platform",
     items: [
       { label: "Tenants", href: "/superadmin/tenants" },
+      { label: "Onboarding", href: "/superadmin/onboarding" },
       { label: "Feature flags", href: "/superadmin/flags" },
       { label: "System Health", href: "/superadmin/system-health" },
     ],
@@ -122,6 +123,7 @@ export const ADMIN_NAV: NavGroupDef[] = [
     items: [
       { label: "Students", href: "/admin/students", feature: "student_management" },
       { label: "Staff", href: "/admin/staff", feature: "staff_management" },
+      { label: "Users & roles", href: "/admin/users" },
     ],
   },
   {
@@ -137,7 +139,20 @@ export const ADMIN_NAV: NavGroupDef[] = [
     items: [
       { label: "Attendance", href: "/admin/attendance", feature: "attendance" },
       { label: "Assessments", href: "/admin/assessments", feature: "assessments" },
+      { label: "CBT exams", href: "/admin/cbt", feature: "cbt_exams" },
       { label: "Reports", href: "/admin/reports", feature: "report_cards" },
+    ],
+  },
+  {
+    heading: "AI oversight",
+    items: [
+      {
+        label: "Recommendations",
+        href: "/admin/ai/recommendations",
+        feature: "ai_recommendations",
+      },
+      { label: "Predictions", href: "/admin/ai/predictions", feature: "ai_predictions" },
+      { label: "Career guidance", href: "/admin/ai/guidance", feature: "career_guidance" },
     ],
   },
   {
@@ -179,6 +194,8 @@ export const ADMIN_NAV: NavGroupDef[] = [
     heading: "School",
     items: [
       { label: "Communications", href: "/admin/communications", feature: "announcements" },
+      { label: "Delivery logs", href: "/admin/delivery", feature: "notifications" },
+      { label: "Audit log", href: "/admin/audit" },
       { label: "Website", href: "/admin/website", feature: "public_website" },
       { label: "Settings", href: "/admin/settings" },
     ],

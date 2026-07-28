@@ -8,7 +8,7 @@ import {
   ScrollText,
   ShieldCheck,
 } from "lucide-react";
-import { StatCard, Button, Reveal, Watermark } from "@auraedu/ui";
+import { StatCard, Button, DataTable, EmptyState, Reveal, Watermark } from "@auraedu/ui";
 import { createGatewayClient } from "@auraedu/api-client";
 import { gatewayInternalUrl, tenantHeaderName } from "@auraedu/config";
 import type { OpenAPI } from "@auraedu/shared-types";
@@ -25,6 +25,22 @@ interface PlatformStats {
   staff: number | null;
 }
 
+interface SchoolRow {
+  code: string;
+  name: string;
+  plan: string;
+  status: string;
+  students: string | null;
+  staff: string | null;
+  subscription: string | null;
+}
+
+/** Honest count for one page of a cursor-paginated list: `25+` when more pages exist. */
+function boundedCount(data: unknown[] | undefined, nextCursor: string | null | undefined) {
+  const count = data?.length ?? 0;
+  return nextCursor ? `${count}+` : `${count}`;
+}
+
 async function loadPlatformHealth() {
   try {
     const client = await createServerClient();
@@ -35,7 +51,7 @@ async function loadPlatformHealth() {
   }
 }
 
-async function loadPlatformStats(): Promise<PlatformStats> {
+async function loadPlatformStats(): Promise<{ stats: PlatformStats; schools: SchoolRow[] }> {
   const stats: PlatformStats = {
     activeTenants: null,
     activeSubscriptions: null,
@@ -50,7 +66,7 @@ async function loadPlatformStats(): Promise<PlatformStats> {
     tenants = res.data ?? [];
     stats.activeTenants = tenants.filter((t) => t.status === "active").length;
   } catch {
-    return stats;
+    return { stats, schools: [] };
   }
 
   // Billing/student/staff endpoints are tenant-scoped, so aggregate per tenant.
@@ -62,8 +78,8 @@ async function loadPlatformStats(): Promise<PlatformStats> {
   let sawStudents = false;
   let sawStaff = false;
 
-  await Promise.all(
-    tenants.map(async (t) => {
+  const schools = await Promise.all(
+    tenants.map(async (t): Promise<SchoolRow> => {
       const client = createGatewayClient({
         baseUrl: gatewayInternalUrl,
         tenantHeader: tenantHeaderName,
@@ -72,33 +88,52 @@ async function loadPlatformStats(): Promise<PlatformStats> {
       });
       const [subs, studs, staffRes] = await Promise.allSettled([
         client.get<{ data?: { status?: string }[] }>("/api/v1/billing/subscriptions?limit=100"),
-        client.get<{ data?: unknown[] }>("/api/v1/students?limit=100"),
-        client.get<{ data?: unknown[] }>("/api/v1/staff?limit=100"),
+        client.get<{ data?: unknown[]; next_cursor?: string | null }>("/api/v1/students?limit=100"),
+        client.get<{ data?: unknown[]; next_cursor?: string | null }>("/api/v1/staff?limit=100"),
       ]);
+
+      const row: SchoolRow = {
+        code: t.tenant_code,
+        name: t.name,
+        plan: t.plan ?? "—",
+        status: t.status ?? "—",
+        students: null,
+        staff: null,
+        subscription: null,
+      };
+
       if (subs.status === "fulfilled") {
         sawSubscriptions = true;
-        subscriptions += (subs.value.data ?? []).filter((s) => s.status === "active").length;
+        const list = subs.value.data ?? [];
+        subscriptions += list.filter((s) => s.status === "active").length;
+        row.subscription = (list.find((s) => s.status === "active") ?? list[0])?.status ?? "none";
       }
       if (studs.status === "fulfilled") {
         sawStudents = true;
         students += studs.value.data?.length ?? 0;
+        row.students = boundedCount(studs.value.data, studs.value.next_cursor);
       }
       if (staffRes.status === "fulfilled") {
         sawStaff = true;
         staff += staffRes.value.data?.length ?? 0;
+        row.staff = boundedCount(staffRes.value.data, staffRes.value.next_cursor);
       }
+      return row;
     }),
   );
 
   if (sawSubscriptions) stats.activeSubscriptions = subscriptions;
   if (sawStudents) stats.students = students;
   if (sawStaff) stats.staff = staff;
-  return stats;
+  return { stats, schools };
 }
 
 export default async function SuperAdminDashboard() {
   await requireAuth();
-  const [stats, health] = await Promise.all([loadPlatformStats(), loadPlatformHealth()]);
+  const [{ stats, schools }, health] = await Promise.all([
+    loadPlatformStats(),
+    loadPlatformHealth(),
+  ]);
 
   return (
     <div className="relative space-y-8">
@@ -135,6 +170,101 @@ export default async function SuperAdminDashboard() {
           />
           <StatCard label="Students" value={stats.students ?? "—"} unit="enrolled" />
           <StatCard label="Staff" value={stats.staff ?? "—"} unit="members" />
+        </section>
+      </Reveal>
+
+      <Reveal delay={100}>
+        <section className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="font-sans font-semibold tracking-tight">Schools overview</h3>
+            <Link
+              href="/superadmin/tenants"
+              className="text-sm font-bold text-[var(--primary)] hover:underline"
+            >
+              Manage tenants
+            </Link>
+          </div>
+          <DataTable
+            caption="Per-school overview"
+            rows={schools}
+            keyExtractor={(s) => s.code}
+            columns={[
+              {
+                key: "tenant",
+                header: "School",
+                cell: (s) => (
+                  <div>
+                    <Link
+                      href={`/superadmin/tenants/${s.code}`}
+                      className="font-medium text-[var(--primary)] hover:underline"
+                    >
+                      {s.name}
+                    </Link>
+                    <div className="mt-0.5 font-mono text-xs text-[var(--muted-foreground)]">
+                      {s.code}
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                key: "plan",
+                header: "Plan",
+                cell: (s) => <span className="capitalize">{s.plan.replace("_", " ")}</span>,
+              },
+              {
+                key: "status",
+                header: "Status",
+                className: "w-28",
+                cell: (s) =>
+                  s.status === "active" ? (
+                    <span className="rounded-full bg-[var(--color-ok)]/10 px-2 py-0.5 text-xs capitalize text-[var(--color-ok)]">
+                      {s.status}
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-[var(--muted)] px-2 py-0.5 text-xs capitalize text-[var(--muted-foreground)]">
+                      {s.status}
+                    </span>
+                  ),
+              },
+              {
+                key: "students",
+                header: "Students",
+                cell: (s) => s.students ?? "—",
+              },
+              {
+                key: "staff",
+                header: "Staff",
+                cell: (s) => s.staff ?? "—",
+              },
+              {
+                key: "subscription",
+                header: "Subscription",
+                cell: (s) =>
+                  s.subscription ? (
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs capitalize ${
+                        s.subscription === "active" || s.subscription === "trialing"
+                          ? "bg-[var(--color-ok)]/10 text-[var(--color-ok)]"
+                          : s.subscription === "past_due"
+                            ? "bg-[var(--color-warn)]/10 text-[var(--color-warn)]"
+                            : "bg-[var(--muted)] text-[var(--muted-foreground)]"
+                      }`}
+                    >
+                      {s.subscription.replace("_", " ")}
+                    </span>
+                  ) : (
+                    "—"
+                  ),
+              },
+            ]}
+            empty={
+              <EmptyState
+                title="No schools yet"
+                description="Per-school usage will appear here once tenants are onboarded."
+                icon={<Building2 className="size-8" />}
+              />
+            }
+          />
         </section>
       </Reveal>
 
