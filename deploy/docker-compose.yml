@@ -1303,7 +1303,7 @@ services:
       interval: 10s
       timeout: 3s
       retries: 6
-      start_period: 20s
+      start_period: 120s  # local full-stack boots contend for CPU; the FastAPI apps need minutes to warm
     restart: unless-stopped
 
   ai-prediction-service:
@@ -1335,7 +1335,7 @@ services:
       interval: 10s
       timeout: 3s
       retries: 6
-      start_period: 20s
+      start_period: 120s  # local full-stack boots contend for CPU; the FastAPI apps need minutes to warm
     restart: unless-stopped
 
   career-guidance-service:
@@ -1367,7 +1367,7 @@ services:
       interval: 10s
       timeout: 3s
       retries: 6
-      start_period: 20s
+      start_period: 120s  # local full-stack boots contend for CPU; the FastAPI apps need minutes to warm
     restart: unless-stopped
 
 
