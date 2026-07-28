@@ -27,6 +27,11 @@ coverage/
 /*/worker
 /apps/*-service/*-service
 /tools/loadtest/loadtest
+/tools/isolationtest/isolationtest
+/tools/providerprobe/providerprobe
+/tools/seed/seed
+/tools/twilioprobe/twilioprobe
+/tools/vercelprobe/vercelprobe
 
 # Env & secrets (never commit)
 .env
