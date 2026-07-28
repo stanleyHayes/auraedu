@@ -18,6 +18,11 @@ COPY packages/shared-types/package.json packages/shared-types/package.json
 COPY packages/tokens/package.json packages/tokens/package.json
 COPY packages/ui/package.json packages/ui/package.json
 COPY tools/codegen/package.json tools/codegen/package.json
+# Slow/lossy networks abort the big next/swc tarballs at pnpm's default fetch
+# timeout; give the registry fetch real headroom before the cache-mounted install.
+ENV npm_config_fetch_retries=5 \
+    npm_config_fetch_retry_maxtimeout=600000 \
+    npm_config_fetch_timeout=600000
 RUN --mount=type=cache,id=auraedu-pnpm,target=/root/.local/share/pnpm/store,sharing=locked \
     pnpm install --frozen-lockfile --filter marketing...
 COPY . .
