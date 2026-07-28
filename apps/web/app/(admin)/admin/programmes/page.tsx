@@ -114,7 +114,7 @@ export default async function ProgrammeCataloguePage() {
               required
               minLength={2}
               maxLength={32}
-              pattern="[A-Z0-9][A-Z0-9_-]+"
+              pattern="[A-Z0-9][A-Z0-9_\-]+"
               name="code"
               placeholder="SCI"
               className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 font-normal uppercase"

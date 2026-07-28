@@ -140,6 +140,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.midnight,
     paddingHorizontal: 20,
+    // Clip the decorative aurora circles, which are positioned to bleed past the
+    // horizontal edges. Native clips at the screen bounds automatically, but
+    // react-native-web's root <div> defaults to overflow:visible, so without this
+    // the circles create horizontal page scroll on web.
+    overflow: "hidden",
   },
   content: { flexGrow: 1, justifyContent: "center", gap: 24, paddingVertical: 42 },
   auroraOne: {

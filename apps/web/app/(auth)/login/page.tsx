@@ -20,6 +20,12 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [state, formAction, pending] = React.useActionState<LoginResult, FormData>(loginAction, {});
+  // Controlled so React 19's automatic <form action> reset doesn't wipe the
+  // workspace/email/password after a failed sign-in (which looked like a full
+  // page refresh). The typed values survive, and only the error is added.
+  const [tenant, setTenant] = React.useState(searchParams.get("tenant") ?? "");
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
 
   React.useEffect(() => {
     if (state.success && state.redirectTo) {
@@ -44,7 +50,7 @@ function LoginForm() {
         />
         <form action={formAction} className="mt-7 space-y-4">
           <input type="hidden" name="next" value={searchParams.get("next") ?? ""} />
-          <WorkspaceField defaultValue={searchParams.get("tenant") ?? ""} />
+          <WorkspaceField value={tenant} onChange={setTenant} />
           <div>
             <label htmlFor="email" className="mb-1.5 block text-sm font-semibold">
               Email
@@ -56,6 +62,8 @@ function LoginForm() {
               autoComplete="email"
               placeholder="you@school.edu"
               required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="h-11 w-full rounded-[var(--radius-md)] border border-border bg-[var(--input)] px-3.5 text-sm text-[var(--foreground)] shadow-sm placeholder:text-[var(--muted-foreground)] focus-visible:border-[var(--color-brand)] focus-visible:bg-[var(--input-focus)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]/40"
             />
           </div>
@@ -70,6 +78,8 @@ function LoginForm() {
               autoComplete="current-password"
               placeholder="••••••••"
               required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               className="h-11 w-full rounded-[var(--radius-md)] border border-border bg-[var(--input)] px-3.5 text-sm text-[var(--foreground)] shadow-sm placeholder:text-[var(--muted-foreground)] focus-visible:border-[var(--color-brand)] focus-visible:bg-[var(--input-focus)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]/40"
             />
           </div>
@@ -84,8 +94,8 @@ function LoginForm() {
           <p className="text-center text-sm">
             <Link
               href={
-                searchParams.get("tenant")
-                  ? `/forgot-password?tenant=${encodeURIComponent(searchParams.get("tenant")!)}`
+                tenant
+                  ? `/forgot-password?tenant=${encodeURIComponent(tenant)}`
                   : "/forgot-password"
               }
               className="font-semibold text-[var(--brand-text)] hover:underline"

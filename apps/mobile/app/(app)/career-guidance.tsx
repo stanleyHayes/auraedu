@@ -44,7 +44,7 @@ export default function CareerGuidance() {
         setItems(body.data ?? []);
         setNames({});
       } else {
-        const childBody = await client.get<{ data?: Student[] }>("/api/v1/guardians/me/students");
+        const childBody = await client.get<{ data?: Student[] }>("/api/v1/guardians/me/children");
         const children = childBody.data ?? [];
         const responses = await Promise.all(
           children.map((child) =>

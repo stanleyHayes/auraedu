@@ -1,10 +1,20 @@
+import type { ChangeEvent } from "react";
+
 export function WorkspaceField({
   defaultValue = "",
+  value,
+  onChange,
   required = false,
 }: {
   defaultValue?: string;
+  // When `value`/`onChange` are supplied the field is controlled, so React 19's
+  // automatic <form action> reset can't wipe what the user typed after a failed
+  // submit. Left uncontrolled (defaultValue only) for callers that don't need it.
+  value?: string;
+  onChange?: (value: string) => void;
   required?: boolean;
 }) {
+  const controlled = value !== undefined;
   return (
     <div>
       <label htmlFor="tenant" className="mb-1.5 block text-sm font-semibold">
@@ -13,10 +23,12 @@ export function WorkspaceField({
       <input
         id="tenant"
         name="tenant"
-        defaultValue={defaultValue}
+        {...(controlled
+          ? { value, onChange: (e: ChangeEvent<HTMLInputElement>) => onChange?.(e.target.value) }
+          : { defaultValue })}
         autoComplete="organization"
         inputMode="url"
-        pattern="[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+        pattern="[A-Za-z0-9](?:[A-Za-z0-9\-]{0,61}[A-Za-z0-9])?"
         placeholder="e.g. upshs"
         aria-describedby="tenant-help"
         required={required}

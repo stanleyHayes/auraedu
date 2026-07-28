@@ -1,6 +1,6 @@
 import { Redirect, Tabs } from "expo-router";
 import { SymbolView, type SFSymbol } from "expo-symbols";
-import { type ColorValue, StyleSheet, View } from "react-native";
+import { type ColorValue, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../../src/auth";
 import { colors } from "../../src/theme";
 import { MobileTour } from "../../src/mobile-tour";
@@ -106,6 +106,16 @@ function TabIcon({
     profile: { ios: "person.crop.circle", android: "person" },
   };
 
+  // SF Symbols don't resolve on web (there is no `web` variant), so SymbolView
+  // renders its `fallback`. Without one the tab icons are blank on the web build;
+  // a glyph keeps them legible. Native (iOS/Android) ignores the fallback.
+  const glyphs: Record<typeof kind, string> = {
+    today: "🗓",
+    work: "🧩",
+    notice: "🔔",
+    profile: "👤",
+  };
+
   return (
     <View accessible={false} style={[styles.iconPlate, focused && styles.iconPlateActive]}>
       <SymbolView
@@ -114,6 +124,7 @@ function TabIcon({
         tintColor={color}
         type={focused ? "hierarchical" : "monochrome"}
         weight={focused ? "bold" : "semibold"}
+        fallback={<Text style={{ fontSize: 16, textAlign: "center" }}>{glyphs[kind]}</Text>}
       />
     </View>
   );

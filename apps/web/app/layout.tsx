@@ -79,6 +79,18 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   );
 }
 
+// Tenant-neutral entry paths reachable on the bare app host, where no tenant is
+// encoded in the subdomain. These render without tenant branding: the auth pages
+// resolve the tenant from a workspace field or signed token, the unsubscribe page
+// from a signed token alone, and "/" only redirects to /login. Every other path
+// requires a resolved tenant. Keep this in sync with the proxy's public paths.
 function isGlobalAuthEntry(pathname: string): boolean {
-  return ["/login", "/accept-invite", "/forgot-password", "/reset-password"].includes(pathname);
+  return [
+    "/",
+    "/login",
+    "/accept-invite",
+    "/forgot-password",
+    "/reset-password",
+    "/unsubscribe",
+  ].includes(pathname);
 }

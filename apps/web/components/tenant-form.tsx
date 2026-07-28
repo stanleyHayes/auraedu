@@ -59,7 +59,7 @@ export function TenantForm({ mode, tenantCode, initial, onSuccess }: TenantFormP
             defaultValue={initial?.tenant_code}
             disabled={isEdit}
             required
-            pattern="^[a-z0-9-]{2,50}$"
+            pattern="^[a-z0-9\-]{2,50}$"
             placeholder="upshs"
             title="2–50 lowercase letters, numbers, or hyphens"
           />

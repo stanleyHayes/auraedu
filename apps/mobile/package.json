@@ -20,6 +20,7 @@
     "@auraedu/api-client": "workspace:*",
     "@auraedu/tokens": "workspace:*",
     "@auraedu/ui-native": "workspace:*",
+    "@expo/metro-runtime": "~57.0.7",
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~57.0.7",
     "expo-constants": "~57.0.6",
@@ -37,7 +38,8 @@
     "react-native": "^0.86.0",
     "react-native-gesture-handler": "~2.32.0",
     "react-native-safe-area-context": "~5.7.0",
-    "react-native-screens": "4.25.2"
+    "react-native-screens": "4.25.2",
+    "react-native-web": "^0.21.2"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
