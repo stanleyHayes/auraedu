@@ -4,6 +4,7 @@ import type { OpenAPI } from "@auraedu/shared-types";
 import { createServerClient } from "@/lib/api";
 import { requireAuth } from "@/lib/auth";
 import { StudentFormSheet } from "@/components/student-form-sheet";
+import { AdminStudentImportDialog } from "@/components/admin-import-dialog";
 
 type Student = OpenAPI.student_v1.components["schemas"]["Student"];
 type AcademicClass = OpenAPI.academic_v1.components["schemas"]["Class"];
@@ -54,7 +55,12 @@ export default async function StudentsPage() {
         icon={<Users className="size-7" />}
         title="Students"
         description="Welcome learners, establish their first enrolment, and keep every lifecycle state honest."
-        action={<StudentFormSheet mode="create" classes={classes} years={years} users={users} />}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <AdminStudentImportDialog />
+            <StudentFormSheet mode="create" classes={classes} years={years} users={users} />
+          </div>
+        }
       />
 
       <div className="grid gap-4 sm:grid-cols-3">

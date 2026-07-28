@@ -5,24 +5,29 @@ import { createServerClient } from "@/lib/api";
 import { requireAuth } from "@/lib/auth";
 import { AdminUserInviteSheet } from "@/components/admin-user-invite-sheet";
 import { AdminUserRoleActions } from "@/components/admin-user-role-actions";
+import { AdminPermissionEditor } from "@/components/admin-permission-editor";
 
 type User = OpenAPI.identity_v1.components["schemas"]["User"];
 type UserList = OpenAPI.identity_v1.components["schemas"]["UserList"];
 type RoleList = OpenAPI.identity_v1.components["schemas"]["RoleList"];
+type PermissionList = OpenAPI.identity_v1.components["schemas"]["PermissionList"];
 
 export default async function AdminUsersPage() {
   await requireAuth();
 
   let users: User[] = [];
   let roles: string[] = [];
+  let permissionCatalogue: string[] = [];
   let error: string | null = null;
   let rolesError: string | null = null;
+  let permissionsError: string | null = null;
 
   try {
     const client = await createServerClient();
-    const [userResult, roleResult] = await Promise.allSettled([
+    const [userResult, roleResult, permissionResult] = await Promise.allSettled([
       client.get<UserList>("/api/v1/users"),
       client.get<RoleList>("/api/v1/roles"),
+      client.get<PermissionList>("/api/v1/permissions"),
     ]);
     if (userResult.status === "fulfilled") {
       users = userResult.value.data ?? [];
@@ -41,6 +46,14 @@ export default async function AdminUsersPage() {
         roleResult.reason instanceof Error
           ? roleResult.reason.message
           : "Failed to load assignable roles";
+    }
+    if (permissionResult.status === "fulfilled") {
+      permissionCatalogue = permissionResult.value.data ?? [];
+    } else {
+      permissionsError =
+        permissionResult.reason instanceof Error
+          ? permissionResult.reason.message
+          : "Failed to load the permission catalogue";
     }
   } catch (e) {
     error = e instanceof Error ? e.message : "Failed to load identity users";
@@ -68,6 +81,13 @@ export default async function AdminUsersPage() {
         <div className="rounded-xl border border-amber-300/60 bg-amber-50 p-4 text-sm text-amber-950">
           Assignable roles are unavailable: {rolesError}. Invitations and role changes are paused
           until the role list loads; existing accounts remain visible below.
+        </div>
+      ) : null}
+
+      {permissionsError ? (
+        <div className="rounded-xl border border-amber-300/60 bg-amber-50 p-4 text-sm text-amber-950">
+          The permission catalogue is unavailable: {permissionsError}. The permission editor is
+          paused until it loads; accounts and roles remain manageable below.
         </div>
       ) : null}
 
@@ -124,7 +144,12 @@ export default async function AdminUsersPage() {
             {
               key: "actions",
               header: "Actions",
-              cell: (user) => <AdminUserRoleActions user={user} roles={roles} />,
+              cell: (user) => (
+                <div className="flex flex-col items-end gap-1.5">
+                  <AdminUserRoleActions user={user} roles={roles} />
+                  <AdminPermissionEditor user={user} catalogue={permissionCatalogue} />
+                </div>
+              ),
             },
           ]}
           empty={
