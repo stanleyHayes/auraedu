@@ -114,7 +114,7 @@ services:
   loki:
     image: grafana/loki:3.7.2@sha256:191d4fdfb7264f16989f0a57f320872620a5a7c2ceeec6229212c4190ec49b86
     command: ["-config.file=/etc/loki/config.yml"]
-    ports: ["3100:3100"]
+    ports: ["${LOKI_HOST_PORT:-3100}:3100"]
     volumes:
       - ../infrastructure/observability/loki.yml:/etc/loki/config.yml:ro
       - lokidata:/var/loki
