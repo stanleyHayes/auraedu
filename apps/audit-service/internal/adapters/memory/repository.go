@@ -35,13 +35,13 @@ func (r *Repository) Insert(_ context.Context, log *domain.AuditLog) error {
 // List returns a tenant-scoped page. Pagination matches the Postgres adapter:
 // newest-first by id (UUID v7), with the cursor being the last id of the
 // previous page.
-func (r *Repository) List(_ context.Context, tenantID string, limit int, cursor string) ([]*domain.AuditLog, string, error) {
+func (r *Repository) List(_ context.Context, tenantID string, filter domain.ListFilter, limit int, cursor string) ([]*domain.AuditLog, string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	var scoped []*domain.AuditLog
 	for _, log := range r.logs {
-		if log.TenantID == tenantID {
+		if log.TenantID == tenantID && matchesFilter(log, filter) {
 			scoped = append(scoped, log)
 		}
 	}
@@ -51,11 +51,38 @@ func (r *Repository) List(_ context.Context, tenantID string, limit int, cursor 
 
 // ListAll returns a cross-tenant page for platform super admins, using the
 // same ordering and cursor semantics as List.
-func (r *Repository) ListAll(_ context.Context, limit int, cursor string) ([]*domain.AuditLog, string, error) {
+func (r *Repository) ListAll(_ context.Context, filter domain.ListFilter, limit int, cursor string) ([]*domain.AuditLog, string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	logs, next := page(r.logs, limit, cursor)
+
+	var scoped []*domain.AuditLog
+	for _, log := range r.logs {
+		if matchesFilter(log, filter) {
+			scoped = append(scoped, log)
+		}
+	}
+	logs, next := page(scoped, limit, cursor)
 	return logs, next, nil
+}
+
+// matchesFilter mirrors the WHERE clauses of the Postgres adapter.
+func matchesFilter(log *domain.AuditLog, filter domain.ListFilter) bool {
+	if filter.EventType != "" && log.EventType != filter.EventType {
+		return false
+	}
+	if filter.ActorID != "" && log.ActorID != filter.ActorID {
+		return false
+	}
+	if filter.SourceService != "" && log.SourceService != filter.SourceService {
+		return false
+	}
+	if filter.From != nil && log.Timestamp.Before(*filter.From) {
+		return false
+	}
+	if filter.To != nil && log.Timestamp.After(*filter.To) {
+		return false
+	}
+	return true
 }
 
 func page(logs []*domain.AuditLog, limit int, cursor string) ([]*domain.AuditLog, string) {

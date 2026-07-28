@@ -281,6 +281,8 @@ export interface AssessmentScoreRecordedV1Data {
   academic_year_id: string;
   score: number;
   max_score: number;
+  recorded_by: string;
+  notes?: string;
   recorded_at: string;
   updated_at?: string;
   term_id?: string;
@@ -876,6 +878,9 @@ export interface InvoicePaidV1Data {
   issued_at: string;
   notes?: string;
   changed_fields?: string[];
+  payment_id?: string;
+  receipt_id?: string;
+  applied_cents?: number;
 }
 
 export type InvoicePaidV1Event = CloudEventEnvelope<InvoicePaidV1Data>;
@@ -894,6 +899,9 @@ export interface InvoiceUpdatedV1Data {
   issued_at: string;
   notes?: string;
   changed_fields?: string[];
+  payment_id?: string;
+  receipt_id?: string;
+  applied_cents?: number;
 }
 
 export type InvoiceUpdatedV1Event = CloudEventEnvelope<InvoiceUpdatedV1Data>;

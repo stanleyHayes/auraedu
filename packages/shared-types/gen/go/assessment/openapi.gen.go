@@ -9,26 +9,31 @@ import (
 
 // Assessment generated from OpenAPI schema.
 type Assessment struct {
-	Id          string   `json:"id"`
-	TenantId    string   `json:"tenant_id"`
-	Name        string   `json:"name"`
-	Type        string   `json:"type"`
-	SubjectId   string   `json:"subject_id"`
-	ClassId     *string  `json:"class_id,omitempty"`
-	TermId      *string  `json:"term_id,omitempty"`
-	MaxScore    *float64 `json:"max_score,omitempty"`
-	ScheduledAt *string  `json:"scheduled_at,omitempty"`
+	Id             string    `json:"id"`
+	TenantId       string    `json:"tenant_id"`
+	AcademicYearId string    `json:"academic_year_id"`
+	SubjectId      string    `json:"subject_id"`
+	Type           string    `json:"type"`
+	Title          string    `json:"title"`
+	Description    *string   `json:"description,omitempty"`
+	MaxScore       int       `json:"max_score"`
+	DueDate        *string   `json:"due_date,omitempty"`
+	Status         string    `json:"status"`
+	ClassIds       *[]string `json:"class_ids,omitempty"`
+	PublishedAt    *string   `json:"published_at,omitempty"`
+	CreatedAt      string    `json:"created_at"`
+	UpdatedAt      string    `json:"updated_at"`
 }
 
 // CreateAssessment generated from OpenAPI schema.
 type CreateAssessment struct {
-	Name        string   `json:"name"`
-	Type        string   `json:"type"`
-	SubjectId   string   `json:"subject_id"`
-	ClassId     *string  `json:"class_id,omitempty"`
-	TermId      *string  `json:"term_id,omitempty"`
-	MaxScore    *float64 `json:"max_score,omitempty"`
-	ScheduledAt *string  `json:"scheduled_at,omitempty"`
+	AcademicYearId string  `json:"academic_year_id"`
+	SubjectId      string  `json:"subject_id"`
+	Type           string  `json:"type"`
+	Title          string  `json:"title"`
+	Description    *string `json:"description,omitempty"`
+	MaxScore       int     `json:"max_score"`
+	DueDate        *string `json:"due_date,omitempty"`
 }
 
 // UpdateAssessment generated from OpenAPI schema.
@@ -53,9 +58,10 @@ type Score struct {
 
 // CreateScore generated from OpenAPI schema.
 type CreateScore struct {
-	StudentId string   `json:"student_id"`
-	Score     float64  `json:"score"`
-	MaxScore  *float64 `json:"max_score,omitempty"`
+	StudentId  string   `json:"student_id"`
+	Score      float64  `json:"score"`
+	MaxScore   *float64 `json:"max_score,omitempty"`
+	RecordedBy string   `json:"recorded_by"`
 }
 
 // UpdateScore generated from OpenAPI schema.

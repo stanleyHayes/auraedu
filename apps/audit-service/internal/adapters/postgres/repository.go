@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/auraedu/audit-service/internal/domain"
 	"github.com/auraedu/audit-service/internal/ports"
@@ -52,7 +54,7 @@ func (r *Repository) Insert(ctx context.Context, log *domain.AuditLog) error {
 }
 
 // List returns a tenant-scoped page ordered newest-first by id (UUID v7).
-func (r *Repository) List(ctx context.Context, tenantID string, limit int, cursor string) ([]*domain.AuditLog, string, error) {
+func (r *Repository) List(ctx context.Context, tenantID string, filter domain.ListFilter, limit int, cursor string) ([]*domain.AuditLog, string, error) {
 	if limit <= 0 {
 		limit = 25
 	}
@@ -63,7 +65,7 @@ func (r *Repository) List(ctx context.Context, tenantID string, limit int, curso
 	var out []*domain.AuditLog
 	var nextCursor string
 	err := r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		rows, err := listQuery(ctx, tx, tenantID, limit, cursor)
+		rows, err := listQuery(ctx, tx, tenantID, filter, limit, cursor)
 		if err != nil {
 			return err
 		}
@@ -91,7 +93,7 @@ func (r *Repository) List(ctx context.Context, tenantID string, limit int, curso
 // It is reserved for platform super admins: it cannot use db.WithTx (which
 // requires a tenant context), so it sets only app.is_platform_admin on the
 // transaction and relies on the RLS policy's platform-admin bypass.
-func (r *Repository) ListAll(ctx context.Context, limit int, cursor string) ([]*domain.AuditLog, string, error) {
+func (r *Repository) ListAll(ctx context.Context, filter domain.ListFilter, limit int, cursor string) ([]*domain.AuditLog, string, error) {
 	if limit <= 0 {
 		limit = 25
 	}
@@ -111,7 +113,7 @@ func (r *Repository) ListAll(ctx context.Context, limit int, cursor string) ([]*
 
 	var out []*domain.AuditLog
 	var nextCursor string
-	rows, err := listAllQuery(ctx, tx, limit, cursor)
+	rows, err := listAllQuery(ctx, tx, filter, limit, cursor)
 	if err != nil {
 		return nil, "", err
 	}
@@ -136,57 +138,74 @@ func (r *Repository) ListAll(ctx context.Context, limit int, cursor string) ([]*
 	return out, nextCursor, nil
 }
 
-func listAllQuery(ctx context.Context, tx pgx.Tx, limit int, cursor string) (pgx.Rows, error) {
-	if cursor != "" {
-		id, err := uuid.Parse(cursor)
-		if err != nil {
-			return nil, fmt.Errorf("audit: invalid cursor: %w", err)
-		}
-		return tx.Query(ctx, `
-			SELECT id, tenant_id, event_id, event_type, source_service,
-			       timestamp, received_at, payload, actor_id, action,
-			       resource_type, resource_id
-			FROM audit_logs
-			WHERE id < $1::uuid
-			ORDER BY id DESC
-			LIMIT $2
-		`, id, limit)
+const listColumns = `
+	SELECT id, tenant_id, event_id, event_type, source_service,
+	       timestamp, received_at, payload, actor_id, action,
+	       resource_type, resource_id
+	FROM audit_logs`
+
+func listAllQuery(ctx context.Context, tx pgx.Tx, filter domain.ListFilter, limit int, cursor string) (pgx.Rows, error) {
+	where, args, err := buildListWhere(nil, filter, cursor)
+	if err != nil {
+		return nil, err
 	}
-	return tx.Query(ctx, `
-		SELECT id, tenant_id, event_id, event_type, source_service,
-		       timestamp, received_at, payload, actor_id, action,
-		       resource_type, resource_id
-		FROM audit_logs
-		ORDER BY id DESC
-		LIMIT $1
-	`, limit)
+	args = append(args, limit)
+	query := listColumns + where + "\nORDER BY id DESC\nLIMIT $" + strconv.Itoa(len(args))
+	return tx.Query(ctx, query, args...)
 }
 
-func listQuery(ctx context.Context, tx pgx.Tx, tenantID string, limit int, cursor string) (pgx.Rows, error) {
+func listQuery(ctx context.Context, tx pgx.Tx, tenantID string, filter domain.ListFilter, limit int, cursor string) (pgx.Rows, error) {
+	where, args, err := buildListWhere(&tenantID, filter, cursor)
+	if err != nil {
+		return nil, err
+	}
+	args = append(args, limit)
+	query := listColumns + where + "\nORDER BY id DESC\nLIMIT $" + strconv.Itoa(len(args))
+	return tx.Query(ctx, query, args...)
+}
+
+// buildListWhere assembles the WHERE clause and positional arguments shared by
+// the tenant-scoped and cross-tenant list queries. A nil tenantID produces the
+// cross-tenant (platform super admin) variant. Each condition template uses a
+// single "?" placeholder replaced by its positional parameter.
+func buildListWhere(tenantID *string, filter domain.ListFilter, cursor string) (string, []any, error) {
+	var args []any
+	var conds []string
+	add := func(cond string, arg any) {
+		args = append(args, arg)
+		conds = append(conds, strings.Replace(cond, "?", "$"+strconv.Itoa(len(args)), 1))
+	}
+
+	if tenantID != nil {
+		add("tenant_id = ?", *tenantID)
+	}
+	if filter.EventType != "" {
+		add("event_type = ?", filter.EventType)
+	}
+	if filter.ActorID != "" {
+		add("actor_id = ?", filter.ActorID)
+	}
+	if filter.SourceService != "" {
+		add("source_service = ?", filter.SourceService)
+	}
+	if filter.From != nil {
+		add("timestamp >= ?", *filter.From)
+	}
+	if filter.To != nil {
+		add("timestamp <= ?", *filter.To)
+	}
 	if cursor != "" {
 		id, err := uuid.Parse(cursor)
 		if err != nil {
-			return nil, fmt.Errorf("audit: invalid cursor: %w", err)
+			return "", nil, fmt.Errorf("audit: invalid cursor: %w", err)
 		}
-		return tx.Query(ctx, `
-			SELECT id, tenant_id, event_id, event_type, source_service,
-			       timestamp, received_at, payload, actor_id, action,
-			       resource_type, resource_id
-			FROM audit_logs
-			WHERE tenant_id = $1 AND id < $2::uuid
-			ORDER BY id DESC
-			LIMIT $3
-		`, tenantID, id, limit)
+		add("id < ?::uuid", id)
 	}
-	return tx.Query(ctx, `
-		SELECT id, tenant_id, event_id, event_type, source_service,
-		       timestamp, received_at, payload, actor_id, action,
-		       resource_type, resource_id
-		FROM audit_logs
-		WHERE tenant_id = $1
-		ORDER BY id DESC
-		LIMIT $2
-	`, tenantID, limit)
+
+	if len(conds) == 0 {
+		return "", args, nil
+	}
+	return "\nWHERE " + strings.Join(conds, "\n  AND "), args, nil
 }
 
 type scanner interface {

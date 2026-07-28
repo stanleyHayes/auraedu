@@ -395,6 +395,25 @@ func TestSuperAdminFeatureOverridesAreNotBillingGated(t *testing.T) {
 	}
 }
 
+func TestAuditRouteIsTenantOptionalForPlatformCrossTenantReads(t *testing.T) {
+	route, ok := DefaultRegistry().Match("/api/v1/audit/logs")
+	if !ok || route.Prefix != "/api/v1/audit" {
+		t.Fatalf("expected audit route match, got %+v", route)
+	}
+	// TenantOptional lets platform super admins query across tenants without a
+	// resolvable tenant; the route stays authenticated and permission-gated,
+	// and the audit service fails closed for tenantless non-platform actors.
+	if route.Public || !route.TenantOptional || route.FeatureKey != "" {
+		t.Fatalf("unexpected audit route policy: %+v", route)
+	}
+	if route.Target != "http://localhost:8104" {
+		t.Fatalf("unexpected audit route target: %+v", route)
+	}
+	if route.Permissions[http.MethodGet] != "audit.read" {
+		t.Fatalf("unexpected audit route permission: %+v", route)
+	}
+}
+
 func TestGrowthExecutiveAnalyticsUsesDedicatedPermission(t *testing.T) {
 	route, ok := DefaultRegistry().Match("/api/v1/analytics/executive/growth")
 	if !ok {

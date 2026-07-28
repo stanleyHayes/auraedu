@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -71,7 +72,13 @@ func toDTO(log *domain.AuditLog) auditLogDTO {
 
 func (h *Handler) listAuditLogs(w http.ResponseWriter, r *http.Request) {
 	ctx, actor := h.context(r)
+	filter, err := parseListFilter(r)
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
 	logs, nextCursor, err := h.query.ListAuditLogs(ctx, actor,
+		filter,
 		parseLimit(r.URL.Query().Get("limit")),
 		r.URL.Query().Get("cursor"),
 	)
@@ -135,4 +142,44 @@ func parseLimit(s string) int {
 		return 100
 	}
 	return n
+}
+
+// parseListFilter reads the audit.v1.yaml listAuditLogs filter query
+// parameters. Invalid uuid or date-time values are rejected with a validation
+// error (HTTP 422); the from <= to invariant is validated in the application
+// layer alongside the other gates.
+func parseListFilter(r *http.Request) (domain.ListFilter, error) {
+	q := r.URL.Query()
+	filter := domain.ListFilter{
+		EventType:     q.Get("event_type"),
+		SourceService: q.Get("source_service"),
+	}
+	if v := q.Get("actor_id"); v != "" {
+		if _, err := uuid.Parse(v); err != nil {
+			return filter, fmt.Errorf("%w: actor_id is invalid", domain.ErrValidation)
+		}
+		filter.ActorID = v
+	}
+	from, err := parseTimeParam(q.Get("from"), "from")
+	if err != nil {
+		return filter, err
+	}
+	filter.From = from
+	to, err := parseTimeParam(q.Get("to"), "to")
+	if err != nil {
+		return filter, err
+	}
+	filter.To = to
+	return filter, nil
+}
+
+func parseTimeParam(value, name string) (*time.Time, error) {
+	if value == "" {
+		return nil, nil
+	}
+	t, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s is invalid", domain.ErrValidation, name)
+	}
+	return &t, nil
 }

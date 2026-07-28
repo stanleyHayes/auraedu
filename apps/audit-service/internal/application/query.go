@@ -30,7 +30,8 @@ func NewQuery(repo ports.Repository) *Query {
 // ListAuditLogs returns a page of audit logs for the actor's scope, newest-first.
 // A platform super admin with no tenant context receives a cross-tenant page;
 // any other actor must carry a tenant context that matches their own tenant.
-func (q *Query) ListAuditLogs(ctx context.Context, actor auth.Actor, limit int, cursor string) ([]*domain.AuditLog, string, error) {
+// filter narrows the page; its zero value matches every record in scope.
+func (q *Query) ListAuditLogs(ctx context.Context, actor auth.Actor, filter domain.ListFilter, limit int, cursor string) ([]*domain.AuditLog, string, error) {
 	if !actor.Authenticated() {
 		return nil, "", domain.ErrForbidden
 	}
@@ -44,6 +45,9 @@ func (q *Query) ListAuditLogs(ctx context.Context, actor auth.Actor, limit int, 
 	if !actor.Has(PermRead) {
 		return nil, "", domain.ErrForbidden
 	}
+	if err := filter.Validate(); err != nil {
+		return nil, "", err
+	}
 	if cursor != "" {
 		if _, err := uuid.Parse(cursor); err != nil {
 			return nil, "", fmt.Errorf("%w: cursor is invalid", domain.ErrValidation)
@@ -54,9 +58,9 @@ func (q *Query) ListAuditLogs(ctx context.Context, actor auth.Actor, limit int, 
 	// Propagate the actor so platform/db sets app.is_platform_admin for RLS.
 	ctx = auth.WithActor(ctx, actor)
 	if tenantID == "" {
-		return q.repo.ListAll(ctx, limit, cursor)
+		return q.repo.ListAll(ctx, filter, limit, cursor)
 	}
-	return q.repo.List(ctx, tenantID, limit, cursor)
+	return q.repo.List(ctx, tenantID, filter, limit, cursor)
 }
 
 func normalizeLimit(n int) int {

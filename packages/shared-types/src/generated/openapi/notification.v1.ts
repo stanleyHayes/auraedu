@@ -2,6 +2,26 @@
 // Do not edit by hand.
 
 export type paths = {
+    "/internal/v1/transactional-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deliver a security-sensitive transactional email for a trusted service
+         * @description Delivers an invite or password-reset email without placing the recipient address or one-time token on the event bus; the persisted record is redacted after delivery. Protected by the internal service bearer token; never exposed by the gateway.
+         */
+        post: operations["deliverTransactionalEmail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/webhooks/resend": {
         parameters: {
             query?: never;
@@ -734,6 +754,60 @@ export type components = {
 };
 export type $defs = Record<string, never>;
 export interface operations {
+    deliverTransactionalEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    tenant_id: string;
+                    /** Format: email */
+                    recipient: string;
+                    /** @enum {string} */
+                    template: "user_invite" | "password_reset";
+                    /** @description Template-specific fields; user_invite requires invite_token (plus optional role), password_reset requires reset_token. */
+                    data: {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Delivery accepted and recorded with redacted content */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        message_id: string;
+                        status: components["schemas"]["MessageStatus"];
+                    };
+                };
+            };
+            /** @description Invalid service credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationError"];
+            /** @description Email suppression or delivery storage is unavailable; caller should retry */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     processResendDeliveryWebhook: {
         parameters: {
             query?: never;

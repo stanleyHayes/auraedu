@@ -369,6 +369,10 @@ func DefaultRegistry() ServiceRegistry {
 			Prefix:     "/api/v1/audit",
 			Target:     envURL("SERVICE_AUDIT_URL", "http://localhost:8104"),
 			FeatureKey: "",
+			// TenantOptional lets platform super admins query audit logs across
+			// tenants without a tenant context; the audit service still fails
+			// closed for tenantless non-platform actors.
+			TenantOptional: true,
 			Permissions: map[string]string{
 				http.MethodGet: "audit.read",
 			},

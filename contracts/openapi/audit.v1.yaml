@@ -22,6 +22,11 @@ paths:
               - $ref: '#/components/parameters/TenantHeader'
               - $ref: '#/components/parameters/Limit'
               - $ref: '#/components/parameters/Cursor'
+              - $ref: '#/components/parameters/EventTypeFilter'
+              - $ref: '#/components/parameters/ActorIdFilter'
+              - $ref: '#/components/parameters/SourceServiceFilter'
+              - $ref: '#/components/parameters/FromFilter'
+              - $ref: '#/components/parameters/ToFilter'
             responses:
               '200':
                 description: OK
@@ -43,6 +48,11 @@ paths:
           - $ref: '#/components/parameters/TenantHeader'
           - $ref: '#/components/parameters/Limit'
           - $ref: '#/components/parameters/Cursor'
+          - $ref: '#/components/parameters/EventTypeFilter'
+          - $ref: '#/components/parameters/ActorIdFilter'
+          - $ref: '#/components/parameters/SourceServiceFilter'
+          - $ref: '#/components/parameters/FromFilter'
+          - $ref: '#/components/parameters/ToFilter'
         responses:
           '200':
             description: OK
@@ -68,6 +78,36 @@ components:
       name: cursor
       in: query
       schema: { type: string }
+    EventTypeFilter:
+      name: event_type
+      in: query
+      required: false
+      description: Filter audit logs by exact CloudEvents event type.
+      schema: { type: string }
+    ActorIdFilter:
+      name: actor_id
+      in: query
+      required: false
+      description: Filter audit logs by the actor that triggered the event.
+      schema: { type: string, format: uuid }
+    SourceServiceFilter:
+      name: source_service
+      in: query
+      required: false
+      description: Filter audit logs by the emitting service.
+      schema: { type: string }
+    FromFilter:
+      name: from
+      in: query
+      required: false
+      description: Include only events that occurred at or after this timestamp (inclusive lower bound on occurred_at).
+      schema: { type: string, format: date-time }
+    ToFilter:
+      name: to
+      in: query
+      required: false
+      description: Include only events that occurred at or before this timestamp (inclusive upper bound on occurred_at). Must not be earlier than `from`.
+      schema: { type: string, format: date-time }
 
   schemas:
     Error:

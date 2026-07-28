@@ -57,7 +57,7 @@ func TestRepository_InsertAndList(t *testing.T) {
 
 	log := mustInsert(ctx, t, repo, "student.created.v1", "stu-1")
 
-	list, _, err := repo.List(ctx, tenantA, 10, "")
+	list, _, err := repo.List(ctx, tenantA, domain.ListFilter{}, 10, "")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestRepository_TenantIsolation(t *testing.T) {
 	mustInsert(aCtx, t, repo, "student.created.v1", "stu-a")
 
 	bCtx := withTenant(ctx, tenantB)
-	list, _, err := repo.List(bCtx, tenantB, 10, "")
+	list, _, err := repo.List(bCtx, tenantB, domain.ListFilter{}, 10, "")
 	if err != nil {
 		t.Fatalf("list tenant B: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestRepository_ListPagination(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 	mustInsert(ctx, t, repo, "student.updated.v1", "stu-2")
 
-	page, next, err := repo.List(ctx, tenantA, 1, "")
+	page, next, err := repo.List(ctx, tenantA, domain.ListFilter{}, 1, "")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestRepository_ListPagination(t *testing.T) {
 		t.Fatal("expected next cursor")
 	}
 
-	page2, _, err := repo.List(ctx, tenantA, 1, next)
+	page2, _, err := repo.List(ctx, tenantA, domain.ListFilter{}, 1, next)
 	if err != nil {
 		t.Fatalf("list cursor: %v", err)
 	}
@@ -114,6 +114,78 @@ func TestRepository_ListPagination(t *testing.T) {
 	}
 	if page2[0].ID != log1.ID {
 		t.Fatalf("expected oldest log on second page, got %s, want %s", page2[0].ID, log1.ID)
+	}
+}
+
+func TestRepository_ListFilters(t *testing.T) {
+	ctx := withTenant(context.Background(), tenantA)
+	repo := newRepo(t)
+	base := time.Date(2026, 1, 10, 12, 0, 0, 0, time.UTC)
+
+	want, err := domain.NewAuditLogBuilder().
+		TenantID(tenantA).
+		EventID(uuid.NewString()).
+		EventType("student.created.v1").
+		SourceService("student-service").
+		Timestamp(base).
+		ReceivedAt(base).
+		ActorID(uuid.NewString()).
+		Action("student.created.v1").
+		Build()
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	if err := repo.Insert(ctx, want); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+	other, err := domain.NewAuditLogBuilder().
+		TenantID(tenantA).
+		EventID(uuid.NewString()).
+		EventType("invoice.created.v1").
+		SourceService("billing-service").
+		Timestamp(base.Add(48 * time.Hour)).
+		ReceivedAt(base.Add(48 * time.Hour)).
+		Action("invoice.created.v1").
+		Build()
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	if err := repo.Insert(ctx, other); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	// Combined filters isolate the student-service record.
+	to := base.Add(time.Hour)
+	list, _, err := repo.List(ctx, tenantA, domain.ListFilter{
+		EventType:     "student.created.v1",
+		ActorID:       want.ActorID,
+		SourceService: "student-service",
+		From:          &base,
+		To:            &to,
+	}, 10, "")
+	if err != nil {
+		t.Fatalf("list filtered: %v", err)
+	}
+	if len(list) != 1 || list[0].ID != want.ID {
+		t.Fatalf("expected only the filtered log, got %d", len(list))
+	}
+
+	// The same filter applies to the cross-tenant platform query.
+	adminCtx := auth.WithActor(context.Background(), auth.Actor{
+		UserID:        "admin-1",
+		Role:          auth.RolePlatformSuperAdmin,
+		PlatformAdmin: true,
+	})
+	list, _, err = repo.ListAll(adminCtx, domain.ListFilter{
+		EventType:     "student.created.v1",
+		SourceService: "student-service",
+		To:            &to,
+	}, 10, "")
+	if err != nil {
+		t.Fatalf("list all filtered: %v", err)
+	}
+	if len(list) != 1 || list[0].ID != want.ID {
+		t.Fatalf("expected only the filtered log across tenants, got %d", len(list))
 	}
 }
 
@@ -145,7 +217,7 @@ func TestRepository_ListAllCrossTenant(t *testing.T) {
 		Role:          auth.RolePlatformSuperAdmin,
 		PlatformAdmin: true,
 	})
-	list, _, err := repo.ListAll(adminCtx, 10, "")
+	list, _, err := repo.ListAll(adminCtx, domain.ListFilter{}, 10, "")
 	if err != nil {
 		t.Fatalf("list all: %v", err)
 	}

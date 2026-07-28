@@ -213,32 +213,39 @@ export type components = {
             id: string;
             /** Format: uuid */
             tenant_id: string;
-            name: string;
-            /** @enum {string} */
-            type: "test" | "exam" | "quiz" | "assignment";
+            /** Format: uuid */
+            academic_year_id: string;
             /** Format: uuid */
             subject_id: string;
-            /** Format: uuid */
-            class_id?: string | null;
-            /** Format: uuid */
-            term_id?: string | null;
-            max_score?: number;
+            /** @enum {string} */
+            type: "assignment" | "test" | "exam";
+            title: string;
+            description?: string | null;
+            max_score: number;
             /** Format: date-time */
-            scheduled_at?: string | null;
+            due_date?: string | null;
+            /** @enum {string} */
+            status: "draft" | "published" | "archived";
+            class_ids?: string[];
+            /** Format: date-time */
+            published_at?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
         };
         CreateAssessment: {
-            name: string;
-            /** @enum {string} */
-            type: "test" | "exam" | "quiz" | "assignment";
+            /** Format: uuid */
+            academic_year_id: string;
             /** Format: uuid */
             subject_id: string;
-            /** Format: uuid */
-            class_id?: string | null;
-            /** Format: uuid */
-            term_id?: string | null;
-            max_score?: number;
+            /** @enum {string} */
+            type: "assignment" | "test" | "exam";
+            title: string;
+            description?: string;
+            max_score: number;
             /** Format: date-time */
-            scheduled_at?: string | null;
+            due_date?: string | null;
         };
         UpdateAssessment: {
             title?: string;
@@ -268,6 +275,8 @@ export type components = {
             student_id: string;
             score: number;
             max_score?: number | null;
+            /** Format: uuid */
+            recorded_by: string;
         };
         UpdateScore: {
             score?: number;

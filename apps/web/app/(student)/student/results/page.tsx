@@ -135,7 +135,7 @@ export default async function StudentResultsPage() {
                       {subject?.name ?? result.assessment.type}
                     </p>
                     <h2 className="mt-2 truncate font-heading text-lg font-bold">
-                      {result.assessment.name}
+                      {result.assessment.title}
                     </h2>
                     <p className="mt-1 text-sm capitalize text-[var(--muted-foreground)]">
                       {result.assessment.type}

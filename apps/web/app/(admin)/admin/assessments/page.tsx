@@ -49,7 +49,7 @@ export default async function AdminAssessmentsPage() {
             {
               key: "name",
               header: "Assessment",
-              cell: (assessment) => <span className="font-semibold">{assessment.name}</span>,
+              cell: (assessment) => <span className="font-semibold">{assessment.title}</span>,
             },
             {
               key: "type",
@@ -64,10 +64,12 @@ export default async function AdminAssessmentsPage() {
             {
               key: "class",
               header: "Class",
-              cell: (assessment) =>
-                assessment.class_id
-                  ? (classes.get(assessment.class_id) ?? "Class unavailable")
-                  : "Not assigned",
+              cell: (assessment) => {
+                const [firstClassId, ...restClassIds] = assessment.class_ids ?? [];
+                if (!firstClassId) return "Not assigned";
+                const first = classes.get(firstClassId) ?? "Class unavailable";
+                return restClassIds.length > 0 ? `${first} +${restClassIds.length} more` : first;
+              },
             },
             {
               key: "maximum",

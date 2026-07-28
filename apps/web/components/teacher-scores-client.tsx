@@ -12,7 +12,7 @@ import type { Assessment } from "@/app/(teacher)/teacher/scores/page";
 type Student = OpenAPI.student_v1.components["schemas"]["Student"];
 
 const columns: DataTableColumn<Assessment>[] = [
-  { key: "name", header: "Assessment", cell: (assessment) => assessment.name },
+  { key: "name", header: "Assessment", cell: (assessment) => assessment.title },
   {
     key: "type",
     header: "Type",
@@ -30,11 +30,11 @@ const columns: DataTableColumn<Assessment>[] = [
   },
   {
     key: "date",
-    header: "Scheduled",
+    header: "Due",
     cell: (assessment) =>
-      assessment.scheduled_at
-        ? new Date(assessment.scheduled_at).toLocaleDateString("en-GB")
-        : "Not scheduled",
+      assessment.due_date
+        ? new Date(assessment.due_date).toLocaleDateString("en-GB")
+        : "No due date",
   },
   { key: "maximum", header: "Maximum", cell: (assessment) => assessment.max_score ?? "Not set" },
 ];
@@ -55,7 +55,7 @@ export function TeacherScoresClient({
   const [rosters, setRosters] = React.useState<Record<string, Student[] | null>>({});
   const [rosterLoading, setRosterLoading] = React.useState(false);
   const assessment = assessments.find((item) => item.id === assessmentId);
-  const classId = assessment?.class_id ?? "";
+  const classId = assessment?.class_ids?.[0] ?? "";
   const roster = classId ? rosters[classId] : [];
 
   React.useEffect(() => {
@@ -133,7 +133,7 @@ export function TeacherScoresClient({
               <option value="">Select assessment</option>
               {assessments.map((item) => (
                 <option key={item.id} value={item.id}>
-                  {item.name}
+                  {item.title}
                   {item.subject_name ? ` · ${item.subject_name}` : ""}
                 </option>
               ))}
@@ -195,7 +195,7 @@ export function TeacherScoresClient({
           </div>
         </form>
 
-        {assessment && !assessment.class_id ? (
+        {assessment && !assessment.class_ids?.length ? (
           <p className="mt-4 text-sm text-[var(--color-warn)]">
             This assessment has no class assignment, so an authoritative learner register cannot be
             loaded.

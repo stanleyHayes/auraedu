@@ -60,7 +60,7 @@ func TestQuery_ListAuditLogs_TenantScoped(t *testing.T) {
 	seedLog(t, repo, tenantBID, "student.created.v1", "user-2")
 	q := application.NewQuery(repo)
 
-	logs, _, err := q.ListAuditLogs(withTenantCtx(tenantAID), tenantActor(tenantAID, application.PermRead), 25, "")
+	logs, _, err := q.ListAuditLogs(withTenantCtx(tenantAID), tenantActor(tenantAID, application.PermRead), domain.ListFilter{}, 25, "")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestQuery_ListAuditLogs_TenantScoped(t *testing.T) {
 func TestQuery_ListAuditLogs_Unauthenticated(t *testing.T) {
 	q := application.NewQuery(memory.NewRepository())
 
-	_, _, err := q.ListAuditLogs(withTenantCtx(tenantAID), auth.Actor{}, 25, "")
+	_, _, err := q.ListAuditLogs(withTenantCtx(tenantAID), auth.Actor{}, domain.ListFilter{}, 25, "")
 	if !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("expected ErrForbidden, got %v", err)
 	}
@@ -84,7 +84,7 @@ func TestQuery_ListAuditLogs_Unauthenticated(t *testing.T) {
 func TestQuery_ListAuditLogs_MissingTenant(t *testing.T) {
 	q := application.NewQuery(memory.NewRepository())
 
-	_, _, err := q.ListAuditLogs(context.Background(), tenantActor(tenantAID, application.PermRead), 25, "")
+	_, _, err := q.ListAuditLogs(context.Background(), tenantActor(tenantAID, application.PermRead), domain.ListFilter{}, 25, "")
 	if !errors.Is(err, domain.ErrMissingTenant) {
 		t.Fatalf("expected ErrMissingTenant, got %v", err)
 	}
@@ -93,7 +93,7 @@ func TestQuery_ListAuditLogs_MissingTenant(t *testing.T) {
 func TestQuery_ListAuditLogs_TenantMismatch(t *testing.T) {
 	q := application.NewQuery(memory.NewRepository())
 
-	_, _, err := q.ListAuditLogs(withTenantCtx(tenantAID), tenantActor(tenantBID, application.PermRead), 25, "")
+	_, _, err := q.ListAuditLogs(withTenantCtx(tenantAID), tenantActor(tenantBID, application.PermRead), domain.ListFilter{}, 25, "")
 	if !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("expected ErrForbidden, got %v", err)
 	}
@@ -102,7 +102,7 @@ func TestQuery_ListAuditLogs_TenantMismatch(t *testing.T) {
 func TestQuery_ListAuditLogs_MissingPermission(t *testing.T) {
 	q := application.NewQuery(memory.NewRepository())
 
-	_, _, err := q.ListAuditLogs(withTenantCtx(tenantAID), tenantActor(tenantAID), 25, "")
+	_, _, err := q.ListAuditLogs(withTenantCtx(tenantAID), tenantActor(tenantAID), domain.ListFilter{}, 25, "")
 	if !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("expected ErrForbidden, got %v", err)
 	}
@@ -115,7 +115,7 @@ func TestQuery_ListAuditLogs_PlatformAdminCrossTenant(t *testing.T) {
 	q := application.NewQuery(repo)
 
 	// No tenant context: a platform super admin reads across tenants.
-	logs, _, err := q.ListAuditLogs(context.Background(), platformAdminActor(), 25, "")
+	logs, _, err := q.ListAuditLogs(context.Background(), platformAdminActor(), domain.ListFilter{}, 25, "")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -131,7 +131,7 @@ func TestQuery_ListAuditLogs_PlatformAdminScopedTenant(t *testing.T) {
 	q := application.NewQuery(repo)
 
 	// A platform super admin with a tenant context is scoped to that tenant.
-	logs, _, err := q.ListAuditLogs(withTenantCtx(tenantBID), platformAdminActor(), 25, "")
+	logs, _, err := q.ListAuditLogs(withTenantCtx(tenantBID), platformAdminActor(), domain.ListFilter{}, 25, "")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -152,7 +152,7 @@ func TestQuery_ListAuditLogs_Pagination(t *testing.T) {
 	third := seedLog(t, repo, tenantAID, "student.deleted.v1", "")
 	q := application.NewQuery(repo)
 
-	page1, next, err := q.ListAuditLogs(withTenantCtx(tenantAID), tenantActor(tenantAID, application.PermRead), 2, "")
+	page1, next, err := q.ListAuditLogs(withTenantCtx(tenantAID), tenantActor(tenantAID, application.PermRead), domain.ListFilter{}, 2, "")
 	if err != nil {
 		t.Fatalf("list page 1: %v", err)
 	}
@@ -167,7 +167,7 @@ func TestQuery_ListAuditLogs_Pagination(t *testing.T) {
 		t.Fatal("expected next cursor on page 1")
 	}
 
-	page2, next2, err := q.ListAuditLogs(withTenantCtx(tenantAID), tenantActor(tenantAID, application.PermRead), 2, next)
+	page2, next2, err := q.ListAuditLogs(withTenantCtx(tenantAID), tenantActor(tenantAID, application.PermRead), domain.ListFilter{}, 2, next)
 	if err != nil {
 		t.Fatalf("list page 2: %v", err)
 	}
@@ -185,7 +185,7 @@ func TestQuery_ListAuditLogs_Pagination(t *testing.T) {
 func TestQuery_ListAuditLogs_InvalidCursor(t *testing.T) {
 	q := application.NewQuery(memory.NewRepository())
 
-	_, _, err := q.ListAuditLogs(withTenantCtx(tenantAID), tenantActor(tenantAID, application.PermRead), 25, "not-a-uuid")
+	_, _, err := q.ListAuditLogs(withTenantCtx(tenantAID), tenantActor(tenantAID, application.PermRead), domain.ListFilter{}, 25, "not-a-uuid")
 	if !errors.Is(err, domain.ErrValidation) {
 		t.Fatalf("expected ErrValidation, got %v", err)
 	}

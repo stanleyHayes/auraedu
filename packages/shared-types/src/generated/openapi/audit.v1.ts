@@ -135,6 +135,16 @@ export type components = {
         TenantHeader: string;
         Limit: number;
         Cursor: string;
+        /** @description Filter audit logs by exact CloudEvents event type. */
+        EventTypeFilter: string;
+        /** @description Filter audit logs by the actor that triggered the event. */
+        ActorIdFilter: string;
+        /** @description Filter audit logs by the emitting service. */
+        SourceServiceFilter: string;
+        /** @description Include only events that occurred at or after this timestamp (inclusive lower bound on occurred_at). */
+        FromFilter: string;
+        /** @description Include only events that occurred at or before this timestamp (inclusive upper bound on occurred_at). Must not be earlier than `from`. */
+        ToFilter: string;
     };
     requestBodies: never;
     headers: never;
@@ -147,6 +157,16 @@ export interface operations {
             query?: {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
+                /** @description Filter audit logs by exact CloudEvents event type. */
+                event_type?: components["parameters"]["EventTypeFilter"];
+                /** @description Filter audit logs by the actor that triggered the event. */
+                actor_id?: components["parameters"]["ActorIdFilter"];
+                /** @description Filter audit logs by the emitting service. */
+                source_service?: components["parameters"]["SourceServiceFilter"];
+                /** @description Include only events that occurred at or after this timestamp (inclusive lower bound on occurred_at). */
+                from?: components["parameters"]["FromFilter"];
+                /** @description Include only events that occurred at or before this timestamp (inclusive upper bound on occurred_at). Must not be earlier than `from`. */
+                to?: components["parameters"]["ToFilter"];
             };
             header?: {
                 /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */
@@ -177,6 +197,16 @@ export interface operations {
             query?: {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
+                /** @description Filter audit logs by exact CloudEvents event type. */
+                event_type?: components["parameters"]["EventTypeFilter"];
+                /** @description Filter audit logs by the actor that triggered the event. */
+                actor_id?: components["parameters"]["ActorIdFilter"];
+                /** @description Filter audit logs by the emitting service. */
+                source_service?: components["parameters"]["SourceServiceFilter"];
+                /** @description Include only events that occurred at or after this timestamp (inclusive lower bound on occurred_at). */
+                from?: components["parameters"]["FromFilter"];
+                /** @description Include only events that occurred at or before this timestamp (inclusive upper bound on occurred_at). Must not be earlier than `from`. */
+                to?: components["parameters"]["ToFilter"];
             };
             header?: {
                 /** @description Optional tenant code for resolution when the gateway cannot derive it from the host. */

@@ -43,6 +43,9 @@ func testBuilder() *Builder {
 		}},
 		{Prefix: "/api/v1/webhooks", Target: "http://localhost:8098", Public: true, TenantOptional: true},
 		{Prefix: "/api/v1/super-admin/features", Target: "http://localhost:8082", TenantOptional: true},
+		{Prefix: "/api/v1/audit", Target: "http://localhost:8104", TenantOptional: true, Permissions: map[string]string{
+			http.MethodGet: "audit.read",
+		}},
 		{Prefix: "/api/v1/super-admin", Target: "http://localhost:8082", FeatureKey: "billing"},
 		{Prefix: "/api/v1/invoices", Target: "http://localhost:8097", FeatureKey: "fees", Permissions: map[string]string{
 			http.MethodGet: "fees.read", http.MethodPost: "fees.manage",
@@ -825,6 +828,73 @@ func TestSuperAdminFeatureOverrideRequiresToken(t *testing.T) {
 	}))
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/super-admin/features/attendance/override", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("status: got %d, want %d", rr.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestAuditRouteAllowsTenantlessPlatformSuperAdmin(t *testing.T) {
+	b := testBuilder()
+	token := signTestToken(b, auth.Claims{Subject: "admin1", Role: auth.RolePlatformSuperAdmin})
+	called := false
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		if TenantIDFrom(r.Context()) != "" {
+			t.Fatal("tenantless audit query must not invent a tenant")
+		}
+	}))
+
+	// A platform super admin queries audit logs across tenants: no tenant
+	// header is resolvable, and the TenantOptional audit route must not 400.
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/audit/logs", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if !called {
+		t.Fatalf("tenantless platform audit query should reach upstream: status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", rr.Code, http.StatusOK)
+	}
+}
+
+func TestAuditRouteRequiresAuditReadPermission(t *testing.T) {
+	b := testBuilder()
+	token := signTestToken(b, auth.Claims{
+		Subject:     "u1",
+		TenantID:    "upshs",
+		Role:        "teacher",
+		Permissions: []string{"students.read"},
+	})
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("GET /audit/logs should be denied without audit.read")
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/audit/logs", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("X-Tenant-ID", "upshs")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("status: got %d, want %d", rr.Code, http.StatusForbidden)
+	}
+	if !strings.Contains(rr.Body.String(), "permission_denied") {
+		t.Fatalf("expected permission_denied error, got %q", rr.Body.String())
+	}
+}
+
+func TestAuditRouteRequiresToken(t *testing.T) {
+	b := testBuilder()
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("audit route must not be public")
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/audit/logs", nil)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 

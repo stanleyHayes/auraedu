@@ -42,11 +42,18 @@ export default async function TeacherScoresPage({
   const className = new Map(classes.map((academicClass) => [academicClass.id, academicClass.name]));
   const assessments: Assessment[] = (
     assessmentResult.status === "fulfilled" ? (assessmentResult.value.data ?? []) : []
-  ).map((assessment) => ({
-    ...assessment,
-    subject_name: subjectName.get(assessment.subject_id),
-    class_name: assessment.class_id ? className.get(assessment.class_id) : undefined,
-  }));
+  ).map((assessment) => {
+    const [firstClassId, ...restClassIds] = assessment.class_ids ?? [];
+    return {
+      ...assessment,
+      subject_name: subjectName.get(assessment.subject_id),
+      class_name: firstClassId
+        ? `${className.get(firstClassId) ?? "Class unavailable"}${
+            restClassIds.length > 0 ? ` +${restClassIds.length} more` : ""
+          }`
+        : undefined,
+    };
+  });
   const selectedClassId = classes.some((academicClass) => academicClass.id === requestedClassId)
     ? requestedClassId
     : classes[0]?.id;

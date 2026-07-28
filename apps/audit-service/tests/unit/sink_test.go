@@ -7,6 +7,7 @@ import (
 
 	"github.com/auraedu/audit-service/internal/adapters/memory"
 	"github.com/auraedu/audit-service/internal/application"
+	"github.com/auraedu/audit-service/internal/domain"
 	"github.com/auraedu/platform/tenancy"
 )
 
@@ -35,7 +36,7 @@ func TestSink_Process(t *testing.T) {
 		t.Fatalf("process: %v", err)
 	}
 
-	logs, _, err := repo.List(ctx, tenantID, 10, "")
+	logs, _, err := repo.List(ctx, tenantID, domain.ListFilter{}, 10, "")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -101,7 +102,7 @@ func TestSink_Process_ActorFromPayload(t *testing.T) {
 		t.Fatalf("process: %v", err)
 	}
 
-	logs, _, err := repo.List(ctx, tenantID, 10, "")
+	logs, _, err := repo.List(ctx, tenantID, domain.ListFilter{}, 10, "")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}

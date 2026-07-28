@@ -321,7 +321,8 @@ func (b *Builder) featureFlag(next http.Handler) http.Handler {
 		// dependency was omitted or failed to initialize. Treat an absent gate as
 		// disabled; the live client itself already fails closed to its snapshot.
 		if b.Flags == nil {
-			writeJSONErrorWithDetails(w, http.StatusForbidden, "feature_disabled", "this feature is not enabled for the tenant", map[string]any{"feature": rt.FeatureKey})
+			writeJSONErrorWithDetails(w, http.StatusForbidden, "feature_disabled", "this feature is not enabled for the tenant",
+				map[string]any{"feature": rt.FeatureKey})
 			return
 		}
 
@@ -332,7 +333,8 @@ func (b *Builder) featureFlag(next http.Handler) http.Handler {
 		}
 
 		if !b.Flags.IsEnabled(r.Context(), tenantID, rt.FeatureKey) {
-			writeJSONErrorWithDetails(w, http.StatusForbidden, "feature_disabled", "this feature is not enabled for the tenant", map[string]any{"feature": rt.FeatureKey})
+			writeJSONErrorWithDetails(w, http.StatusForbidden, "feature_disabled", "this feature is not enabled for the tenant",
+				map[string]any{"feature": rt.FeatureKey})
 			return
 		}
 		next.ServeHTTP(w, r)

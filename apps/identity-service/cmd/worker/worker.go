@@ -398,6 +398,7 @@ func schoolAdminPermissions() []string {
 		"cbt.read", "cbt.author", "cbt.take", "cbt.grade",
 		"ai.view_recommendations", "ai.approve_recommendations", "ai.view_predictions",
 		"ai.approve_predictions", "ai.view_guidance", "ai.approve_guidance",
+		"ai.agent.configure", "ai.action.approve",
 		"crm.lead.read", "crm.lead.create", "crm.lead.update", "crm.lead.assign", "crm.lead.export", "crm.interaction.create",
 		"knowledge.read", "knowledge.manage", "knowledge.approve", "feedback.review", "analytics.executive.read",
 		"campaign.read", "campaign.create", "campaign.update", "campaign.approve", "campaign.publish", "campaign.budget.approve",

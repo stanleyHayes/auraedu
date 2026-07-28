@@ -240,6 +240,7 @@ type AnnouncementList struct {
 
 // ServerInterface is implemented by the service HTTP adapter.
 type ServerInterface interface {
+	deliverTransactionalEmail(w http.ResponseWriter, r *http.Request)
 	processResendDeliveryWebhook(w http.ResponseWriter, r *http.Request)
 	processTwilioDeliveryWebhook(w http.ResponseWriter, r *http.Request)
 	unsubscribeEmail(w http.ResponseWriter, r *http.Request)
@@ -276,6 +277,7 @@ type ServerInterface interface {
 
 // ClientInterface is the generated consumer stub for this service.
 type ClientInterface interface {
+	deliverTransactionalEmail(ctx context.Context) (*http.Response, error)
 	processResendDeliveryWebhook(ctx context.Context) (*http.Response, error)
 	processTwilioDeliveryWebhook(ctx context.Context) (*http.Response, error)
 	unsubscribeEmail(ctx context.Context) (*http.Response, error)

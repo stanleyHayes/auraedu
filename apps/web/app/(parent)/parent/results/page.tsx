@@ -54,7 +54,7 @@ export default async function ParentResultsPage() {
       scores.map((score: Score) => ({
         id: `${assessment.id}-${score.id}`,
         student: names.get(score.student_id) ?? "Linked learner",
-        assessment: assessment.name,
+        assessment: assessment.title,
         subject: subjectNames.get(assessment.subject_id) ?? "Subject unavailable",
         score: score.score,
         maximum: score.max_score ?? assessment.max_score ?? null,
