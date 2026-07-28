@@ -1420,6 +1420,9 @@ services:
       args:
         NEXT_PUBLIC_API_URL: http://localhost:${GATEWAY_HOST_PORT:-8080}
         NEXT_PUBLIC_APP_URL: http://localhost:${WEB_HOST_PORT:-3000}
+        # Local links can be slow/lossy; low fetch concurrency keeps the big
+        # next/swc tarballs from starving (Render builds keep the default).
+        PNPM_NETWORK_CONCURRENCY: "2"
     ports: ["${WEB_HOST_PORT:-3000}:3000"]
     environment:
       <<: *observability-env
@@ -1441,6 +1444,7 @@ services:
       args:
         NEXT_PUBLIC_API_URL: http://localhost:${GATEWAY_HOST_PORT:-8080}
         NEXT_PUBLIC_APP_URL: http://localhost:${WEB_HOST_PORT:-3000}
+        PNPM_NETWORK_CONCURRENCY: "2"
     ports: ["${MARKETING_HOST_PORT:-3001}:3001"]
     environment:
       <<: *observability-env
