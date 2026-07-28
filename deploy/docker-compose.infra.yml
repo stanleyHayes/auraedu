@@ -16,7 +16,10 @@ services:
       - pgdata:/var/lib/postgresql
       - ./postgres-init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U auraedu"]
+      # Probe the guaranteed postgres database: without -d, pg_isready targets a
+      # database named after the user (auraedu), which intentionally does not
+      # exist and spams FATAL log lines every interval.
+      test: ["CMD-SHELL", "pg_isready -U auraedu -d postgres"]
       interval: 5s
       timeout: 3s
       retries: 10
