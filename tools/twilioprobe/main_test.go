@@ -116,3 +116,29 @@ func TestEvidenceOutputIsExclusiveAndPrivate(t *testing.T) {
 		t.Fatal("evidence output allowed overwrite")
 	}
 }
+
+func TestExecutionRefusesLiveTargetsAndCredentialsWithoutAllowLive(t *testing.T) {
+	cfg := testConfig("https://api.auraedu.com")
+	err := validateExecution(cfg)
+	if err == nil || !strings.Contains(err.Error(), "--allow-live") {
+		t.Fatalf("production host accepted without --allow-live: %v", err)
+	}
+	cfg.AllowLive = true
+	if err := validateExecution(cfg); err != nil {
+		t.Fatalf("production host refused despite --allow-live: %v", err)
+	}
+
+	cfg = testConfig("https://staging-api.auraedu.com")
+	cfg.Token = "live_probe_test_fixture_not_a_secret"
+	err = validateExecution(cfg)
+	if err == nil || !strings.Contains(err.Error(), "--allow-live") {
+		t.Fatalf("live credential accepted without --allow-live: %v", err)
+	}
+	if strings.Contains(err.Error(), cfg.Token) {
+		t.Fatal("refusal leaked the credential")
+	}
+	cfg.AllowLive = true
+	if err := validateExecution(cfg); err != nil {
+		t.Fatalf("live credential refused despite --allow-live: %v", err)
+	}
+}

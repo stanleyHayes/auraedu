@@ -77,3 +77,6 @@
 - [Architecture diagrams](diagrams/README.md)
 - [API and event contracts](api/README.md)
 - [Architecture decisions](decisions/README.md)
+- [User guide](user-guide.md)
+- [UAT & pre-launch regression checklist](qa/uat-checklist.md)
+- [QA findings template](qa/findings-template.md)

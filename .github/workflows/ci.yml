@@ -71,6 +71,8 @@ jobs:
               - 'tools/ci/check-render-deploy-safety.sh'
               - 'tools/ci/check-disaster-recovery.sh'
               - 'tools/ci/check-documentation-freshness.sh'
+              - 'tools/ci/check-file-size.mjs'
+              - 'tools/ci/file-size-allowlist.txt'
               - 'tools/release/**'
               - 'release/evidence/**'
               - 'release/scenarios/**'
@@ -96,6 +98,7 @@ jobs:
               - 'apps/**/migrations/**'
               - 'apps/**/internal/db/migrations/**'
               - 'tools/ci/check-migrations.sh'
+              - 'tools/ci/check-migration-down.sh'
               - 'tools/ci/check-tenant-rls.sh'
               - 'tools/ci/run-go-isolation-tests.sh'
               - 'tools/ci/run-feature-flag-tests.sh'
@@ -137,6 +140,21 @@ jobs:
         run: |
           node --test tools/release/verify-readiness.test.mjs
           node tools/release/verify-readiness.mjs
+
+  # Adopt-gradually: report-only until the allowlist has shrunk away; flip
+  # continue-on-error to make the budgets blocking.
+  file-size:
+    needs: changes
+    if: needs.changes.outputs.root == 'true' || needs.changes.outputs.web == 'true' || needs.changes.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: File-size budgets (report-only)
+        run: |
+          echo "::warning::file-size budgets are report-only; new or growing violations will fail once this gate is made blocking"
+          node tools/ci/check-file-size.mjs
 
   web:
     needs: changes

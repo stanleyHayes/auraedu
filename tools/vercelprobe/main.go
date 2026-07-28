@@ -54,6 +54,7 @@ type Config struct {
 	WebURL           string   `json:"-"`
 	MarketingURL     string   `json:"-"`
 	GatewayURL       string   `json:"-"`
+	AllowLive        bool     `json:"-"`
 }
 
 type EvidenceCheck struct {
@@ -114,6 +115,7 @@ func main() {
 	configPath := flag.String("config", "", "Vercel production scenario JSON file")
 	resultPath := flag.String("out", "", "exclusive JSON evidence path")
 	validateOnly := flag.Bool("validate-only", false, "validate the versioned scenario without calling Vercel")
+	allowLive := flag.Bool("allow-live", false, "acknowledge calling the live Vercel API and production frontends")
 	flag.Parse()
 	if *configPath == "" {
 		fatal(2, "-config is required")
@@ -122,6 +124,7 @@ func main() {
 	if err != nil {
 		fatal(2, err.Error())
 	}
+	cfg.AllowLive = *allowLive
 	if *validateOnly {
 		fmt.Printf("Vercel scenario %q valid for %s\n", cfg.Name, cfg.Environment)
 		return
@@ -196,6 +199,9 @@ func validate(cfg Config) error {
 }
 
 func validateExecution(cfg Config) error {
+	if !cfg.AllowLive {
+		return errors.New("vercelprobe calls the live Vercel API and production frontends; re-run with --allow-live to acknowledge")
+	}
 	if !runIDPattern.MatchString(cfg.RunID) || !gitSHAPattern.MatchString(cfg.GitSHA) {
 		return errors.New("AURA_VERCEL_RUN_ID and AURA_VERCEL_GIT_SHA are required")
 	}

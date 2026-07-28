@@ -29,3 +29,11 @@ The artifact contains only release provenance, timestamps, pass/fail checks and
 tokens, phone numbers, provider SIDs, message bodies, callback bodies or provider
 responses. Output is created with mode `0600` and cannot overwrite an existing
 record.
+
+## Live-target safety rail
+
+The probe refuses to run against a non-staging hostname (anything not matching
+staging/sandbox/dev/`.test`/`.local`/`.internal` naming) or a live-shaped
+credential (documented live prefixes such as Paystack `sk_live_`/`pk_live_`, or
+any `_live_` marker) unless `--allow-live` is passed explicitly. Refusal
+messages never echo the credential.

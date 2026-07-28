@@ -223,6 +223,20 @@ const supportedEvidenceIDs = new Set([
   "AURA-18.9",
 ]);
 
+// Human launch gates: recorded human sign-offs required in addition to the
+// evidence manifest. Only set/missing is ever reported — values are never printed.
+export const signOffRequirements = {
+  AURAEDU_LEGAL_REVIEW_CONFIRMED: "child-data / Ghana Data Protection Act legal review",
+  AURAEDU_GROWTH_POLICY_CONFIRMED: "commercial and pricing policy",
+  AURAEDU_UAT_SIGNOFF_CONFIRMED: "school pilot UAT",
+};
+
+export function unresolvedSignOffs(env = {}) {
+  return Object.entries(signOffRequirements)
+    .filter(([name]) => (env[name] ?? "").trim().toLowerCase() !== "true")
+    .map(([name, description]) => ({ name, description }));
+}
+
 function finiteNumber(value) {
   return typeof value === "number" && Number.isFinite(value);
 }
@@ -739,7 +753,7 @@ function expectedEvidenceNames(itemID) {
   return names;
 }
 
-export function validateReadiness({ manifest, ledger, repoRoot, assertReady = false }) {
+export function validateReadiness({ manifest, ledger, repoRoot, assertReady = false, signOffs }) {
   const errors = [];
   if (manifest?.schema_version !== 1 || !Array.isArray(manifest?.items)) {
     return ["manifest must use schema_version 1 and contain an items array"];
@@ -921,6 +935,15 @@ export function validateReadiness({ manifest, ledger, repoRoot, assertReady = fa
     if (!open.has(id)) errors.push(`${id}: manifest is pending but ledger is not unresolved`);
   if (assertReady && (pending.size > 0 || open.size > 0))
     errors.push(`production readiness is blocked by ${pending.size} pending evidence item(s)`);
+  if (signOffs !== undefined && assertReady) {
+    const unresolved = unresolvedSignOffs(signOffs);
+    if (unresolved.length > 0) {
+      errors.push(
+        `production readiness is blocked by ${unresolved.length} pending human sign-off(s): ` +
+          unresolved.map(({ name }) => name).join(", "),
+      );
+    }
+  }
   return errors;
 }
 
@@ -946,7 +969,8 @@ if (invokedPath === fileURLToPath(import.meta.url)) {
     process.exit(1);
   }
   const ledger = readFileSync(planPath, "utf8");
-  const errors = validateReadiness({ manifest, ledger, repoRoot, assertReady });
+  const signOffs = process.env;
+  const errors = validateReadiness({ manifest, ledger, repoRoot, assertReady, signOffs });
   if (errors.length > 0) {
     for (const error of errors) console.error(`release evidence: ${error}`);
     process.exit(1);
@@ -955,4 +979,12 @@ if (invokedPath === fileURLToPath(import.meta.url)) {
   console.log(
     `Release evidence manifest valid: ${manifest.items.length} tracked, ${pending} pending.`,
   );
+  const pendingSignOffs = unresolvedSignOffs(signOffs);
+  if (pendingSignOffs.length === 0) {
+    console.log("Human launch sign-offs: all recorded.");
+  } else {
+    console.log(`Human launch sign-offs pending (${pendingSignOffs.length}):`);
+    for (const { name, description } of pendingSignOffs)
+      console.log(`- ${name}: ${description} (set the variable to "true" once signed off)`);
+  }
 }

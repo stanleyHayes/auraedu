@@ -75,6 +75,7 @@ export const TEACHER_NAV: NavGroupDef[] = [
       { label: "Attendance", href: "/teacher/attendance", feature: "attendance" },
       { label: "Scores", href: "/teacher/scores", feature: "assessments" },
       { label: "Assignments", href: "/teacher/assignments", feature: "assignments" },
+      { label: "CBT exams", href: "/teacher/cbt", feature: "cbt_exams" },
     ],
   },
   {
@@ -89,7 +90,10 @@ export const TEACHER_NAV: NavGroupDef[] = [
 export const SUPERADMIN_NAV: NavGroupDef[] = [
   {
     heading: "Overview",
-    items: [{ label: "Dashboard", href: "/superadmin" }],
+    items: [
+      { label: "Dashboard", href: "/superadmin" },
+      { label: "Launch readiness", href: "/superadmin/readiness" },
+    ],
   },
   {
     heading: "Platform",
@@ -132,6 +136,8 @@ export const ADMIN_NAV: NavGroupDef[] = [
       { label: "Academic years", href: "/admin/academic-years", feature: "academic_management" },
       { label: "Classes", href: "/admin/classes", feature: "academic_management" },
       { label: "Subjects", href: "/admin/subjects", feature: "academic_management" },
+      { label: "Grading scales", href: "/admin/grading", feature: "academic_management" },
+      { label: "Timetable", href: "/admin/timetable", feature: "timetable" },
     ],
   },
   {
@@ -194,6 +200,7 @@ export const ADMIN_NAV: NavGroupDef[] = [
     heading: "School",
     items: [
       { label: "Communications", href: "/admin/communications", feature: "announcements" },
+      { label: "Message templates", href: "/admin/templates", feature: "notifications" },
       { label: "Delivery logs", href: "/admin/delivery", feature: "notifications" },
       { label: "Audit log", href: "/admin/audit" },
       { label: "Website", href: "/admin/website", feature: "public_website" },

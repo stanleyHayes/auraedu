@@ -33,6 +33,7 @@ type Config struct {
 	Token           string   `json:"-"`
 	RecipientID     string   `json:"-"`
 	Email           string   `json:"-"`
+	AllowLive       bool     `json:"-"`
 }
 
 type duration struct{ time.Duration }
@@ -101,6 +102,7 @@ func main() {
 	configPath := flag.String("config", "", "provider scenario JSON file")
 	resultPath := flag.String("out", "", "immutable JSON evidence path")
 	validateOnly := flag.Bool("validate-only", false, "validate versioned scenario without sending email")
+	allowLive := flag.Bool("allow-live", false, "acknowledge running against live/production credentials or targets")
 	flag.Parse()
 	if *configPath == "" {
 		fatal(2, "-config is required")
@@ -109,6 +111,7 @@ func main() {
 	if err != nil {
 		fatal(2, err.Error())
 	}
+	cfg.AllowLive = *allowLive
 	if *validateOnly {
 		fmt.Printf("provider scenario %q valid for %s\n", cfg.Name, cfg.Environment)
 		return
@@ -188,6 +191,14 @@ func validateExecution(cfg Config) error {
 	if host == "localhost" || host == "127.0.0.1" || host == "::1" || strings.HasSuffix(host, ".example") {
 		return errors.New("provider proof cannot target a placeholder or loopback host")
 	}
+	if !cfg.AllowLive {
+		if !isStagingHost(host) {
+			return errors.New("refusing to target a non-staging host without --allow-live")
+		}
+		if looksLikeLiveCredential(cfg.Token) {
+			return errors.New("refusing a live-shaped provider credential without --allow-live")
+		}
+	}
 	if !runIDPattern.MatchString(cfg.RunID) || !gitSHAPattern.MatchString(cfg.GitSHA) {
 		return errors.New("AURA_PROVIDER_RUN_ID and AURA_PROVIDER_GIT_SHA are required")
 	}
@@ -203,6 +214,22 @@ func validateExecution(cfg Config) error {
 func isHTTPSOrigin(parsed *url.URL) bool {
 	return parsed.Scheme == "https" && parsed.Hostname() != "" && parsed.User == nil &&
 		parsed.RawQuery == "" && parsed.Fragment == "" && (parsed.Path == "" || parsed.Path == "/")
+}
+
+// isStagingHost reports whether the target host reads as a non-production
+// environment (staging, sandbox, dev or local test naming).
+func isStagingHost(host string) bool {
+	return strings.Contains(host, "staging") || strings.Contains(host, "sandbox") ||
+		strings.HasPrefix(host, "stg.") || strings.HasPrefix(host, "dev.") ||
+		strings.HasSuffix(host, ".test") || strings.HasSuffix(host, ".local") ||
+		strings.HasSuffix(host, ".internal")
+}
+
+// looksLikeLiveCredential detects documented live key prefixes (for example
+// Paystack sk_live_/pk_live_/rk_live_) so probes never run against live
+// credentials by accident. The value itself is never printed.
+func looksLikeLiveCredential(secret string) bool {
+	return strings.HasPrefix(secret, "live_") || strings.Contains(secret, "_live_")
 }
 
 func hasRuntimeIdentity(cfg Config) bool {

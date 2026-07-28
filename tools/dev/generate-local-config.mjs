@@ -238,6 +238,18 @@ const externalCreated = appendMissing(
 );
 const resendCredentialPromoted = promoteResendCredential(ENV_PATH);
 
+const signOffCreated = appendMissing(
+  ENV_PATH,
+  {
+    // Human launch gates, not service configuration: `make release-readiness`
+    // refuses unless each has been set to "true" after the named human review.
+    AURAEDU_LEGAL_REVIEW_CONFIRMED: "",
+    AURAEDU_GROWTH_POLICY_CONFIRMED: "",
+    AURAEDU_UAT_SIGNOFF_CONFIRMED: "",
+  },
+  'Human launch sign-off gates (child-data/Ghana DPA legal review, growth pricing policy, school pilot UAT). Set each to "true" only after the responsible human has signed off; never auto-fill.',
+);
+
 const databaseUrls = Object.fromEntries(
   Object.entries(DATABASES).map(([service, database]) => [
     service,
@@ -270,6 +282,9 @@ console.log(
 );
 console.log(
   `- apps/mobile/.env.local: ${mobileCreated.length ? `created ${mobileCreated.join(", ")}` : "preserved"}`,
+);
+console.log(
+  `- human sign-off gates: ${signOffCreated.length ? `created ${signOffCreated.join(", ")}` : "preserved"}`,
 );
 console.log(
   "Provider-owned Cloudinary, Resend/email, Expo/EAS, store, domain, and deployment credentials were not fabricated.",

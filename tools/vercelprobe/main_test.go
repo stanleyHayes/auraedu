@@ -30,7 +30,7 @@ func testConfig() Config {
 		RunID: "release-vercel-test", GitSHA: "abcdef1234567890", Token: "test-" + strings.Repeat("x", 24),
 		TeamID: "team_auraedu", WebProject: "portal-project", MarketingProject: "marketing-project",
 		WebURL: "https://portal-auraedu.vercel.app", MarketingURL: "https://marketing-auraedu.vercel.app",
-		GatewayURL: "https://auraedu-gateway.onrender.com",
+		GatewayURL: "https://auraedu-gateway.onrender.com", AllowLive: true,
 	}
 }
 
@@ -247,5 +247,22 @@ func TestWriteEvidenceUsesExclusiveCreation(t *testing.T) {
 	}
 	if err := writeEvidence(path, []byte("replacement\n")); err == nil {
 		t.Fatal("evidence file was overwritten")
+	}
+}
+
+func TestExecutionRefusesLiveVercelAccessWithoutAllowLive(t *testing.T) {
+	t.Parallel()
+	cfg := testConfig()
+	cfg.AllowLive = false
+	err := validateExecution(cfg)
+	if err == nil || !strings.Contains(err.Error(), "--allow-live") {
+		t.Fatalf("live Vercel access accepted without --allow-live: %v", err)
+	}
+	if strings.Contains(err.Error(), cfg.Token) {
+		t.Fatal("refusal leaked the token")
+	}
+	cfg.AllowLive = true
+	if err := validateExecution(cfg); err != nil {
+		t.Fatalf("live Vercel access refused despite --allow-live: %v", err)
 	}
 }

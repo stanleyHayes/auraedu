@@ -49,6 +49,7 @@ type Config struct {
 	RecipientID     string   `json:"-"`
 	SMSNumber       string   `json:"-"`
 	WhatsAppNumber  string   `json:"-"`
+	AllowLive       bool     `json:"-"`
 }
 
 type messageRecord struct {
@@ -91,6 +92,7 @@ func main() {
 	configPath := flag.String("config", "", "Twilio scenario JSON file")
 	resultPath := flag.String("out", "", "immutable JSON evidence path")
 	validateOnly := flag.Bool("validate-only", false, "validate the scenario without sending messages")
+	allowLive := flag.Bool("allow-live", false, "acknowledge running against live/production credentials or targets")
 	flag.Parse()
 	if *configPath == "" {
 		fatal(2, "-config is required")
@@ -99,6 +101,7 @@ func main() {
 	if err != nil {
 		fatal(2, err.Error())
 	}
+	cfg.AllowLive = *allowLive
 	if *validateOnly {
 		fmt.Printf("Twilio scenario %q valid for %s\n", cfg.Name, cfg.Environment)
 		return
@@ -174,6 +177,15 @@ func validateExecution(cfg Config) error {
 	if err := validateTargetURL(cfg.BaseURL); err != nil {
 		return err
 	}
+	if !cfg.AllowLive {
+		parsed, err := url.Parse(cfg.BaseURL)
+		if err == nil && !isStagingHost(strings.ToLower(parsed.Hostname())) {
+			return errors.New("refusing to target a non-staging host without --allow-live")
+		}
+		if looksLikeLiveCredential(cfg.Token) {
+			return errors.New("refusing a live-shaped provider credential without --allow-live")
+		}
+	}
 	if !runIDPattern.MatchString(cfg.RunID) || !gitSHAPattern.MatchString(cfg.GitSHA) {
 		return errors.New("AURA_TWILIO_RUN_ID and AURA_TWILIO_GIT_SHA are required")
 	}
@@ -197,6 +209,22 @@ func validateTargetURL(raw string) error {
 		return errors.New("twilio proof cannot target a placeholder or loopback host")
 	}
 	return nil
+}
+
+// isStagingHost reports whether the target host reads as a non-production
+// environment (staging, sandbox, dev or local test naming).
+func isStagingHost(host string) bool {
+	return strings.Contains(host, "staging") || strings.Contains(host, "sandbox") ||
+		strings.HasPrefix(host, "stg.") || strings.HasPrefix(host, "dev.") ||
+		strings.HasSuffix(host, ".test") || strings.HasSuffix(host, ".local") ||
+		strings.HasSuffix(host, ".internal")
+}
+
+// looksLikeLiveCredential detects documented live key shapes (for example
+// Paystack sk_live_/pk_live_ or any "_live_" marker) so probes never run
+// against live credentials by accident. The value itself is never printed.
+func looksLikeLiveCredential(secret string) bool {
+	return strings.HasPrefix(secret, "live_") || strings.Contains(secret, "_live_")
 }
 
 func run(ctx context.Context, cfg Config) (Evidence, error) {

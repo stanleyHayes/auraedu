@@ -25,3 +25,40 @@ jobs:
         run: |
           node --test tools/migrations/orchestrate.test.mjs
           make migrate-check
+
+  # Prove the '-- +goose Down' sections actually run: apply the full chain
+  # against fresh PostgreSQL, roll back the last two migrations, re-apply.
+  migration-down-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15
+        env:
+          POSTGRES_USER: auraedu
+          POSTGRES_PASSWORD: auraedu
+          POSTGRES_DB: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U auraedu -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with: { go-version: '1.26.5' }
+      - name: Create per-service databases
+        run: |
+          psql "postgres://auraedu:auraedu@127.0.0.1:5432/postgres" -c "CREATE DATABASE identity"
+          psql "postgres://auraedu:auraedu@127.0.0.1:5432/postgres" -c "CREATE DATABASE audit"
+      - name: Down-test identity-service migrations
+        run: >
+          bash tools/ci/check-migration-down.sh identity-service
+          "postgres://auraedu:auraedu@127.0.0.1:5432/identity?sslmode=disable"
+      - name: Down-test audit-service migrations
+        run: >
+          bash tools/ci/check-migration-down.sh audit-service
+          "postgres://auraedu:auraedu@127.0.0.1:5432/audit?sslmode=disable"

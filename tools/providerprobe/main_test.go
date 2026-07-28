@@ -114,3 +114,42 @@ func TestExecutionRejectsPlaceholderTargetsAndCredentials(t *testing.T) {
 		t.Fatal("placeholder token accepted")
 	}
 }
+
+func TestExecutionRefusesLiveTargetsAndCredentialsWithoutAllowLive(t *testing.T) {
+	cfg := testProviderConfig("https://api.auraedu.com")
+	err := validateExecution(cfg)
+	if err == nil || !strings.Contains(err.Error(), "--allow-live") {
+		t.Fatalf("production host accepted without --allow-live: %v", err)
+	}
+	cfg.AllowLive = true
+	if err := validateExecution(cfg); err != nil {
+		t.Fatalf("production host refused despite --allow-live: %v", err)
+	}
+
+	cfg = testProviderConfig("https://staging-api.auraedu.com")
+	cfg.Token = "live_probe_test_fixture_not_a_secret"
+	err = validateExecution(cfg)
+	if err == nil || !strings.Contains(err.Error(), "--allow-live") {
+		t.Fatalf("live Paystack key accepted without --allow-live: %v", err)
+	}
+	if strings.Contains(err.Error(), cfg.Token) {
+		t.Fatal("refusal leaked the credential")
+	}
+	cfg.AllowLive = true
+	if err := validateExecution(cfg); err != nil {
+		t.Fatalf("live credential refused despite --allow-live: %v", err)
+	}
+}
+
+func TestStagingHostRecognition(t *testing.T) {
+	for _, host := range []string{"staging-api.auraedu.com", "sandbox.resend.com", "stg.example.org", "dev.api.auraedu.com", "notify.test", "service.local", "render.internal"} {
+		if !isStagingHost(host) {
+			t.Errorf("%s should read as non-production", host)
+		}
+	}
+	for _, host := range []string{"api.auraedu.com", "auraedu.com", "api.resend.com"} {
+		if isStagingHost(host) {
+			t.Errorf("%s should read as production", host)
+		}
+	}
+}

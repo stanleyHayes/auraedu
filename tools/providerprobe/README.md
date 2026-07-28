@@ -19,3 +19,7 @@ GOWORK=off go run . \
 ```
 
 The output uses exclusive-create mode `0600`. It stores the environment, deployed Git revision, timing, four bounded outcomes, Resend acceptance, persisted `sent`, webhook-projected `delivered`, and SHA-256-derived fingerprints. It never stores the bearer token, tenant code, recipient address, recipient ID, message ID, subject, body, provider response or API response body. The release mailbox should independently retain the received message for human review; the repository artifact proves the API and signed feedback path without retaining message contents.
+
+## Live-target safety rail
+
+The probe refuses to run against a non-staging hostname (anything not matching staging/sandbox/dev/`.test`/`.local`/`.internal` naming) or a live-shaped credential (documented live prefixes such as Paystack `sk_live_`/`pk_live_`, or any `_live_` marker) unless `--allow-live` is passed explicitly. Refusal messages never echo the credential.

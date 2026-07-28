@@ -8,6 +8,8 @@ import test from "node:test";
 
 import {
   openLedgerIDs,
+  signOffRequirements,
+  unresolvedSignOffs,
   validateIsolationEvidence,
   validateOperationalEvidence,
   validatePerformanceEvidence,
@@ -531,4 +533,118 @@ test("provider evidence requires accepted, persisted and webhook-delivered state
   const errors = validateProviderEvidence(evidence).join("\n");
   assert.match(errors, /Resend acceptance/);
   assert.match(errors, /unsupported provider evidence field: recipient_email/);
+});
+
+async function satisfiedManifestFixture() {
+  const root = await mkdtemp(join(tmpdir(), "auraedu-release-signoff-"));
+  const directory = join(root, "release/evidence/records/AURA-9.1");
+  mkdirSync(directory, { recursive: true });
+  const path = join(directory, "proof.json");
+  const evidence = {
+    name: "auraedu-production-render-deployment",
+    environment: "production",
+    target_url: "https://dashboard.render.com/web/auraedu",
+    run_id: "release-2026-07-20-render",
+    git_sha: releaseSHA,
+    started_at: "2026-07-20T10:00:00Z",
+    finished_at: "2026-07-20T10:01:00Z",
+    all_passed: true,
+    checks: [
+      "blueprint-applied",
+      "services-healthy",
+      "services-ready",
+      "identity-login",
+      "route-smoke",
+      "runtime-config",
+      "non-root-runtime",
+    ].map((name, index) => ({
+      name,
+      passed: true,
+      observed_at: `2026-07-20T10:00:${String(index).padStart(2, "0")}Z`,
+      evidence_fingerprint: String(index + 1).padStart(16, "0"),
+    })),
+  };
+  const contents = `${JSON.stringify(evidence)}\n`;
+  writeFileSync(path, contents);
+  const digest = createHash("sha256").update(contents).digest("hex");
+  const manifest = {
+    schema_version: 1,
+    release_git_sha: releaseSHA,
+    items: [
+      {
+        id: "AURA-9.1",
+        status: "verified",
+        owner: "SRE",
+        requirement: "Retain deployed provider evidence for the production topology.",
+        verified_at: "2026-07-20T10:02:00Z",
+        approved_by: "Release Manager",
+        artifacts: [{ path: "release/evidence/records/AURA-9.1/proof.json", sha256: digest }],
+      },
+    ],
+  };
+  return { root, manifest };
+}
+
+const confirmedSignOffs = Object.fromEntries(
+  Object.keys(signOffRequirements).map((name) => [name, "true"]),
+);
+
+test("assert mode refuses without the recorded human launch sign-offs", async () => {
+  const { root, manifest } = await satisfiedManifestFixture();
+  const errors = validateReadiness({
+    manifest,
+    ledger: "",
+    repoRoot: root,
+    assertReady: true,
+    signOffs: {},
+  }).join("\n");
+  assert.match(errors, /blocked by 3 pending human sign-off/);
+  assert.match(errors, /AURAEDU_LEGAL_REVIEW_CONFIRMED/);
+  assert.match(errors, /AURAEDU_GROWTH_POLICY_CONFIRMED/);
+  assert.match(errors, /AURAEDU_UAT_SIGNOFF_CONFIRMED/);
+});
+
+test("assert mode refuses human sign-offs that are not exactly true", async () => {
+  const { root, manifest } = await satisfiedManifestFixture();
+  const signOffs = {
+    AURAEDU_LEGAL_REVIEW_CONFIRMED: "yes",
+    AURAEDU_GROWTH_POLICY_CONFIRMED: "1",
+    AURAEDU_UAT_SIGNOFF_CONFIRMED: "confirmed",
+  };
+  const errors = validateReadiness({
+    manifest,
+    ledger: "",
+    repoRoot: root,
+    assertReady: true,
+    signOffs,
+  }).join("\n");
+  assert.match(errors, /blocked by 3 pending human sign-off/);
+  assert.doesNotMatch(errors, /yes|confirmed/);
+});
+
+test("assert mode passes with a satisfied manifest and all three sign-offs true", async () => {
+  const { root, manifest } = await satisfiedManifestFixture();
+  const mixedCase = { ...confirmedSignOffs, AURAEDU_UAT_SIGNOFF_CONFIRMED: "TrUe" };
+  assert.deepEqual(
+    validateReadiness({
+      manifest,
+      ledger: "",
+      repoRoot: root,
+      assertReady: true,
+      signOffs: mixedCase,
+    }),
+    [],
+  );
+});
+
+test("plain validate mode reports pending sign-offs without failing the manifest", async () => {
+  const { root, manifest } = await satisfiedManifestFixture();
+  assert.deepEqual(validateReadiness({ manifest, ledger: "", repoRoot: root, signOffs: {} }), []);
+  const pending = unresolvedSignOffs({});
+  assert.deepEqual(
+    pending.map(({ name }) => name),
+    Object.keys(signOffRequirements),
+  );
+  assert.ok(pending.every(({ description }) => description.length > 10));
+  assert.deepEqual(unresolvedSignOffs(confirmedSignOffs), []);
 });

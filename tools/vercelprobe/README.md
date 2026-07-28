@@ -29,8 +29,13 @@ GOWORK=off go run . \
 
 GOWORK=off go run . \
   -config ../../release/scenarios/production-vercel-frontends.json \
+  -allow-live \
   -out ../../release/evidence/records/AURA-9.8/vercel-frontends.json
 ```
+
+Because this probe targets production by definition, a real run refuses to
+start without the explicit `-allow-live` acknowledgement. The refusal (and
+every other error path) never echoes the Vercel token.
 
 The output path uses exclusive creation and mode `0600`. A failed proof still writes a sanitized diagnostic record, exits non-zero, and cannot satisfy the release validator.
 

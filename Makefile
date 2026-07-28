@@ -136,6 +136,12 @@ migrate: local-config ## Apply every service migration using a chmod-600 service
 migrate-check: ## Validate migration inventory, sequencing, markers, and executable runners
 	node tools/migrations/orchestrate.mjs --check
 
+.PHONY: migrate-down-test
+migrate-down-test: ## Down-test one service's chain against local Postgres: make migrate-down-test SERVICE=identity-service DSN=postgres://...
+	@test -n "$(SERVICE)" || (echo "usage: make migrate-down-test SERVICE=<service> DSN=<postgres-dsn>"; exit 1)
+	@test -n "$(DSN)" || (echo "usage: make migrate-down-test SERVICE=<service> DSN=<postgres-dsn>"; exit 1)
+	bash tools/ci/check-migration-down.sh "$(SERVICE)" "$(DSN)"
+
 .PHONY: seed
 seed: ## Seed the two initial tenants (UPSHS, Aboom)
 	go run ./tools/seed
@@ -155,13 +161,17 @@ smoke-onboarding-activation: ## Prove approval, invite, outage recovery, tenant 
 .PHONY: ci-check
 ci-check: lint test contracts compose-validate ## Run the local subset of CI gates
 
+.PHONY: file-size-check
+file-size-check: ## Enforce per-language file-size budgets against the shrink-only allowlist
+	node tools/ci/check-file-size.mjs
+
 .PHONY: release-evidence-validate
 release-evidence-validate: ## Validate release evidence structure, hashes, and ledger parity
 	node --test tools/release/verify-readiness.test.mjs
 	node tools/release/verify-readiness.mjs
 
 .PHONY: release-readiness
-release-readiness: ## Fail unless every production release evidence item is verified
+release-readiness: ## Fail unless release evidence is verified and the three human sign-off gates (AURAEDU_LEGAL_REVIEW_CONFIRMED, AURAEDU_GROWTH_POLICY_CONFIRMED, AURAEDU_UAT_SIGNOFF_CONFIRMED) are each set to "true"
 	node tools/release/verify-readiness.mjs --assert-ready
 
 # ---- Help ------------------------------------------------------------------
