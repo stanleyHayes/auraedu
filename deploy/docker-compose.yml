@@ -175,7 +175,7 @@ services:
       args:
         GIT_SHA: local
     working_dir: /
-    ports: ["8091:8091"]
+    ports: ["${STAFF_HOST_PORT:-8091}:8091"]
     environment:
       <<: *observability-env
       PORT: 8091
@@ -625,7 +625,7 @@ services:
       args:
         GIT_SHA: local
     working_dir: /
-    ports: ["8100:8100"]
+    ports: ["${BILLING_HOST_PORT:-8100}:8100"]
     environment:
       <<: *observability-env
       PORT: 8100
