@@ -25,9 +25,9 @@ Schools are **tenants** on one platform — never separate codebases. First tena
 12. **Traceability:** every branch/commit/PR references its `AURA-x.y` key.
 
 ## Stack (locked — do not re-litigate)
-- Go 1.25 (hexagonal) domain services · Python 3.13 / FastAPI AI services · Next.js 16 web + marketing · Expo/React Native mobile (teacher/parent/student only).
-- Postgres 17 (DB-per-service + RLS) · NATS JetStream (CloudEvents) · **Render** deploy (Blueprints) · **Cloudinary** media · Render Key Value (Redis).
-- Latest package versions everywhere; Renovate keeps them current.
+- Go 1.26.5 (hexagonal) domain services · Python 3.14.6 / FastAPI AI services · Next.js 16 web + marketing · Expo/React Native mobile (teacher/parent/student only).
+- PostgreSQL 18 (DB-per-service + RLS) · NATS JetStream (CloudEvents) · **Render** deploy (Blueprints) · **Cloudinary** media · Render Key Value (Redis).
+- Exact versions are pinned in the repository and updated through reviewed Renovate changes.
 
 ## Git conventions
 - Branch `feature/AURA-<epic>.<story>-slug` · Commit `AURA-<epic>.<story> <what>` · PR title `AURA-<epic>.<story> <summary>`.

@@ -52,7 +52,9 @@ func TestResolveTeacherFailsClosed(t *testing.T) {
 
 func TestResolveTeacherAssignmentsRejectsOversizedDependencyResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = fmt.Fprint(w, strings.Repeat("x", (1<<20)+1))
+		if _, err := fmt.Fprint(w, strings.Repeat("x", (1<<20)+1)); err != nil {
+			t.Errorf("write oversized response: %v", err)
+		}
 	}))
 	defer server.Close()
 

@@ -4,7 +4,7 @@
 **Version:** 1.0
 **Governed by:** `docs/README.md`, `docs/SUMMARY.md`, `AI_Development_Workflow_Training_Manual`, `AI_Native_Software_Engineering_Operations_Manual`
 **Audience:** AI coding agents and engineers building AuraEDU in parallel
-**Status:** Ready for Sprint 0
+**Status:** Local implementation mature; 19 production evidence items and 3 human launch sign-offs remain
 
 > This is the single source of truth for *how the work is decomposed and sequenced*.
 > The Engineering Handbook says **what and why** to build. This plan says **who builds it, in what order, against which contracts, and how to avoid stepping on each other.**
@@ -62,6 +62,8 @@
 ## 1a. Agent Task Board (live)
 
 This section tracks work currently in-flight and recently completed. It is updated by the active agent after every batch of work.
+
+**Continuation audit — 2026-07-29:** Restored the failing `main` observability gate by making Loki's schema start date an explicit YAML string, compatible with GitHub's safe Ruby/Psych loader and Loki's native validator. Repaired the Academic oversized-response regression so the canonical Go lint inventory returns zero issues. Reconciled this plan's lifecycle status and `CLAUDE.md`'s locked toolchain with the implemented baseline. All 26 Go lint modules, Python Ruff/format/mypy/Pyright, 106 Python tests (1 intentional skip), all 21 frontend lint/typecheck/test tasks (141 Web, 17 Marketing, 16 Mobile), 33 OpenAPI contracts, 119 event schemas, 24-service route parity, Compose rendering, release-evidence validation, static security, formatting, and the complete Docker-independent observability gate pass. Docker-backed PostgreSQL/native-validator execution is currently blocked by Docker Desktop reporting its engine `stopped` after restart. Provider inspection confirms no AuraEDU Render resources exist; both linked Vercel projects still have only failed Production deployments and lack the Gateway URL variables. The strict release manifest remains correctly at 19 pending items plus 3 human sign-offs.
 
 | Story | Epic | Status | Agent | Notes |
 |---|---|---|---|---|
