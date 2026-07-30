@@ -538,10 +538,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id="how-it-works" className="bg-white" aria-labelledby="onboarding-title">
-        <div className="mx-auto grid max-w-7xl gap-12 px-6 py-24 lg:grid-cols-[0.7fr_1.3fr] lg:items-center">
+      <section id="how-it-works" className="bg-cool-mist" aria-labelledby="onboarding-title">
+        <div className="mx-auto grid max-w-7xl gap-12 px-6 py-24 lg:grid-cols-[0.68fr_1.32fr] lg:items-start lg:py-28">
           <ScrollReveal>
-            <Eyebrow>Get started deliberately</Eyebrow>
+            <Eyebrow>Implementation, with support</Eyebrow>
             <h2
               id="onboarding-title"
               className="mt-4 max-w-[11ch] text-balance font-heading text-4xl font-bold leading-[1.02] tracking-[-0.04em] text-navy-deep sm:text-6xl"
@@ -552,8 +552,11 @@ export default function HomePage() {
               We map AuraEDU to your school’s current work, bring records across carefully and open
               each role with support.
             </p>
+            <p className="onboarding-assurance">
+              Your team keeps teaching while we shape the system around how your school works.
+            </p>
           </ScrollReveal>
-          <StaggerChildren className="onboarding-flow">
+          <StaggerChildren className="onboarding-flow" role="list">
             {[
               {
                 title: "Create your school",
@@ -578,15 +581,18 @@ export default function HomePage() {
             ].map((step, index) => {
               const Icon = step.icon;
               return (
-                <StaggerItem key={step.title} className="onboarding-step">
-                  <span className="onboarding-icon">
-                    <Icon className="size-6" aria-hidden="true" />
-                  </span>
-                  <span>
-                    <small>0{index + 1}</small>
-                    <strong>{step.title}</strong>
-                    <p>{step.copy}</p>
-                  </span>
+                <StaggerItem key={step.title} className="onboarding-step" role="listitem">
+                  <div className="onboarding-step-topline">
+                    <span className="onboarding-icon">
+                      <Icon className="size-6" aria-hidden="true" />
+                    </span>
+                    <span className="onboarding-sequence" aria-hidden="true">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                  </div>
+                  <strong>{step.title}</strong>
+                  <p>{step.copy}</p>
+                  {index < 3 ? <ArrowRight className="onboarding-arrow" aria-hidden="true" /> : null}
                 </StaggerItem>
               );
             })}

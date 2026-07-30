@@ -443,56 +443,109 @@ a:hover > .brand-lockup {
 }
 
 .onboarding-flow {
+  position: relative;
   display: grid;
   gap: 0.75rem;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 1.75rem;
+  background:
+    radial-gradient(circle at 100% 0%, rgb(99 213 218 / 0.15), transparent 38%),
+    #061631;
+  padding: 0.75rem;
+  box-shadow: 0 26px 70px rgb(6 22 49 / 0.16);
 }
 
 .onboarding-step {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: start;
-  gap: 1rem;
-  border-bottom: 1px solid #dbe3ed;
-  padding: 1.1rem 0;
+  position: relative;
+  min-height: 12rem;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 1.1rem;
+  background: rgb(255 255 255 / 0.055);
+  padding: 1.4rem;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    transform 180ms var(--ease-out-quart);
 }
 
-.onboarding-step:last-child {
-  border-bottom: 0;
+.onboarding-step:hover {
+  border-color: rgb(99 213 218 / 0.38);
+  background: rgb(255 255 255 / 0.085);
+  transform: translateY(-2px);
+}
+
+.onboarding-step-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .onboarding-icon {
   display: grid;
-  width: 3.3rem;
-  height: 3.3rem;
+  width: 3rem;
+  height: 3rem;
   place-items: center;
-  border-radius: 0.8rem;
-  background: #e8efff;
-  color: #1557ff;
+  border: 1px solid rgb(99 213 218 / 0.25);
+  border-radius: 0.9rem;
+  background: rgb(99 213 218 / 0.1);
+  color: #63d5da;
 }
 
-.onboarding-step small,
+.onboarding-sequence {
+  font-family: var(--font-spline-mono), ui-monospace, monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  color: #8fa5c4;
+}
+
 .onboarding-step strong {
   display: block;
-}
-
-.onboarding-step small {
-  font-family: var(--font-spline-mono), ui-monospace, monospace;
-  font-size: 0.65rem;
-  letter-spacing: 0.15em;
-  color: #087f8c;
-}
-
-.onboarding-step strong {
-  margin-top: 0.25rem;
-  color: #07152f;
-  font-size: 1rem;
+  margin-top: 2rem;
+  max-width: 12ch;
+  color: #f8fafc;
+  font-size: 1.15rem;
+  line-height: 1.2;
 }
 
 .onboarding-step p {
-  margin-top: 0.35rem;
-  color: #64748b;
-  font-size: 0.8rem;
-  line-height: 1.5;
+  margin-top: 0.6rem;
+  max-width: 24ch;
+  color: #aebbd0;
+  font-size: 0.84rem;
+  line-height: 1.6;
+}
+
+.onboarding-arrow {
+  position: absolute;
+  right: -1.06rem;
+  top: 50%;
+  z-index: 2;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  background: #b7f500;
+  padding: 0.25rem;
+  color: #061631;
+  box-shadow: 0 0 0 0.35rem #061631;
+  transform: translateY(-50%);
+}
+
+.onboarding-step:nth-child(2) .onboarding-arrow {
+  right: 50%;
+  top: auto;
+  bottom: -1.06rem;
+  transform: translateX(50%) rotate(90deg);
+}
+
+.onboarding-assurance {
+  margin-top: 2rem;
+  max-width: 24rem;
+  border-left: 2px solid #087f8c;
+  padding-left: 1rem;
+  color: #40516b;
+  font-size: 0.82rem;
+  line-height: 1.65;
 }
 
 .final-cta {
@@ -1259,16 +1312,6 @@ a:hover > .brand-lockup {
 
   .onboarding-flow {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0;
-  }
-
-  .onboarding-step {
-    border-right: 1px solid #dbe3ed;
-    padding: 1.2rem;
-  }
-
-  .onboarding-step:nth-child(even) {
-    border-right: 0;
   }
 }
 
@@ -1290,20 +1333,6 @@ a:hover > .brand-lockup {
     transform: translateY(-50%);
   }
 
-  .onboarding-flow {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .onboarding-step,
-  .onboarding-step:nth-child(even) {
-    border-right: 1px solid #dbe3ed;
-    border-bottom: 0;
-  }
-
-  .onboarding-step:last-child {
-    border-right: 0;
-  }
-
   .final-cta {
     grid-template-columns: 1.1fr 0.9fr;
     align-items: end;
@@ -1318,6 +1347,21 @@ a:hover > .brand-lockup {
 }
 
 @media (max-width: 639px) {
+  .onboarding-step {
+    min-height: 11rem;
+  }
+
+  .onboarding-arrow {
+    right: 50%;
+    top: auto;
+    bottom: -1.06rem;
+    transform: translateX(50%) rotate(90deg);
+  }
+
+  .onboarding-step:nth-child(2) .onboarding-arrow {
+    right: 50%;
+  }
+
   .marketing-home h1 {
     font-size: clamp(3.1rem, 15vw, 4.7rem);
   }

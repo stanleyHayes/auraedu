@@ -8,7 +8,7 @@ import {
   useScroll,
   useTransform,
 } from "framer-motion";
-import type { ReactNode } from "react";
+import type { AriaRole, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
 const ease = [0.25, 1, 0.5, 1] as const;
@@ -55,9 +55,11 @@ export function ScrollReveal({
 export function StaggerChildren({
   children,
   className,
+  role,
 }: {
   children: ReactNode;
   className?: string;
+  role?: AriaRole;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: "240px 0px 240px 0px" });
@@ -68,6 +70,7 @@ export function StaggerChildren({
     <motion.div
       ref={ref}
       className={className}
+      role={role}
       initial={false}
       animate={!hydrated || reduced || inView ? "visible" : "hidden"}
       variants={{ visible: { transition: { staggerChildren: reduced ? 0 : 0.09 } } }}
@@ -77,11 +80,20 @@ export function StaggerChildren({
   );
 }
 
-export function StaggerItem({ children, className }: { children: ReactNode; className?: string }) {
+export function StaggerItem({
+  children,
+  className,
+  role,
+}: {
+  children: ReactNode;
+  className?: string;
+  role?: AriaRole;
+}) {
   const reduced = useReducedMotion();
   return (
     <motion.div
       className={className}
+      role={role}
       variants={{
         hidden: { opacity: 0, y: 18, rotateX: 10 },
         visible: {
