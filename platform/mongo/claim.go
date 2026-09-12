@@ -228,3 +228,69 @@ func truncateReason(reason string) string {
 	}
 	return reason[:max]
 }
+
+// Services acknowledge an event by its id alone, because that is all their
+// outbox port carries. Embedding events in their aggregate means the id has to
+// be resolved back to the owning document first; these do that, so a service
+// adapter matches its existing port without extra plumbing.
+
+func (o *ClaimableOutbox) documentFor(ctx context.Context, eventID string) (any, error) {
+	var doc struct {
+		ID any `bson:"_id"`
+	}
+	err := o.coll.coll.FindOne(ctx,
+		bson.M{PendingField: bson.M{"$elemMatch": bson.M{"id": eventID}}},
+		options.FindOne().SetProjection(bson.M{"_id": 1}),
+	).Decode(&doc)
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil // already acknowledged; at-least-once makes this normal
+		}
+		return nil, fmt.Errorf("mongo outbox: locate %s: %w", eventID, err)
+	}
+	return doc.ID, nil
+}
+
+// MarkPublishedByEventID acknowledges an event without the caller tracking its
+// document. Acknowledging an already-removed event is not an error: redelivery
+// is expected from an at-least-once outbox.
+func (o *ClaimableOutbox) MarkPublishedByEventID(ctx context.Context, eventID string) error {
+	documentID, err := o.documentFor(ctx, eventID)
+	if err != nil || documentID == nil {
+		return err
+	}
+	return o.MarkPublished(ctx, documentID, eventID)
+}
+
+// MarkFailedByEventID releases and reschedules an event by its id.
+func (o *ClaimableOutbox) MarkFailedByEventID(ctx context.Context, eventID, reason string) error {
+	documentID, err := o.documentFor(ctx, eventID)
+	if err != nil || documentID == nil {
+		return err
+	}
+	return o.MarkFailed(ctx, documentID, eventID, reason)
+}
+
+// PurgeSettled deletes documents matching filter that have no events left to
+// deliver. A delete cannot simply remove its document, because that would remove
+// the delete event with it; the record is tombstoned instead and cleared here
+// once its event is gone.
+//
+// This is the only operation that reaches across tenants without a Scope, and it
+// is deliberately narrow: it is maintenance on a service's own collection, it
+// can only delete, and it always requires the document to have no pending
+// events, so it cannot discard undelivered work.
+func (o *ClaimableOutbox) PurgeSettled(ctx context.Context, filter bson.M) (int64, error) {
+	query := bson.M{}
+	for k, v := range filter {
+		query[k] = v
+	}
+	// Set last so a caller cannot relax the settled condition.
+	query[PendingField] = bson.M{"$in": bson.A{nil, bson.A{}}}
+
+	res, err := o.coll.coll.DeleteMany(ctx, query)
+	if err != nil {
+		return 0, fmt.Errorf("mongo outbox: purge settled: %w", err)
+	}
+	return res.DeletedCount, nil
+}
