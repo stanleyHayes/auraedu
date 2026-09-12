@@ -10,8 +10,10 @@ import (
 
 	servercmd "github.com/auraedu/identity-service/cmd/server"
 	workercmd "github.com/auraedu/identity-service/cmd/worker"
+	mongoadapter "github.com/auraedu/identity-service/internal/adapters/mongo"
 	"github.com/auraedu/identity-service/internal/db"
 	"github.com/auraedu/platform/config"
+	"github.com/auraedu/platform/store"
 	"github.com/spf13/cobra"
 )
 
@@ -25,6 +27,7 @@ func main() {
 		Short:   serviceName + " service CLI",
 		Version: version,
 	}
+	root.AddCommand(seedDemoCommand())
 	root.AddCommand(&cobra.Command{
 		Use:   "server",
 		Short: "Run the " + serviceName + " HTTP server",
@@ -55,6 +58,17 @@ func main() {
 }
 
 func runMigrate(ctx context.Context) error {
+	driver, err := store.Selected()
+	if err != nil {
+		return err
+	}
+	if driver.IsMongo() {
+		_, database, err := mongoadapter.OpenFromEnv(ctx)
+		if err != nil {
+			return err
+		}
+		return database.Close(ctx)
+	}
 	dsn := config.Getenv("DATABASE_URL", "")
 	if dsn == "" {
 		return fmt.Errorf("DATABASE_URL not set")

@@ -13,15 +13,15 @@ import (
 	"time"
 
 	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/db"
 	"github.com/auraedu/platform/eventbus"
 	"github.com/auraedu/platform/httpx"
 	"github.com/auraedu/platform/observ"
+	"github.com/auraedu/platform/store"
 	"github.com/auraedu/tenant-service/internal/adapters/events"
 	svchttp "github.com/auraedu/tenant-service/internal/adapters/http"
 	"github.com/auraedu/tenant-service/internal/adapters/memory"
-	"github.com/auraedu/tenant-service/internal/adapters/postgres"
 	"github.com/auraedu/tenant-service/internal/application"
+	"github.com/auraedu/tenant-service/internal/persistence"
 	"github.com/auraedu/tenant-service/internal/ports"
 	"github.com/nats-io/nats.go"
 )
@@ -64,14 +64,19 @@ func main() {
 
 	health := httpx.NewHealth(service, version).WithLogger(log)
 	if repoReady != nil {
-		health.AddReadinessCheck("postgres", repoReady)
+		driver, err := store.Selected()
+		if err != nil {
+			log.Error("invalid database driver", "err", err)
+			return
+		}
+		health.AddReadinessCheck(string(driver), repoReady)
 	}
 	mux := http.NewServeMux()
 	health.Register(mux)
 	handler.Register(mux)
 	handler.RegisterInternal(mux, config.Getenv("INTERNAL_SERVICE_TOKEN", ""))
 
-	addr := ":" + strconv.Itoa(config.Port(8082))
+	addr := config.Getenv("BIND_HOST", "") + ":" + strconv.Itoa(config.Port(8082))
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           observ.HTTPHandler(service, httpx.RequestIDMiddleware(mux)),
@@ -100,10 +105,18 @@ func main() {
 }
 
 func validateProductionRuntime() error {
+	driver, err := store.Selected()
+	if err != nil {
+		return err
+	}
+	databaseKey := "DATABASE_URL"
+	if driver.IsMongo() {
+		databaseKey = "MONGODB_URI"
+	}
 	if config.Getenv("ENVIRONMENT", "development") != "production" {
 		return nil
 	}
-	for _, key := range []string{"DATABASE_URL", "INTERNAL_SERVICE_TOKEN"} {
+	for _, key := range []string{databaseKey, "INTERNAL_SERVICE_TOKEN"} {
 		if config.Getenv(key, "") == "" {
 			return errors.New(key + " is required in production")
 		}
@@ -112,16 +125,18 @@ func validateProductionRuntime() error {
 }
 
 func mustInitRepository(ctx context.Context, log *slog.Logger) (ports.Repository, func() error, func()) {
-	if dsn := config.Getenv("DATABASE_URL", ""); dsn != "" {
-		database, err := db.Open(ctx, db.Config{
-			DSN:        dsn,
-			Migrations: config.Getenv("MIGRATIONS_PATH", "migrations"),
-		})
+	driver, err := store.Selected()
+	if err != nil {
+		log.Error("database driver invalid", "err", err)
+		os.Exit(1)
+	}
+	if driver.IsMongo() || config.Getenv("DATABASE_URL", "") != "" {
+		database, err := persistence.Open(ctx)
 		if err != nil {
 			log.Error("database init failed", "err", err)
 			os.Exit(1)
 		}
-		return postgres.NewRepository(database), readinessCheck(database), func() { database.Close() }
+		return database.Repository, readinessCheck(database), database.Close
 	}
 	log.Info("DATABASE_URL not set; using in-memory development repository")
 	return memory.New(), nil, nil

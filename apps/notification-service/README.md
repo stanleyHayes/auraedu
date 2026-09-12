@@ -164,3 +164,21 @@ REST: `contracts/openapi/notification.v1.yaml` (managed separately)
 Events: consumes `payment.received`, `invoice.created`, `attendance.marked`,
 `assessment.score_recorded`, `report.published`; emits
 `contracts/events/notification.sent.v1.json`, `notification.failed.v1.json`.
+
+## Selectable persistence (AURA-9.12)
+
+`DATABASE_DRIVER` defaults to `postgres`. Set it to `mongodb`, provide
+`MONGODB_URI`, and optionally set `MONGODB_DATABASE` (defaults to `notification-service`).
+Both server and worker select the same adapter and initialize its indexes before
+processing requests. Each process uses a bounded two-connection pool.
+
+The Mongo adapter scopes all request operations to a tenant and stores lifecycle
+events inside their aggregate. Workers lease these events and acknowledge them
+only after publication; redelivery keeps the same event ID.
+
+MongoDB must be a replica set (including Atlas Free): cross-document operations
+use transactions. This includes journey enrollment/cancellation, delivery feedback and suppression, and device token changes. A standalone MongoDB server is not supported for those operations.
+
+Run `go test ./internal/adapters/mongo` from this service to exercise a real
+MongoDB replica-set testcontainer, including tenant isolation, concurrent claims,
+and rollback. Docker is required.

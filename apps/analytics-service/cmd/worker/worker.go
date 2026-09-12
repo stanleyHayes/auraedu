@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/db"
 	"github.com/auraedu/platform/observ"
 
 	// Register pgx SQL driver for database/sql based migrations.
@@ -19,8 +18,8 @@ import (
 	"github.com/nats-io/nats.go"
 
 	svcevents "github.com/auraedu/analytics-service/internal/adapters/events"
-	"github.com/auraedu/analytics-service/internal/adapters/postgres"
 	"github.com/auraedu/analytics-service/internal/application"
+	"github.com/auraedu/analytics-service/internal/persistence"
 )
 
 const service = "analytics-service-worker"
@@ -48,13 +47,13 @@ func run(log *slog.Logger) error {
 			log.Error("flush analytics worker telemetry", "err", err)
 		}
 	}()
-	database, err := openDB(ctx)
+	database, err := persistence.Open(ctx)
 	if err != nil {
 		return err
 	}
 	defer database.Close()
 
-	repo := postgres.NewRepository(database)
+	repo := database.Repository
 	projection := application.NewProjection(repo, log)
 
 	natsURL, err := config.MustGetenv("NATS_URL")
@@ -90,17 +89,6 @@ func run(log *slog.Logger) error {
 	<-stop
 	log.Info(service + " worker stopped")
 	return nil
-}
-
-func openDB(ctx context.Context) (*db.DB, error) {
-	dsn, err := config.MustGetenv("DATABASE_URL")
-	if err != nil {
-		return nil, err
-	}
-	return db.Open(ctx, db.Config{
-		DSN:        dsn,
-		Migrations: "migrations",
-	})
 }
 
 // Run starts the analytics-service background worker. It is invoked by the service CLI.

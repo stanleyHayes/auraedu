@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,10 +15,9 @@ import (
 
 	fileadapter "github.com/auraedu/admissions-service/internal/adapters/file"
 	admissionshttp "github.com/auraedu/admissions-service/internal/adapters/http"
-	"github.com/auraedu/admissions-service/internal/adapters/postgres"
 	"github.com/auraedu/admissions-service/internal/application"
+	"github.com/auraedu/admissions-service/internal/persistence"
 	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/db"
 	"github.com/auraedu/platform/flags"
 	"github.com/auraedu/platform/httpx"
 	"github.com/auraedu/platform/observ"
@@ -38,24 +38,20 @@ func Run(version string) error {
 		}
 	}()
 	ctx := context.Background()
-	dsn, e := config.MustGetenv("DATABASE_URL")
-	if e != nil {
-		return e
-	}
-	database, e := db.Open(ctx, db.Config{DSN: dsn, Migrations: config.Getenv("MIGRATIONS_PATH", "migrations")})
+	database, e := persistence.Open(ctx)
 	if e != nil {
 		return e
 	}
 	defer database.Close()
 	fileVerifier := fileadapter.NewClient(config.Getenv("SERVICE_FILE_URL", ""), config.Getenv("INTERNAL_SERVICE_TOKEN", ""))
-	svc := application.NewService(postgres.NewRepository(database), application.WithFeatureGate(featureGate(log)), application.WithDocumentVerifier(fileVerifier))
+	svc := application.NewService(database.Repository, application.WithFeatureGate(featureGate(log)), application.WithDocumentVerifier(fileVerifier))
 	mux := http.NewServeMux()
 	health := httpx.NewHealth("admissions-service", version).WithLogger(log)
-	health.AddReadinessCheck("postgres", func() error { return database.Ping(ctx) })
+	health.AddReadinessCheck(database.Driver, func() error { return database.Ping(ctx) })
 	health.Register(mux)
 	admissionshttp.NewHandler(svc).Register(mux)
 	srv := &http.Server{
-		Addr:              ":" + strconv.Itoa(config.Port(8114)),
+		Addr:              net.JoinHostPort(config.Getenv("BIND_HOST", ""), strconv.Itoa(config.Port(8114))),
 		Handler:           observ.HTTPHandler("admissions-service", httpx.RequestIDMiddleware(mux)),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,

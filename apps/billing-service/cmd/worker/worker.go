@@ -12,11 +12,10 @@ import (
 	"time"
 
 	svcevents "github.com/auraedu/billing-service/internal/adapters/events"
-	"github.com/auraedu/billing-service/internal/adapters/postgres"
 	"github.com/auraedu/billing-service/internal/application"
+	"github.com/auraedu/billing-service/internal/persistence"
 	"github.com/auraedu/billing-service/internal/ports"
 	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/db"
 	"github.com/auraedu/platform/eventbus"
 	"github.com/auraedu/platform/observ"
 	"github.com/auraedu/platform/tenancy"
@@ -50,11 +49,7 @@ func Run() error {
 		}
 	}()
 
-	dsn, err := config.MustGetenv("DATABASE_URL")
-	if err != nil {
-		return err
-	}
-	database, err := db.Open(ctx, db.Config{DSN: dsn, Migrations: "migrations"})
+	database, err := persistence.Open(ctx)
 	if err != nil {
 		return err
 	}
@@ -77,9 +72,9 @@ func Run() error {
 		return err
 	}
 
-	planRepo := postgres.NewPlanRepository(database)
-	subRepo := postgres.NewSubscriptionRepository(database)
-	invRepo := postgres.NewSaaSInvoiceRepository(database)
+	planRepo := database.Plan
+	subRepo := database.Subscription
+	invRepo := database.Invoice
 	pub := svcevents.NewPublisher(eventbus.NewPublisher(js))
 	svc := application.NewService(planRepo, subRepo, invRepo, application.WithPublisher(pub))
 	metrics := observ.NewWorkerMetrics(service, "tenant-created", "outbox-batch", "outbox-publish")

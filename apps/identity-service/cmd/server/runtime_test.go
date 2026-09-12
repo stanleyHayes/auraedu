@@ -1,6 +1,8 @@
 package servercmd
 
 import (
+	"context"
+	"log/slog"
 	"strings"
 	"testing"
 )
@@ -49,5 +51,30 @@ func TestValidateProductionRuntimeAllowsDevelopmentFallbacks(t *testing.T) {
 	t.Setenv("NATS_URL", "")
 	if err := validateProductionRuntime(); err != nil {
 		t.Fatalf("development fallback rejected: %v", err)
+	}
+}
+
+func TestMongoProductionRuntimeRequiresMongoURI(t *testing.T) {
+	t.Setenv("ENVIRONMENT", "production")
+	t.Setenv("DATABASE_DRIVER", "mongodb")
+	t.Setenv("MONGODB_URI", "")
+	t.Setenv("DATABASE_URL", "postgres://must-not-be-used")
+	if err := validateProductionRuntime(); err == nil || !strings.Contains(err.Error(), "MONGODB_URI") {
+		t.Fatalf("Mongo production fallback: %v", err)
+	}
+}
+
+func TestRepositorySelectionFailsClosed(t *testing.T) {
+	t.Setenv("ENVIRONMENT", "development")
+	t.Setenv("DATABASE_URL", "")
+	t.Setenv("MONGODB_URI", "")
+	for _, driver := range []string{"mongodb", "typo"} {
+		t.Run(driver, func(t *testing.T) {
+			t.Setenv("DATABASE_DRIVER", driver)
+			repo, _, _, err := initRepo(context.Background(), slog.Default())
+			if err == nil || repo != nil {
+				t.Fatalf("invalid persistence selection fell back to memory: %v", err)
+			}
+		})
 	}
 }

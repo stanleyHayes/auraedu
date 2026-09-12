@@ -11,11 +11,10 @@ import (
 	"time"
 
 	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/db"
 	"github.com/auraedu/platform/eventbus"
 	"github.com/auraedu/platform/observ"
 	"github.com/auraedu/tenant-service/internal/adapters/events"
-	"github.com/auraedu/tenant-service/internal/adapters/postgres"
+	"github.com/auraedu/tenant-service/internal/persistence"
 	"github.com/auraedu/tenant-service/internal/ports"
 	"github.com/nats-io/nats.go"
 )
@@ -48,11 +47,7 @@ func Run() error {
 		}
 	}()
 
-	dsn, err := config.MustGetenv("DATABASE_URL")
-	if err != nil {
-		return err
-	}
-	database, err := db.Open(ctx, db.Config{DSN: dsn, Migrations: config.Getenv("MIGRATIONS_PATH", "migrations")})
+	database, err := persistence.Open(ctx)
 	if err != nil {
 		return fmt.Errorf("tenant worker database: %w", err)
 	}
@@ -75,7 +70,7 @@ func Run() error {
 		return fmt.Errorf("tenant worker ensure stream: %w", err)
 	}
 
-	repo := postgres.NewRepository(database)
+	repo := database.Repository
 	publisher := events.NewPublisher(eventbus.NewPublisher(js))
 	metrics := observ.NewWorkerMetrics("tenant-service-worker", "outbox-batch", "outbox-publish")
 	ticker := time.NewTicker(time.Second)

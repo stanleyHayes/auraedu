@@ -6,7 +6,8 @@
 // Tenant isolation comes from platform/mongo.Scope rather than row-level
 // security: a query that is not scoped cannot be written. Lifecycle events are
 // embedded in the aggregate they describe, which makes the domain change and
-// its event a single atomic write on a tier with no multi-document transactions.
+// its event a single atomic write. Operations spanning aggregates use
+// replica-set transactions to preserve their shared invariants.
 package mongo
 
 import (
@@ -34,6 +35,7 @@ const (
 )
 
 type Repository struct {
+	store       *pmongo.Store
 	assessments *pmongo.Collection
 	scores      *pmongo.Collection
 	aOutbox     *pmongo.ClaimableOutbox
@@ -49,7 +51,7 @@ var (
 func NewRepository(store *pmongo.Store) *Repository {
 	assessments := store.Collection(AssessmentsCollection)
 	scores := store.Collection(ScoresCollection)
-	return &Repository{
+	return &Repository{store: store,
 		assessments: assessments,
 		scores:      scores,
 		aOutbox:     pmongo.NewClaimableOutbox(assessments, outboxLease),
@@ -292,11 +294,11 @@ func (r *Repository) DeleteAssessment(ctx context.Context, tenantID, id string) 
 	if err != nil {
 		return fmt.Errorf("assessment: delete: %w", err)
 	}
-	res, err := scope.DeleteOne(ctx, live(bson.M{"_id": id}))
+	res, err := scope.UpdateOne(ctx, live(bson.M{"_id": id}), bson.M{"$set": bson.M{"deleted_at": time.Now().UTC()}})
 	if err != nil {
 		return fmt.Errorf("assessment: delete: %w", err)
 	}
-	if res.DeletedCount != 1 {
+	if res.MatchedCount != 1 {
 		return domain.ErrNotFound
 	}
 	return nil
@@ -304,7 +306,7 @@ func (r *Repository) DeleteAssessment(ctx context.Context, tenantID, id string) 
 
 // --- Scores. ---
 
-func (r *Repository) CreateScore(ctx context.Context, tenantID string, s *domain.Score) error {
+func (r *Repository) createScore(ctx context.Context, tenantID string, s *domain.Score) error {
 	scope, err := r.scores.ScopeTo(tenantID)
 	if err != nil {
 		return fmt.Errorf("assessment: create score: %w", err)
@@ -401,7 +403,7 @@ func (r *Repository) ListScores(ctx context.Context, tenantID, assessmentID stri
 	return out, next, nil
 }
 
-func (r *Repository) UpdateScore(ctx context.Context, tenantID string, s *domain.Score) error {
+func (r *Repository) updateScore(ctx context.Context, tenantID string, s *domain.Score) error {
 	scope, err := r.scores.ScopeTo(tenantID)
 	if err != nil {
 		return fmt.Errorf("assessment: update score: %w", err)
@@ -421,11 +423,11 @@ func (r *Repository) DeleteScore(ctx context.Context, tenantID, assessmentID, sc
 	if err != nil {
 		return fmt.Errorf("assessment: delete score: %w", err)
 	}
-	res, err := scope.DeleteOne(ctx, live(bson.M{"_id": scoreID, "assessment_id": assessmentID}))
+	res, err := scope.UpdateOne(ctx, live(bson.M{"_id": scoreID, "assessment_id": assessmentID}), bson.M{"$set": bson.M{"deleted_at": time.Now().UTC()}})
 	if err != nil {
 		return fmt.Errorf("assessment: delete score: %w", err)
 	}
-	if res.DeletedCount != 1 {
+	if res.MatchedCount != 1 {
 		return domain.ErrNotFound
 	}
 	return nil
@@ -445,7 +447,7 @@ func lifecycleEvent(tenantID, eventType string, payload map[string]any) (tenancy
 	}, nil
 }
 
-func (r *Repository) CommitAssessmentLifecycle(ctx context.Context, tenantID string, m ports.LifecycleMutation, events []ports.LifecycleEvent) error {
+func (r *Repository) commitAssessmentLifecycle(ctx context.Context, tenantID string, m ports.LifecycleMutation, events []ports.LifecycleEvent) error {
 	scope, err := r.assessments.ScopeTo(tenantID)
 	if err != nil {
 		return fmt.Errorf("assessment: lifecycle: %w", err)
@@ -455,13 +457,9 @@ func (r *Repository) CommitAssessmentLifecycle(ctx context.Context, tenantID str
 		return fmt.Errorf("assessment: lifecycle: %w", err)
 	}
 
-	var cloudEvents []tenancy.CloudEvent
-	for _, e := range events {
-		ce, err := lifecycleEvent(tenantID, e.EventType, e.Payload)
-		if err != nil {
-			return err
-		}
-		cloudEvents = append(cloudEvents, ce)
+	cloudEvents, err := assessmentEvents(tenantID, events)
+	if err != nil {
+		return err
 	}
 
 	switch m.Kind {
@@ -832,4 +830,60 @@ func EnsureIndexes(ctx context.Context, store *pmongo.Store) error {
 		}
 	}
 	return nil
+}
+
+func (r *Repository) fenceAssessment(ctx context.Context, t, id string) error {
+	scope, err := r.assessments.ScopeTo(t)
+	if err != nil {
+		return err
+	}
+	res, err := scope.UpdateOne(ctx, live(bson.M{"_id": id}), bson.M{"$inc": bson.M{"_reference_version": 1}})
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount != 1 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+func (r *Repository) CreateScore(ctx context.Context, t string, s *domain.Score) error {
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		if err := r.fenceAssessment(ctx, t, s.AssessmentID); err != nil {
+			return err
+		}
+		return r.createScore(ctx, t, s)
+	})
+}
+func (r *Repository) UpdateScore(ctx context.Context, t string, s *domain.Score) error {
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		if err := r.fenceAssessment(ctx, t, s.AssessmentID); err != nil {
+			return err
+		}
+		return r.updateScore(ctx, t, s)
+	})
+}
+func (r *Repository) CommitAssessmentLifecycle(ctx context.Context, t string, m ports.LifecycleMutation, events []ports.LifecycleEvent) error {
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		if m.Kind == ports.AssessmentMutationScoreCreate || m.Kind == ports.AssessmentMutationScoreUpdate {
+			if m.Score == nil {
+				return domain.ErrValidation
+			}
+			if err := r.fenceAssessment(ctx, t, m.Score.AssessmentID); err != nil {
+				return err
+			}
+		}
+		return r.commitAssessmentLifecycle(ctx, t, m, events)
+	})
+}
+
+func assessmentEvents(tenantID string, events []ports.LifecycleEvent) ([]tenancy.CloudEvent, error) {
+	result := make([]tenancy.CloudEvent, 0, len(events))
+	for _, event := range events {
+		cloudEvent, err := lifecycleEvent(tenantID, event.EventType, event.Payload)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, cloudEvent)
+	}
+	return result, nil
 }

@@ -31,6 +31,7 @@ const (
 )
 
 type Repository struct {
+	store   *pmongo.Store
 	records *pmongo.Collection
 	outbox  *pmongo.ClaimableOutbox
 }
@@ -43,7 +44,7 @@ var (
 
 func NewRepository(store *pmongo.Store) *Repository {
 	records := store.Collection(RecordCollection)
-	return &Repository{records: records, outbox: pmongo.NewClaimableOutbox(records, outboxLease)}
+	return &Repository{store: store, records: records, outbox: pmongo.NewClaimableOutbox(records, outboxLease)}
 }
 
 func live(query bson.M) bson.M {
@@ -112,36 +113,34 @@ func (r *Repository) Create(ctx context.Context, tenantID string, rec *domain.At
 	return nil
 }
 
-// UpsertMany marks a register. PostgreSQL does it as one statement per record
-// inside a transaction; without one, each record is its own atomic upsert on the
-// natural key, so a partial failure leaves the records already marked and
-// reports the error for the caller to retry. Re-running is safe: the upsert key
-// is the same student, year and date.
+// UpsertMany atomically marks the entire register.
 func (r *Repository) UpsertMany(ctx context.Context, tenantID string, records []*domain.AttendanceRecord) error {
-	scope, err := r.records.ScopeTo(tenantID)
-	if err != nil {
-		return err
-	}
-	for _, rec := range records {
-		if _, err := scope.UpsertOne(ctx, live(bson.M{
-			"student_id": rec.StudentID, "academic_year_id": rec.AcademicYearID,
-			"date": rec.Date.String(),
-		}), bson.M{
-			"$set": bson.M{
-				"class_id": rec.ClassID, "subject_id": rec.SubjectID,
-				"status": rec.Status, "reason": rec.Reason, "marked_by": rec.MarkedBy,
-				"updated_at": rec.UpdatedAt,
-			},
-			"$setOnInsert": bson.M{
-				"_id": rec.ID, "student_id": rec.StudentID,
-				"academic_year_id": rec.AcademicYearID, "date": rec.Date.String(),
-				"created_at": rec.CreatedAt,
-			},
-		}); err != nil {
-			return fmt.Errorf("attendance: upsert many: %w", err)
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		scope, err := r.records.ScopeTo(tenantID)
+		if err != nil {
+			return err
 		}
-	}
-	return nil
+		for _, rec := range records {
+			if _, err := scope.UpsertOne(ctx, live(bson.M{
+				"student_id": rec.StudentID, "academic_year_id": rec.AcademicYearID,
+				"date": rec.Date.String(),
+			}), bson.M{
+				"$set": bson.M{
+					"class_id": rec.ClassID, "subject_id": rec.SubjectID,
+					"status": rec.Status, "reason": rec.Reason, "marked_by": rec.MarkedBy,
+					"updated_at": rec.UpdatedAt,
+				},
+				"$setOnInsert": bson.M{
+					"_id": rec.ID, "student_id": rec.StudentID,
+					"academic_year_id": rec.AcademicYearID, "date": rec.Date.String(),
+					"created_at": rec.CreatedAt,
+				},
+			}); err != nil {
+				return fmt.Errorf("attendance: upsert many: %w", err)
+			}
+		}
+		return nil
+	})
 }
 
 func (r *Repository) GetByID(ctx context.Context, tenantID, id string) (*domain.AttendanceRecord, error) {
@@ -253,19 +252,53 @@ func lifecycleEvent(tenantID, eventType string, payload map[string]any) (tenancy
 	}, nil
 }
 
-// CommitAttendanceLifecycle applies the mutation and queues its events.
-//
-// A bulk register is the one place here that spans documents: PostgreSQL writes
-// every record and every event in one transaction, which is not available. Each
-// record is upserted atomically and each event is attached to the record it
-// describes, so a partial failure leaves marked records with their own events
-// queued and reports the error. Re-running the same register is safe.
-func (r *Repository) CommitAttendanceLifecycle(ctx context.Context, tenantID, mutation string, records []*domain.AttendanceRecord, eventType string, payloads []map[string]any) error {
+// CommitAttendanceLifecycle commits every record and event together.
+func (r *Repository) CommitAttendanceLifecycle(ctx context.Context,
+	tenantID,
+	mutation string,
+	records []*domain.AttendanceRecord,
+	eventType string,
+	payloads []map[string]any) error {
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		scope, err := r.records.ScopeTo(tenantID)
+		if err != nil {
+			return err
+		}
+
+		if err := r.mutateAttendance(ctx, tenantID, mutation, records); err != nil {
+			return err
+		}
+
+		for i, rec := range records {
+			payload := map[string]any{}
+			if i < len(payloads) {
+				payload = payloads[i]
+			}
+			event, err := lifecycleEvent(tenantID, eventType, payload)
+			if err != nil {
+				return err
+			}
+			query := bson.M{"_id": rec.ID}
+			if mutation == ports.AttendanceMutationCreate || mutation == ports.AttendanceMutationBulkUpsert {
+				query = live(bson.M{"student_id": rec.StudentID, "academic_year_id": rec.AcademicYearID, "date": rec.Date.String()})
+			}
+			res, err := scope.UpdateWithEvents(ctx, query, bson.M{}, event)
+			if err != nil {
+				return fmt.Errorf("attendance: queue lifecycle event: %w", err)
+			}
+			if res.MatchedCount != 1 {
+				return domain.ErrNotFound
+			}
+		}
+		return nil
+	})
+}
+
+func (r *Repository) mutateAttendance(ctx context.Context, tenantID, mutation string, records []*domain.AttendanceRecord) error {
 	scope, err := r.records.ScopeTo(tenantID)
 	if err != nil {
 		return err
 	}
-
 	switch mutation {
 	case ports.AttendanceMutationCreate, ports.AttendanceMutationBulkUpsert:
 		if err := r.UpsertMany(ctx, tenantID, records); err != nil {
@@ -290,20 +323,6 @@ func (r *Repository) CommitAttendanceLifecycle(ctx context.Context, tenantID, mu
 		}
 	default:
 		return fmt.Errorf("attendance: unsupported lifecycle mutation %q", mutation)
-	}
-
-	for i, rec := range records {
-		payload := map[string]any{}
-		if i < len(payloads) {
-			payload = payloads[i]
-		}
-		event, err := lifecycleEvent(tenantID, eventType, payload)
-		if err != nil {
-			return err
-		}
-		if _, err := scope.UpdateWithEvents(ctx, bson.M{"_id": rec.ID}, bson.M{}, event); err != nil {
-			return fmt.Errorf("attendance: queue lifecycle event: %w", err)
-		}
 	}
 	return nil
 }

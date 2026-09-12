@@ -11,10 +11,9 @@ import (
 	"time"
 
 	svcevents "github.com/auraedu/academic-service/internal/adapters/events"
-	"github.com/auraedu/academic-service/internal/adapters/postgres"
+	"github.com/auraedu/academic-service/internal/persistence"
 	"github.com/auraedu/academic-service/internal/ports"
 	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/db"
 	"github.com/auraedu/platform/eventbus"
 	"github.com/auraedu/platform/observ"
 	_ "github.com/jackc/pgx/v5/stdlib" // Register pgx for shared database/sql migrations.
@@ -40,11 +39,7 @@ func Run() error {
 			log.Error("academic worker telemetry shutdown failed", "err", shutdownErr)
 		}
 	}()
-	dsn, err := config.MustGetenv("DATABASE_URL")
-	if err != nil {
-		return err
-	}
-	database, err := db.Open(ctx, db.Config{DSN: dsn, Migrations: "migrations"})
+	database, err := persistence.Open(ctx)
 	if err != nil {
 		return err
 	}
@@ -65,7 +60,7 @@ func Run() error {
 	if _, err := eventbus.EnsureStream(js, "AURA"); err != nil {
 		return err
 	}
-	repo := postgres.NewRepository(database)
+	repo := database.Year
 	pub := svcevents.NewPublisher(eventbus.NewPublisher(js))
 	metrics := observ.NewWorkerMetrics(service, "outbox-batch", "outbox-publish")
 	ticker := time.NewTicker(time.Second)

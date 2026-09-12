@@ -62,3 +62,23 @@ curl localhost:8080/health
 
 REST: `contracts/openapi/report.v1.yaml` · Events: `contracts/events/`.
 Every action enforces: authenticated → tenant → RBAC → feature-flag → ownership.
+
+## Selectable persistence (AURA-9.12)
+
+Both server and worker select `DATABASE_DRIVER=postgres` (the default) or
+`DATABASE_DRIVER=mongodb`. PostgreSQL retains its migrations and `DATABASE_URL`.
+MongoDB requires `MONGODB_URI`; `MONGODB_DATABASE` defaults to `auraedu_report`.
+`MONGODB_MAX_POOL_SIZE` defaults to 2 per process. Invalid drivers/pool sizes fail
+startup. Mongo indexes are installed before readiness; readiness pings the
+selected database with a bounded timeout.
+
+Cards embed PDF-generation jobs and materialized score/attendance entries. A claim is fenced by its attempt number and exact lease; stale completion or retry cannot overwrite a replacement worker. Publication and its event commit together. Template references use replica-set transactions and parent version writes to preserve delete restrictions.
+
+Use a replica set (including Atlas) for the full Mongo adapter. Tests also run
+isolated single-document guarantees against standalone Mongo. Pending events
+are durable and delivered at least once, with stable event IDs and leases.
+Aggregate deletion retains delivery metadata until pending events are dispatched;
+MongoDB's document-size limit fails an oversized mutation atomically.
+
+Verification: `GOWORK=off GOFLAGS=-mod=readonly go test -p 1 ./internal/... ./cmd/... ./tests/unit/...`
+and `GOWORK=off GOFLAGS=-mod=readonly go vet ./internal/... ./cmd/... ./tests/unit/...`.

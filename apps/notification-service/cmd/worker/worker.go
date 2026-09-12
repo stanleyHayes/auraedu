@@ -16,12 +16,11 @@ import (
 	crmadapter "github.com/auraedu/notification-service/internal/adapters/crm"
 	svcevents "github.com/auraedu/notification-service/internal/adapters/events"
 	"github.com/auraedu/notification-service/internal/adapters/notifier"
-	"github.com/auraedu/notification-service/internal/adapters/postgres"
 	"github.com/auraedu/notification-service/internal/application"
 	"github.com/auraedu/notification-service/internal/domain"
+	"github.com/auraedu/notification-service/internal/persistence"
 	"github.com/auraedu/notification-service/internal/ports"
 	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/db"
 	"github.com/auraedu/platform/eventbus"
 	"github.com/auraedu/platform/flags"
 	"github.com/auraedu/platform/observ"
@@ -85,7 +84,7 @@ func run(log *slog.Logger) error {
 			log.Error("flush worker telemetry", "err", err)
 		}
 	}()
-	database, err := openDB(ctx)
+	database, err := persistence.Open(ctx)
 	if err != nil {
 		return err
 	}
@@ -102,12 +101,12 @@ func run(log *slog.Logger) error {
 	}
 
 	gates := featureGates(log)
-	messageRepo := postgres.NewMessageRepository(database)
-	templateRepo := postgres.NewTemplateRepository(database)
-	subscriptionRepo := postgres.NewSubscriptionRepository(database)
-	processedRepo := postgres.NewProcessedEventRepository(database)
-	deviceRepo := postgres.NewDeviceTokenRepository(database)
-	journeyRepo := postgres.NewJourneyRepository(database)
+	messageRepo := database.Messages
+	templateRepo := database.Templates
+	subscriptionRepo := database.Subscriptions
+	processedRepo := database.Processed
+	deviceRepo := database.Devices
+	journeyRepo := database.Journeys
 	pub := svcevents.NewPublisher(eventbus.NewPublisher(js))
 	notifiers, err := notifier.RegistryFromEnvWithPush(deviceRepo)
 	if err != nil {
@@ -211,17 +210,6 @@ func dispatchNotificationOutbox(
 		metrics.Observe(ctx, "outbox-publish", started, nil)
 	}
 	return nil
-}
-
-func openDB(ctx context.Context) (*db.DB, error) {
-	dsn, err := config.MustGetenv("DATABASE_URL")
-	if err != nil {
-		return nil, err
-	}
-	return db.Open(ctx, db.Config{
-		DSN:        dsn,
-		Migrations: "migrations",
-	})
 }
 
 func connectNATS(log *slog.Logger) (*nats.Conn, eventbus.JetStreamContext, error) {

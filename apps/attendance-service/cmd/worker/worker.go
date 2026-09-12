@@ -11,10 +11,9 @@ import (
 	"time"
 
 	svcevents "github.com/auraedu/attendance-service/internal/adapters/events"
-	"github.com/auraedu/attendance-service/internal/adapters/postgres"
+	"github.com/auraedu/attendance-service/internal/persistence"
 	"github.com/auraedu/attendance-service/internal/ports"
 	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/db"
 	"github.com/auraedu/platform/eventbus"
 	"github.com/auraedu/platform/observ"
 
@@ -45,11 +44,7 @@ func Run() error {
 		}
 	}()
 
-	dsn, err := config.MustGetenv("DATABASE_URL")
-	if err != nil {
-		return err
-	}
-	database, err := db.Open(ctx, db.Config{DSN: dsn, Migrations: "migrations"})
+	database, err := persistence.Open(ctx)
 	if err != nil {
 		return err
 	}
@@ -73,7 +68,7 @@ func Run() error {
 		return err
 	}
 
-	repo := postgres.NewRepository(database)
+	repo := database.Repository
 	pub := svcevents.NewPublisher(eventbus.NewPublisher(js))
 	metrics := observ.NewWorkerMetrics(service, "outbox-batch", "outbox-publish")
 	ticker := time.NewTicker(time.Second)

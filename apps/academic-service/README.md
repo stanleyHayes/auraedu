@@ -18,3 +18,18 @@ curl localhost:8080/health
 ## Contract
 REST: `contracts/openapi/academic.v1.yaml` · Events: `contracts/events/`.
 Every action enforces: authenticated → tenant → RBAC → feature-flag → ownership.
+
+## Selectable persistence (AURA-9.12)
+
+Server, worker and `migrate` select `DATABASE_DRIVER=postgres` by default or
+`DATABASE_DRIVER=mongodb`. Mongo requires `MONGODB_URI` pointing at a replica
+set (Atlas is supported); startup verifies transaction support before readiness.
+`MONGODB_DATABASE` defaults to `auraedu_academic` and
+`MONGODB_MAX_POOL_SIZE` defaults to 2. Invalid driver values and missing Mongo
+configuration fail closed. `BIND_HOST` optionally restricts the HTTP listener.
+
+Mongo mutations use tenant-bound scopes and replica-set transactions wherever
+several documents must commit together. Stable outbox IDs support at-least-once
+delivery. PostgreSQL migrations and the existing `DATABASE_URL` path remain.
+Mongo conformance and fault/concurrency regressions use real replica-set fixtures:
+`TESTCONTAINERS_RYUK_DISABLED=true GOFLAGS=-mod=readonly go test -p 1 -run TestMongo ./internal/adapters/...`.

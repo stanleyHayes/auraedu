@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/auraedu/academic-service/internal/domain"
@@ -90,6 +91,7 @@ func dateOf(v string) domain.Date {
 // ---- academic years (also the lifecycle and outbox owner) ----------------
 
 type Repository struct {
+	store      *pmongo.Store
 	years      *pmongo.Collection
 	terms      *pmongo.Collection
 	classes    *pmongo.Collection
@@ -112,7 +114,7 @@ func NewRepository(store *pmongo.Store) *Repository {
 	terms := store.Collection(TermCollection)
 	classes := store.Collection(ClassCollection)
 	subjects := store.Collection(SubjectCollection)
-	r := &Repository{
+	r := &Repository{store: store,
 		years: years, terms: terms, classes: classes, subjects: subjects,
 		yearOut:    pmongo.NewClaimableOutbox(years, outboxLease),
 		termOut:    pmongo.NewClaimableOutbox(terms, outboxLease),
@@ -154,7 +156,9 @@ func yearFields(y *domain.AcademicYear) bson.M {
 }
 
 func (r *Repository) Create(ctx context.Context, tenantID string, y *domain.AcademicYear) error {
-	return insert(ctx, r.years, tenantID, y.ID, yearFields(y), "academic: create year")
+	return academicTransaction(ctx, r.store, tenantID, func(ctx context.Context) error {
+		return insert(ctx, r.years, tenantID, y.ID, yearFields(y), "academic: create year")
+	})
 }
 
 func (r *Repository) GetByID(ctx context.Context, tenantID, id string) (*domain.AcademicYear, error) {
@@ -194,11 +198,19 @@ func (r *Repository) List(ctx context.Context, tenantID string, limit int, curso
 }
 
 func (r *Repository) Update(ctx context.Context, tenantID string, y *domain.AcademicYear) error {
-	return update(ctx, r.years, tenantID, y.ID, yearFields(y), "academic: update year")
+	return academicTransaction(ctx, r.store, tenantID, func(ctx context.Context) error {
+		return update(ctx, r.years, tenantID, y.ID, yearFields(y), "academic: update year")
+	})
 }
 
 func (r *Repository) Delete(ctx context.Context, tenantID, id string) error {
-	return remove(ctx, r.years, tenantID, id, "academic: delete year")
+	return academicTransaction(ctx, r.store, tenantID, func(ctx context.Context) error {
+		if err := cascadeAcademic(ctx, r.store, tenantID, YearCollection, id); err != nil {
+			return err
+		}
+
+		return remove(ctx, r.years, tenantID, id, "academic: delete year")
+	})
 }
 
 // ---- shared CRUD helpers -------------------------------------------------
@@ -242,11 +254,11 @@ func remove(ctx context.Context, coll *pmongo.Collection, tenantID, id, what str
 	if err != nil {
 		return err
 	}
-	res, err := scope.DeleteOne(ctx, live(bson.M{"_id": id}))
+	res, err := scope.UpdateOne(ctx, live(bson.M{"_id": id}), bson.M{"$set": bson.M{"deleted_at": time.Now().UTC()}})
 	if err != nil {
 		return fmt.Errorf("%s: %w", what, err)
 	}
-	if res.DeletedCount != 1 {
+	if res.MatchedCount != 1 {
 		return domain.ErrNotFound
 	}
 	return nil
@@ -254,12 +266,15 @@ func remove(ctx context.Context, coll *pmongo.Collection, tenantID, id, what str
 
 // ---- terms ---------------------------------------------------------------
 
-type TermRepository struct{ terms *pmongo.Collection }
+type TermRepository struct {
+	terms *pmongo.Collection
+	store *pmongo.Store
+}
 
 var _ ports.TermRepository = (*TermRepository)(nil)
 
 func NewTermRepository(store *pmongo.Store) *TermRepository {
-	return &TermRepository{terms: store.Collection(TermCollection)}
+	return &TermRepository{store: store, terms: store.Collection(TermCollection)}
 }
 
 type termDoc struct {
@@ -290,7 +305,13 @@ func termFields(t *domain.Term) bson.M {
 }
 
 func (r *TermRepository) Create(ctx context.Context, tenantID string, t *domain.Term) error {
-	return insert(ctx, r.terms, tenantID, t.ID, termFields(t), "academic: create term")
+	return academicTransaction(ctx, r.store, tenantID, func(ctx context.Context) error {
+		if err := requireParent(ctx, r.store, tenantID, YearCollection, t.AcademicYearID); err != nil {
+			return err
+		}
+
+		return insert(ctx, r.terms, tenantID, t.ID, termFields(t), "academic: create term")
+	})
 }
 
 func (r *TermRepository) GetByID(ctx context.Context, tenantID, id string) (*domain.Term, error) {
@@ -330,21 +351,36 @@ func (r *TermRepository) List(ctx context.Context, tenantID string, limit int, c
 }
 
 func (r *TermRepository) Update(ctx context.Context, tenantID string, t *domain.Term) error {
-	return update(ctx, r.terms, tenantID, t.ID, termFields(t), "academic: update term")
+	return academicTransaction(ctx, r.store, tenantID, func(ctx context.Context) error {
+		if err := requireParent(ctx, r.store, tenantID, YearCollection, t.AcademicYearID); err != nil {
+			return err
+		}
+
+		return update(ctx, r.terms, tenantID, t.ID, termFields(t), "academic: update term")
+	})
 }
 
 func (r *TermRepository) Delete(ctx context.Context, tenantID, id string) error {
-	return remove(ctx, r.terms, tenantID, id, "academic: delete term")
+	return academicTransaction(ctx, r.store, tenantID, func(ctx context.Context) error {
+		if err := cascadeAcademic(ctx, r.store, tenantID, TermCollection, id); err != nil {
+			return err
+		}
+
+		return remove(ctx, r.terms, tenantID, id, "academic: delete term")
+	})
 }
 
 // ---- classes -------------------------------------------------------------
 
-type ClassRepository struct{ classes *pmongo.Collection }
+type ClassRepository struct {
+	classes *pmongo.Collection
+	store   *pmongo.Store
+}
 
 var _ ports.ClassRepository = (*ClassRepository)(nil)
 
 func NewClassRepository(store *pmongo.Store) *ClassRepository {
-	return &ClassRepository{classes: store.Collection(ClassCollection)}
+	return &ClassRepository{store: store, classes: store.Collection(ClassCollection)}
 }
 
 type classDoc struct {
@@ -375,7 +411,13 @@ func classFields(c *domain.Class) bson.M {
 }
 
 func (r *ClassRepository) Create(ctx context.Context, tenantID string, c *domain.Class) error {
-	return insert(ctx, r.classes, tenantID, c.ID, classFields(c), "academic: create class")
+	return academicTransaction(ctx, r.store, tenantID, func(ctx context.Context) error {
+		if err := requireParent(ctx, r.store, tenantID, YearCollection, c.AcademicYearID); err != nil {
+			return err
+		}
+
+		return insert(ctx, r.classes, tenantID, c.ID, classFields(c), "academic: create class")
+	})
 }
 
 func (r *ClassRepository) GetByID(ctx context.Context, tenantID, id string) (*domain.Class, error) {
@@ -439,21 +481,36 @@ func (r *ClassRepository) ListIDsByTeacher(ctx context.Context, tenantID, staffI
 }
 
 func (r *ClassRepository) Update(ctx context.Context, tenantID string, c *domain.Class) error {
-	return update(ctx, r.classes, tenantID, c.ID, classFields(c), "academic: update class")
+	return academicTransaction(ctx, r.store, tenantID, func(ctx context.Context) error {
+		if err := requireParent(ctx, r.store, tenantID, YearCollection, c.AcademicYearID); err != nil {
+			return err
+		}
+
+		return update(ctx, r.classes, tenantID, c.ID, classFields(c), "academic: update class")
+	})
 }
 
 func (r *ClassRepository) Delete(ctx context.Context, tenantID, id string) error {
-	return remove(ctx, r.classes, tenantID, id, "academic: delete class")
+	return academicTransaction(ctx, r.store, tenantID, func(ctx context.Context) error {
+		if err := cascadeAcademic(ctx, r.store, tenantID, ClassCollection, id); err != nil {
+			return err
+		}
+
+		return remove(ctx, r.classes, tenantID, id, "academic: delete class")
+	})
 }
 
 // ---- subjects ------------------------------------------------------------
 
-type SubjectRepository struct{ subjects *pmongo.Collection }
+type SubjectRepository struct {
+	subjects *pmongo.Collection
+	store    *pmongo.Store
+}
 
 var _ ports.SubjectRepository = (*SubjectRepository)(nil)
 
 func NewSubjectRepository(store *pmongo.Store) *SubjectRepository {
-	return &SubjectRepository{subjects: store.Collection(SubjectCollection)}
+	return &SubjectRepository{store: store, subjects: store.Collection(SubjectCollection)}
 }
 
 type subjectDoc struct {
@@ -481,7 +538,9 @@ func subjectFields(s *domain.Subject) bson.M {
 }
 
 func (r *SubjectRepository) Create(ctx context.Context, tenantID string, s *domain.Subject) error {
-	return insert(ctx, r.subjects, tenantID, s.ID, subjectFields(s), "academic: create subject")
+	return academicTransaction(ctx, r.store, tenantID, func(ctx context.Context) error {
+		return insert(ctx, r.subjects, tenantID, s.ID, subjectFields(s), "academic: create subject")
+	})
 }
 
 func (r *SubjectRepository) GetByID(ctx context.Context, tenantID, id string) (*domain.Subject, error) {
@@ -521,11 +580,19 @@ func (r *SubjectRepository) List(ctx context.Context, tenantID string, limit int
 }
 
 func (r *SubjectRepository) Update(ctx context.Context, tenantID string, s *domain.Subject) error {
-	return update(ctx, r.subjects, tenantID, s.ID, subjectFields(s), "academic: update subject")
+	return academicTransaction(ctx, r.store, tenantID, func(ctx context.Context) error {
+		return update(ctx, r.subjects, tenantID, s.ID, subjectFields(s), "academic: update subject")
+	})
 }
 
 func (r *SubjectRepository) Delete(ctx context.Context, tenantID, id string) error {
-	return remove(ctx, r.subjects, tenantID, id, "academic: delete subject")
+	return academicTransaction(ctx, r.store, tenantID, func(ctx context.Context) error {
+		if err := cascadeAcademic(ctx, r.store, tenantID, SubjectCollection, id); err != nil {
+			return err
+		}
+
+		return remove(ctx, r.subjects, tenantID, id, "academic: delete subject")
+	})
 }
 
 // ---- grading scales ------------------------------------------------------
@@ -611,12 +678,15 @@ func (r *GradingScaleRepository) Delete(ctx context.Context, tenantID, id string
 
 // ---- timetable -----------------------------------------------------------
 
-type TimetableRepository struct{ entries *pmongo.Collection }
+type TimetableRepository struct {
+	entries *pmongo.Collection
+	store   *pmongo.Store
+}
 
 var _ ports.TimetableRepository = (*TimetableRepository)(nil)
 
 func NewTimetableRepository(store *pmongo.Store) *TimetableRepository {
-	return &TimetableRepository{entries: store.Collection(TimetableCollection)}
+	return &TimetableRepository{entries: store.Collection(TimetableCollection), store: store}
 }
 
 type timetableDoc struct {
@@ -667,11 +737,7 @@ func timetableFields(e *domain.TimetableEntry) bson.M {
 // assertNoOverlap rejects an active period that collides with another active
 // period for the same class, or for the same teacher, within a term and weekday.
 //
-// PostgreSQL enforces this with two gist exclusion constraints, which hold under
-// concurrency. MongoDB has no equivalent and no transaction on the free tier, so
-// this is a check before the write: it catches the conflicts a user can actually
-// create, but two simultaneous writes could still both pass it. The constraint
-// is therefore advisory here in a way it is not on PostgreSQL.
+// A per-tenant/term guard serializes the check and write in one transaction.
 func (r *TimetableRepository) assertNoOverlap(ctx context.Context, tenantID string, e *domain.TimetableEntry) error {
 	if e.Status != "active" {
 		return nil
@@ -722,10 +788,26 @@ func (r *TimetableRepository) assertNoOverlap(ctx context.Context, tenantID stri
 }
 
 func (r *TimetableRepository) Create(ctx context.Context, tenantID string, e *domain.TimetableEntry) error {
-	if err := r.assertNoOverlap(ctx, tenantID, e); err != nil {
-		return err
-	}
-	return insert(ctx, r.entries, tenantID, e.ID, timetableFields(e), "academic: create timetable entry")
+	return academicTransaction(ctx, r.store, tenantID, func(ctx context.Context) error {
+		for collection, id := range map[string]string{ClassCollection: e.ClassID, TermCollection: e.TermID, SubjectCollection: e.SubjectID} {
+			if err := requireParent(ctx, r.store, tenantID, collection, id); err != nil {
+				return err
+			}
+		}
+
+		scope, err := r.store.Collection("timetable_guards").ScopeTo(tenantID)
+		if err != nil {
+			return err
+		}
+		if _, err = scope.UpsertOne(ctx, bson.M{"_id": tenantID + "/" + e.TermID}, bson.M{"$inc": bson.M{"version": 1}}); err != nil {
+			return err
+		}
+
+		if err := r.assertNoOverlap(ctx, tenantID, e); err != nil {
+			return err
+		}
+		return insert(ctx, r.entries, tenantID, e.ID, timetableFields(e), "academic: create timetable entry")
+	})
 }
 
 func (r *TimetableRepository) GetByID(ctx context.Context, tenantID, id string) (*domain.TimetableEntry, error) {
@@ -781,14 +863,32 @@ func (r *TimetableRepository) List(ctx context.Context, tenantID string, filter 
 }
 
 func (r *TimetableRepository) Update(ctx context.Context, tenantID string, e *domain.TimetableEntry) error {
-	if err := r.assertNoOverlap(ctx, tenantID, e); err != nil {
-		return err
-	}
-	return update(ctx, r.entries, tenantID, e.ID, timetableFields(e), "academic: update timetable entry")
+	return academicTransaction(ctx, r.store, tenantID, func(ctx context.Context) error {
+		for collection, id := range map[string]string{ClassCollection: e.ClassID, TermCollection: e.TermID, SubjectCollection: e.SubjectID} {
+			if err := requireParent(ctx, r.store, tenantID, collection, id); err != nil {
+				return err
+			}
+		}
+
+		scope, err := r.store.Collection("timetable_guards").ScopeTo(tenantID)
+		if err != nil {
+			return err
+		}
+		if _, err = scope.UpsertOne(ctx, bson.M{"_id": tenantID + "/" + e.TermID}, bson.M{"$inc": bson.M{"version": 1}}); err != nil {
+			return err
+		}
+
+		if err := r.assertNoOverlap(ctx, tenantID, e); err != nil {
+			return err
+		}
+		return update(ctx, r.entries, tenantID, e.ID, timetableFields(e), "academic: update timetable entry")
+	})
 }
 
 func (r *TimetableRepository) Delete(ctx context.Context, tenantID, id string) error {
-	return remove(ctx, r.entries, tenantID, id, "academic: delete timetable entry")
+	return academicTransaction(ctx, r.store, tenantID, func(ctx context.Context) error {
+		return remove(ctx, r.entries, tenantID, id, "academic: delete timetable entry")
+	})
 }
 
 // ---- lifecycle and outbox ------------------------------------------------
@@ -796,38 +896,78 @@ func (r *TimetableRepository) Delete(ctx context.Context, tenantID, id string) e
 // CommitAcademicLifecycle applies the mutation and queues its event in one
 // atomic single-document write on the aggregate it touches. Deletes tombstone
 // the record so the queued event survives to be published.
-func (r *Repository) CommitAcademicLifecycle(ctx context.Context, tenantID string, mutation ports.AcademicMutation, eventType string, payload map[string]any) error {
-	event, err := lifecycleEvent(tenantID, eventType, payload)
-	if err != nil {
-		return err
-	}
+func (r *Repository) CommitAcademicLifecycle(ctx context.Context,
+	tenantID string,
+	mutation ports.AcademicMutation,
+	eventType string,
+	payload map[string]any) error {
+	return academicTransaction(ctx, r.store, tenantID, func(ctx context.Context) error {
+		if err := r.validateLifecycleReferences(ctx, tenantID, mutation); err != nil {
+			return err
+		}
 
+		event, err := lifecycleEvent(tenantID, eventType, payload)
+		if err != nil {
+			return err
+		}
+
+		switch mutation.Kind {
+		case ports.AcademicMutationYearCreate:
+			return insertWithEvent(ctx, r.years, tenantID, mutation.Year.ID, yearFields(mutation.Year), event)
+		case ports.AcademicMutationYearUpdate:
+			return updateWithEvent(ctx, r.years, tenantID, mutation.Year.ID, yearFields(mutation.Year), event)
+		case ports.AcademicMutationYearDelete:
+			return tombstoneWithEvent(ctx, r.years, tenantID, mutation.Year.ID, event)
+		case ports.AcademicMutationTermUpdate:
+			return updateWithEvent(ctx, r.terms, tenantID, mutation.Term.ID, termFields(mutation.Term), event)
+		case ports.AcademicMutationTermDelete:
+			return tombstoneWithEvent(ctx, r.terms, tenantID, mutation.Term.ID, event)
+		case ports.AcademicMutationClassCreate:
+			return insertWithEvent(ctx, r.classes, tenantID, mutation.Class.ID, classFields(mutation.Class), event)
+		case ports.AcademicMutationClassUpdate:
+			return updateWithEvent(ctx, r.classes, tenantID, mutation.Class.ID, classFields(mutation.Class), event)
+		case ports.AcademicMutationClassDelete:
+			return tombstoneWithEvent(ctx, r.classes, tenantID, mutation.Class.ID, event)
+		case ports.AcademicMutationSubjectCreate:
+			return insertWithEvent(ctx, r.subjects, tenantID, mutation.Subject.ID, subjectFields(mutation.Subject), event)
+		case ports.AcademicMutationSubjectUpdate:
+			return updateWithEvent(ctx, r.subjects, tenantID, mutation.Subject.ID, subjectFields(mutation.Subject), event)
+		case ports.AcademicMutationSubjectDelete:
+			return tombstoneWithEvent(ctx, r.subjects, tenantID, mutation.Subject.ID, event)
+		default:
+			return fmt.Errorf("academic: unsupported lifecycle mutation %q", mutation.Kind)
+		}
+	})
+}
+
+func (r *Repository) validateLifecycleReferences(ctx context.Context, tenantID string, mutation ports.AcademicMutation) error {
 	switch mutation.Kind {
-	case ports.AcademicMutationYearCreate:
-		return insertWithEvent(ctx, r.years, tenantID, mutation.Year.ID, yearFields(mutation.Year), event)
-	case ports.AcademicMutationYearUpdate:
-		return updateWithEvent(ctx, r.years, tenantID, mutation.Year.ID, yearFields(mutation.Year), event)
 	case ports.AcademicMutationYearDelete:
-		return tombstoneWithEvent(ctx, r.years, tenantID, mutation.Year.ID, event)
-	case ports.AcademicMutationTermUpdate:
-		return updateWithEvent(ctx, r.terms, tenantID, mutation.Term.ID, termFields(mutation.Term), event)
+		if err := cascadeAcademic(ctx, r.store, tenantID, YearCollection, mutation.Year.ID); err != nil {
+			return err
+		}
 	case ports.AcademicMutationTermDelete:
-		return tombstoneWithEvent(ctx, r.terms, tenantID, mutation.Term.ID, event)
-	case ports.AcademicMutationClassCreate:
-		return insertWithEvent(ctx, r.classes, tenantID, mutation.Class.ID, classFields(mutation.Class), event)
-	case ports.AcademicMutationClassUpdate:
-		return updateWithEvent(ctx, r.classes, tenantID, mutation.Class.ID, classFields(mutation.Class), event)
+		if err := cascadeAcademic(ctx, r.store, tenantID, TermCollection, mutation.Term.ID); err != nil {
+			return err
+		}
 	case ports.AcademicMutationClassDelete:
-		return tombstoneWithEvent(ctx, r.classes, tenantID, mutation.Class.ID, event)
-	case ports.AcademicMutationSubjectCreate:
-		return insertWithEvent(ctx, r.subjects, tenantID, mutation.Subject.ID, subjectFields(mutation.Subject), event)
-	case ports.AcademicMutationSubjectUpdate:
-		return updateWithEvent(ctx, r.subjects, tenantID, mutation.Subject.ID, subjectFields(mutation.Subject), event)
+		if err := cascadeAcademic(ctx, r.store, tenantID, ClassCollection, mutation.Class.ID); err != nil {
+			return err
+		}
 	case ports.AcademicMutationSubjectDelete:
-		return tombstoneWithEvent(ctx, r.subjects, tenantID, mutation.Subject.ID, event)
-	default:
-		return fmt.Errorf("academic: unsupported lifecycle mutation %q", mutation.Kind)
+		if err := cascadeAcademic(ctx, r.store, tenantID, SubjectCollection, mutation.Subject.ID); err != nil {
+			return err
+		}
+	case ports.AcademicMutationTermUpdate:
+		if err := requireParent(ctx, r.store, tenantID, YearCollection, mutation.Term.AcademicYearID); err != nil {
+			return err
+		}
+	case ports.AcademicMutationClassCreate, ports.AcademicMutationClassUpdate:
+		if err := requireParent(ctx, r.store, tenantID, YearCollection, mutation.Class.AcademicYearID); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func insertWithEvent(ctx context.Context, coll *pmongo.Collection, tenantID, id string, fields bson.M, event tenancy.CloudEvent) error {
@@ -954,4 +1094,91 @@ func EnsureIndexes(ctx context.Context, store *pmongo.Store) error {
 		}
 	}
 	return nil
+}
+
+// Every write to the academic reference graph takes the same tenant guard.
+// This also serializes timetable checks against parent cascade/delete changes.
+func academicTransaction(ctx context.Context, s *pmongo.Store, tenant string, fn func(context.Context) error) error {
+	return s.WithTransaction(ctx, func(ctx context.Context) error {
+		scope, err := s.Collection("academic_guards").ScopeTo(tenant)
+		if err != nil {
+			return err
+		}
+		if _, err = scope.UpsertOne(ctx, bson.M{"_id": tenant}, bson.M{"$inc": bson.M{"version": 1}}); err != nil {
+			return err
+		}
+		return fn(ctx)
+	})
+}
+func requireParent(ctx context.Context, s *pmongo.Store, tenant, collection, id string) error {
+	scope, err := s.Collection(collection).ScopeTo(tenant)
+	if err != nil {
+		return err
+	}
+	if err = scope.FindOne(ctx, live(bson.M{"_id": id})).Err(); err != nil {
+		return notFound(err)
+	}
+	return nil
+}
+func cascadeAcademic(ctx context.Context, s *pmongo.Store, tenant, collection, id string) error {
+	entries, err := s.Collection(TimetableCollection).ScopeTo(tenant)
+	if err != nil {
+		return err
+	}
+	key := ""
+	switch collection {
+	case SubjectCollection:
+		n, err := entries.CountDocuments(ctx, live(bson.M{"subject_id": id}))
+		if err != nil {
+			return err
+		}
+		if n > 0 {
+			return domain.ErrConflict
+		}
+		return nil
+	case ClassCollection:
+		key = "class_id"
+	case TermCollection:
+		key = "term_id"
+	case YearCollection:
+		for _, name := range []string{ClassCollection, TermCollection} {
+			if err := cascadeYearChildren(ctx, s, tenant, name, id); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if key != "" {
+		_, err = entries.UpdateMany(ctx, live(bson.M{key: id}), bson.M{"$set": bson.M{"deleted_at": time.Now().UTC()}})
+	}
+	return err
+}
+
+func cascadeYearChildren(ctx context.Context, s *pmongo.Store, tenant, name, id string) error {
+	scope, err := s.Collection(name).ScopeTo(tenant)
+	if err != nil {
+		return err
+	}
+	cur, err := scope.Find(ctx, live(bson.M{"academic_year_id": id}))
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if closeErr := cur.Close(ctx); closeErr != nil {
+			slog.Warn("close Mongo cursor", "error", closeErr)
+		}
+	}()
+	var children []struct {
+		ID string `bson:"_id"`
+	}
+	if err = cur.All(ctx, &children); err != nil {
+		return err
+	}
+	for _, child := range children {
+		if err = cascadeAcademic(ctx, s, tenant, name, child.ID); err != nil {
+			return err
+		}
+	}
+	_, err = scope.UpdateMany(ctx, live(bson.M{"academic_year_id": id}), bson.M{"$set": bson.M{"deleted_at": time.Now().UTC()}})
+	return err
 }

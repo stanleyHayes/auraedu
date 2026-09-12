@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,7 +15,6 @@ import (
 	"time"
 
 	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/db"
 	"github.com/auraedu/platform/eventbus"
 	"github.com/auraedu/platform/flags"
 	"github.com/auraedu/platform/httpx"
@@ -27,9 +27,9 @@ import (
 	svcevents "github.com/auraedu/notification-service/internal/adapters/events"
 	svchttp "github.com/auraedu/notification-service/internal/adapters/http"
 	"github.com/auraedu/notification-service/internal/adapters/notifier"
-	"github.com/auraedu/notification-service/internal/adapters/postgres"
 	providerwebhooks "github.com/auraedu/notification-service/internal/adapters/webhooks"
 	"github.com/auraedu/notification-service/internal/application"
+	"github.com/auraedu/notification-service/internal/persistence"
 )
 
 const service = "notification-service"
@@ -64,7 +64,7 @@ func run() error {
 	}()
 
 	ctx := context.Background()
-	database, err := openDB(ctx)
+	database, err := persistence.Open(ctx)
 	if err != nil {
 		return err
 	}
@@ -76,12 +76,12 @@ func run() error {
 	}
 	gates := featureGates(log)
 
-	messageRepo := postgres.NewMessageRepository(database)
-	templateRepo := postgres.NewTemplateRepository(database)
-	subscriptionRepo := postgres.NewSubscriptionRepository(database)
-	announcementRepo := postgres.NewAnnouncementRepository(database)
-	deviceRepo := postgres.NewDeviceTokenRepository(database)
-	journeyRepo := postgres.NewJourneyRepository(database)
+	messageRepo := database.Messages
+	templateRepo := database.Templates
+	subscriptionRepo := database.Subscriptions
+	announcementRepo := database.Announcements
+	deviceRepo := database.Devices
+	journeyRepo := database.Journeys
 	notifiers, err := notifier.RegistryFromEnvWithPush(deviceRepo)
 	if err != nil {
 		return err
@@ -167,15 +167,15 @@ func configureProviderWebhooks(handler *svchttp.Handler, environment string) err
 	return nil
 }
 
-func serve(ctx context.Context, log *slog.Logger, database *db.DB, handler *svchttp.Handler) error {
+func serve(ctx context.Context, log *slog.Logger, database *persistence.Connection, handler *svchttp.Handler) error {
 	health := httpx.NewHealth(service, version).WithLogger(log)
-	health.AddReadinessCheck("postgres", func() error { return database.Ping(ctx) })
+	health.AddReadinessCheck(database.Driver, func() error { return database.Ping(ctx) })
 
 	mux := http.NewServeMux()
 	health.Register(mux)
 	handler.Register(mux)
 
-	addr := ":" + strconv.Itoa(config.Port(8080))
+	addr := net.JoinHostPort(config.Getenv("BIND_HOST", ""), strconv.Itoa(config.Port(8080)))
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           observ.HTTPHandler(service, httpx.RequestIDMiddleware(mux)),
@@ -206,17 +206,6 @@ func serve(ctx context.Context, log *slog.Logger, database *db.DB, handler *svch
 	}
 	log.Info(service + " stopped")
 	return nil
-}
-
-func openDB(ctx context.Context) (*db.DB, error) {
-	dsn, err := config.MustGetenv("DATABASE_URL")
-	if err != nil {
-		return nil, err
-	}
-	return db.Open(ctx, db.Config{
-		DSN:        dsn,
-		Migrations: "migrations",
-	})
 }
 
 func publisher(log *slog.Logger) (*svcevents.Publisher, func()) {

@@ -20,3 +20,17 @@ curl localhost:8080/health
 ## Contract
 REST: `contracts/openapi/student.v1.yaml` · Events: `contracts/events/`.
 Every action enforces: authenticated → tenant → RBAC → feature-flag → ownership.
+
+## Selectable persistence (AURA-9.12)
+
+Server, worker and `migrate` commands use `DATABASE_DRIVER` (`postgres` by
+default, or `mongodb`). Mongo mode requires `MONGODB_URI`; `MONGODB_DATABASE`
+defaults to `auraedu_student`. Mongo indexes are initialized before startup,
+and each process uses a two-connection pool.
+
+`BIND_HOST` defaults to an empty host (all interfaces). The combined demo sets
+`BIND_HOST=127.0.0.1` for internal services; only the gateway is public.
+
+MongoDB must be a replica set or sharded cluster. Startup refuses a standalone
+server because parent validation and related writes use transactions. Durable
+events stay embedded in their aggregates, and workers publish with stable IDs.

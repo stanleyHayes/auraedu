@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/auraedu/analytics-service/internal/domain"
@@ -32,6 +33,7 @@ const (
 )
 
 type Repository struct {
+	store                 *pmongo.Store
 	metrics               *pmongo.Collection
 	processedEvents       *pmongo.Collection
 	assessmentScoreFacts  *pmongo.Collection
@@ -43,7 +45,7 @@ type Repository struct {
 var _ ports.Repository = (*Repository)(nil)
 
 func NewRepository(store *pmongo.Store) *Repository {
-	return &Repository{
+	return &Repository{store: store,
 		metrics:               store.Collection(MetricsCollection),
 		processedEvents:       store.Collection(ProcessedEventsCollection),
 		assessmentScoreFacts:  store.Collection(AssessmentScoreFactsCollection),
@@ -109,161 +111,240 @@ func metricFields(m *domain.Metric) bson.M {
 	return fields
 }
 
+// UpsertMetric matches PostgreSQL's natural-key aggregation, preserving ID and
+// creation time while adding counts/sums or weighting average samples.
 func (r *Repository) UpsertMetric(ctx context.Context, tenantID string, m *domain.Metric) error {
 	if err := m.Validate(); err != nil {
 		return err
 	}
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		if err := r.serializeTenant(ctx, tenantID); err != nil {
+			return err
+		}
+		previous, err := r.findMetric(ctx, tenantID, m)
+		if err != nil {
+			return err
+		}
+		next := *m
+		if previous != nil {
+			next.ID = previous.ID
+			next.CreatedAt = previous.CreatedAt
+			switch m.Unit {
+			case domain.UnitPercentage:
+				// Percentage samples replace the previous value.
+			case domain.UnitCount, domain.UnitSum:
+				next.Value = previous.Value + m.Value
+			case domain.UnitAverage:
+				old := int64(0)
+				if previous.SampleCount != nil {
+					old = *previous.SampleCount
+				}
+				n := *m.SampleCount
+				if old > 0 {
+					next.Value = (previous.Value*float64(old) + m.Value*float64(n)) / float64(old+n)
+				}
+				n += old
+				next.SampleCount = &n
+			}
+		}
+		return r.writeMetric(ctx, tenantID, &next, previous != nil)
+	})
+}
+func dimensionKey(d domain.Dimensions) string {
+	if d == nil {
+		d = domain.Dimensions{}
+	}
+	encoded, err := json.Marshal(d)
+	if err != nil {
+		panic(fmt.Sprintf("encode string dimensions: %v", err))
+	}
+	return string(encoded)
+}
+func (r *Repository) findMetric(ctx context.Context, tenantID string, m *domain.Metric) (*metricDoc, error) {
 	scope, err := r.metrics.ScopeTo(tenantID)
 	if err != nil {
-		return fmt.Errorf("analytics: upsert metric scope: %w", err)
+		return nil, err
 	}
-
-	fields := metricFields(m)
-	fields["_id"] = m.ID
-
-	res, err := scope.UpsertOne(ctx,
-		bson.M{"_id": m.ID},
-		bson.M{"$set": fields},
-	)
+	cur, err := scope.Find(ctx, bson.M{"metric_name": m.MetricName, "bucket_date": m.BucketDate.String()})
 	if err != nil {
-		return fmt.Errorf("analytics: upsert metric: %w", err)
+		return nil, err
 	}
-	_ = res
-	return nil
+	defer func() {
+		if err := cur.Close(ctx); err != nil {
+			slog.Warn("close Mongo cursor", "error", err)
+		}
+	}()
+	for cur.Next(ctx) {
+		var doc metricDoc
+		if err = cur.Decode(&doc); err != nil {
+			return nil, err
+		}
+		if dimensionKey(domain.Dimensions(doc.Dimensions)) == dimensionKey(m.Dimensions) {
+			return &doc, nil
+		}
+	}
+	return nil, cur.Err()
+}
+func (r *Repository) writeMetric(ctx context.Context, tenantID string, m *domain.Metric, exists bool) error {
+	scope, err := r.metrics.ScopeTo(tenantID)
+	if err != nil {
+		return err
+	}
+	fields := metricFields(m)
+	fields["dimensions_key"] = dimensionKey(m.Dimensions)
+	if exists {
+		_, err = scope.UpdateOne(ctx, bson.M{"_id": m.ID}, bson.M{"$set": fields})
+		return err
+	}
+	fields["_id"] = m.ID
+	_, err = scope.InsertOne(ctx, fields)
+	return err
 }
 
 // ApplyMetricEvent atomically deduplicates one CloudEvent and applies every
 // metric derived from it.
 func (r *Repository) ApplyMetricEvent(ctx context.Context, tenantID, eventID, eventType string, metrics []*domain.Metric) error {
-	if eventID == "" || eventType == "" {
-		return fmt.Errorf("analytics: event id and type are required")
-	}
-	for _, metric := range metrics {
-		if metric == nil {
-			return fmt.Errorf("analytics: metric event contains a nil metric")
-		}
-		if err := metric.Validate(); err != nil {
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		if err := r.serializeTenant(ctx, tenantID); err != nil {
 			return err
 		}
-	}
 
-	scope, err := r.processedEvents.ScopeTo(tenantID)
-	if err != nil {
-		return fmt.Errorf("analytics: processed events scope: %w", err)
-	}
+		if eventID == "" || eventType == "" {
+			return fmt.Errorf("analytics: event id and type are required")
+		}
+		for _, metric := range metrics {
+			if metric == nil {
+				return fmt.Errorf("analytics: metric event contains a nil metric")
+			}
+			if err := metric.Validate(); err != nil {
+				return err
+			}
+		}
 
-	// Check if already processed
-	res, err := scope.UpsertOne(ctx,
-		bson.M{"_id": eventID},
-		bson.M{"$setOnInsert": bson.M{"event_type": eventType, "processed_at": time.Now().UTC()}},
-	)
-	if err != nil {
-		return fmt.Errorf("analytics: record processed metric event: %w", err)
-	}
+		scope, err := r.processedEvents.ScopeTo(tenantID)
+		if err != nil {
+			return fmt.Errorf("analytics: processed events scope: %w", err)
+		}
 
-	// Only a genuine insert claims the event; anything else is a replay.
-	if res.UpsertedID == nil {
+		// Check if already processed
+		res, err := scope.UpsertOne(ctx,
+			bson.M{"_id": tenantID + "/" + eventID},
+			bson.M{"$setOnInsert": bson.M{"event_type": eventType, "processed_at": time.Now().UTC()}},
+		)
+		if err != nil {
+			return fmt.Errorf("analytics: record processed metric event: %w", err)
+		}
+
+		// Only a genuine insert claims the event; anything else is a replay.
+		if res.UpsertedID == nil {
+			return nil
+		}
+
+		// Apply each metric
+		for _, metric := range metrics {
+			if err := r.UpsertMetric(ctx, tenantID, metric); err != nil {
+				return err
+			}
+		}
 		return nil
-	}
-
-	// Apply each metric
-	for _, metric := range metrics {
-		if err := r.UpsertMetric(ctx, tenantID, metric); err != nil {
-			return err
-		}
-	}
-	return nil
+	})
 }
 
 // ApplyAssessmentScoreEvent atomically deduplicates one lifecycle event,
 // mutates the current score fact, and recomputes every affected aggregate.
 func (r *Repository) ApplyAssessmentScoreEvent(ctx context.Context, tenantID string, event domain.AssessmentScoreEvent) error {
-	if err := event.Validate(); err != nil {
-		return err
-	}
-
-	scope, err := r.processedEvents.ScopeTo(tenantID)
-	if err != nil {
-		return fmt.Errorf("analytics: processed events scope: %w", err)
-	}
-
-	// Check if already processed
-	res, err := scope.UpsertOne(ctx,
-		bson.M{"_id": event.EventID},
-		bson.M{"$setOnInsert": bson.M{"event_type": event.EventType, "processed_at": time.Now().UTC()}},
-	)
-	if err != nil {
-		return fmt.Errorf("analytics: record processed score event: %w", err)
-	}
-
-	// Only a genuine insert claims the event; anything else is a replay.
-	if res.UpsertedID == nil {
-		return nil
-	}
-
-	// Load previous fact for rollup key
-	previous, err := r.loadScoreFact(ctx, tenantID, event.ScoreID)
-	if err != nil && !errors.Is(err, mongo.ErrNoDocuments) {
-		return err
-	}
-
-	scoreScope, err := r.assessmentScoreFacts.ScopeTo(tenantID)
-	if err != nil {
-		return fmt.Errorf("analytics: score facts scope: %w", err)
-	}
-
-	// Handle delete or upsert
-	if event.Operation == domain.ScoreDeleted {
-		_, err := scoreScope.DeleteOne(ctx, bson.M{"_id": event.ScoreID})
-		if err != nil {
-			return fmt.Errorf("analytics: delete score fact: %w", err)
-		}
-	} else {
-		occurredAt := event.OccurredAt
-		if occurredAt.IsZero() {
-			occurredAt = time.Now().UTC()
-		}
-		scoreDoc := bson.M{
-			"_id":              event.ScoreID,
-			"assessment_id":    event.AssessmentID,
-			"student_id":       event.StudentID,
-			"subject_id":       event.SubjectID,
-			"academic_year_id": event.AcademicYearID,
-			"bucket_date":      event.BucketDate(),
-			"score":            event.Score,
-			"max_score":        event.MaxScore,
-			"recorded_at":      event.RecordedAt,
-			"updated_at":       occurredAt,
-		}
-		_, err := scoreScope.UpsertOne(ctx,
-			bson.M{"_id": event.ScoreID},
-			bson.M{"$set": scoreDoc},
-		)
-		if err != nil {
-			return fmt.Errorf("analytics: upsert score fact: %w", err)
-		}
-	}
-
-	// Recompute affected rollups
-	keys := []scoreRollupKey{}
-	if previous != nil {
-		keys = append(keys, previous.key())
-	}
-	if event.Operation != domain.ScoreDeleted {
-		keys = appendUniqueScoreKey(keys, scoreRollupKey{
-			BucketDate:     event.BucketDate(),
-			StudentID:      event.StudentID,
-			SubjectID:      event.SubjectID,
-			AcademicYearID: event.AcademicYearID,
-		})
-	}
-
-	for _, key := range keys {
-		if err := r.recomputeScoreRollup(ctx, tenantID, key); err != nil {
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		if err := r.serializeTenant(ctx, tenantID); err != nil {
 			return err
 		}
-	}
-	return nil
+
+		if err := event.Validate(); err != nil {
+			return err
+		}
+
+		scope, err := r.processedEvents.ScopeTo(tenantID)
+		if err != nil {
+			return fmt.Errorf("analytics: processed events scope: %w", err)
+		}
+
+		// Check if already processed
+		res, err := scope.UpsertOne(ctx,
+			bson.M{"_id": tenantID + "/" + event.EventID},
+			bson.M{"$setOnInsert": bson.M{"event_type": event.EventType, "processed_at": time.Now().UTC()}},
+		)
+		if err != nil {
+			return fmt.Errorf("analytics: record processed score event: %w", err)
+		}
+
+		// Only a genuine insert claims the event; anything else is a replay.
+		if res.UpsertedID == nil {
+			return nil
+		}
+
+		// Load previous fact for rollup key
+		previous, err := r.loadScoreFact(ctx, tenantID, event.ScoreID)
+		if err != nil && !errors.Is(err, mongo.ErrNoDocuments) {
+			return err
+		}
+
+		scoreScope, err := r.assessmentScoreFacts.ScopeTo(tenantID)
+		if err != nil {
+			return fmt.Errorf("analytics: score facts scope: %w", err)
+		}
+
+		// Handle delete or upsert
+		if event.Operation == domain.ScoreDeleted {
+			_, err := scoreScope.DeleteOne(ctx, bson.M{"_id": event.ScoreID})
+			if err != nil {
+				return fmt.Errorf("analytics: delete score fact: %w", err)
+			}
+		} else {
+			occurredAt := event.OccurredAt
+			if occurredAt.IsZero() {
+				occurredAt = time.Now().UTC()
+			}
+			scoreDoc := bson.M{
+				"_id":              event.ScoreID,
+				"assessment_id":    event.AssessmentID,
+				"student_id":       event.StudentID,
+				"subject_id":       event.SubjectID,
+				"academic_year_id": event.AcademicYearID,
+				"bucket_date":      event.BucketDate(),
+				"score":            event.Score,
+				"max_score":        event.MaxScore,
+				"recorded_at":      event.RecordedAt,
+				"updated_at":       occurredAt,
+			}
+			_, err := scoreScope.UpsertOne(ctx,
+				bson.M{"_id": event.ScoreID},
+				bson.M{"$set": scoreDoc},
+			)
+			if err != nil {
+				return fmt.Errorf("analytics: upsert score fact: %w", err)
+			}
+		}
+
+		// Recompute affected rollups
+		keys := []scoreRollupKey{}
+		if previous != nil {
+			keys = append(keys, previous.key())
+		}
+		if event.Operation != domain.ScoreDeleted {
+			keys = appendUniqueScoreKey(keys, scoreRollupKey{
+				BucketDate:     event.BucketDate(),
+				StudentID:      event.StudentID,
+				SubjectID:      event.SubjectID,
+				AcademicYearID: event.AcademicYearID,
+			})
+		}
+
+		for _, key := range keys {
+			if err := r.recomputeScoreRollup(ctx, tenantID, key); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 type scoreFact struct {
@@ -365,17 +446,12 @@ func (r *Repository) recomputeScoreRollup(ctx context.Context, tenantID string, 
 
 	// If no scores, delete the metrics
 	if count == 0 {
-		dimensions := bson.M{
-			"student_id":       key.StudentID,
-			"subject_id":       key.SubjectID,
-			"academic_year_id": key.AcademicYearID,
-		}
-		dimensionsJSON, _ := json.Marshal(dimensions)
+		dimensionsJSON := dimensionKey(domain.Dimensions{"student_id": key.StudentID, "subject_id": key.SubjectID, "academic_year_id": key.AcademicYearID})
 		metricNames := []string{"assessments.count", "assessments.sum_score", "assessments.avg_score", "assessments.avg_percentage"}
 		_, err := metricsScope.DeleteMany(ctx, bson.M{
-			"bucket_date": key.BucketDate,
-			"dimensions":  bson.M{"$eq": dimensionsJSON}, // This is a simplified check; MongoDB BSON comparison may differ
-			"metric_name": bson.M{"$in": metricNames},
+			"bucket_date":    key.BucketDate,
+			"dimensions_key": dimensionsJSON,
+			"metric_name":    bson.M{"$in": metricNames},
 		})
 		return err
 	}
@@ -418,27 +494,17 @@ func (r *Repository) recomputeScoreRollup(ctx context.Context, tenantID string, 
 	return nil
 }
 
-func (r *Repository) replaceMetric(ctx context.Context, tenantID string, metric *domain.Metric) error {
-	scope, err := r.metrics.ScopeTo(tenantID)
+func (r *Repository) replaceMetric(ctx context.Context, tenantID string, m *domain.Metric) error {
+	previous, err := r.findMetric(ctx, tenantID, m)
 	if err != nil {
-		return fmt.Errorf("analytics: metrics scope: %w", err)
+		return err
 	}
-
-	fields := metricFields(metric)
-	fields["_id"] = metric.ID
-
-	_, err = scope.UpsertOne(ctx,
-		bson.M{
-			"metric_name": metric.MetricName,
-			"bucket_date": metric.BucketDate.String(),
-			"dimensions":  metric.Dimensions,
-		},
-		bson.M{"$set": fields},
-	)
-	if err != nil {
-		return fmt.Errorf("analytics: replace metric: %w", err)
+	next := *m
+	if previous != nil {
+		next.ID = previous.ID
+		next.CreatedAt = previous.CreatedAt
 	}
-	return nil
+	return r.writeMetric(ctx, tenantID, &next, previous != nil)
 }
 
 func (r *Repository) ListMetrics(ctx context.Context, tenantID string, filter ports.ListFilter) ([]*domain.Metric, string, error) {
@@ -533,61 +599,67 @@ func (r *Repository) ListMetrics(ctx context.Context, tenantID string, filter po
 
 // ApplyGrowthEvent atomically deduplicates, attributes and counts one Growth event.
 func (r *Repository) ApplyGrowthEvent(ctx context.Context, tenantID string, event domain.GrowthEvent) error {
-	scope, err := r.processedEvents.ScopeTo(tenantID)
-	if err != nil {
-		return fmt.Errorf("analytics: processed events scope: %w", err)
-	}
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		if err := r.serializeTenant(ctx, tenantID); err != nil {
+			return err
+		}
 
-	// Check if already processed
-	res, err := scope.UpsertOne(ctx,
-		bson.M{"_id": event.EventID},
-		bson.M{"$setOnInsert": bson.M{"event_type": event.EventType, "processed_at": time.Now().UTC()}},
-	)
-	if err != nil {
-		return fmt.Errorf("analytics: record processed growth event: %w", err)
-	}
+		scope, err := r.processedEvents.ScopeTo(tenantID)
+		if err != nil {
+			return fmt.Errorf("analytics: processed events scope: %w", err)
+		}
 
-	// Only a genuine insert claims the event; anything else is a replay.
-	if res.UpsertedID == nil {
-		return nil
-	}
+		// Check if already processed
+		res, err := scope.UpsertOne(ctx,
+			bson.M{"_id": tenantID + "/" + event.EventID},
+			bson.M{"$setOnInsert": bson.M{"event_type": event.EventType, "processed_at": time.Now().UTC()}},
+		)
+		if err != nil {
+			return fmt.Errorf("analytics: record processed growth event: %w", err)
+		}
 
-	// Store growth attribution
-	if err := r.storeGrowthAttribution(ctx, tenantID, event); err != nil {
-		return err
-	}
+		// Only a genuine insert claims the event; anything else is a replay.
+		if res.UpsertedID == nil {
+			return nil
+		}
 
-	// Store growth fact
-	if err := r.storeGrowthFact(ctx, tenantID, event); err != nil {
-		return err
-	}
+		// Store growth attribution
+		if err := r.storeGrowthAttribution(ctx, tenantID, event); err != nil {
+			return err
+		}
 
-	// Hydrate growth attribution
-	if err := r.hydrateGrowthAttribution(ctx, tenantID, &event); err != nil {
-		return err
-	}
+		// Store growth fact
+		if err := r.storeGrowthFact(ctx, tenantID, event); err != nil {
+			return err
+		}
 
-	// Create growth metric
-	metric, err := domain.NewMetric(
-		tenantID, "growth.funnel."+event.Stage, event.BucketDate, 1, domain.UnitCount,
-		r.growthDimensions(event),
-	)
-	if err != nil {
-		return err
-	}
-	if err := r.UpsertMetric(ctx, tenantID, metric); err != nil {
-		return err
-	}
+		// Hydrate growth attribution
+		if err := r.hydrateGrowthAttribution(ctx, tenantID, &event); err != nil {
+			return err
+		}
 
-	// Preserve the EP-56 metric key used by existing smoke checks and clients
-	if event.Stage == domain.GrowthLeads {
-		legacy, err := domain.NewMetric(tenantID, "growth.leads.count", event.BucketDate, 1, domain.UnitCount, nil)
+		// Create growth metric
+		metric, err := domain.NewMetric(
+			tenantID, "growth.funnel."+event.Stage, event.BucketDate, 1, domain.UnitCount,
+			r.growthDimensions(event),
+		)
 		if err != nil {
 			return err
 		}
-		return r.UpsertMetric(ctx, tenantID, legacy)
-	}
-	return nil
+		if err := r.UpsertMetric(ctx, tenantID, metric); err != nil {
+			return err
+		}
+
+		// Preserve the EP-56 metric key used by existing smoke checks and clients
+		if event.Stage == domain.GrowthLeads {
+			legacy, err := domain.NewMetric(tenantID, "growth.leads.count", event.BucketDate, 1, domain.UnitCount, nil)
+			if err != nil {
+				return err
+			}
+			return r.UpsertMetric(ctx, tenantID, legacy)
+		}
+		return nil
+	})
 }
 
 func (r *Repository) storeGrowthAttribution(ctx context.Context, tenantID string, event domain.GrowthEvent) error {
@@ -884,7 +956,16 @@ func EnsureIndexes(ctx context.Context, store *pmongo.Store) error {
 		},
 		AssessmentScoreFactsCollection: {
 			{{Key: "tenant_id", Value: 1}, {Key: "_id", Value: 1}},
-			{{Key: "tenant_id", Value: 1}, {Key: "bucket_date", Value: 1}, {Key: "student_id", Value: 1}, {Key: "subject_id", Value: 1}, {Key: "academic_year_id", Value: 1}},
+			{{Key: "tenant_id",
+				Value: 1},
+				{Key: "bucket_date",
+					Value: 1},
+				{Key: "student_id",
+					Value: 1},
+				{Key: "subject_id",
+					Value: 1},
+				{Key: "academic_year_id",
+					Value: 1}},
 		},
 		GrowthLeadAttributionCollection: {
 			{{Key: "tenant_id", Value: 1}, {Key: "_id", Value: 1}},
@@ -908,4 +989,15 @@ func EnsureIndexes(ctx context.Context, store *pmongo.Store) error {
 		}
 	}
 	return nil
+}
+
+// A per-tenant guard serializes fact writes and aggregate recomputation. Snapshot
+// transactions alone permit write skew between distinct facts in one rollup.
+func (r *Repository) serializeTenant(ctx context.Context, tenant string) error {
+	scope, err := r.store.Collection("analytics_rollup_guards").ScopeTo(tenant)
+	if err != nil {
+		return err
+	}
+	_, err = scope.UpsertOne(ctx, bson.M{"_id": tenant}, bson.M{"$inc": bson.M{"version": 1}})
+	return err
 }

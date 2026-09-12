@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/db"
 	"github.com/auraedu/platform/eventbus"
 	"github.com/auraedu/platform/flags"
 	"github.com/auraedu/platform/httpx"
@@ -26,8 +25,8 @@ import (
 
 	svcevents "github.com/auraedu/website-service/internal/adapters/events"
 	svchttp "github.com/auraedu/website-service/internal/adapters/http"
-	"github.com/auraedu/website-service/internal/adapters/postgres"
 	"github.com/auraedu/website-service/internal/application"
+	"github.com/auraedu/website-service/internal/persistence"
 )
 
 const service = "website-service"
@@ -52,7 +51,7 @@ func run() error {
 	}()
 
 	ctx := context.Background()
-	database, err := openDB(ctx)
+	database, err := persistence.Open(ctx)
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
@@ -62,7 +61,7 @@ func run() error {
 	defer closePublisher()
 	gates := featureGates(log)
 
-	repo := postgres.NewRepository(database)
+	repo := database.Repository
 	svc := application.NewService(repo,
 		application.WithPublisher(pub),
 		application.WithFeatureGate(gates),
@@ -70,13 +69,13 @@ func run() error {
 	handler := svchttp.NewHandler(svc)
 
 	health := httpx.NewHealth(service, version).WithLogger(log)
-	health.AddReadinessCheck("postgres", func() error { return database.Ping(ctx) })
+	health.AddReadinessCheck(string(database.Driver), func() error { return database.Ping(ctx) })
 
 	mux := http.NewServeMux()
 	health.Register(mux)
 	handler.Register(mux)
 
-	addr := ":" + strconv.Itoa(config.Port(8080))
+	addr := config.Getenv("BIND_HOST", "") + ":" + strconv.Itoa(config.Port(8080))
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           observ.HTTPHandler(service, httpx.RequestIDMiddleware(mux)),
@@ -107,17 +106,6 @@ func run() error {
 	}
 	log.Info(service + " stopped")
 	return nil
-}
-
-func openDB(ctx context.Context) (*db.DB, error) {
-	dsn, err := config.MustGetenv("DATABASE_URL")
-	if err != nil {
-		return nil, err
-	}
-	return db.Open(ctx, db.Config{
-		DSN:        dsn,
-		Migrations: "migrations",
-	})
 }
 
 func publisher(_ context.Context, log *slog.Logger) (*svcevents.Publisher, func()) {

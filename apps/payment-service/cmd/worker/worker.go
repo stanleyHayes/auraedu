@@ -12,10 +12,9 @@ import (
 	"time"
 
 	paymentevents "github.com/auraedu/payment-service/internal/adapters/events"
-	"github.com/auraedu/payment-service/internal/adapters/postgres"
+	"github.com/auraedu/payment-service/internal/persistence"
 	"github.com/auraedu/payment-service/internal/ports"
 	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/db"
 	"github.com/auraedu/platform/eventbus"
 	"github.com/auraedu/platform/observ"
 	"github.com/nats-io/nats.go"
@@ -44,11 +43,7 @@ func Run(serviceVersion string) error {
 		}
 	}()
 
-	dsn, err := config.MustGetenv("DATABASE_URL")
-	if err != nil {
-		return err
-	}
-	database, err := db.Open(ctx, db.Config{DSN: dsn, Migrations: config.Getenv("MIGRATIONS_PATH", "migrations")})
+	database, err := persistence.Open(ctx)
 	if err != nil {
 		return fmt.Errorf("payment worker database: %w", err)
 	}
@@ -71,7 +66,7 @@ func Run(serviceVersion string) error {
 		return fmt.Errorf("payment worker ensure stream: %w", err)
 	}
 
-	repo := postgres.NewPaymentRepository(database)
+	repo := database.Payment
 	publisher := paymentevents.NewPublisher(eventbus.NewPublisher(js))
 	metrics := observ.NewWorkerMetrics("payment-service-worker", "outbox-batch", "outbox-publish")
 	ticker := time.NewTicker(time.Second)

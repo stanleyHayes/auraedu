@@ -11,11 +11,10 @@ import (
 	"time"
 
 	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/db"
 	"github.com/auraedu/platform/eventbus"
 	"github.com/auraedu/platform/observ"
 	svcevents "github.com/auraedu/student-service/internal/adapters/events"
-	"github.com/auraedu/student-service/internal/adapters/postgres"
+	"github.com/auraedu/student-service/internal/persistence"
 	"github.com/auraedu/student-service/internal/ports"
 
 	// Register pgx SQL driver for database/sql based migrations.
@@ -42,11 +41,7 @@ func Run(version string) error {
 			log.Error("flush student worker tracing", "err", err)
 		}
 	}()
-	dsn, err := config.MustGetenv("DATABASE_URL")
-	if err != nil {
-		return err
-	}
-	database, err := db.Open(ctx, db.Config{DSN: dsn, Migrations: "migrations"})
+	database, err := persistence.Open(ctx)
 	if err != nil {
 		return err
 	}
@@ -67,7 +62,7 @@ func Run(version string) error {
 	if _, err := eventbus.EnsureStream(js, "AURA"); err != nil {
 		return err
 	}
-	repo := postgres.NewRepository(database)
+	repo := database.Repository
 	pub := svcevents.NewPublisher(eventbus.NewPublisher(js))
 	metrics := observ.NewWorkerMetrics(service, "outbox-batch", "outbox-publish")
 	ticker := time.NewTicker(time.Second)

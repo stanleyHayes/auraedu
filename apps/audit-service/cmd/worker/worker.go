@@ -12,10 +12,9 @@ import (
 	"time"
 
 	"github.com/auraedu/audit-service/internal/adapters/events"
-	"github.com/auraedu/audit-service/internal/adapters/postgres"
 	"github.com/auraedu/audit-service/internal/application"
+	"github.com/auraedu/audit-service/internal/persistence"
 	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/db"
 	"github.com/auraedu/platform/eventbus"
 	"github.com/auraedu/platform/observ"
 
@@ -48,13 +47,13 @@ func run() error {
 			log.Error("flush audit worker telemetry", "err", err)
 		}
 	}()
-	database, err := openDB(ctx)
+	database, err := persistence.Open(ctx)
 	if err != nil {
 		return err
 	}
 	defer database.Close()
 
-	repo := postgres.NewRepository(database)
+	repo := database.Repository
 	sink := application.NewSink(repo)
 
 	nc, js, err := connectNATS(log)
@@ -85,17 +84,6 @@ func run() error {
 	<-stop
 	log.Info(service + " worker stopped")
 	return nil
-}
-
-func openDB(ctx context.Context) (*db.DB, error) {
-	dsn, err := config.MustGetenv("DATABASE_URL")
-	if err != nil {
-		return nil, err
-	}
-	return db.Open(ctx, db.Config{
-		DSN:        dsn,
-		Migrations: "migrations",
-	})
 }
 
 func connectNATS(log *slog.Logger) (*nats.Conn, eventbus.JetStreamContext, error) {

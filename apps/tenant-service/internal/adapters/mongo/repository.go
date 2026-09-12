@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/auraedu/platform/auth"
 	pmongo "github.com/auraedu/platform/mongo"
 	"github.com/auraedu/platform/tenancy"
 	"github.com/auraedu/tenant-service/internal/domain"
@@ -39,6 +40,7 @@ const (
 )
 
 type Repository struct {
+	store         *pmongo.Store
 	tenants       *pmongo.Collection
 	features      *pmongo.Collection
 	onboarding    *pmongo.Collection
@@ -63,7 +65,7 @@ func NewRepository(store *pmongo.Store) *Repository {
 	customDomains := store.Collection(CustomDomainCollection).WithTenantField("tenant_code")
 	onboarding := store.Collection(OnboardingCollection)
 
-	return &Repository{
+	return &Repository{store: store,
 		tenants: tenants, features: features, onboarding: onboarding, customDomains: customDomains,
 		tenantOutbox:     pmongo.NewClaimableOutbox(tenants, outboxLease),
 		featureOutbox:    pmongo.NewClaimableOutbox(features, outboxLease),
@@ -152,7 +154,11 @@ func tenantFields(t domain.Tenant) bson.M {
 // ListTenants is a platform-wide read with no single tenant scope, so it runs as
 // a platform admin — the same authority the Postgres adapter sets for it.
 func (r *Repository) ListTenants(ctx context.Context) ([]domain.Tenant, error) {
-	cur, err := r.tenants.PlatformOwned().Find(ctx, bson.M{},
+	scope, err := r.tenants.Scope(auth.WithActor(ctx, auth.Actor{Role: auth.RolePlatformSuperAdmin, PlatformAdmin: true}))
+	if err != nil {
+		return nil, err
+	}
+	cur, err := scope.Find(ctx, bson.M{"deleted_at": bson.M{"$exists": false}},
 		options.Find().SetSort(bson.D{{Key: "created_at", Value: 1}}))
 	if err != nil {
 		return nil, fmt.Errorf("list tenants: %w", err)
@@ -184,33 +190,35 @@ func (r *Repository) tenantDoc(ctx context.Context, code string) (tenantDoc, err
 		return tenantDoc{}, err
 	}
 	var doc tenantDoc
-	if err := scope.FindOne(ctx, bson.M{"_id": code}).Decode(&doc); err != nil {
+	if err := scope.FindOne(ctx, bson.M{"_id": code, "deleted_at": bson.M{"$exists": false}}).Decode(&doc); err != nil {
 		return tenantDoc{}, notFound(err, code)
 	}
 	return doc, nil
 }
 
 func (r *Repository) CreateTenant(ctx context.Context, t domain.Tenant) error {
-	scope, err := r.tenants.ScopeTo(t.Code)
-	if err != nil {
-		return err
-	}
-	event, err := tenantEvent(t.Code, "tenant.created.v1", map[string]any{
-		"tenant_code": t.Code, "name": t.Name, "plan": t.Plan, "status": t.Status,
-	})
-	if err != nil {
-		return err
-	}
-	doc := tenantFields(t)
-	doc["_id"] = t.Code
-	doc["created_at"] = time.Now().UTC()
-	if _, err := scope.InsertWithEvents(ctx, doc, event); err != nil {
-		if mongo.IsDuplicateKeyError(err) {
-			return domain.ErrConflict
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		scope, err := r.tenants.ScopeTo(t.Code)
+		if err != nil {
+			return err
 		}
-		return fmt.Errorf("create tenant: %w", err)
-	}
-	return r.seedFeatures(ctx, t)
+		event, err := tenantEvent(t.Code, "tenant.created.v1", map[string]any{
+			"tenant_code": t.Code, "name": t.Name, "plan": t.Plan, "status": t.Status,
+		})
+		if err != nil {
+			return err
+		}
+		doc := tenantFields(t)
+		doc["_id"] = t.Code
+		doc["created_at"] = time.Now().UTC()
+		if _, err := scope.InsertWithEvents(ctx, doc, event); err != nil {
+			if mongo.IsDuplicateKeyError(err) {
+				return domain.ErrConflict
+			}
+			return fmt.Errorf("create tenant: %w", err)
+		}
+		return r.seedFeatures(ctx, t)
+	})
 }
 
 func (r *Repository) UpdateTenant(ctx context.Context, code string, upd domain.TenantUpdate) (domain.Tenant, error) {
@@ -233,7 +241,7 @@ func (r *Repository) UpdateTenant(ctx context.Context, code string, upd domain.T
 	if err != nil {
 		return domain.Tenant{}, err
 	}
-	res, err := scope.UpdateWithEvents(ctx, bson.M{"_id": code}, bson.M{"$set": tenantFields(next)}, event)
+	res, err := scope.UpdateWithEvents(ctx, bson.M{"_id": code, "deleted_at": bson.M{"$exists": false}}, bson.M{"$set": tenantFields(next)}, event)
 	if err != nil {
 		return domain.Tenant{}, fmt.Errorf("update tenant: %w", err)
 	}
@@ -246,24 +254,35 @@ func (r *Repository) UpdateTenant(ctx context.Context, code string, upd domain.T
 // DeleteTenant tombstones the record so its deletion event survives to be
 // published, then PurgeSettled clears it once delivered.
 func (r *Repository) DeleteTenant(ctx context.Context, code string) error {
-	scope, err := r.tenants.ScopeTo(code)
-	if err != nil {
-		return err
-	}
-	event, err := tenantEvent(code, "tenant.deleted.v1", map[string]any{"tenant_code": code})
-	if err != nil {
-		return err
-	}
-	res, err := scope.UpdateWithEvents(ctx,
-		bson.M{"_id": code, "deleted_at": bson.M{"$exists": false}},
-		bson.M{"$set": bson.M{"deleted_at": time.Now().UTC()}}, event)
-	if err != nil {
-		return fmt.Errorf("delete tenant: %w", err)
-	}
-	if res.MatchedCount == 0 {
-		return fmt.Errorf("%w: %s", domain.ErrNotFound, code)
-	}
-	return nil
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		scope, err := r.tenants.ScopeTo(code)
+		if err != nil {
+			return err
+		}
+		event, err := tenantEvent(code, "tenant.deleted.v1", map[string]any{"tenant_code": code})
+		if err != nil {
+			return err
+		}
+		res, err := scope.UpdateWithEvents(ctx,
+			bson.M{"_id": code, "deleted_at": bson.M{"$exists": false}},
+			bson.M{"$set": bson.M{"deleted_at": time.Now().UTC()}}, event)
+		if err != nil {
+			return fmt.Errorf("delete tenant: %w", err)
+		}
+		if res.MatchedCount == 0 {
+			return fmt.Errorf("%w: %s", domain.ErrNotFound, code)
+		}
+		for _, collection := range []*pmongo.Collection{r.features, r.customDomains} {
+			owned, err := collection.ScopeTo(code)
+			if err != nil {
+				return err
+			}
+			if _, err = owned.UpdateMany(ctx, bson.M{}, bson.M{"$set": bson.M{"deleted_at": time.Now().UTC()}}); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // ResolveTenant maps a host or subdomain to an active tenant. It is a
@@ -283,7 +302,11 @@ func (r *Repository) ResolveTenant(ctx context.Context, domainHost, subdomain st
 	}
 
 	var doc tenantDoc
-	err := r.tenants.PlatformOwned().FindOne(ctx, bson.M{
+	scope, err := r.tenants.Scope(auth.WithActor(ctx, auth.Actor{Role: auth.RolePlatformSuperAdmin, PlatformAdmin: true}))
+	if err != nil {
+		return domain.Tenant{}, err
+	}
+	err = scope.FindOne(ctx, bson.M{
 		"status": "active", "deleted_at": bson.M{"$exists": false}, "$or": or,
 	}).Decode(&doc)
 	if err != nil {
@@ -307,7 +330,7 @@ func (r *Repository) UpdateSettings(ctx context.Context, code string, s domain.S
 	if err != nil {
 		return err
 	}
-	res, err := scope.UpdateOne(ctx, bson.M{"_id": code}, bson.M{"$set": bson.M{
+	res, err := scope.UpdateOne(ctx, bson.M{"_id": code, "deleted_at": bson.M{"$exists": false}}, bson.M{"$set": bson.M{
 		"locale": s.Locale, "timezone": s.Timezone, "date_format": s.DateFormat,
 		"academic_year_start_month": s.AcademicYearStartMonth,
 		"primary_contact_email":     s.PrimaryContactEmail,
@@ -327,9 +350,8 @@ func (r *Repository) UpdateSettings(ctx context.Context, code string, s domain.S
 // A tenant's flags live in ONE document rather than one per flag.
 //
 // PostgreSQL seeds all forty-odd catalogue rows inside the transaction that
-// creates the tenant, and changes one row alongside its event. Neither is
-// possible across separate MongoDB documents without transactions, so the flags
-// are a single document: seeding is one atomic write, and setting a flag is one
+// creates the tenant, and changes one row alongside its event. Flags are stored in
+// a single document within the tenant provisioning transaction: seeding is one atomic write, and setting a flag is one
 // atomic write that carries its own event.
 type featureSetDoc struct {
 	TenantCode string                `bson:"_id"`
@@ -356,9 +378,18 @@ func (r *Repository) seedFeatures(ctx context.Context, t domain.Tenant) error {
 	for _, f := range domain.FeatureCatalog() {
 		flags[f.Key] = bson.M{"is_enabled": domain.PlanAllows(t.Plan, f.PlanRequired)}
 	}
+	// A reused code receives fresh defaults; keep old pending outbox events intact.
+	restored, err := scope.UpdateOne(ctx, bson.M{"_id": t.Code, "deleted_at": bson.M{"$exists": true}},
+		bson.M{"$set": bson.M{"flags": flags}, "$unset": bson.M{"deleted_at": ""}})
+	if err != nil {
+		return fmt.Errorf("reseed features: %w", err)
+	}
+	if restored.MatchedCount == 1 {
+		return nil
+	}
 	if _, err := scope.InsertOne(ctx, bson.M{"_id": t.Code, "flags": flags}); err != nil {
 		if mongo.IsDuplicateKeyError(err) {
-			return nil // already seeded; creating a tenant twice is not a reseed
+			return domain.ErrConflict
 		}
 		return fmt.Errorf("seed features: %w", err)
 	}
@@ -369,12 +400,15 @@ func (r *Repository) seedFeatures(ctx context.Context, t domain.Tenant) error {
 // tenant with no flag document does not exist, or is not visible to this scope —
 // the same conclusion the PostgreSQL adapter draws from finding no rows.
 func (r *Repository) Features(ctx context.Context, code string) ([]domain.FeatureFlag, error) {
+	if _, err := r.GetTenant(ctx, code); err != nil {
+		return nil, err
+	}
 	scope, err := r.features.ScopeTo(code)
 	if err != nil {
 		return nil, err
 	}
 	var doc featureSetDoc
-	if err := scope.FindOne(ctx, bson.M{"_id": code}).Decode(&doc); err != nil {
+	if err := scope.FindOne(ctx, bson.M{"_id": code, "deleted_at": bson.M{"$exists": false}}).Decode(&doc); err != nil {
 		return nil, notFound(err, code)
 	}
 
@@ -419,7 +453,7 @@ func (r *Repository) SetFeature(ctx context.Context, code, key string, enabled b
 
 	// The flag and the event announcing it land together, in one atomic
 	// single-document write.
-	res, err := scope.UpdateWithEvents(ctx, bson.M{"_id": code}, bson.M{
+	res, err := scope.UpdateWithEvents(ctx, bson.M{"_id": code, "deleted_at": bson.M{"$exists": false}}, bson.M{
 		"$set": bson.M{
 			"flags." + key + ".is_enabled": enabled,
 			"flags." + key + ".reason":     reason,
@@ -501,6 +535,9 @@ func (r *Repository) SubmitOnboarding(
 
 	var existing onboardingDoc
 	if err := queue.FindOne(ctx, bson.M{"idempotency_hash": idempotencyHash}).Decode(&existing); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, false, domain.ErrConflict
+		}
 		return nil, false, fmt.Errorf("onboarding: find replay: %w", err)
 	}
 	if existing.PayloadHash != "" && existing.PayloadHash != payloadHash {
@@ -554,35 +591,71 @@ func (r *Repository) GetOnboarding(ctx context.Context, requestID string) (domai
 	return doc.toDomain(), nil
 }
 
-// ApproveOnboarding provisions the tenant and records the decision. The tenant
-// is created first: a decision recorded against a tenant that does not exist is
-// worse than a retryable failure before the decision is written.
+// ApproveOnboarding provisions the tenant, feature defaults, contact and both downstream
+// events in the same transaction as the intake decision. Existing tenants conflict.
 func (r *Repository) ApproveOnboarding(ctx context.Context, requestID string, tenant domain.Tenant, decidedBy string) (domain.OnboardingRequest, error) {
-	current, err := r.GetOnboarding(ctx, requestID)
+	var approved domain.OnboardingRequest
+	err := r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		current, err := r.GetOnboarding(ctx, requestID)
+		if err != nil {
+			return err
+		}
+		if current.Status != domain.OnboardingPending {
+			return domain.ErrConflict
+		}
+		if err = r.CreateTenant(ctx, tenant); err != nil {
+			return err
+		}
+		event,
+			err := tenantEvent(tenant.Code,
+			"tenant.onboarding_approved.v1",
+			map[string]any{"request_id": requestID,
+				"tenant_code": tenant.Code,
+				"plan":        tenant.Plan})
+		if err != nil {
+			return err
+		}
+		scope, err := r.tenants.ScopeTo(tenant.Code)
+		if err != nil {
+			return err
+		}
+		res,
+			err := scope.UpdateWithEvents(ctx,
+			bson.M{"_id": tenant.Code,
+				"deleted_at": bson.M{"$exists": false}},
+			bson.M{"$set": bson.M{"primary_contact_email": current.Email}},
+			event)
+		if err != nil {
+			return err
+		}
+		if res.MatchedCount != 1 {
+			return domain.ErrNotFound
+		}
+		now := time.Now().UTC()
+		res,
+			err = r.onboarding.PlatformOwned().UpdateOne(ctx,
+			bson.M{"_id": requestID,
+				"status": domain.OnboardingPending},
+			bson.M{"$set": bson.M{"status": domain.OnboardingApproved,
+				"tenant_code": tenant.Code,
+				"decided_by":  decidedBy,
+				"decided_at":  now}})
+		if err != nil {
+			return err
+		}
+		if res.MatchedCount != 1 {
+			return domain.ErrConflict
+		}
+		approved = current
+		approved.Status = domain.OnboardingApproved
+		approved.TenantCode = &tenant.Code
+		approved.DecidedAt = &now
+		return nil
+	})
 	if err != nil {
 		return domain.OnboardingRequest{}, err
 	}
-	if current.Status != "pending_review" {
-		return domain.OnboardingRequest{}, domain.ErrConflict
-	}
-	if err := r.CreateTenant(ctx, tenant); err != nil && !errors.Is(err, domain.ErrConflict) {
-		return domain.OnboardingRequest{}, err
-	}
-
-	decidedAt := time.Now().UTC()
-	res, err := r.onboarding.PlatformOwned().UpdateOne(ctx,
-		bson.M{"_id": requestID, "status": "pending_review"},
-		bson.M{"$set": bson.M{
-			"status": "approved", "tenant_code": tenant.Code,
-			"decided_by": decidedBy, "decided_at": decidedAt,
-		}})
-	if err != nil {
-		return domain.OnboardingRequest{}, fmt.Errorf("onboarding: approve: %w", err)
-	}
-	if res.MatchedCount != 1 {
-		return domain.OnboardingRequest{}, domain.ErrConflict
-	}
-	return r.GetOnboarding(ctx, requestID)
+	return approved, nil
 }
 
 func (r *Repository) RejectOnboarding(ctx context.Context, requestID, reason, decidedBy string) (domain.OnboardingRequest, error) {
@@ -633,7 +706,7 @@ func (r *Repository) ActivateOnboardingTenant(ctx context.Context, code string) 
 		return false, err
 	}
 	res, err := scope.UpdateWithEvents(ctx,
-		bson.M{"_id": code, "status": "onboarding"},
+		bson.M{"_id": code, "status": "onboarding", "deleted_at": bson.M{"$exists": false}},
 		bson.M{"$set": bson.M{"status": "active", "updated_at": time.Now().UTC()}}, event)
 	if err != nil {
 		return false, fmt.Errorf("activate tenant: %w", err)
@@ -665,7 +738,7 @@ func (d customDomainDoc) toDomain() domain.CustomDomain {
 	}
 }
 
-func (r *Repository) RequestCustomDomain(ctx context.Context, registration domain.CustomDomain, challengeHash string) (domain.CustomDomain, error) {
+func (r *Repository) requestCustomDomain(ctx context.Context, registration domain.CustomDomain, challengeHash string) (domain.CustomDomain, error) {
 	scope, err := r.customDomains.ScopeTo(registration.TenantCode)
 	if err != nil {
 		return domain.CustomDomain{}, err
@@ -693,7 +766,7 @@ func (r *Repository) customDomain(ctx context.Context, code string) (domain.Cust
 		return domain.CustomDomain{}, err
 	}
 	var doc customDomainDoc
-	if err := scope.FindOne(ctx, bson.M{"_id": code}).Decode(&doc); err != nil {
+	if err := scope.FindOne(ctx, bson.M{"_id": code, "deleted_at": bson.M{"$exists": false}}).Decode(&doc); err != nil {
 		return domain.CustomDomain{}, notFound(err, code)
 	}
 	return doc.toDomain(), nil
@@ -707,7 +780,7 @@ func (r *Repository) GetCustomDomain(ctx context.Context, code string) (domain.C
 		return domain.CustomDomain{}, "", err
 	}
 	var doc customDomainDoc
-	if err := scope.FindOne(ctx, bson.M{"_id": code}).Decode(&doc); err != nil {
+	if err := scope.FindOne(ctx, bson.M{"_id": code, "deleted_at": bson.M{"$exists": false}}).Decode(&doc); err != nil {
 		return domain.CustomDomain{}, "", notFound(err, code)
 	}
 	return doc.toDomain(), doc.ChallengeHash, nil
@@ -718,7 +791,7 @@ func (r *Repository) markCustomDomain(ctx context.Context, code string, filter, 
 	if err != nil {
 		return domain.CustomDomain{}, err
 	}
-	query := bson.M{"_id": code}
+	query := bson.M{"_id": code, "deleted_at": bson.M{"$exists": false}}
 	for k, v := range filter {
 		query[k] = v
 	}
@@ -743,16 +816,61 @@ func (r *Repository) MarkCustomDomainVerified(ctx context.Context, code string, 
 		bson.M{"status": "verified", "verified_at": verifiedAt})
 }
 
-func (r *Repository) ActivateCustomDomain(ctx context.Context, code, providerReference string, activatedAt time.Time) (domain.CustomDomain, error) {
-	return r.markCustomDomain(ctx, code,
-		bson.M{"status": "verified"},
-		bson.M{"status": "active", "activated_at": activatedAt, "provider_reference": providerReference})
+func (r *Repository) ActivateCustomDomain(ctx context.Context, code, providerReference string, at time.Time) (domain.CustomDomain, error) {
+	return r.transitionDomain(ctx, code, providerReference, at, true)
 }
-
-func (r *Repository) DeactivateCustomDomain(ctx context.Context, code, providerReference string, deactivatedAt time.Time) (domain.CustomDomain, error) {
-	return r.markCustomDomain(ctx, code,
-		bson.M{"status": "active"},
-		bson.M{"status": "inactive", "deactivated_at": deactivatedAt, "provider_reference": providerReference})
+func (r *Repository) DeactivateCustomDomain(ctx context.Context, code, providerReference string, at time.Time) (domain.CustomDomain, error) {
+	return r.transitionDomain(ctx, code, providerReference, at, false)
+}
+func (r *Repository) transitionDomain(ctx context.Context, code, reference string, at time.Time, active bool) (domain.CustomDomain, error) {
+	var result domain.CustomDomain
+	err := r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		from, to, kind := "active", "inactive", "tenant.custom_domain_deactivated.v1"
+		set := bson.M{"deactivated_at": at, "provider_reference": reference}
+		if active {
+			from, to, kind = "verified", "active", "tenant.custom_domain_activated.v1"
+			set = bson.M{"activated_at": at, "provider_reference": reference}
+		}
+		set["status"] = to
+		var err error
+		result, err = r.markCustomDomain(ctx, code, bson.M{"status": from}, set)
+		if err != nil {
+			return err
+		}
+		scope, err := r.tenants.ScopeTo(code)
+		if err != nil {
+			return err
+		}
+		query := bson.M{"_id": code, "deleted_at": bson.M{"$exists": false}}
+		nextDomain := ""
+		if active {
+			nextDomain = result.Hostname
+		} else {
+			current, err := r.GetTenant(ctx, code)
+			if err != nil {
+				return err
+			}
+			if current.Domain != result.Hostname {
+				nextDomain = current.Domain
+			}
+		}
+		event, err := tenantEvent(code, kind, map[string]any{"tenant_code": code, "hostname": result.Hostname})
+		if err != nil {
+			return err
+		}
+		res, err := scope.UpdateWithEvents(ctx, query, bson.M{"$set": bson.M{"domain": nextDomain, "updated_at": time.Now().UTC()}}, event)
+		if err != nil {
+			return err
+		}
+		if res.MatchedCount != 1 {
+			return domain.ErrNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		return domain.CustomDomain{}, err
+	}
+	return result, nil
 }
 
 // ---- outbox --------------------------------------------------------------
@@ -821,7 +939,6 @@ func (r *Repository) MarkFailed(ctx context.Context, id, message string) error {
 // EnsureIndexes replaces the CREATE INDEX and UNIQUE statements in the
 // PostgreSQL migrations.
 func EnsureIndexes(ctx context.Context, store *pmongo.Store) error {
-	unique := options.Index().SetUnique(true)
 	specs := map[string][]mongo.IndexModel{
 		TenantCollection: {
 			{Keys: bson.D{{Key: "created_at", Value: 1}}},
@@ -831,11 +948,15 @@ func EnsureIndexes(ctx context.Context, store *pmongo.Store) error {
 			{Keys: bson.D{{Key: "tenant_code", Value: 1}}},
 		},
 		OnboardingCollection: {
-			{Keys: bson.D{{Key: "idempotency_hash", Value: 1}}, Options: unique},
+			{Keys: bson.D{{Key: "email_fingerprint",
+				Value: 1}},
+				Options: options.Index().SetName("onboarding_pending_email_unique").SetUnique(true).SetPartialFilterExpression(bson.M{"status": domain.OnboardingPending})},
+
+			{Keys: bson.D{{Key: "idempotency_hash", Value: 1}}, Options: options.Index().SetUnique(true)},
 			{Keys: bson.D{{Key: "status", Value: 1}, {Key: "_id", Value: 1}}},
 		},
 		CustomDomainCollection: {
-			{Keys: bson.D{{Key: "hostname", Value: 1}}, Options: unique},
+			{Keys: bson.D{{Key: "hostname", Value: 1}}, Options: options.Index().SetUnique(true)},
 		},
 	}
 	for name, models := range specs {
@@ -844,4 +965,31 @@ func EnsureIndexes(ctx context.Context, store *pmongo.Store) error {
 		}
 	}
 	return nil
+}
+
+func (r *Repository) RequestCustomDomain(ctx context.Context, registration domain.CustomDomain, challengeHash string) (domain.CustomDomain, error) {
+	var result domain.CustomDomain
+	err := r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		scope, err := r.tenants.ScopeTo(registration.TenantCode)
+		if err != nil {
+			return err
+		}
+		res,
+			err := scope.UpdateOne(ctx,
+			bson.M{"_id": registration.TenantCode,
+				"deleted_at": bson.M{"$exists": false}},
+			bson.M{"$inc": bson.M{"_reference_version": 1}})
+		if err != nil {
+			return err
+		}
+		if res.MatchedCount != 1 {
+			return domain.ErrNotFound
+		}
+		result, err = r.requestCustomDomain(ctx, registration, challengeHash)
+		return err
+	})
+	if err != nil {
+		return domain.CustomDomain{}, err
+	}
+	return result, nil
 }

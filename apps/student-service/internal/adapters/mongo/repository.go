@@ -6,7 +6,8 @@
 // Tenant isolation comes from platform/mongo.Scope rather than row-level
 // security: a query that is not scoped cannot be written. Lifecycle events are
 // embedded in the aggregate they describe, which makes the domain change and
-// its event a single atomic write on a tier with no multi-document transactions.
+// its event a single atomic write. Operations spanning aggregates use
+// replica-set transactions to preserve their shared invariants.
 package mongo
 
 import (
@@ -36,10 +37,12 @@ const (
 )
 
 type Repository struct {
-	students    *pmongo.Collection
-	enrollments *pmongo.Collection
-	guardians   *pmongo.Collection
-	links       *pmongo.Collection
+	store            *pmongo.Store
+	enrollmentOutbox *pmongo.ClaimableOutbox
+	students         *pmongo.Collection
+	enrollments      *pmongo.Collection
+	guardians        *pmongo.Collection
+	links            *pmongo.Collection
 
 	studentOutbox  *pmongo.ClaimableOutbox
 	guardianOutbox *pmongo.ClaimableOutbox
@@ -57,6 +60,7 @@ func NewRepository(store *pmongo.Store) *Repository {
 	guardians := store.Collection(GuardianCollection)
 	links := store.Collection(StudentGuardianCollection)
 	return &Repository{
+		store: store, enrollmentOutbox: pmongo.NewClaimableOutbox(store.Collection(EnrollmentCollection), outboxLease),
 		students: students, enrollments: store.Collection(EnrollmentCollection),
 		guardians: guardians, links: links,
 		studentOutbox:  pmongo.NewClaimableOutbox(students, outboxLease),
@@ -132,7 +136,7 @@ func studentFields(s *domain.Student) bson.M {
 	}
 }
 
-func (r *Repository) Create(ctx context.Context, tenantID string, s *domain.Student) error {
+func (r *Repository) create(ctx context.Context, tenantID string, s *domain.Student) error {
 	scope, err := r.students.ScopeTo(tenantID)
 	if err != nil {
 		return err
@@ -249,7 +253,7 @@ func (r *Repository) Update(ctx context.Context, tenantID string, s *domain.Stud
 	return nil
 }
 
-func (r *Repository) Delete(ctx context.Context, tenantID, id string) error {
+func (r *Repository) delete(ctx context.Context, tenantID, id string) error {
 	scope, err := r.students.ScopeTo(tenantID)
 	if err != nil {
 		return err
@@ -282,7 +286,7 @@ func (d enrollmentDoc) toDomain() *domain.Enrollment {
 	}
 }
 
-func (r *Repository) CreateEnrollment(ctx context.Context, tenantID string, e *domain.Enrollment) error {
+func (r *Repository) createEnrollment(ctx context.Context, tenantID string, e *domain.Enrollment) error {
 	scope, err := r.enrollments.ScopeTo(tenantID)
 	if err != nil {
 		return err
@@ -301,7 +305,7 @@ func (r *Repository) ListEnrollments(ctx context.Context, tenantID, studentID st
 	if err != nil {
 		return nil, "", err
 	}
-	query := bson.M{"student_id": studentID}
+	query := live(bson.M{"student_id": studentID})
 	if cursor != "" {
 		query["_id"] = bson.M{"$gt": cursor}
 	}
@@ -409,7 +413,7 @@ func (r *Repository) UpdateGuardian(ctx context.Context, tenantID string, g *dom
 	return nil
 }
 
-func (r *Repository) DeleteGuardian(ctx context.Context, tenantID, id string) error {
+func (r *Repository) deleteGuardian(ctx context.Context, tenantID, id string) error {
 	scope, err := r.guardians.ScopeTo(tenantID)
 	if err != nil {
 		return err
@@ -436,7 +440,7 @@ type linkDoc struct {
 	CreatedAt    time.Time `bson:"created_at"`
 }
 
-func (r *Repository) LinkGuardianToStudent(ctx context.Context, tenantID string, link *domain.StudentGuardian) error {
+func (r *Repository) linkGuardianToStudent(ctx context.Context, tenantID string, link *domain.StudentGuardian) error {
 	scope, err := r.links.ScopeTo(tenantID)
 	if err != nil {
 		return err
@@ -535,7 +539,7 @@ func (r *Repository) linkedIDs(ctx context.Context, tenantID string, query bson.
 	if err != nil {
 		return nil, err
 	}
-	cur, err := scope.Find(ctx, query, options.Find().SetProjection(bson.M{field: 1}))
+	cur, err := scope.Find(ctx, live(query), options.Find().SetProjection(bson.M{field: 1}))
 	if err != nil {
 		return nil, fmt.Errorf("student: list links: %w", err)
 	}
@@ -562,11 +566,11 @@ func (r *Repository) linkedIDs(ctx context.Context, tenantID string, query bson.
 // Deletes are the exception: removing the document would remove the queued event
 // with it, so the record is tombstoned and cleared once the event is published.
 //
-// Creating a student with a class also creates an enrollment, which is a second
-// document. The student and its event stay atomic; the enrollment follows and
-// reports its own failure. A student without an enrollment is a state the system
-// already has, so the ordering fails towards the recoverable side.
-func (r *Repository) CommitStudentLifecycle(ctx context.Context, tenantID string, mutation ports.LifecycleMutation, eventType string, payload map[string]any) error {
+// Multi-document mutations run in a replica-set transaction. Enrollment history,
+// current class projection, guardian links and their embedded events commit together.
+func (r *Repository) commitStudentLifecycle(ctx context.Context,
+	tenantID string, mutation ports.LifecycleMutation, eventType string,
+	payload map[string]any) error {
 	event, err := lifecycleEvent(tenantID, eventType, payload)
 	if err != nil {
 		return err
@@ -665,8 +669,12 @@ func (r *Repository) queueOn(ctx context.Context, coll *pmongo.Collection, tenan
 	if err != nil {
 		return err
 	}
-	if _, err := scope.UpdateWithEvents(ctx, bson.M{"_id": id}, bson.M{}, event); err != nil {
+	res, err := scope.UpdateWithEvents(ctx, live(bson.M{"_id": id}), bson.M{}, event)
+	if err != nil {
 		return fmt.Errorf("student: queue lifecycle event: %w", err)
+	}
+	if res.MatchedCount != 1 {
+		return domain.ErrNotFound
 	}
 	return nil
 }
@@ -707,7 +715,7 @@ func (r *Repository) ClaimPendingStudentEvents(ctx context.Context, limit int) (
 		limit = 25
 	}
 	out := []ports.OutboxEvent{}
-	for _, outbox := range []*pmongo.ClaimableOutbox{r.studentOutbox, r.guardianOutbox, r.linkOutbox} {
+	for _, outbox := range []*pmongo.ClaimableOutbox{r.studentOutbox, r.enrollmentOutbox, r.guardianOutbox, r.linkOutbox} {
 		if len(out) >= limit {
 			break
 		}
@@ -724,7 +732,7 @@ func (r *Repository) ClaimPendingStudentEvents(ctx context.Context, limit int) (
 // that queue them. The port carries only the event id, and acknowledging one
 // that is already gone is normal for an at-least-once outbox.
 func (r *Repository) MarkStudentEventPublished(ctx context.Context, id string) error {
-	for _, outbox := range []*pmongo.ClaimableOutbox{r.studentOutbox, r.guardianOutbox, r.linkOutbox} {
+	for _, outbox := range []*pmongo.ClaimableOutbox{r.studentOutbox, r.enrollmentOutbox, r.guardianOutbox, r.linkOutbox} {
 		if err := outbox.MarkPublishedByEventID(ctx, id); err != nil {
 			return fmt.Errorf("student: mark published: %w", err)
 		}
@@ -737,7 +745,7 @@ func (r *Repository) MarkStudentEventPublished(ctx context.Context, id string) e
 }
 
 func (r *Repository) MarkStudentEventFailed(ctx context.Context, id, reason string) error {
-	for _, outbox := range []*pmongo.ClaimableOutbox{r.studentOutbox, r.guardianOutbox, r.linkOutbox} {
+	for _, outbox := range []*pmongo.ClaimableOutbox{r.studentOutbox, r.enrollmentOutbox, r.guardianOutbox, r.linkOutbox} {
 		if err := outbox.MarkFailedByEventID(ctx, id, reason); err != nil {
 			return fmt.Errorf("student: mark failed: %w", err)
 		}
@@ -748,23 +756,27 @@ func (r *Repository) MarkStudentEventFailed(ctx context.Context, id, reason stri
 // EnsureIndexes replaces the CREATE INDEX and UNIQUE statements in the
 // PostgreSQL migrations.
 func EnsureIndexes(ctx context.Context, store *pmongo.Store) error {
-	unique := options.Index().SetUnique(true)
 	specs := map[string][]mongo.IndexModel{
 		StudentCollection: {
 			{Keys: bson.D{{Key: "tenant_id", Value: 1}, {Key: "_id", Value: 1}}},
 			{Keys: bson.D{{Key: "tenant_id", Value: 1}, {Key: "class_id", Value: 1}}},
-			{Keys: bson.D{{Key: "tenant_id", Value: 1}, {Key: "user_id", Value: 1}}},
-			{Keys: bson.D{{Key: "tenant_id", Value: 1}, {Key: "student_code", Value: 1}}, Options: unique},
+			{Keys: bson.D{{Key: "tenant_id", Value: 1}, {Key: "user_id",
+				Value: 1}}, Options: options.Index().SetUnique(true).SetName("tenant_user_unique").
+				SetPartialFilterExpression(bson.M{"user_id": bson.M{"$type": "string"}})},
+			{Keys: bson.D{{Key: "tenant_id", Value: 1}, {Key: "student_code", Value: 1}}, Options: options.Index().SetUnique(true)},
 		},
 		EnrollmentCollection: {
+			{Keys: bson.D{{Key: "tenant_id", Value: 1}, {Key: "student_id", Value: 1}, {Key: "academic_year_id", Value: 1}}, Options: options.Index().SetUnique(true)},
 			{Keys: bson.D{{Key: "tenant_id", Value: 1}, {Key: "student_id", Value: 1}, {Key: "_id", Value: 1}}},
 		},
 		GuardianCollection: {
 			{Keys: bson.D{{Key: "tenant_id", Value: 1}, {Key: "_id", Value: 1}}},
-			{Keys: bson.D{{Key: "tenant_id", Value: 1}, {Key: "user_id", Value: 1}}},
+			{Keys: bson.D{{Key: "tenant_id", Value: 1}, {Key: "user_id",
+				Value: 1}}, Options: options.Index().SetUnique(true).SetName("tenant_user_unique").
+				SetPartialFilterExpression(bson.M{"user_id": bson.M{"$type": "string"}})},
 		},
 		StudentGuardianCollection: {
-			{Keys: bson.D{{Key: "tenant_id", Value: 1}, {Key: "student_id", Value: 1}, {Key: "guardian_id", Value: 1}}, Options: unique},
+			{Keys: bson.D{{Key: "tenant_id", Value: 1}, {Key: "student_id", Value: 1}, {Key: "guardian_id", Value: 1}}, Options: options.Index().SetUnique(true)},
 			{Keys: bson.D{{Key: "tenant_id", Value: 1}, {Key: "guardian_id", Value: 1}}},
 		},
 	}
@@ -774,4 +786,123 @@ func EnsureIndexes(ctx context.Context, store *pmongo.Store) error {
 		}
 	}
 	return nil
+}
+
+func (r *Repository) Create(ctx context.Context, t string, s *domain.Student) error {
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		if err := r.create(ctx, t, s); err != nil {
+			return err
+		}
+		if s.ClassID != nil && s.AcademicYearID != nil {
+			e, err := domain.NewEnrollment(t, s.ID, *s.ClassID, *s.AcademicYearID, s.CreatedAt)
+			if err != nil {
+				return err
+			}
+			return r.createEnrollmentAndProject(ctx, t, e)
+		}
+		return nil
+	})
+}
+func (r *Repository) CreateEnrollment(ctx context.Context, t string, e *domain.Enrollment) error {
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error { return r.createEnrollmentAndProject(ctx, t, e) })
+}
+func (r *Repository) createEnrollmentAndProject(ctx context.Context, t string, e *domain.Enrollment) error {
+	if err := r.fence(ctx, r.students, t, e.StudentID); err != nil {
+		return err
+	}
+	if err := r.createEnrollment(ctx, t, e); err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			return domain.ErrConflict
+		}
+		return err
+	}
+	scope, err := r.students.ScopeTo(t)
+	if err != nil {
+		return err
+	}
+	res, err := scope.UpdateOne(ctx, live(bson.M{"_id": e.StudentID}),
+		bson.M{"$set": bson.M{"class_id": e.ClassID, "academic_year_id": e.AcademicYearID,
+			"updated_at": e.EnrolledAt}})
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount != 1 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+func (r *Repository) fence(ctx context.Context, c *pmongo.Collection, t, id string) error {
+	scope, err := c.ScopeTo(t)
+	if err != nil {
+		return err
+	}
+	res, err := scope.UpdateOne(ctx, live(bson.M{"_id": id}), bson.M{"$inc": bson.M{"_reference_version": 1}})
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount != 1 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+func (r *Repository) LinkGuardianToStudent(ctx context.Context, t string, l *domain.StudentGuardian) error {
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		if err := r.fence(ctx, r.students, t, l.StudentID); err != nil {
+			return err
+		}
+		if err := r.fence(ctx, r.guardians, t, l.GuardianID); err != nil {
+			return err
+		}
+		return r.linkGuardianToStudent(ctx, t, l)
+	})
+}
+func (r *Repository) cascade(ctx context.Context, t, id string, student bool) error {
+	coll := r.links
+	key := "guardian_id"
+	if student {
+		key = "student_id"
+		scope, err := r.enrollments.ScopeTo(t)
+		if err != nil {
+			return err
+		}
+		if _, err = scope.UpdateMany(ctx, bson.M{key: id}, bson.M{"$set": bson.M{"deleted_at": time.Now().UTC()}}); err != nil {
+			return err
+		}
+	}
+	scope, err := coll.ScopeTo(t)
+	if err != nil {
+		return err
+	}
+	_, err = scope.UpdateMany(ctx, bson.M{key: id}, bson.M{"$set": bson.M{"deleted_at": time.Now().UTC()}})
+	return err
+}
+func (r *Repository) Delete(ctx context.Context, t, id string) error {
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		if err := r.delete(ctx, t, id); err != nil {
+			return err
+		}
+		return r.cascade(ctx, t, id, true)
+	})
+}
+func (r *Repository) DeleteGuardian(ctx context.Context, t, id string) error {
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		if err := r.deleteGuardian(ctx, t, id); err != nil {
+			return err
+		}
+		return r.cascade(ctx, t, id, false)
+	})
+}
+func (r *Repository) CommitStudentLifecycle(ctx context.Context, t string, m ports.LifecycleMutation, k string, p map[string]any) error {
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		if err := r.commitStudentLifecycle(ctx, t, m, k, p); err != nil {
+			return err
+		}
+		if m.Kind == ports.MutationStudentDelete {
+			return r.cascade(ctx, t, m.Student.ID, true)
+		}
+		if m.Kind == ports.MutationGuardianDelete {
+			return r.cascade(ctx, t, m.Guardian.ID, false)
+		}
+		return nil
+	})
 }

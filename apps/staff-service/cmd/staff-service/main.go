@@ -3,15 +3,13 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"os"
 	"time"
 
-	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/db"
 	servercmd "github.com/auraedu/staff-service/cmd/server"
 	workercmd "github.com/auraedu/staff-service/cmd/worker"
+	"github.com/auraedu/staff-service/internal/persistence"
 	"github.com/spf13/cobra"
 )
 
@@ -55,11 +53,7 @@ func main() {
 }
 
 func runMigrate(ctx context.Context) error {
-	dsn := config.Getenv("DATABASE_URL", "")
-	if dsn == "" {
-		return fmt.Errorf("DATABASE_URL not set")
-	}
-	database, err := db.Open(ctx, db.Config{DSN: dsn, Migrations: "migrations"})
+	database, err := persistence.Open(ctx)
 	if err != nil {
 		return err
 	}

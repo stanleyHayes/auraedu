@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/auraedu/identity-service/internal/adapters/events"
+	mongoadapter "github.com/auraedu/identity-service/internal/adapters/mongo"
 	notificationadapter "github.com/auraedu/identity-service/internal/adapters/notification"
 	"github.com/auraedu/identity-service/internal/adapters/postgres"
 	tenantadapter "github.com/auraedu/identity-service/internal/adapters/tenant"
@@ -24,6 +25,7 @@ import (
 	"github.com/auraedu/platform/config"
 	"github.com/auraedu/platform/eventbus"
 	"github.com/auraedu/platform/observ"
+	"github.com/auraedu/platform/store"
 	"github.com/auraedu/platform/tenancy"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nats-io/nats.go"
@@ -69,18 +71,11 @@ func run(log *slog.Logger) error {
 			log.Error("flush identity worker telemetry", "err", err)
 		}
 	}()
-	dsn, err := config.MustGetenv("DATABASE_URL")
+	repository, claims, closeStore, err := openWorkerRepository(ctx)
 	if err != nil {
 		return err
 	}
-	pool, err := identitydb.Open(ctx, dsn)
-	if err != nil {
-		return err
-	}
-	defer pool.Close()
-	if err := identitydb.Migrate(ctx, pool); err != nil {
-		return err
-	}
+	defer closeStore()
 
 	natsURL, err := config.MustGetenv("NATS_URL")
 	if err != nil {
@@ -97,7 +92,6 @@ func run(log *slog.Logger) error {
 	}
 
 	publisher := events.NewPublisher(eventbus.NewPublisher(js))
-	repository := postgres.NewRepository(pool)
 	svc := application.NewService(repository, nil, publisher,
 		[]byte(signingKey), 15*time.Minute, 7*24*time.Hour,
 		application.WithTransactionalNotifier(notificationadapter.NewClient(
@@ -122,7 +116,8 @@ func run(log *slog.Logger) error {
 		js, "AURA", "identity-onboarding-approved", "tenant.onboarding_approved.v1",
 		func(handlerCtx context.Context, event tenancy.CloudEvent) error {
 			started := time.Now()
-			err := handleOnboardingApproved(handlerCtx, log, pool, resolver, svc, event)
+			handlerCtx = mongoadapter.WithOnboardingLease(handlerCtx)
+			err := handleOnboardingWithClaims(handlerCtx, log, claims, resolver, svc, event)
 			metrics.Observe(handlerCtx, "onboarding-approved", started, err)
 			return err
 		}, nil,
@@ -306,6 +301,35 @@ func handleOnboardingApproved(
 	svc *application.Service,
 	event tenancy.CloudEvent,
 ) error {
+	return handleOnboardingWithClaims(ctx, log, postgresOnboardingClaims(pool), resolver, svc, event)
+}
+
+type workerRepository interface {
+	ports.Repository
+	ports.OutboxRepository
+	ports.AuthCleanupRepository
+}
+type onboardingClaims struct {
+	claim    func(context.Context, string, string, string) (bool, error)
+	release  func(context.Context, string, string) error
+	complete func(context.Context, string, string) error
+}
+
+func postgresOnboardingClaims(pool *pgxpool.Pool) onboardingClaims {
+	return onboardingClaims{
+		claim: func(ctx context.Context, id, kind, tenant string) (bool, error) {
+			return claimEvent(ctx, pool, id, kind, tenant)
+		},
+		release:  func(ctx context.Context, id, tenant string) error { return releaseEvent(ctx, pool, id, tenant) },
+		complete: func(context.Context, string, string) error { return nil },
+	}
+}
+func handleOnboardingWithClaims(ctx context.Context,
+	log *slog.Logger,
+	claims onboardingClaims,
+	resolver *tenantadapter.Client,
+	svc *application.Service,
+	event tenancy.CloudEvent) error {
 	var payload struct {
 		RequestID  string `json:"request_id"`
 		TenantCode string `json:"tenant_code"`
@@ -313,14 +337,14 @@ func handleOnboardingApproved(
 	if err := json.Unmarshal(event.Data, &payload); err != nil || payload.RequestID == "" || payload.TenantCode == "" {
 		return fmt.Errorf("identity onboarding: invalid approval event")
 	}
-	claimed, err := claimEvent(ctx, pool, event.ID, event.Type, payload.TenantCode)
+	claimed, err := claims.claim(ctx, event.ID, event.Type, payload.TenantCode)
 	if err != nil || !claimed {
 		return err
 	}
 	release := true
 	defer func() {
 		if release {
-			if err := releaseEvent(context.Background(), pool, event.ID, payload.TenantCode); err != nil {
+			if err := claims.release(context.WithoutCancel(ctx), event.ID, payload.TenantCode); err != nil {
 				log.Error("failed to release onboarding event claim", "event_id", event.ID, "err", err)
 			}
 		}
@@ -342,6 +366,9 @@ func handleOnboardingApproved(
 		Role: "school_admin", Permissions: schoolAdminPermissions(),
 	})
 	if err != nil {
+		return err
+	}
+	if err := claims.complete(ctx, event.ID, payload.TenantCode); err != nil {
 		return err
 	}
 	release = false
@@ -412,4 +439,36 @@ func Run() error {
 	log := observ.DefaultLogger()
 	slog.SetDefault(log)
 	return run(log)
+}
+
+func openWorkerRepository(ctx context.Context) (workerRepository, onboardingClaims, func(), error) {
+	selected, err := store.Selected()
+	if err != nil {
+		return nil, onboardingClaims{}, nil, err
+	}
+	if selected.IsMongo() {
+		repo, database, err := mongoadapter.OpenFromEnv(ctx)
+		if err != nil {
+			return nil, onboardingClaims{}, nil, err
+		}
+		closeStore := func() {
+			if err := database.Close(context.Background()); err != nil {
+				slog.Error("close identity worker store", "err", err)
+			}
+		}
+		return repo, onboardingClaims{claim: repo.ClaimOnboarding, release: repo.ReleaseOnboarding, complete: repo.CompleteOnboarding}, closeStore, nil
+	}
+	dsn, err := config.MustGetenv("DATABASE_URL")
+	if err != nil {
+		return nil, onboardingClaims{}, nil, err
+	}
+	pool, err := identitydb.Open(ctx, dsn)
+	if err != nil {
+		return nil, onboardingClaims{}, nil, err
+	}
+	if err := identitydb.Migrate(ctx, pool); err != nil {
+		pool.Close()
+		return nil, onboardingClaims{}, nil, err
+	}
+	return postgres.NewRepository(pool), postgresOnboardingClaims(pool), pool.Close, nil
 }

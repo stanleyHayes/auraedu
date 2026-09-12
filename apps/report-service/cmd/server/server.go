@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/db"
 	"github.com/auraedu/platform/eventbus"
 	"github.com/auraedu/platform/flags"
 	"github.com/auraedu/platform/httpx"
@@ -26,10 +25,10 @@ import (
 
 	svcevents "github.com/auraedu/report-service/internal/adapters/events"
 	svchttp "github.com/auraedu/report-service/internal/adapters/http"
-	"github.com/auraedu/report-service/internal/adapters/postgres"
 	"github.com/auraedu/report-service/internal/adapters/storage"
 	studentadapter "github.com/auraedu/report-service/internal/adapters/student"
 	"github.com/auraedu/report-service/internal/application"
+	"github.com/auraedu/report-service/internal/persistence"
 	"github.com/auraedu/report-service/internal/ports"
 )
 
@@ -58,7 +57,7 @@ func run() error {
 	}()
 
 	ctx := context.Background()
-	database, err := openDB(ctx)
+	database, err := persistence.Open(ctx)
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
@@ -72,7 +71,7 @@ func run() error {
 		return fmt.Errorf("initialize report storage: %w", err)
 	}
 
-	repo := postgres.NewRepository(database)
+	repo := database.Repository
 	svc := application.NewService(repo,
 		application.WithPublisher(pub),
 		application.WithFeatureGate(gates),
@@ -82,13 +81,13 @@ func run() error {
 	handler := svchttp.NewHandler(svc)
 
 	health := httpx.NewHealth(service, version).WithLogger(log)
-	health.AddReadinessCheck("postgres", func() error { return database.Ping(ctx) })
+	health.AddReadinessCheck(string(database.Driver), func() error { return database.Ping(ctx) })
 
 	mux := http.NewServeMux()
 	health.Register(mux)
 	handler.Register(mux)
 
-	addr := ":" + strconv.Itoa(config.Port(8080))
+	addr := config.Getenv("BIND_HOST", "") + ":" + strconv.Itoa(config.Port(8080))
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           observ.HTTPHandler(service, httpx.RequestIDMiddleware(mux)),
@@ -138,17 +137,6 @@ func initStorage() (ports.ReportStorage, error) {
 	default:
 		return nil, errors.New("unsupported REPORT_STORAGE_BACKEND")
 	}
-}
-
-func openDB(ctx context.Context) (*db.DB, error) {
-	dsn, err := config.MustGetenv("DATABASE_URL")
-	if err != nil {
-		return nil, err
-	}
-	return db.Open(ctx, db.Config{
-		DSN:        dsn,
-		Migrations: "migrations",
-	})
 }
 
 func publisher(_ context.Context, log *slog.Logger) (*svcevents.Publisher, func()) {

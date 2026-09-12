@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,10 +14,9 @@ import (
 	"time"
 
 	svchttp "github.com/auraedu/audit-service/internal/adapters/http"
-	"github.com/auraedu/audit-service/internal/adapters/postgres"
 	"github.com/auraedu/audit-service/internal/application"
+	"github.com/auraedu/audit-service/internal/persistence"
 	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/db"
 	"github.com/auraedu/platform/httpx"
 	"github.com/auraedu/platform/observ"
 
@@ -46,22 +46,22 @@ func run() error {
 	}()
 
 	ctx := context.Background()
-	database, err := openDB(ctx)
+	database, err := persistence.Open(ctx)
 	if err != nil {
 		return err
 	}
 	defer database.Close()
 
 	health := httpx.NewHealth(service, version).WithLogger(log)
-	health.AddReadinessCheck("postgres", func() error { return database.Ping(ctx) })
+	health.AddReadinessCheck(database.Driver, func() error { return database.Ping(ctx) })
 
-	repo := postgres.NewRepository(database)
+	repo := database.Repository
 	query := application.NewQuery(repo)
 
 	mux := http.NewServeMux()
 	svchttp.NewHandler(health, query).Register(mux)
 
-	addr := ":" + strconv.Itoa(config.Port(8080))
+	addr := net.JoinHostPort(config.Getenv("BIND_HOST", ""), strconv.Itoa(config.Port(8080)))
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           observ.HTTPHandler(service, httpx.RequestIDMiddleware(mux)),
@@ -93,17 +93,6 @@ func run() error {
 	}
 	log.Info(service + " stopped")
 	return nil
-}
-
-func openDB(ctx context.Context) (*db.DB, error) {
-	dsn, err := config.MustGetenv("DATABASE_URL")
-	if err != nil {
-		return nil, err
-	}
-	return db.Open(ctx, db.Config{
-		DSN:        dsn,
-		Migrations: "migrations",
-	})
 }
 
 // Run starts the audit-service HTTP server. It is invoked by the service CLI.

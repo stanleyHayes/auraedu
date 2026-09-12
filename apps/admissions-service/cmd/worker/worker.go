@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/auraedu/admissions-service/internal/adapters/events"
-	"github.com/auraedu/admissions-service/internal/adapters/postgres"
+	"github.com/auraedu/admissions-service/internal/persistence"
+	"github.com/auraedu/admissions-service/internal/ports"
 	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/db"
 	"github.com/auraedu/platform/eventbus"
 	"github.com/auraedu/platform/observ"
 	"github.com/nats-io/nats.go"
@@ -35,11 +35,7 @@ func Run() error {
 			log.Error("flush admissions worker telemetry", "err", err)
 		}
 	}()
-	dsn, err := config.MustGetenv("DATABASE_URL")
-	if err != nil {
-		return err
-	}
-	database, err := db.Open(ctx, db.Config{DSN: dsn, Migrations: config.Getenv("MIGRATIONS_PATH", "migrations")})
+	database, err := persistence.Open(ctx)
 	if err != nil {
 		return err
 	}
@@ -56,7 +52,7 @@ func Run() error {
 	if _, err = eventbus.EnsureStream(js, "AURA"); err != nil {
 		return err
 	}
-	repo := postgres.NewRepository(database)
+	repo := database.Repository
 	pub := events.New(eventbus.NewPublisher(js))
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
@@ -75,7 +71,7 @@ func Run() error {
 		}
 	}
 }
-func dispatch(ctx context.Context, repo *postgres.Repository, pub *events.Publisher, log *slog.Logger, workerMetrics ...*observ.WorkerMetrics) error {
+func dispatch(ctx context.Context, repo ports.OutboxRepository, pub *events.Publisher, log *slog.Logger, workerMetrics ...*observ.WorkerMetrics) error {
 	var metrics *observ.WorkerMetrics
 	if len(workerMetrics) > 0 {
 		metrics = workerMetrics[0]

@@ -15,6 +15,7 @@ import (
 	"github.com/auraedu/identity-service/internal/adapters/events"
 	svchttp "github.com/auraedu/identity-service/internal/adapters/http"
 	"github.com/auraedu/identity-service/internal/adapters/memory"
+	mongoadapter "github.com/auraedu/identity-service/internal/adapters/mongo"
 	notificationadapter "github.com/auraedu/identity-service/internal/adapters/notification"
 	"github.com/auraedu/identity-service/internal/adapters/postgres"
 	"github.com/auraedu/identity-service/internal/adapters/session"
@@ -27,6 +28,7 @@ import (
 	"github.com/auraedu/platform/eventbus"
 	"github.com/auraedu/platform/httpx"
 	"github.com/auraedu/platform/observ"
+	"github.com/auraedu/platform/store"
 	"github.com/nats-io/nats.go"
 )
 
@@ -100,14 +102,18 @@ func run() error {
 
 	health := httpx.NewHealth(service, version).WithLogger(log)
 	if repoReady != nil {
-		health.AddReadinessCheck("postgres", repoReady)
+		selected, err := store.Selected()
+		if err != nil {
+			return err
+		}
+		health.AddReadinessCheck(string(selected), repoReady)
 	}
 	mux := http.NewServeMux()
 	health.Register(mux)
 	handler.Register(mux)
 
 	port := config.Getenv("PORT", "8081")
-	addr := ":" + port
+	addr := config.Getenv("BIND_HOST", "") + ":" + port
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           observ.HTTPHandler(service, httpx.RequestIDMiddleware(mux)),
@@ -144,7 +150,15 @@ func validateProductionRuntime() error {
 	if config.Getenv("ENVIRONMENT", "development") != "production" {
 		return nil
 	}
-	for _, key := range []string{"DATABASE_URL", "REDIS_URL", "NATS_URL", "INTERNAL_SERVICE_TOKEN", "MFA_ENCRYPTION_KEY"} {
+	driver, err := store.Selected()
+	if err != nil {
+		return err
+	}
+	databaseKey := "DATABASE_URL"
+	if driver.IsMongo() {
+		databaseKey = "MONGODB_URI"
+	}
+	for _, key := range []string{databaseKey, "REDIS_URL", "NATS_URL", "INTERNAL_SERVICE_TOKEN", "MFA_ENCRYPTION_KEY"} {
 		if config.Getenv(key, "") == "" {
 			return errors.New(key + " is required in production")
 		}
@@ -156,6 +170,21 @@ func validateProductionRuntime() error {
 }
 
 func initRepo(ctx context.Context, log *slog.Logger) (ports.Repository, func() error, func(), error) {
+	driver, err := store.Selected()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if driver.IsMongo() {
+		repo, database, err := mongoadapter.OpenFromEnv(ctx)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		return repo, readinessCheck(database), func() {
+			if err := database.Close(context.Background()); err != nil {
+				slog.Error("close identity store", "err", err)
+			}
+		}, nil
+	}
 	databaseURL := config.Getenv("DATABASE_URL", "")
 	if databaseURL == "" {
 		if config.Getenv("ENVIRONMENT", "development") == "production" {

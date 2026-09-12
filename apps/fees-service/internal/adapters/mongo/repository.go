@@ -65,12 +65,15 @@ func lifecycleEvent(tenantID, eventType string, payload map[string]any) (tenancy
 
 // ---- fee structures ------------------------------------------------------
 
-type StructureRepository struct{ structures *pmongo.Collection }
+type StructureRepository struct {
+	structures *pmongo.Collection
+	store      *pmongo.Store
+}
 
 var _ ports.FeeStructureRepository = (*StructureRepository)(nil)
 
 func NewStructureRepository(store *pmongo.Store) *StructureRepository {
-	return &StructureRepository{structures: store.Collection(StructureCollection)}
+	return &StructureRepository{structures: store.Collection(StructureCollection), store: store}
 }
 
 type structureDoc struct {
@@ -193,7 +196,7 @@ func (r *StructureRepository) Update(ctx context.Context, tenantID string, f *do
 	return nil
 }
 
-func (r *StructureRepository) Delete(ctx context.Context, tenantID, id string) error {
+func (r *StructureRepository) delete(ctx context.Context, tenantID, id string) error {
 	scope, err := r.structures.ScopeTo(tenantID)
 	if err != nil {
 		return err
@@ -211,6 +214,7 @@ func (r *StructureRepository) Delete(ctx context.Context, tenantID, id string) e
 // ---- invoices and receipts -----------------------------------------------
 
 type InvoiceRepository struct {
+	store      *pmongo.Store
 	invoices   *pmongo.Collection
 	structures *pmongo.Collection
 	outbox     *pmongo.ClaimableOutbox
@@ -228,7 +232,7 @@ var (
 
 func NewInvoiceRepository(store *pmongo.Store) *InvoiceRepository {
 	invoices := store.Collection(InvoiceCollection)
-	return &InvoiceRepository{
+	return &InvoiceRepository{store: store,
 		invoices: invoices, structures: store.Collection(StructureCollection),
 		outbox: pmongo.NewClaimableOutbox(invoices, outboxLease),
 	}
@@ -298,7 +302,7 @@ func invoiceFields(i *domain.Invoice) bson.M {
 	}
 }
 
-func (r *InvoiceRepository) Create(ctx context.Context, tenantID string, i *domain.Invoice) error {
+func (r *InvoiceRepository) create(ctx context.Context, tenantID string, i *domain.Invoice) error {
 	scope, err := r.invoices.ScopeTo(tenantID)
 	if err != nil {
 		return err
@@ -390,7 +394,7 @@ func (r *InvoiceRepository) List(ctx context.Context, tenantID string, filter po
 	return out, next, nil
 }
 
-func (r *InvoiceRepository) Update(ctx context.Context, tenantID string, i *domain.Invoice) error {
+func (r *InvoiceRepository) update(ctx context.Context, tenantID string, i *domain.Invoice) error {
 	scope, err := r.invoices.ScopeTo(tenantID)
 	if err != nil {
 		return err
@@ -405,7 +409,7 @@ func (r *InvoiceRepository) Update(ctx context.Context, tenantID string, i *doma
 	return nil
 }
 
-func (r *InvoiceRepository) Delete(ctx context.Context, tenantID, id string) error {
+func (r *InvoiceRepository) delete(ctx context.Context, tenantID, id string) error {
 	scope, err := r.invoices.ScopeTo(tenantID)
 	if err != nil {
 		return err
@@ -478,7 +482,7 @@ func (r *InvoiceRepository) GetReceiptByID(ctx context.Context, tenantID, id str
 // reconciled payment, so a redelivery returns the stored result rather than
 // applying the money twice, and it also pins the balance that was read so a
 // concurrent payment cannot be lost — a changed balance simply retries.
-func (r *InvoiceRepository) ApplyPayment(ctx context.Context, tenantID string, input ports.PaymentApplication) (*domain.Invoice, *domain.Receipt, bool, error) {
+func (r *InvoiceRepository) applyPayment(ctx context.Context, tenantID string, input ports.PaymentApplication) (*domain.Invoice, *domain.Receipt, bool, error) {
 	scope, err := r.invoices.ScopeTo(tenantID)
 	if err != nil {
 		return nil, nil, false, err
@@ -584,7 +588,9 @@ func invoiceEventData(i *domain.Invoice, meta map[string]any) map[string]any {
 
 // CommitInvoiceLifecycle applies the mutation and queues its events in one
 // atomic write. A delete tombstones the invoice so the event survives.
-func (r *InvoiceRepository) CommitInvoiceLifecycle(ctx context.Context, tenantID string, invoice *domain.Invoice, mutation string, lifecycle []ports.LifecycleEvent) error {
+func (r *InvoiceRepository) commitInvoiceLifecycle(ctx context.Context,
+	tenantID string, invoice *domain.Invoice, mutation string,
+	lifecycle []ports.LifecycleEvent) error {
 	scope, err := r.invoices.ScopeTo(tenantID)
 	if err != nil {
 		return err
@@ -678,7 +684,9 @@ func EnsureIndexes(ctx context.Context, store *pmongo.Store) error {
 			{Keys: bson.D{{Key: "tenant_id", Value: 1}, {Key: "_id", Value: 1}}},
 			{Keys: bson.D{{Key: "tenant_id", Value: 1}, {Key: "student_id", Value: 1}}},
 			{Keys: bson.D{{Key: "tenant_id", Value: 1}, {Key: "receipts.id", Value: 1}}},
-			{Keys: bson.D{{Key: "tenant_id", Value: 1}, {Key: "receipts.payment_id", Value: 1}}},
+			{Keys: bson.D{{Key: "tenant_id", Value: 1}, {Key: "receipts.payment_id",
+				Value: 1}}, Options: options.Index().SetUnique(true).SetName("receipt_payment_unique").
+				SetPartialFilterExpression(bson.M{"receipts.payment_id": bson.M{"$type": "string"}})},
 		},
 	}
 	for name, models := range specs {
@@ -687,4 +695,112 @@ func EnsureIndexes(ctx context.Context, store *pmongo.Store) error {
 		}
 	}
 	return nil
+}
+
+func (r *StructureRepository) Delete(ctx context.Context, t, id string) error {
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		scope, err := r.store.Collection(InvoiceCollection).ScopeTo(t)
+		if err != nil {
+			return err
+		}
+		n, err := scope.CountDocuments(ctx, live(bson.M{"fee_structure_id": id}))
+		if err != nil {
+			return err
+		}
+		if n > 0 {
+			return domain.ErrConflict
+		}
+		return r.delete(ctx, t, id)
+	})
+}
+func (r *InvoiceRepository) fenceStructure(ctx context.Context, t, id string) error {
+	scope, err := r.structures.ScopeTo(t)
+	if err != nil {
+		return err
+	}
+	res, err := scope.UpdateOne(ctx, live(bson.M{"_id": id}), bson.M{"$inc": bson.M{"_reference_version": 1}})
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount != 1 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+func (r *InvoiceRepository) Create(ctx context.Context, t string, i *domain.Invoice) error {
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		if err := r.fenceStructure(ctx, t, i.FeeStructureID); err != nil {
+			return err
+		}
+		return r.create(ctx, t, i)
+	})
+}
+func (r *InvoiceRepository) Update(ctx context.Context, t string, i *domain.Invoice) error {
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		if err := r.fenceStructure(ctx, t, i.FeeStructureID); err != nil {
+			return err
+		}
+		return r.update(ctx, t, i)
+	})
+}
+func (r *InvoiceRepository) canDelete(ctx context.Context, t, id string) error {
+	doc, err := r.invoiceDoc(ctx, t, bson.M{"_id": id})
+	if err != nil {
+		return err
+	}
+	if len(doc.Receipts) > 0 {
+		return domain.ErrConflict
+	}
+	return nil
+}
+func (r *InvoiceRepository) Delete(ctx context.Context, t, id string) error {
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		if err := r.canDelete(ctx, t, id); err != nil {
+			return err
+		}
+		return r.delete(ctx, t, id)
+	})
+}
+func (r *InvoiceRepository) CommitInvoiceLifecycle(ctx context.Context, t string, i *domain.Invoice, m string, events []ports.LifecycleEvent) error {
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		if m == ports.InvoiceMutationDelete {
+			if err := r.canDelete(ctx, t, i.ID); err != nil {
+				return err
+			}
+		} else {
+			if err := r.fenceStructure(ctx, t, i.FeeStructureID); err != nil {
+				return err
+			}
+		}
+		return r.commitInvoiceLifecycle(ctx, t, i, m, events)
+	})
+}
+func (r *InvoiceRepository) paymentReceipt(ctx context.Context, t, payment string) (*domain.Invoice, *domain.Receipt, error) {
+	doc, err := r.invoiceDoc(ctx, t, bson.M{"receipts.payment_id": payment})
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, receipt := range doc.Receipts {
+		if receipt.PaymentID == payment {
+			return doc.toDomain(), receipt.toDomain(t), nil
+		}
+	}
+	return nil, nil, domain.ErrNotFound
+}
+func (r *InvoiceRepository) ApplyPayment(ctx context.Context, t string, input ports.PaymentApplication) (*domain.Invoice, *domain.Receipt, bool, error) {
+	i, receipt, err := r.paymentReceipt(ctx, t, input.PaymentID)
+	if err == nil {
+		return i, receipt, false, nil
+	}
+	if !errors.Is(err, domain.ErrNotFound) {
+		return nil, nil, false, err
+	}
+	i, receipt, created, err := r.applyPayment(ctx, t, input)
+	if mongo.IsDuplicateKeyError(err) {
+		i, receipt, lookupErr := r.paymentReceipt(ctx, t, input.PaymentID)
+		if lookupErr == nil {
+			return i, receipt, false, nil
+		}
+	}
+	return i, receipt, created, err
 }

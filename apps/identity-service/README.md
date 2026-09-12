@@ -95,3 +95,50 @@ DATABASE_URL=postgres://... go run ./cmd/server
 ## Migrations
 
 Service-local under `migrations/`. Run automatically at startup when `DATABASE_URL` is set.
+
+## MongoDB persistence (AURA-9.12)
+
+`DATABASE_DRIVER` defaults to `postgres`; `mongodb` selects MongoDB. Mongo mode
+requires `MONGODB_URI` and uses `MONGODB_DATABASE` (default `auraedu_identity`).
+Server, worker and `migrate` all select the same adapter; missing Mongo configuration
+or an unknown driver fails startup instead of using the in-memory development
+repository. The default Mongo connection pool is two connections per server.
+
+Identity stores each canonical tenant/email and its user, credential, MFA counter,
+refresh families, reset tokens and invitations in one versioned account document.
+A compare-and-swap update commits all security changes atomically across processes.
+This preserves MFA replay denial, refresh replay revocation of the entire family,
+password reset plus session revocation, and invite credential installation on a
+standalone MongoDB as well as a replica set. Role changes revoke sessions and append
+a stable-ID outbox event in that same write. The relay leases embedded events and
+publishes at least once; it never rewrites the security aggregate. Deleting a user
+first tombstones the account so pending authorization events can still be delivered.
+The worker removes settled tombstones during cleanup.
+
+Platform identities retain an empty public tenant ID and use the internal reserved
+`__platform_identity__` scope. Normal CRUD requires the caller's tenant or platform
+administrator authority. Credential/token capability lookups and maintenance use
+explicit internal privileged scopes, as the PostgreSQL adapter does.
+
+Cleanup retains every refresh-family ancestor until all family members have expired
+past the retention cutoff, so replay can still revoke a live successor. Account
+artifacts are subject to MongoDB's 16 MiB document limit: exceptionally high session
+rotation or delivery backlogs can exhaust a document before retention permits
+cleanup. Writes then fail closed; this implementation does not silently drop replay
+history or undelivered events. Monitor retention and backlog growth before applying
+this model to unusually high-volume identities. Cleanup batches count accounts
+rather than individual artifacts, since each account is the atomic unit.
+
+The earlier assumption that Atlas Free has no transactions was incorrect. MongoDB
+supports multi-document transactions on replica sets, including Atlas deployments;
+standalone MongoDB does not. See [transaction deployment requirements](https://www.mongodb.com/docs/manual/core/transactions-production-consideration/)
+and [Atlas Free limits](https://www.mongodb.com/docs/atlas/reference/free-shared-limitations/).
+The standalone security integration suite intentionally verifies the stronger
+constraint without claiming it reproduces Atlas topology.
+
+For a fresh local Mongo demo, create a login with `identity-service seed-demo`.
+This command requires `ENVIRONMENT=development`, `DATABASE_DRIVER=mongodb`,
+`MONGODB_URI`, `DEMO_TENANT_ID`, `DEMO_USER_EMAIL`, and `DEMO_USER_PASSWORD`
+(at least 12 characters). Optional `DEMO_USER_ROLE` is `teacher` (default) or
+`school_admin`; `DEMO_USER_NAME` defaults to `Demo User`. It only creates accounts
+and refuses to replace existing credentials. Administrators still require MFA.

@@ -32,3 +32,18 @@ Integration tests spin up a Postgres container via `platform/testkit`.
 ## Contract
 
 REST: `contracts/openapi/cbt.v1.yaml` · Events: `contracts/events/cbt.*.v1.json`.
+
+## Selectable persistence (AURA-9.12)
+
+`DATABASE_DRIVER` defaults to `postgres`. Set it to `mongodb`, provide
+`MONGODB_URI`, and optionally set `MONGODB_DATABASE` (defaults to `cbt-service`).
+Both server and worker select the same adapter and initialize its indexes before
+processing requests. Each process uses a bounded two-connection pool.
+
+The Mongo adapter scopes all request operations to a tenant and stores lifecycle
+events inside their aggregate. Workers lease these events and acknowledge them
+only after publication; redelivery keeps the same event ID.
+
+Run `go test ./internal/adapters/mongo` from this service to exercise a real
+MongoDB replica-set testcontainer, including tenant isolation, concurrent claims,
+and rollback. Docker is required.

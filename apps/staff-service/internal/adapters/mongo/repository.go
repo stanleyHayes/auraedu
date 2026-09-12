@@ -6,7 +6,8 @@
 // Tenant isolation comes from platform/mongo.Scope rather than row-level
 // security: a query that is not scoped cannot be written. Lifecycle events are
 // embedded in the aggregate they describe, which makes the domain change and
-// its event a single atomic write on a tier with no multi-document transactions.
+// its event a single atomic write. Operations spanning aggregates use
+// replica-set transactions to preserve their shared invariants.
 package mongo
 
 import (
@@ -34,6 +35,7 @@ const (
 )
 
 type Repository struct {
+	store        *pmongo.Store
 	staff        *pmongo.Collection
 	assignments  *pmongo.Collection
 	staffOutbox  *pmongo.ClaimableOutbox
@@ -50,7 +52,7 @@ var (
 func NewRepository(store *pmongo.Store) *Repository {
 	staff := store.Collection(StaffCollection)
 	assignments := store.Collection(AssignmentCollection)
-	return &Repository{
+	return &Repository{store: store,
 		staff:        staff,
 		assignments:  assignments,
 		staffOutbox:  pmongo.NewClaimableOutbox(staff, outboxLease),
@@ -187,7 +189,7 @@ func (r *Repository) Update(ctx context.Context, tenantID string, s *domain.Staf
 	return nil
 }
 
-func (r *Repository) Delete(ctx context.Context, tenantID, id string) error {
+func (r *Repository) delete(ctx context.Context, tenantID, id string) error {
 	scope, err := r.staff.ScopeTo(tenantID)
 	if err != nil {
 		return fmt.Errorf("staff: delete: %w", err)
@@ -219,7 +221,7 @@ func lifecycleEvent(tenantID, eventType string, payload map[string]any) (tenancy
 // A delete is the exception: removing the document would remove the event with
 // it, so the record is tombstoned instead and the relay clears it once the
 // event is published.
-func (r *Repository) CommitStaffLifecycle(ctx context.Context, tenantID string, staff *domain.Staff, mutation, eventType string, payload map[string]any) error {
+func (r *Repository) commitStaffLifecycle(ctx context.Context, tenantID string, staff *domain.Staff, mutation, eventType string, payload map[string]any) error {
 	scope, err := r.staff.ScopeTo(tenantID)
 	if err != nil {
 		return fmt.Errorf("staff: lifecycle: %w", err)
@@ -321,7 +323,7 @@ func (r *Repository) clearPublishedTombstones(ctx context.Context) error {
 	return nil
 }
 
-func (r *Repository) CreateAssignment(ctx context.Context, tenantID string, assignment *domain.Assignment, payload map[string]any) error {
+func (r *Repository) createAssignment(ctx context.Context, tenantID string, assignment *domain.Assignment, payload map[string]any) error {
 	scope, err := r.assignments.ScopeTo(tenantID)
 	if err != nil {
 		return fmt.Errorf("staff: create assignment: %w", err)
@@ -362,7 +364,7 @@ func (r *Repository) ListAssignments(ctx context.Context, tenantID, staffID stri
 	if err != nil {
 		return nil, "", fmt.Errorf("staff: list assignments: %w", err)
 	}
-	query := bson.M{"staff_id": staffID}
+	query := live(bson.M{"staff_id": staffID})
 	if cursor != "" {
 		query["_id"] = bson.M{"$gt": cursor}
 	}
@@ -396,11 +398,11 @@ func (r *Repository) DeleteAssignment(ctx context.Context, tenantID, staffID, id
 	if err != nil {
 		return fmt.Errorf("staff: delete assignment: %w", err)
 	}
-	res, err := scope.DeleteOne(ctx, bson.M{"_id": id, "staff_id": staffID})
+	res, err := scope.UpdateOne(ctx, live(bson.M{"_id": id, "staff_id": staffID}), bson.M{"$set": bson.M{"deleted_at": time.Now().UTC()}})
 	if err != nil {
 		return fmt.Errorf("staff: delete assignment: %w", err)
 	}
-	if res.DeletedCount != 1 {
+	if res.MatchedCount != 1 {
 		return domain.ErrNotFound
 	}
 	return nil
@@ -419,7 +421,7 @@ func (r *Repository) distinctAssignmentField(ctx context.Context, tenantID, staf
 	if err != nil {
 		return nil, fmt.Errorf("staff: assignment scope: %w", err)
 	}
-	cur, err := scope.Find(ctx, bson.M{"staff_id": staffID, field: bson.M{"$ne": nil}},
+	cur, err := scope.Find(ctx, live(bson.M{"staff_id": staffID, field: bson.M{"$ne": nil}}),
 		options.Find().SetProjection(bson.M{field: 1}).SetSort(bson.D{{Key: field, Value: 1}}))
 	if err != nil {
 		return nil, fmt.Errorf("staff: list %s: %w", field, err)
@@ -467,5 +469,70 @@ func EnsureIndexes(ctx context.Context, store *pmongo.Store) error {
 			return fmt.Errorf("staff: ensure indexes on %s: %w", name, err)
 		}
 	}
+	for _, spec := range []struct {
+		coll    string
+		keys    bson.D
+		partial bson.M
+		name    string
+	}{
+		{StaffCollection, bson.D{{Key: "tenant_id", Value: 1}, {Key: "staff_code", Value: 1}}, nil, "staff_code_unique"},
+		{StaffCollection, bson.D{{Key: "tenant_id", Value: 1}, {Key: "email", Value: 1}}, bson.M{"email": bson.M{"$type": "string"}}, "staff_email_unique"},
+		{StaffCollection, bson.D{{Key: "tenant_id", Value: 1}, {Key: "user_id", Value: 1}}, bson.M{"user_id": bson.M{"$type": "string"}}, "staff_user_unique"},
+		{AssignmentCollection, bson.D{{Key: "tenant_id", Value: 1},
+			{Key: "staff_id", Value: 1}, {Key: "class_id", Value: 1},
+			{Key: "subject_id", Value: 1}}, nil, "staff_assignment_unique"},
+	} {
+		opts := options.Index().SetUnique(true).SetName(spec.name)
+		if spec.partial != nil {
+			opts.SetPartialFilterExpression(spec.partial)
+		}
+		if _, err := store.Database().Collection(spec.coll).Indexes().CreateOne(ctx, mongo.IndexModel{Keys: spec.keys, Options: opts}); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+func (r *Repository) CreateAssignment(ctx context.Context, t string, a *domain.Assignment, p map[string]any) error {
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		scope, err := r.staff.ScopeTo(t)
+		if err != nil {
+			return err
+		}
+		res, err := scope.UpdateOne(ctx, live(bson.M{"_id": a.StaffID}), bson.M{"$inc": bson.M{"_reference_version": 1}})
+		if err != nil {
+			return err
+		}
+		if res.MatchedCount != 1 {
+			return domain.ErrNotFound
+		}
+		return r.createAssignment(ctx, t, a, p)
+	})
+}
+func (r *Repository) cascade(ctx context.Context, t, id string) error {
+	scope, err := r.assignments.ScopeTo(t)
+	if err != nil {
+		return err
+	}
+	_, err = scope.UpdateMany(ctx, bson.M{"staff_id": id}, bson.M{"$set": bson.M{"deleted_at": time.Now().UTC()}})
+	return err
+}
+func (r *Repository) Delete(ctx context.Context, t, id string) error {
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		if err := r.delete(ctx, t, id); err != nil {
+			return err
+		}
+		return r.cascade(ctx, t, id)
+	})
+}
+func (r *Repository) CommitStaffLifecycle(ctx context.Context, t string, s *domain.Staff, m, k string, p map[string]any) error {
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		if err := r.commitStaffLifecycle(ctx, t, s, m, k, p); err != nil {
+			return err
+		}
+		if m == ports.StaffMutationDelete {
+			return r.cascade(ctx, t, s.ID)
+		}
+		return nil
+	})
 }

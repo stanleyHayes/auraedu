@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/db"
 	"github.com/auraedu/platform/eventbus"
 	"github.com/auraedu/platform/flags"
 	"github.com/auraedu/platform/httpx"
@@ -28,9 +27,9 @@ import (
 	svcevents "github.com/auraedu/payment-service/internal/adapters/events"
 	feesadapter "github.com/auraedu/payment-service/internal/adapters/fees"
 	svchttp "github.com/auraedu/payment-service/internal/adapters/http"
-	"github.com/auraedu/payment-service/internal/adapters/postgres"
 	provideradapter "github.com/auraedu/payment-service/internal/adapters/provider"
 	"github.com/auraedu/payment-service/internal/application"
+	"github.com/auraedu/payment-service/internal/persistence"
 	"github.com/auraedu/payment-service/internal/ports"
 )
 
@@ -67,7 +66,7 @@ func run() error {
 	}
 
 	ctx := context.Background()
-	database, err := openDB(ctx)
+	database, err := persistence.Open(ctx)
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
@@ -77,9 +76,9 @@ func run() error {
 	defer closePublisher()
 	gates := featureGates(log)
 
-	paymentRepo := postgres.NewPaymentRepository(database)
-	transactionRepo := postgres.NewTransactionRepository(database)
-	webhookRepo := postgres.NewWebhookEventRepository(database)
+	paymentRepo := database.Payment
+	transactionRepo := database.Transaction
+	webhookRepo := database.Webhook
 
 	svc := application.NewService(paymentRepo, transactionRepo, webhookRepo,
 		application.WithPublisher(pub),
@@ -91,13 +90,13 @@ func run() error {
 	handler := svchttp.NewHandler(svc)
 
 	health := httpx.NewHealth(service, version).WithLogger(log)
-	health.AddReadinessCheck("postgres", func() error { return database.Ping(ctx) })
+	health.AddReadinessCheck(string(database.Driver), func() error { return database.Ping(ctx) })
 
 	mux := http.NewServeMux()
 	health.Register(mux)
 	handler.Register(mux)
 
-	addr := ":" + strconv.Itoa(config.Port(8080))
+	addr := config.Getenv("BIND_HOST", "") + ":" + strconv.Itoa(config.Port(8080))
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           observ.HTTPHandler(service, httpx.RequestIDMiddleware(mux)),
@@ -128,17 +127,6 @@ func run() error {
 	}
 	log.Info(service + " stopped")
 	return nil
-}
-
-func openDB(ctx context.Context) (*db.DB, error) {
-	dsn, err := config.MustGetenv("DATABASE_URL")
-	if err != nil {
-		return nil, err
-	}
-	return db.Open(ctx, db.Config{
-		DSN:        dsn,
-		Migrations: "migrations",
-	})
 }
 
 func publisher(_ context.Context, log *slog.Logger) (*svcevents.Publisher, func()) {

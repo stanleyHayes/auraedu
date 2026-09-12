@@ -6,7 +6,8 @@
 // Tenant isolation comes from platform/mongo.Scope rather than row-level
 // security: a query that is not scoped cannot be written. Lifecycle events are
 // embedded in the aggregate they describe, which makes the domain change and
-// its event a single atomic write on a tier with no multi-document transactions.
+// its event a single atomic write. Operations spanning aggregates use
+// replica-set transactions to preserve their shared invariants.
 package mongo
 
 import (
@@ -131,7 +132,7 @@ func (r *Repository) GetByID(ctx context.Context, tenantID, id string) (*domain.
 		return nil, fmt.Errorf("file: get: %w", err)
 	}
 	var doc fileDoc
-	if err := scope.FindOne(ctx, bson.M{"_id": id}).Decode(&doc); err != nil {
+	if err := scope.FindOne(ctx, bson.M{"_id": id, "deleted_at": bson.M{"$exists": false}}).Decode(&doc); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, domain.ErrNotFound
 		}
@@ -152,12 +153,12 @@ func (r *Repository) List(ctx context.Context, tenantID string, limit int, curso
 		limit = 25
 	}
 
-	query := bson.M{}
+	query := bson.M{"deleted_at": bson.M{"$exists": false}}
 	if cursor != "" {
 		// Find the cursor document to get its created_at for comparison.
 		// This is keyset pagination: (created_at, id) > (cursor_created_at, cursor_id)
 		var cursorDoc fileDoc
-		if err := scope.FindOne(ctx, bson.M{"_id": cursor}).Decode(&cursorDoc); err != nil {
+		if err := scope.FindOne(ctx, bson.M{"_id": cursor, "deleted_at": bson.M{"$exists": false}}).Decode(&cursorDoc); err != nil {
 			if errors.Is(err, mongo.ErrNoDocuments) {
 				// Cursor not found, return empty page
 				return []*domain.FileUpload{}, "", nil
@@ -207,7 +208,7 @@ func (r *Repository) Update(ctx context.Context, tenantID string, f *domain.File
 	if err != nil {
 		return fmt.Errorf("file: update: %w", err)
 	}
-	res, err := scope.UpdateOne(ctx, bson.M{"_id": f.ID}, bson.M{"$set": fileFields(f)})
+	res, err := scope.UpdateOne(ctx, bson.M{"_id": f.ID, "deleted_at": bson.M{"$exists": false}}, bson.M{"$set": fileFields(f)})
 	if err != nil {
 		return fmt.Errorf("file: update: %w", err)
 	}
@@ -222,11 +223,12 @@ func (r *Repository) Delete(ctx context.Context, tenantID, id string) error {
 	if err != nil {
 		return fmt.Errorf("file: delete: %w", err)
 	}
-	res, err := scope.DeleteOne(ctx, bson.M{"_id": id})
+	res, err := scope.UpdateOne(ctx, bson.M{"_id": id, "deleted_at": bson.M{"$exists": false}},
+		bson.M{"$set": bson.M{"deleted_at": time.Now().UTC()}})
 	if err != nil {
 		return fmt.Errorf("file: delete: %w", err)
 	}
-	if res.DeletedCount != 1 {
+	if res.MatchedCount != 1 {
 		return domain.ErrNotFound
 	}
 	return nil
@@ -271,7 +273,7 @@ func (r *Repository) CommitFileLifecycle(ctx context.Context, tenantID string, f
 			return fmt.Errorf("file: create: %w", err)
 		}
 	case ports.FileMutationUpdate:
-		res, err := scope.UpdateWithEvents(ctx, bson.M{"_id": file.ID}, bson.M{"$set": fileFields(file)}, event)
+		res, err := scope.UpdateWithEvents(ctx, bson.M{"_id": file.ID, "deleted_at": bson.M{"$exists": false}}, bson.M{"$set": fileFields(file)}, event)
 		if err != nil {
 			return fmt.Errorf("file: update: %w", err)
 		}
@@ -301,7 +303,7 @@ func claimed(events []pmongo.ClaimedEvent) []ports.OutboxEvent {
 			TenantID:    c.Event.TenantID,
 			EventType:   c.Event.Type,
 			Payload:     json.RawMessage(c.Event.Data),
-			CleanupPath: "", // MongoDB doesn't track cleanup path in events yet
+			CleanupPath: "",
 		})
 	}
 	return out
@@ -312,7 +314,22 @@ func (r *Repository) ClaimPendingFileEvents(ctx context.Context, limit int) ([]p
 	if err != nil {
 		return nil, fmt.Errorf("file: claim outbox: %w", err)
 	}
-	return claimed(events), nil
+	items := claimed(events)
+	for i, event := range events {
+		if event.Event.Type != "file.deleted.v1" {
+			continue
+		}
+		scope, err := r.files.ScopeTo(event.Event.TenantID)
+		if err != nil {
+			return nil, err
+		}
+		var file fileDoc
+		if err := scope.FindOne(ctx, bson.M{"_id": event.DocumentID}).Decode(&file); err != nil {
+			return nil, err
+		}
+		items[i].CleanupPath = file.StoragePath
+	}
+	return items, nil
 }
 
 func (r *Repository) MarkFileEventPublished(ctx context.Context, id string) error {
@@ -349,54 +366,29 @@ type usageDoc struct {
 	UpdatedAt      time.Time `bson:"updated_at"`
 }
 
-func (r *Repository) RecordStorage(ctx context.Context, tenantID string, bytes int64) error {
-	if bytes <= 0 {
-		return nil
-	}
-	scope, err := r.usage.ScopeTo(tenantID)
-	if err != nil {
-		return fmt.Errorf("file: record storage: %w", err)
-	}
-
-	now := time.Now().UTC()
-	date := now.Format(time.DateOnly)
-	docID := tenantID + ":" + date
-
-	upsert := true
-	_, err = scope.UpdateOne(ctx, bson.M{"_id": docID}, bson.M{
-		"$inc":         bson.M{"bytes_stored": bytes},
-		"$set":         bson.M{"updated_at": now, "date": date},
-		"$setOnInsert": bson.M{"tenant_id": tenantID},
-	}, options.UpdateOne().SetUpsert(upsert))
-	if err != nil {
-		return fmt.Errorf("file: record storage: %w", err)
-	}
-	return nil
+func (r *Repository) RecordStorage(ctx context.Context, t string, bytes int64) error {
+	return r.recordUsage(ctx, t, "bytes_stored", bytes)
 }
-
-func (r *Repository) RecordDelivery(ctx context.Context, tenantID string, bytes int64) error {
+func (r *Repository) RecordDelivery(ctx context.Context, t string, bytes int64) error {
+	return r.recordUsage(ctx, t, "bytes_delivered", bytes)
+}
+func (r *Repository) recordUsage(ctx context.Context, t, field string, bytes int64) error {
 	if bytes <= 0 {
 		return nil
 	}
-	scope, err := r.usage.ScopeTo(tenantID)
+	scope, err := r.usage.ScopeTo(t)
 	if err != nil {
-		return fmt.Errorf("file: record delivery: %w", err)
+		return err
 	}
-
 	now := time.Now().UTC()
 	date := now.Format(time.DateOnly)
-	docID := tenantID + ":" + date
-
-	upsert := true
-	_, err = scope.UpdateOne(ctx, bson.M{"_id": docID}, bson.M{
-		"$inc":         bson.M{"bytes_delivered": bytes},
-		"$set":         bson.M{"updated_at": now, "date": date},
-		"$setOnInsert": bson.M{"tenant_id": tenantID},
-	}, options.UpdateOne().SetUpsert(upsert))
-	if err != nil {
-		return fmt.Errorf("file: record delivery: %w", err)
+	query := bson.M{"_id": t + ":" + date}
+	update := bson.M{"$inc": bson.M{field: bytes}, "$set": bson.M{"updated_at": now, "date": date}}
+	_, err = scope.UpsertOne(ctx, query, update)
+	if mongo.IsDuplicateKeyError(err) {
+		_, err = scope.UpdateOne(ctx, query, update)
 	}
-	return nil
+	return err
 }
 
 func (r *Repository) GetUsage(ctx context.Context, tenantID string, limit int) ([]*ports.UsageRecord, error) {
@@ -456,5 +448,8 @@ func EnsureIndexes(ctx context.Context, store *pmongo.Store) error {
 			return fmt.Errorf("file: ensure indexes on %s: %w", name, err)
 		}
 	}
-	return nil
+	_, err := store.Database().Collection(FileCollection).Indexes().CreateOne(ctx,
+		mongo.IndexModel{Keys: bson.D{{Key: "tenant_id", Value: 1},
+			{Key: "storage_path", Value: 1}}, Options: options.Index().SetUnique(true).SetName("file_storage_path_unique")})
+	return err
 }

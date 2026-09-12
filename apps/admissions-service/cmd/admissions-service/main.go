@@ -2,15 +2,13 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"os"
 	"time"
 
 	servercmd "github.com/auraedu/admissions-service/cmd/server"
 	workercmd "github.com/auraedu/admissions-service/cmd/worker"
-	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/db"
+	"github.com/auraedu/admissions-service/internal/persistence"
 	"github.com/spf13/cobra"
 )
 
@@ -23,11 +21,7 @@ func main() {
 	root.AddCommand(&cobra.Command{Use: "migrate", RunE: func(*cobra.Command, []string) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
-		dsn := config.Getenv("DATABASE_URL", "")
-		if dsn == "" {
-			return fmt.Errorf("DATABASE_URL not set")
-		}
-		database, e := db.Open(ctx, db.Config{DSN: dsn, Migrations: config.Getenv("MIGRATIONS_PATH", "migrations")})
+		database, e := persistence.Open(ctx)
 		if database != nil {
 			database.Close()
 		}

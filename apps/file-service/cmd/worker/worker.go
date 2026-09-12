@@ -13,11 +13,10 @@ import (
 	"time"
 
 	svcevents "github.com/auraedu/file-service/internal/adapters/events"
-	"github.com/auraedu/file-service/internal/adapters/postgres"
 	"github.com/auraedu/file-service/internal/adapters/storage"
+	"github.com/auraedu/file-service/internal/persistence"
 	"github.com/auraedu/file-service/internal/ports"
 	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/db"
 	"github.com/auraedu/platform/eventbus"
 	"github.com/auraedu/platform/observ"
 	_ "github.com/jackc/pgx/v5/stdlib" // Register the pgx database/sql driver for migrations.
@@ -43,11 +42,7 @@ func Run(version string) error {
 			log.Error("flush file worker telemetry", "err", shutdownErr)
 		}
 	}()
-	dsn, err := config.MustGetenv("DATABASE_URL")
-	if err != nil {
-		return err
-	}
-	database, err := db.Open(ctx, db.Config{DSN: dsn, Migrations: "migrations"})
+	database, err := persistence.Open(ctx)
 	if err != nil {
 		return err
 	}
@@ -72,7 +67,7 @@ func Run(version string) error {
 	if err != nil {
 		return err
 	}
-	repo := postgres.NewRepository(database)
+	repo := database.Repository
 	pub := svcevents.NewPublisher(eventbus.NewPublisher(js))
 	metrics := observ.NewWorkerMetrics(service, "outbox-batch", "outbox-publish")
 	ticker := time.NewTicker(time.Second)

@@ -381,7 +381,7 @@ func TestMongoTenantRepositorySatisfiesTheContract(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
 	defer cancel()
-	mg := testkit.NewMongo(ctx, t)
+	mg := testkit.NewMongoReplicaSet(ctx, t)
 	if err := mongoadapter.EnsureIndexes(ctx, mg.Store); err != nil {
 		t.Fatalf("ensure indexes: %v", err)
 	}

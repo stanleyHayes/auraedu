@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/db"
 	"github.com/auraedu/platform/eventbus"
 	"github.com/auraedu/platform/flags"
 	"github.com/auraedu/platform/observ"
@@ -26,10 +25,10 @@ import (
 
 	svcevents "github.com/auraedu/report-service/internal/adapters/events"
 	"github.com/auraedu/report-service/internal/adapters/pdf"
-	"github.com/auraedu/report-service/internal/adapters/postgres"
 	"github.com/auraedu/report-service/internal/adapters/storage"
 	"github.com/auraedu/report-service/internal/application"
 	"github.com/auraedu/report-service/internal/domain"
+	"github.com/auraedu/report-service/internal/persistence"
 	"github.com/auraedu/report-service/internal/ports"
 )
 
@@ -58,7 +57,7 @@ func run() error {
 			log.Error("flush report worker telemetry", "err", err)
 		}
 	}()
-	database, err := openDB(ctx)
+	database, err := persistence.Open(ctx)
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
@@ -74,7 +73,7 @@ func run() error {
 		return fmt.Errorf("ensure NATS stream: %w", err)
 	}
 
-	repo := postgres.NewRepository(database)
+	repo := database.Repository
 	reportStorage, err := initStorage()
 	if err != nil {
 		return fmt.Errorf("initialize report storage: %w", err)
@@ -205,17 +204,6 @@ func dispatchReportOutbox(
 		metrics.Observe(ctx, "outbox-publish", started, nil)
 	}
 	return nil
-}
-
-func openDB(ctx context.Context) (*db.DB, error) {
-	dsn, err := config.MustGetenv("DATABASE_URL")
-	if err != nil {
-		return nil, err
-	}
-	return db.Open(ctx, db.Config{
-		DSN:        dsn,
-		Migrations: "migrations",
-	})
 }
 
 func connectNATS(log *slog.Logger) (*nats.Conn, eventbus.JetStreamContext, error) {

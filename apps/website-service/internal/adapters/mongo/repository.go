@@ -32,6 +32,7 @@ const (
 )
 
 type Repository struct {
+	store       *pmongo.Store
 	pages       *pmongo.Collection
 	sections    *pmongo.Collection
 	pagesOutbox *pmongo.ClaimableOutbox
@@ -47,7 +48,7 @@ var (
 func NewRepository(store *pmongo.Store) *Repository {
 	pages := store.Collection(PagesCollection)
 	sections := store.Collection(SectionsCollection)
-	return &Repository{
+	return &Repository{store: store,
 		pages:       pages,
 		sections:    sections,
 		pagesOutbox: pmongo.NewClaimableOutbox(pages, outboxLease),
@@ -247,34 +248,42 @@ func (r *Repository) UpdatePage(ctx context.Context, tenantID string, p *domain.
 }
 
 func (r *Repository) DeletePage(ctx context.Context, tenantID, id string) error {
-	scope, err := r.pages.ScopeTo(tenantID)
-	if err != nil {
-		return fmt.Errorf("website: delete page: %w", err)
-	}
-	res, err := scope.DeleteOne(ctx, live(bson.M{"_id": id}))
-	if err != nil {
-		return fmt.Errorf("website: delete page: %w", err)
-	}
-	if res.DeletedCount != 1 {
-		return domain.ErrNotFound
-	}
-	return nil
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		scope, err := r.pages.ScopeTo(tenantID)
+		if err != nil {
+			return fmt.Errorf("website: delete page: %w", err)
+		}
+		res, err := scope.UpdateOne(ctx, live(bson.M{"_id": id}), bson.M{"$set": bson.M{"deleted_at": time.Now().UTC()}})
+		if err != nil {
+			return fmt.Errorf("website: delete page: %w", err)
+		}
+		if res.MatchedCount != 1 {
+			return domain.ErrNotFound
+		}
+		return r.DeleteSectionsByPage(ctx, tenantID, id)
+	})
 }
 
 // Sections.
 
 func (r *Repository) CreateSection(ctx context.Context, tenantID string, s *domain.Section) error {
-	scope, err := r.sections.ScopeTo(tenantID)
-	if err != nil {
-		return fmt.Errorf("website: create section: %w", err)
-	}
-	doc := sectionFields(s)
-	doc["_id"] = s.ID
-	doc["page_id"] = s.PageID
-	if _, err := scope.InsertOne(ctx, doc); err != nil {
-		return fmt.Errorf("website: create section: %w", err)
-	}
-	return nil
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		if err := r.touchPage(ctx, tenantID, s.PageID); err != nil {
+			return err
+		}
+
+		scope, err := r.sections.ScopeTo(tenantID)
+		if err != nil {
+			return fmt.Errorf("website: create section: %w", err)
+		}
+		doc := sectionFields(s)
+		doc["_id"] = s.ID
+		doc["page_id"] = s.PageID
+		if _, err := scope.InsertOne(ctx, doc); err != nil {
+			return fmt.Errorf("website: create section: %w", err)
+		}
+		return nil
+	})
 }
 
 func (r *Repository) GetSectionByID(ctx context.Context, tenantID, id string) (*domain.Section, error) {
@@ -363,18 +372,24 @@ func (r *Repository) ListSections(
 }
 
 func (r *Repository) UpdateSection(ctx context.Context, tenantID string, s *domain.Section) error {
-	scope, err := r.sections.ScopeTo(tenantID)
-	if err != nil {
-		return fmt.Errorf("website: update section: %w", err)
-	}
-	res, err := scope.UpdateOne(ctx, live(bson.M{"_id": s.ID}), bson.M{"$set": sectionFields(s)})
-	if err != nil {
-		return fmt.Errorf("website: update section: %w", err)
-	}
-	if res.MatchedCount != 1 {
-		return domain.ErrNotFound
-	}
-	return nil
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		if err := r.touchPage(ctx, tenantID, s.PageID); err != nil {
+			return err
+		}
+
+		scope, err := r.sections.ScopeTo(tenantID)
+		if err != nil {
+			return fmt.Errorf("website: update section: %w", err)
+		}
+		res, err := scope.UpdateOne(ctx, live(bson.M{"_id": s.ID}), bson.M{"$set": sectionFields(s)})
+		if err != nil {
+			return fmt.Errorf("website: update section: %w", err)
+		}
+		if res.MatchedCount != 1 {
+			return domain.ErrNotFound
+		}
+		return nil
+	})
 }
 
 func (r *Repository) DeleteSection(ctx context.Context, tenantID, id string) error {
@@ -382,26 +397,28 @@ func (r *Repository) DeleteSection(ctx context.Context, tenantID, id string) err
 	if err != nil {
 		return fmt.Errorf("website: delete section: %w", err)
 	}
-	res, err := scope.DeleteOne(ctx, live(bson.M{"_id": id}))
+	res, err := scope.UpdateOne(ctx, live(bson.M{"_id": id}), bson.M{"$set": bson.M{"deleted_at": time.Now().UTC()}})
 	if err != nil {
 		return fmt.Errorf("website: delete section: %w", err)
 	}
-	if res.DeletedCount != 1 {
+	if res.MatchedCount != 1 {
 		return domain.ErrNotFound
 	}
 	return nil
 }
 
 func (r *Repository) DeleteSectionsByPage(ctx context.Context, tenantID, pageID string) error {
-	scope, err := r.sections.ScopeTo(tenantID)
-	if err != nil {
-		return fmt.Errorf("website: delete sections by page: %w", err)
-	}
-	_, err = scope.DeleteMany(ctx, live(bson.M{"page_id": pageID}))
-	if err != nil {
-		return fmt.Errorf("website: delete sections by page: %w", err)
-	}
-	return nil
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		scope, err := r.sections.ScopeTo(tenantID)
+		if err != nil {
+			return fmt.Errorf("website: delete sections by page: %w", err)
+		}
+		_, err = scope.UpdateMany(ctx, live(bson.M{"page_id": pageID}), bson.M{"$set": bson.M{"deleted_at": time.Now().UTC()}})
+		if err != nil {
+			return fmt.Errorf("website: delete sections by page: %w", err)
+		}
+		return nil
+	})
 }
 
 // Lifecycle and outbox.
@@ -431,100 +448,111 @@ func (r *Repository) CommitWebsiteLifecycle(
 	section *domain.Section,
 	events []ports.LifecycleEvent,
 ) error {
-	// Build CloudEvents from LifecycleEvents
-	cloudEvents := make([]tenancy.CloudEvent, 0, len(events))
-	for _, e := range events {
-		evt, err := lifecycleEvent(tenantID, e.EventType, e.Payload)
-		if err != nil {
-			return err
-		}
-		cloudEvents = append(cloudEvents, evt)
-	}
-
-	switch mutation {
-	case ports.WebsiteMutationPageCreate:
-		scope, err := r.pages.ScopeTo(tenantID)
-		if err != nil {
-			return fmt.Errorf("website: lifecycle: %w", err)
-		}
-		doc := pageFields(page)
-		doc["_id"] = page.ID
-		if _, err := scope.InsertWithEvents(ctx, doc, cloudEvents...); err != nil {
-			return fmt.Errorf("website: lifecycle create page: %w", err)
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		// Build CloudEvents from LifecycleEvents
+		cloudEvents := make([]tenancy.CloudEvent, 0, len(events))
+		for _, e := range events {
+			evt, err := lifecycleEvent(tenantID, e.EventType, e.Payload)
+			if err != nil {
+				return err
+			}
+			cloudEvents = append(cloudEvents, evt)
 		}
 
-	case ports.WebsiteMutationPageUpdate:
-		scope, err := r.pages.ScopeTo(tenantID)
-		if err != nil {
-			return fmt.Errorf("website: lifecycle: %w", err)
-		}
-		res, err := scope.UpdateWithEvents(ctx, live(bson.M{"_id": page.ID}),
-			bson.M{"$set": pageFields(page)}, cloudEvents...)
-		if err != nil {
-			return fmt.Errorf("website: lifecycle update page: %w", err)
-		}
-		if res.MatchedCount != 1 {
-			return domain.ErrNotFound
-		}
+		switch mutation {
+		case ports.WebsiteMutationPageCreate:
+			scope, err := r.pages.ScopeTo(tenantID)
+			if err != nil {
+				return fmt.Errorf("website: lifecycle: %w", err)
+			}
+			doc := pageFields(page)
+			doc["_id"] = page.ID
+			if _, err := scope.InsertWithEvents(ctx, doc, cloudEvents...); err != nil {
+				return fmt.Errorf("website: lifecycle create page: %w", err)
+			}
 
-	case ports.WebsiteMutationPageDelete:
-		scope, err := r.pages.ScopeTo(tenantID)
-		if err != nil {
-			return fmt.Errorf("website: lifecycle: %w", err)
-		}
-		res, err := scope.UpdateWithEvents(ctx, bson.M{"_id": page.ID, "deleted_at": bson.M{"$exists": false}},
-			bson.M{"$set": bson.M{"deleted_at": time.Now().UTC()}}, cloudEvents...)
-		if err != nil {
-			return fmt.Errorf("website: lifecycle delete page: %w", err)
-		}
-		if res.MatchedCount != 1 {
-			return domain.ErrNotFound
-		}
+		case ports.WebsiteMutationPageUpdate:
+			scope, err := r.pages.ScopeTo(tenantID)
+			if err != nil {
+				return fmt.Errorf("website: lifecycle: %w", err)
+			}
+			res, err := scope.UpdateWithEvents(ctx, live(bson.M{"_id": page.ID}),
+				bson.M{"$set": pageFields(page)}, cloudEvents...)
+			if err != nil {
+				return fmt.Errorf("website: lifecycle update page: %w", err)
+			}
+			if res.MatchedCount != 1 {
+				return domain.ErrNotFound
+			}
 
-	case ports.WebsiteMutationSectionCreate:
-		scope, err := r.sections.ScopeTo(tenantID)
-		if err != nil {
-			return fmt.Errorf("website: lifecycle: %w", err)
-		}
-		doc := sectionFields(section)
-		doc["_id"] = section.ID
-		doc["page_id"] = section.PageID
-		if _, err := scope.InsertWithEvents(ctx, doc, cloudEvents...); err != nil {
-			return fmt.Errorf("website: lifecycle create section: %w", err)
-		}
+		case ports.WebsiteMutationPageDelete:
+			scope, err := r.pages.ScopeTo(tenantID)
+			if err != nil {
+				return fmt.Errorf("website: lifecycle: %w", err)
+			}
+			res, err := scope.UpdateWithEvents(ctx, bson.M{"_id": page.ID, "deleted_at": bson.M{"$exists": false}},
+				bson.M{"$set": bson.M{"deleted_at": time.Now().UTC()}}, cloudEvents...)
+			if err != nil {
+				return fmt.Errorf("website: lifecycle delete page: %w", err)
+			}
+			if res.MatchedCount != 1 {
+				return domain.ErrNotFound
+			}
 
-	case ports.WebsiteMutationSectionUpdate:
-		scope, err := r.sections.ScopeTo(tenantID)
-		if err != nil {
-			return fmt.Errorf("website: lifecycle: %w", err)
-		}
-		res, err := scope.UpdateWithEvents(ctx, live(bson.M{"_id": section.ID}),
-			bson.M{"$set": sectionFields(section)}, cloudEvents...)
-		if err != nil {
-			return fmt.Errorf("website: lifecycle update section: %w", err)
-		}
-		if res.MatchedCount != 1 {
-			return domain.ErrNotFound
-		}
+			if err := r.DeleteSectionsByPage(ctx, tenantID, page.ID); err != nil {
+				return err
+			}
+		case ports.WebsiteMutationSectionCreate:
+			if err := r.touchPage(ctx, tenantID, section.PageID); err != nil {
+				return err
+			}
+			scope, err := r.sections.ScopeTo(tenantID)
+			if err != nil {
+				return fmt.Errorf("website: lifecycle: %w", err)
+			}
+			doc := sectionFields(section)
+			doc["_id"] = section.ID
+			doc["page_id"] = section.PageID
+			if _, err := scope.InsertWithEvents(ctx, doc, cloudEvents...); err != nil {
+				return fmt.Errorf("website: lifecycle create section: %w", err)
+			}
 
-	case ports.WebsiteMutationSectionDelete:
-		scope, err := r.sections.ScopeTo(tenantID)
-		if err != nil {
-			return fmt.Errorf("website: lifecycle: %w", err)
-		}
-		res, err := scope.UpdateWithEvents(ctx, bson.M{"_id": section.ID, "deleted_at": bson.M{"$exists": false}},
-			bson.M{"$set": bson.M{"deleted_at": time.Now().UTC()}}, cloudEvents...)
-		if err != nil {
-			return fmt.Errorf("website: lifecycle delete section: %w", err)
-		}
-		if res.MatchedCount != 1 {
-			return domain.ErrNotFound
-		}
+		case ports.WebsiteMutationSectionUpdate:
+			if err := r.touchPage(ctx, tenantID, section.PageID); err != nil {
+				return err
+			}
+			scope, err := r.sections.ScopeTo(tenantID)
+			if err != nil {
+				return fmt.Errorf("website: lifecycle: %w", err)
+			}
+			res, err := scope.UpdateWithEvents(ctx, live(bson.M{"_id": section.ID}),
+				bson.M{"$set": sectionFields(section)}, cloudEvents...)
+			if err != nil {
+				return fmt.Errorf("website: lifecycle update section: %w", err)
+			}
+			if res.MatchedCount != 1 {
+				return domain.ErrNotFound
+			}
 
-	default:
-		return fmt.Errorf("website: unsupported lifecycle mutation %q", mutation)
-	}
-	return nil
+		case ports.WebsiteMutationSectionDelete:
+			scope, err := r.sections.ScopeTo(tenantID)
+			if err != nil {
+				return fmt.Errorf("website: lifecycle: %w", err)
+			}
+			res, err := scope.UpdateWithEvents(ctx, bson.M{"_id": section.ID, "deleted_at": bson.M{"$exists": false}},
+				bson.M{"$set": bson.M{"deleted_at": time.Now().UTC()}}, cloudEvents...)
+			if err != nil {
+				return fmt.Errorf("website: lifecycle delete section: %w", err)
+			}
+			if res.MatchedCount != 1 {
+				return domain.ErrNotFound
+			}
+
+		default:
+			return fmt.Errorf("website: unsupported lifecycle mutation %q", mutation)
+		}
+		return nil
+	})
 }
 
 // ProvisionDefaultWebsite creates initial page and section atomically.
@@ -535,42 +563,44 @@ func (r *Repository) ProvisionDefaultWebsite(
 	section *domain.Section,
 	events []ports.LifecycleEvent,
 ) error {
-	// Build CloudEvents from LifecycleEvents
-	cloudEvents := make([]tenancy.CloudEvent, 0, len(events))
-	for _, e := range events {
-		evt, err := lifecycleEvent(tenantID, e.EventType, e.Payload)
-		if err != nil {
-			return err
+	return r.store.WithTransaction(ctx, func(ctx context.Context) error {
+		// Build CloudEvents from LifecycleEvents
+		cloudEvents := make([]tenancy.CloudEvent, 0, len(events))
+		for _, e := range events {
+			evt, err := lifecycleEvent(tenantID, e.EventType, e.Payload)
+			if err != nil {
+				return err
+			}
+			cloudEvents = append(cloudEvents, evt)
 		}
-		cloudEvents = append(cloudEvents, evt)
-	}
 
-	scope, err := r.pages.ScopeTo(tenantID)
-	if err != nil {
-		return fmt.Errorf("website: provision: %w", err)
-	}
+		scope, err := r.pages.ScopeTo(tenantID)
+		if err != nil {
+			return fmt.Errorf("website: provision: %w", err)
+		}
 
-	pageDoc := pageFields(page)
-	pageDoc["_id"] = page.ID
+		pageDoc := pageFields(page)
+		pageDoc["_id"] = page.ID
 
-	if _, err := scope.InsertOne(ctx, pageDoc); err != nil {
-		return fmt.Errorf("website: provision insert page: %w", err)
-	}
+		if _, err := scope.InsertOne(ctx, pageDoc); err != nil {
+			return fmt.Errorf("website: provision insert page: %w", err)
+		}
 
-	secScope, err := r.sections.ScopeTo(tenantID)
-	if err != nil {
-		return fmt.Errorf("website: provision: %w", err)
-	}
+		secScope, err := r.sections.ScopeTo(tenantID)
+		if err != nil {
+			return fmt.Errorf("website: provision: %w", err)
+		}
 
-	secDoc := sectionFields(section)
-	secDoc["_id"] = section.ID
-	secDoc["page_id"] = section.PageID
+		secDoc := sectionFields(section)
+		secDoc["_id"] = section.ID
+		secDoc["page_id"] = section.PageID
 
-	if _, err := secScope.InsertWithEvents(ctx, secDoc, cloudEvents...); err != nil {
-		return fmt.Errorf("website: provision insert section: %w", err)
-	}
+		if _, err := secScope.InsertWithEvents(ctx, secDoc, cloudEvents...); err != nil {
+			return fmt.Errorf("website: provision insert section: %w", err)
+		}
 
-	return nil
+		return nil
+	})
 }
 
 func claimed(events []pmongo.ClaimedEvent) []ports.OutboxEvent {
@@ -660,9 +690,32 @@ func EnsureIndexes(ctx context.Context, store *pmongo.Store) error {
 		for _, k := range keys {
 			models = append(models, mongo.IndexModel{Keys: k})
 		}
+		if name == PagesCollection {
+			models = append(models,
+				mongo.IndexModel{Keys: bson.D{{Key: "tenant_id",
+					Value: 1},
+					{Key: "slug",
+						Value: 1}},
+					Options: options.Index().SetName("website_live_slug_unique").SetUnique(true).SetPartialFilterExpression(bson.M{"deleted_at": nil})})
+		}
 		if _, err := store.Database().Collection(name).Indexes().CreateMany(ctx, models); err != nil {
 			return fmt.Errorf("website: ensure indexes on %s: %w", name, err)
 		}
+	}
+	return nil
+}
+
+func (r *Repository) touchPage(ctx context.Context, tenant, id string) error {
+	scope, err := r.pages.ScopeTo(tenant)
+	if err != nil {
+		return err
+	}
+	res, err := scope.UpdateOne(ctx, live(bson.M{"_id": id}), bson.M{"$inc": bson.M{"_reference_version": 1}})
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount != 1 {
+		return domain.ErrNotFound
 	}
 	return nil
 }

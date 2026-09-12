@@ -14,12 +14,11 @@ import (
 	"time"
 
 	feesevents "github.com/auraedu/fees-service/internal/adapters/events"
-	"github.com/auraedu/fees-service/internal/adapters/postgres"
 	"github.com/auraedu/fees-service/internal/application"
 	"github.com/auraedu/fees-service/internal/domain"
+	"github.com/auraedu/fees-service/internal/persistence"
 	"github.com/auraedu/fees-service/internal/ports"
 	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/db"
 	"github.com/auraedu/platform/eventbus"
 	"github.com/auraedu/platform/flags"
 	"github.com/auraedu/platform/observ"
@@ -53,7 +52,7 @@ func main() {
 		}
 	}()
 
-	database, err := openDB(ctx)
+	database, err := persistence.Open(ctx)
 	if err != nil {
 		log.Error("failed to open database", "err", err)
 		return
@@ -70,8 +69,8 @@ func main() {
 		return
 	}
 
-	feeRepo := postgres.NewFeeStructureRepository(database)
-	invoiceRepo := postgres.NewInvoiceRepository(database)
+	feeRepo := database.Structures
+	invoiceRepo := database.Invoices
 	publisher := feesevents.NewPublisher(eventbus.NewPublisher(js))
 	svc := application.NewService(feeRepo, invoiceRepo,
 		application.WithPublisher(publisher),
@@ -151,14 +150,6 @@ func dispatchFeeOutbox(ctx context.Context, repo ports.OutboxRepository, publish
 		metrics.Observe(ctx, "outbox-publish", started, nil)
 	}
 	return nil
-}
-
-func openDB(ctx context.Context) (*db.DB, error) {
-	dsn, err := config.MustGetenv("DATABASE_URL")
-	if err != nil {
-		return nil, err
-	}
-	return db.Open(ctx, db.Config{DSN: dsn, Migrations: "migrations"})
 }
 
 func connectNATS(log *slog.Logger) (*nats.Conn, eventbus.JetStreamContext, error) {

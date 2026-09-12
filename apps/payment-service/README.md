@@ -89,3 +89,23 @@ go test ./...          # unit + testcontainers integration (needs docker)
 
 Run locally: `DATABASE_URL=… PAYMENTS_PROVIDER=mock go run ./cmd/payment-service server`
 (migrations auto-apply from `migrations/`). See `deploy/` for the full infra stack.
+
+## Selectable persistence (AURA-9.12)
+
+Both server and worker select `DATABASE_DRIVER=postgres` (the default) or
+`DATABASE_DRIVER=mongodb`. PostgreSQL retains its migrations and `DATABASE_URL`.
+MongoDB requires `MONGODB_URI`; `MONGODB_DATABASE` defaults to `auraedu_payment`.
+`MONGODB_MAX_POOL_SIZE` defaults to 2 per process. Invalid drivers/pool sizes fail
+startup. Mongo indexes are installed before readiness; readiness pings the
+selected database with a bounded timeout.
+
+Payments embed their immutable ledger entries and pending events. Reconciliation uses a single conditional update to deduplicate competing webhooks and verification requests; success cannot regress. Deletion refuses payments with ledger entries, matching the SQL foreign key.
+
+Use a replica set (including Atlas) for the full Mongo adapter. Tests also run
+isolated single-document guarantees against standalone Mongo. Pending events
+are durable and delivered at least once, with stable event IDs and leases.
+Aggregate deletion retains delivery metadata until pending events are dispatched;
+MongoDB's document-size limit fails an oversized mutation atomically.
+
+Verification: `GOWORK=off GOFLAGS=-mod=readonly go test -p 1 ./internal/... ./cmd/... ./tests/unit/...`
+and `GOWORK=off GOFLAGS=-mod=readonly go vet ./internal/... ./cmd/... ./tests/unit/...`.

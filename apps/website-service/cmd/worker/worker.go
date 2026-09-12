@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/auraedu/platform/config"
-	"github.com/auraedu/platform/db"
 	"github.com/auraedu/platform/eventbus"
 	"github.com/auraedu/platform/flags"
 	"github.com/auraedu/platform/observ"
@@ -23,8 +22,8 @@ import (
 	"github.com/nats-io/nats.go"
 
 	svcevents "github.com/auraedu/website-service/internal/adapters/events"
-	"github.com/auraedu/website-service/internal/adapters/postgres"
 	"github.com/auraedu/website-service/internal/domain"
+	"github.com/auraedu/website-service/internal/persistence"
 	"github.com/auraedu/website-service/internal/ports"
 )
 
@@ -54,14 +53,14 @@ func run(log *slog.Logger) error {
 		}
 	}()
 
-	database, err := openDB(ctx)
+	database, err := persistence.Open(ctx)
 	if err != nil {
 		return err
 	}
 	defer database.Close()
 
 	gates := featureGates(log)
-	repo := postgres.NewRepository(database)
+	repo := database.Repository
 
 	natsURL := config.Getenv("NATS_URL", "")
 	if natsURL == "" {
@@ -117,17 +116,6 @@ func run(log *slog.Logger) error {
 	return nil
 }
 
-func openDB(ctx context.Context) (*db.DB, error) {
-	dsn, err := config.MustGetenv("DATABASE_URL")
-	if err != nil {
-		return nil, err
-	}
-	return db.Open(ctx, db.Config{
-		DSN:        dsn,
-		Migrations: "migrations",
-	})
-}
-
 func featureGates(log *slog.Logger) flags.Gate {
 	// Static registry snapshot: plan defaults baked into the deploy. It stays
 	// the fallback when tenant-service is unreachable.
@@ -143,7 +131,10 @@ func featureGates(log *slog.Logger) flags.Gate {
 	return flags.NewRuntimeGate(config.Getenv("SERVICE_TENANT_URL", ""), fallback, log)
 }
 
-func createDefaultHomePage(ctx context.Context, repo *postgres.Repository, tenantID string, log *slog.Logger) error {
+func createDefaultHomePage(ctx context.Context, repo interface {
+	ports.Repository
+	ports.LifecycleRepository
+}, tenantID string, log *slog.Logger) error {
 	if existing, err := repo.GetPageBySlug(ctx, tenantID, "home"); err == nil {
 		log.Info("default home page already exists", "tenant_id", tenantID, "page_id", existing.ID)
 		return nil
