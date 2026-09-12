@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -63,8 +64,12 @@ func Open(ctx context.Context, cfg Config) (*DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("db: parse DSN: %w", err)
 	}
-	if cfg.MaxConns > 0 {
-		poolCfg.MaxConns = cfg.MaxConns
+	maxConns, err := resolveMaxConns(cfg.MaxConns)
+	if err != nil {
+		return nil, err
+	}
+	if maxConns > 0 {
+		poolCfg.MaxConns = maxConns
 	}
 	if cfg.MinConns > 0 {
 		poolCfg.MinConns = cfg.MinConns
@@ -119,6 +124,26 @@ func resolveSchema(configured string) (string, error) {
 		return "", fmt.Errorf("db: invalid schema name %q: expected an unquoted lower-case identifier", schema)
 	}
 	return schema, nil
+}
+
+// resolveMaxConns prefers the explicit config value and otherwise consults
+// DATABASE_MAX_CONNS. pgx otherwise defaults each pool to max(4, NumCPU); when
+// the whole fleet shares one PostgreSQL instance those defaults multiply by the
+// number of running services and can exhaust the server's connection limit, so
+// the ceiling has to be settable per deployment without a code change.
+func resolveMaxConns(configured int32) (int32, error) {
+	if configured > 0 {
+		return configured, nil
+	}
+	raw := strings.TrimSpace(os.Getenv("DATABASE_MAX_CONNS"))
+	if raw == "" {
+		return 0, nil
+	}
+	parsed, err := strconv.ParseInt(raw, 10, 32)
+	if err != nil || parsed < 1 {
+		return 0, fmt.Errorf("db: invalid DATABASE_MAX_CONNS %q: expected a positive integer", raw)
+	}
+	return int32(parsed), nil
 }
 
 func (d *DB) ensureSchema(ctx context.Context, schema string) error {

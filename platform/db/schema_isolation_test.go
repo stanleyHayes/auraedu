@@ -110,3 +110,31 @@ func TestSchemaIsResolvedFromEnvironmentAndFailsClosedOnInjection(t *testing.T) 
 		t.Fatalf("explicit schema did not take precedence: got=%q err=%v", got, err)
 	}
 }
+
+func TestMaxConnsIsBoundedByDeploymentConfiguration(t *testing.T) {
+	// Explicit configuration always wins.
+	got, err := resolveMaxConns(7)
+	if err != nil || got != 7 {
+		t.Fatalf("explicit MaxConns ignored: got=%d err=%v", got, err)
+	}
+
+	// Unset means "leave pgx's own default alone".
+	got, err = resolveMaxConns(0)
+	if err != nil || got != 0 {
+		t.Fatalf("unset MaxConns should not force a value: got=%d err=%v", got, err)
+	}
+
+	t.Setenv("DATABASE_MAX_CONNS", "3")
+	got, err = resolveMaxConns(0)
+	if err != nil || got != 3 {
+		t.Fatalf("MaxConns not resolved from environment: got=%d err=%v", got, err)
+	}
+
+	// A shared instance must not be handed a nonsensical ceiling.
+	for _, bad := range []string{"0", "-1", "many", "3.5"} {
+		t.Setenv("DATABASE_MAX_CONNS", bad)
+		if _, err := resolveMaxConns(0); err == nil {
+			t.Fatalf("invalid DATABASE_MAX_CONNS accepted: %q", bad)
+		}
+	}
+}
