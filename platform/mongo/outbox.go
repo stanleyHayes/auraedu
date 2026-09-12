@@ -89,7 +89,7 @@ func (s *Scope) InsertWithEvents(ctx context.Context, doc bson.M, events ...tena
 // UpdateWithEvents applies an update and queues its events in the same atomic
 // single-document write.
 func (s *Scope) UpdateWithEvents(ctx context.Context, query bson.M, update bson.M, events ...tenancy.CloudEvent) (*mongo.UpdateResult, error) {
-	if err := guardUpdate(update); err != nil {
+	if err := guardUpdate(update, s.tenantKey()); err != nil {
 		return nil, err
 	}
 	pending, err := s.pendingFor(events)

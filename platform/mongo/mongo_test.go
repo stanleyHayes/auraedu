@@ -297,3 +297,53 @@ func TestAnEventMayNotBeQueuedUnderAnotherTenant(t *testing.T) {
 		t.Fatal("expected a descriptive error")
 	}
 }
+
+// A few collections name their owner something other than tenant_id —
+// tenant-service keys its own records on code and tenant_code, mirroring its RLS
+// columns. Those collections must obey exactly the same scoping rules.
+func TestACollectionMayScopeOnADifferentOwnerField(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping MongoDB isolation test")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	defer cancel()
+	coll := openTestStore(ctx, t).Collection("tenants").WithTenantField("code")
+
+	upshs, err := coll.Scope(tenantCtx("upshs"))
+	if err != nil {
+		t.Fatalf("scope: %v", err)
+	}
+	if _, err := upshs.InsertOne(ctx, bson.M{"_id": "upshs", "name": "UPSHS"}); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+	aboom, err := coll.Scope(tenantCtx("aboom"))
+	if err != nil {
+		t.Fatalf("scope: %v", err)
+	}
+	if _, err := aboom.InsertOne(ctx, bson.M{"_id": "aboom", "name": "Aboom"}); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	// The owner field is stamped, not tenant_id.
+	var got bson.M
+	if err := upshs.FindOne(ctx, bson.M{"_id": "upshs"}).Decode(&got); err != nil {
+		t.Fatalf("read own record: %v", err)
+	}
+	if got["code"] != "upshs" {
+		t.Fatalf("owner field was not stamped: %v", got)
+	}
+	if _, unexpected := got[TenantField]; unexpected {
+		t.Fatalf("tenant_id was stamped on a collection scoped by code: %v", got)
+	}
+
+	// Isolation still holds, and cannot be widened by naming the field.
+	if err := upshs.FindOne(ctx, bson.M{"_id": "aboom"}).Err(); err == nil {
+		t.Fatal("a tenant read another tenant's record")
+	}
+	if err := upshs.FindOne(ctx, bson.M{"_id": "aboom", "code": "aboom"}).Err(); err == nil {
+		t.Fatal("a caller widened its scope by supplying the owner field")
+	}
+	if _, err := upshs.UpdateOne(ctx, bson.M{"_id": "upshs"}, bson.M{"$set": bson.M{"code": "aboom"}}); err == nil {
+		t.Fatal("an update was allowed to re-home a record scoped by code")
+	}
+}
