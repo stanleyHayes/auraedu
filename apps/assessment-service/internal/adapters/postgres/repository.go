@@ -151,7 +151,7 @@ func listAssessmentsQuery(ctx context.Context, tx pgx.Tx, tenantID string, filte
 
 func (r *Repository) UpdateAssessment(ctx context.Context, tenantID string, a *domain.Assessment) error {
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `
+		tag, err := tx.Exec(ctx, `
 			UPDATE assessments
 			SET academic_year_id = $3, subject_id = $4, type = $5, title = $6,
 				description = $7, max_score = $8, due_date = $9, status = $10,
@@ -161,6 +161,11 @@ func (r *Repository) UpdateAssessment(ctx context.Context, tenantID string, a *d
 		if err != nil {
 			return fmt.Errorf("assessment: update assessment: %w", err)
 		}
+		// Changing nothing is not success. Without this a mutation aimed at
+		// another tenant's record reports that it worked.
+		if tag.RowsAffected() != 1 {
+			return domain.ErrNotFound
+		}
 		return nil
 	})
 }
@@ -168,13 +173,18 @@ func (r *Repository) UpdateAssessment(ctx context.Context, tenantID string, a *d
 func (r *Repository) DeleteAssessment(ctx context.Context, tenantID, id string) error {
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		now := time.Now().UTC()
-		_, err := tx.Exec(ctx, `
+		tag, err := tx.Exec(ctx, `
 			UPDATE assessments
 			SET deleted_at = $3
 			WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
 		`, id, tenantID, now)
 		if err != nil {
 			return fmt.Errorf("assessment: delete assessment: %w", err)
+		}
+		// Changing nothing is not success. Without this a mutation aimed at
+		// another tenant's record reports that it worked.
+		if tag.RowsAffected() != 1 {
+			return domain.ErrNotFound
 		}
 		return nil
 	})
@@ -274,13 +284,18 @@ func listScoresQuery(ctx context.Context, tx pgx.Tx, tenantID, assessmentID stri
 
 func (r *Repository) UpdateScore(ctx context.Context, tenantID string, s *domain.Score) error {
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `
+		tag, err := tx.Exec(ctx, `
 			UPDATE scores
 			SET score = $3, recorded_by = $4, notes = $5, updated_at = $6
 			WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
 		`, s.ID, tenantID, s.Score, s.RecordedBy, s.Notes, s.UpdatedAt)
 		if err != nil {
 			return fmt.Errorf("assessment: update score: %w", err)
+		}
+		// Changing nothing is not success. Without this a mutation aimed at
+		// another tenant's record reports that it worked.
+		if tag.RowsAffected() != 1 {
+			return domain.ErrNotFound
 		}
 		return nil
 	})
@@ -289,13 +304,18 @@ func (r *Repository) UpdateScore(ctx context.Context, tenantID string, s *domain
 func (r *Repository) DeleteScore(ctx context.Context, tenantID, assessmentID, scoreID string) error {
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		now := time.Now().UTC()
-		_, err := tx.Exec(ctx, `
+		tag, err := tx.Exec(ctx, `
 			UPDATE scores
 			SET deleted_at = $4
 			WHERE id = $1 AND assessment_id = $2 AND tenant_id = $3 AND deleted_at IS NULL
 		`, scoreID, assessmentID, tenantID, now)
 		if err != nil {
 			return fmt.Errorf("assessment: delete score: %w", err)
+		}
+		// Changing nothing is not success. Without this a mutation aimed at
+		// another tenant's record reports that it worked.
+		if tag.RowsAffected() != 1 {
+			return domain.ErrNotFound
 		}
 		return nil
 	})

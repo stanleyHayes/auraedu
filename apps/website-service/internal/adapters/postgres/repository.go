@@ -148,7 +148,7 @@ func listPagesQuery(ctx context.Context, tx pgx.Tx, tenantID string, limit int, 
 
 func (r *Repository) UpdatePage(ctx context.Context, tenantID string, p *domain.Page) error {
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `
+		tag, err := tx.Exec(ctx, `
 			UPDATE website_pages
 			SET slug = $3, title = $4, status = $5, meta_description = $6, layout = $7, updated_at = $8, published_at = $9
 			WHERE id = $1 AND tenant_id = $2
@@ -156,15 +156,25 @@ func (r *Repository) UpdatePage(ctx context.Context, tenantID string, p *domain.
 		if err != nil {
 			return fmt.Errorf("website: update page: %w", err)
 		}
+		// Changing nothing is not success. Without this a mutation aimed at
+		// another tenant's record reports that it worked.
+		if tag.RowsAffected() != 1 {
+			return domain.ErrNotFound
+		}
 		return nil
 	})
 }
 
 func (r *Repository) DeletePage(ctx context.Context, tenantID, id string) error {
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `DELETE FROM website_pages WHERE id = $1 AND tenant_id = $2`, id, tenantID)
+		tag, err := tx.Exec(ctx, `DELETE FROM website_pages WHERE id = $1 AND tenant_id = $2`, id, tenantID)
 		if err != nil {
 			return fmt.Errorf("website: delete page: %w", err)
+		}
+		// Changing nothing is not success. Without this a mutation aimed at
+		// another tenant's record reports that it worked.
+		if tag.RowsAffected() != 1 {
+			return domain.ErrNotFound
 		}
 		return nil
 	})
@@ -278,7 +288,7 @@ func (r *Repository) UpdateSection(ctx context.Context, tenantID string, s *doma
 		if err != nil {
 			return fmt.Errorf("website: marshal section content: %w", err)
 		}
-		_, err = tx.Exec(ctx, `
+		tag, err := tx.Exec(ctx, `
 			UPDATE website_sections
 			SET type = $3, content = COALESCE($4, '{}'::jsonb), sort_order = $5, status = $6, updated_at = $7
 			WHERE id = $1 AND tenant_id = $2
@@ -286,15 +296,25 @@ func (r *Repository) UpdateSection(ctx context.Context, tenantID string, s *doma
 		if err != nil {
 			return fmt.Errorf("website: update section: %w", err)
 		}
+		// Changing nothing is not success. Without this a mutation aimed at
+		// another tenant's record reports that it worked.
+		if tag.RowsAffected() != 1 {
+			return domain.ErrNotFound
+		}
 		return nil
 	})
 }
 
 func (r *Repository) DeleteSection(ctx context.Context, tenantID, id string) error {
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `DELETE FROM website_sections WHERE id = $1 AND tenant_id = $2`, id, tenantID)
+		tag, err := tx.Exec(ctx, `DELETE FROM website_sections WHERE id = $1 AND tenant_id = $2`, id, tenantID)
 		if err != nil {
 			return fmt.Errorf("website: delete section: %w", err)
+		}
+		// Changing nothing is not success. Without this a mutation aimed at
+		// another tenant's record reports that it worked.
+		if tag.RowsAffected() != 1 {
+			return domain.ErrNotFound
 		}
 		return nil
 	})
