@@ -114,6 +114,34 @@ func (s *Scope) UpdateWithEvents(ctx context.Context, query bson.M, update bson.
 	return s.coll.UpdateOne(ctx, s.filter(query), merged)
 }
 
+// UpsertWithEvents inserts or updates one document and queues its events in the
+// same atomic single-document write. It exists because a flag that is set for
+// the first time and one that is being changed must both stay atomic with the
+// event announcing it; doing the upsert and the event as two calls would put a
+// crash between them.
+func (s *Scope) UpsertWithEvents(ctx context.Context, query bson.M, update bson.M, events ...tenancy.CloudEvent) (*mongo.UpdateResult, error) {
+	pending, err := s.pendingFor(events)
+	if err != nil {
+		return nil, err
+	}
+	merged := bson.M{}
+	for k, v := range update {
+		merged[k] = v
+	}
+	if len(pending) > 0 {
+		push, ok := merged["$push"].(bson.M)
+		if !ok {
+			push = bson.M{}
+		}
+		if _, taken := push[PendingField]; taken {
+			return nil, errors.New("mongo outbox: update already pushes to " + PendingField)
+		}
+		push[PendingField] = bson.M{"$each": pending}
+		merged["$push"] = push
+	}
+	return s.UpsertOne(ctx, query, merged)
+}
+
 func (s *Scope) pendingFor(events []tenancy.CloudEvent) ([]PendingEvent, error) {
 	pending := make([]PendingEvent, 0, len(events))
 	for _, event := range events {
