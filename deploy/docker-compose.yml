@@ -31,7 +31,7 @@ services:
       dockerfile: ./apps/identity-service/Dockerfile
       args:
         GIT_SHA: local
-    ports: ["8081:8081"]
+    ports: ["${IDENTITY_HOST_PORT:-8081}:8081"]
     environment:
       <<: *observability-env
       DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
@@ -86,7 +86,7 @@ services:
       args:
         GIT_SHA: local
     working_dir: /
-    ports: ["8082:8082"]
+    ports: ["${TENANT_HOST_PORT:-8082}:8082"]
     environment:
       <<: *observability-env
       DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
@@ -229,7 +229,7 @@ services:
       args:
         GIT_SHA: local
     working_dir: /
-    ports: ["8092:8092"]
+    ports: ["${ACADEMIC_HOST_PORT:-8092}:8092"]
     environment:
       <<: *observability-env
       PORT: 8092
@@ -279,7 +279,7 @@ services:
       args:
         GIT_SHA: local
     working_dir: /
-    ports: ["8094:8094"]
+    ports: ["${ATTENDANCE_HOST_PORT:-8094}:8094"]
     environment:
       <<: *observability-env
       PORT: 8094
@@ -328,7 +328,7 @@ services:
       args:
         GIT_SHA: local
     working_dir: /
-    ports: ["8095:8095"]
+    ports: ["${ASSESSMENT_HOST_PORT:-8095}:8095"]
     environment:
       <<: *observability-env
       PORT: 8095
@@ -377,7 +377,7 @@ services:
       args:
         GIT_SHA: local
     working_dir: /
-    ports: ["8096:8096"]
+    ports: ["${REPORT_HOST_PORT:-8096}:8096"]
     environment:
       <<: *observability-env
       PORT: 8096
@@ -439,7 +439,7 @@ services:
       args:
         GIT_SHA: local
     working_dir: /
-    ports: ["8097:8097"]
+    ports: ["${FEES_HOST_PORT:-8097}:8097"]
     environment:
       <<: *observability-env
       PORT: 8097
@@ -494,7 +494,7 @@ services:
       args:
         GIT_SHA: local
     working_dir: /
-    ports: ["8098:8098"]
+    ports: ["${PAYMENT_HOST_PORT:-8098}:8098"]
     environment:
       <<: *observability-env
       PORT: 8098
@@ -548,7 +548,7 @@ services:
       args:
         GIT_SHA: local
     working_dir: /
-    ports: ["8099:8099"]
+    ports: ["${NOTIFICATION_HOST_PORT:-8099}:8099"]
     environment:
       <<: *observability-env
       PORT: 8099
@@ -694,7 +694,7 @@ services:
       args:
         GIT_SHA: local
     working_dir: /
-    ports: ["8101:8101"]
+    ports: ["${WEBSITE_HOST_PORT:-8101}:8101"]
     environment:
       <<: *observability-env
       PORT: 8101
@@ -744,7 +744,7 @@ services:
       args:
         GIT_SHA: local
     working_dir: /
-    ports: ["8102:8102"]
+    ports: ["${ANALYTICS_HOST_PORT:-8102}:8102"]
     environment:
       <<: *observability-env
       PORT: 8102
@@ -772,7 +772,7 @@ services:
       args:
         GIT_SHA: local
     working_dir: /
-    ports: ["8105:8105"]
+    ports: ["${CRM_HOST_PORT:-8105}:8105"]
     environment:
       <<: *observability-env
       PORT: 8105
@@ -821,7 +821,7 @@ services:
       args:
         GIT_SHA: local
     working_dir: /
-    ports: ["8110:8110"]
+    ports: ["${KNOWLEDGE_HOST_PORT:-8110}:8110"]
     environment:
       <<: *observability-env
       PORT: 8110
@@ -870,7 +870,7 @@ services:
       args:
         GIT_SHA: local
     working_dir: /
-    ports: ["8111:8111"]
+    ports: ["${AI_ORCHESTRATOR_HOST_PORT:-8111}:8111"]
     environment:
       <<: *observability-env
       PORT: 8111
@@ -923,7 +923,7 @@ services:
       args:
         GIT_SHA: local
     working_dir: /
-    ports: ["8113:8113"]
+    ports: ["${CAMPAIGN_HOST_PORT:-8113}:8113"]
     environment:
       <<: *observability-env
       PORT: 8113
@@ -971,7 +971,7 @@ services:
       args:
         GIT_SHA: local
     working_dir: /
-    ports: ["8116:8116"]
+    ports: ["${CONTENT_HOST_PORT:-8116}:8116"]
     environment:
       <<: *observability-env
       PORT: 8116
@@ -1023,7 +1023,7 @@ services:
       args:
         GIT_SHA: local
     working_dir: /
-    ports: ["8114:8114"]
+    ports: ["${ADMISSIONS_HOST_PORT:-8114}:8114"]
     environment:
       <<: *observability-env
       PORT: 8114
@@ -1074,7 +1074,7 @@ services:
       args:
         GIT_SHA: local
     working_dir: /
-    ports: ["8115:8115"]
+    ports: ["${MARKET_INTELLIGENCE_HOST_PORT:-8115}:8115"]
     environment:
       <<: *observability-env
       PORT: 8115
@@ -1145,7 +1145,7 @@ services:
       args:
         GIT_SHA: local
     working_dir: /
-    ports: ["8103:8103"]
+    ports: ["${CBT_HOST_PORT:-8103}:8103"]
     environment:
       <<: *observability-env
       PORT: 8103
@@ -1270,7 +1270,7 @@ services:
       args:
         GIT_SHA: local
     working_dir: /
-    ports: ["8093:8093"]
+    ports: ["${FILE_HOST_PORT:-8093}:8093"]
     environment:
       <<: *observability-env
       PORT: 8093
@@ -1324,7 +1324,7 @@ services:
     build:
       context: ..
       dockerfile: ./apps/ai-recommendation-service/Dockerfile
-    ports: ["8200:8200"]
+    ports: ["${AI_RECOMMENDATION_HOST_PORT:-8200}:8200"]
     environment:
       <<: *observability-env
       AI_REC_DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
@@ -1356,7 +1356,7 @@ services:
     build:
       context: ..
       dockerfile: ./apps/ai-prediction-service/Dockerfile
-    ports: ["8201:8201"]
+    ports: ["${AI_PREDICTION_HOST_PORT:-8201}:8201"]
     environment:
       <<: *observability-env
       AI_PRED_DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
@@ -1388,7 +1388,7 @@ services:
     build:
       context: ..
       dockerfile: ./apps/career-guidance-service/Dockerfile
-    ports: ["8112:8112"]
+    ports: ["${CAREER_GUIDANCE_HOST_PORT:-8112}:8112"]
     environment:
       <<: *observability-env
       AI_GUIDANCE_DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
@@ -1425,7 +1425,7 @@ services:
       args:
         GIT_SHA: local
     working_dir: /
-    ports: ["8104:8104"]
+    ports: ["${AUDIT_HOST_PORT:-8104}:8104"]
     environment:
       <<: *observability-env
       PORT: 8104
