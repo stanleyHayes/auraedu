@@ -250,10 +250,13 @@ const signOffCreated = appendMissing(
   'Human launch sign-off gates (child-data/Ghana DPA legal review, growth pricing policy, school pilot UAT). Set each to "true" only after the responsible human has signed off; never auto-fill.',
 );
 
+// Every service now shares one local database and owns a schema inside it, matching
+// the deployed topology. search_path travels in the URL so the migration orchestrator
+// applies each service's migrations — and records their history — in its own schema.
 const databaseUrls = Object.fromEntries(
-  Object.entries(DATABASES).map(([service, database]) => [
+  Object.entries(DATABASES).map(([service, schema]) => [
     service,
-    `postgres://auraedu:auraedu@127.0.0.1:5432/${database}?sslmode=disable`,
+    `postgres://auraedu:auraedu@127.0.0.1:5432/auraedu?sslmode=disable&options=-csearch_path%3D${schema}`,
   ]),
 );
 writeFileSync(DATABASE_URLS_PATH, `${JSON.stringify(databaseUrls, null, 2)}\n`, { mode: 0o600 });

@@ -10,6 +10,23 @@ databases = render.fetch('databases', [])
 services = render.fetch('services', [])
 failures = []
 
+# Every fromDatabase reference must resolve to a declared database. Render fails the
+# deploy for a dangling name, and consolidating databases is exactly the edit that
+# leaves one behind, so catch it here rather than at deploy time.
+declared_databases = databases.map { |database| database['name'] }
+services.each do |service|
+  (service['envVars'] || []).each do |entry|
+    reference = entry['fromDatabase']
+    next unless reference.is_a?(Hash)
+
+    name = reference['name'].to_s
+    next if declared_databases.include?(name)
+
+    failures << "#{service['name']}: #{entry['key']} references undeclared database #{name}"
+  end
+end
+
+
 databases.each do |database|
   name = database.fetch('name', '<unnamed-database>')
   allowlist = database['ipAllowList']

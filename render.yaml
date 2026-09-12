@@ -111,156 +111,15 @@ envVarGroups:
         sync: false
 
 databases:
-  # One Render Postgres per service DB (agent_plan Appendix D). Each service connects only
-  # to its own database; logical DB names match deploy/postgres-init.sql.
-  - name: identity-db
+  # One managed Postgres for the whole fleet. Each service owns a private schema
+  # (DATABASE_SCHEMA on each service below) instead of a private database, which keeps
+  # per-service ownership and row-level security intact while collapsing 25 paid
+  # instances into one. DATABASE_MAX_CONNS bounds each pool because the server's
+  # connection limit is now shared by every service.
+  - name: auraedu-db
     plan: basic-1gb
     region: frankfurt
-    databaseName: identity
-    postgresMajorVersion: "18"
-    ipAllowList: [] # private network only; public ingress is denied
-  - name: tenant-db
-    plan: basic-1gb
-    region: frankfurt
-    databaseName: tenant
-    postgresMajorVersion: "18"
-    ipAllowList: [] # private network only; public ingress is denied
-  - name: student-db
-    plan: basic-1gb
-    region: frankfurt
-    databaseName: student
-    postgresMajorVersion: "18"
-    ipAllowList: [] # private network only; public ingress is denied
-  - name: staff-db
-    plan: basic-1gb
-    region: frankfurt
-    databaseName: staff
-    postgresMajorVersion: "18"
-    ipAllowList: [] # private network only; public ingress is denied
-  - name: academic-db
-    plan: basic-1gb
-    region: frankfurt
-    databaseName: academic
-    postgresMajorVersion: "18"
-    ipAllowList: [] # private network only; public ingress is denied
-  - name: attendance-db
-    plan: basic-1gb
-    region: frankfurt
-    databaseName: attendance
-    postgresMajorVersion: "18"
-    ipAllowList: [] # private network only; public ingress is denied
-  - name: assessment-db
-    plan: basic-1gb
-    region: frankfurt
-    databaseName: assessment
-    postgresMajorVersion: "18"
-    ipAllowList: [] # private network only; public ingress is denied
-  - name: report-db
-    plan: basic-1gb
-    region: frankfurt
-    databaseName: report
-    postgresMajorVersion: "18"
-    ipAllowList: [] # private network only; public ingress is denied
-  - name: fees-db
-    plan: basic-1gb
-    region: frankfurt
-    databaseName: fees
-    postgresMajorVersion: "18"
-    ipAllowList: [] # private network only; public ingress is denied
-  - name: payment-db
-    plan: basic-1gb
-    region: frankfurt
-    databaseName: payment
-    postgresMajorVersion: "18"
-    ipAllowList: [] # private network only; public ingress is denied
-  - name: notification-db
-    plan: basic-1gb
-    region: frankfurt
-    databaseName: notification
-    postgresMajorVersion: "18"
-    ipAllowList: [] # private network only; public ingress is denied
-  - name: website-db
-    plan: basic-1gb
-    region: frankfurt
-    databaseName: website
-    postgresMajorVersion: "18"
-    ipAllowList: [] # private network only; public ingress is denied
-  - name: file-db
-    plan: basic-1gb
-    region: frankfurt
-    databaseName: file
-    postgresMajorVersion: "18"
-    ipAllowList: [] # private network only; public ingress is denied
-  - name: analytics-db
-    plan: basic-1gb
-    region: frankfurt
-    databaseName: analytics
-    postgresMajorVersion: "18"
-    ipAllowList: [] # private network only; public ingress is denied
-  - name: billing-db
-    plan: basic-1gb
-    region: frankfurt
-    databaseName: billing
-    postgresMajorVersion: "18"
-    ipAllowList: [] # private network only; public ingress is denied
-  - name: cbt-db
-    plan: basic-1gb
-    region: frankfurt
-    databaseName: cbt
-    postgresMajorVersion: "18"
-    ipAllowList: [] # private network only; public ingress is denied
-  - name: audit-db
-    plan: basic-1gb
-    region: frankfurt
-    databaseName: audit
-    postgresMajorVersion: "18"
-    ipAllowList: [] # private network only; public ingress is denied
-  - name: crm-db
-    plan: basic-1gb
-    region: frankfurt
-    databaseName: crm
-    postgresMajorVersion: "18"
-    ipAllowList: [] # private network only; public ingress is denied
-  - name: knowledge-db
-    plan: basic-1gb
-    region: frankfurt
-    databaseName: knowledge
-    postgresMajorVersion: "18"
-    ipAllowList: [] # private network only; public ingress is denied
-  - name: assistant-db
-    plan: basic-1gb
-    region: frankfurt
-    databaseName: assistant
-    postgresMajorVersion: "18"
-    ipAllowList: [] # private network only; public ingress is denied
-  - name: campaign-db
-    plan: basic-1gb
-    region: frankfurt
-    databaseName: campaign
-    postgresMajorVersion: "18"
-    ipAllowList: [] # private network only; public ingress is denied
-  - name: content-db
-    plan: basic-1gb
-    region: frankfurt
-    databaseName: content
-    postgresMajorVersion: "18"
-    ipAllowList: [] # private network only; public ingress is denied
-  - name: admissions-db
-    plan: basic-1gb
-    region: frankfurt
-    databaseName: admissions
-    postgresMajorVersion: "18"
-    ipAllowList: [] # private network only; public ingress is denied
-  - name: intelligence-db
-    plan: basic-1gb
-    region: frankfurt
-    databaseName: intelligence
-    postgresMajorVersion: "18"
-    ipAllowList: [] # private network only; public ingress is denied
-  - name: ai-db
-    plan: basic-1gb
-    region: frankfurt
-    databaseName: ai
+    databaseName: auraedu
     postgresMajorVersion: "18"
     ipAllowList: [] # private network only; public ingress is denied
 
@@ -338,58 +197,12 @@ services:
         - tools/dr/postgres-backup/**
         - render.yaml
     envVars:
+      # One database now holds every service schema, so a single pg_dump captures
+      # the whole fleet in one consistent snapshot instead of 25 independent ones.
       - key: POSTGRES_DATABASES
-        value: identity,tenant,student,staff,academic,attendance,assessment,report,fees,payment,notification,website,file,analytics,billing,cbt,audit,crm,knowledge,assistant,campaign,content,admissions,intelligence,ai
-      - key: POSTGRES_IDENTITY_DATABASE_URL
-        fromDatabase: { name: identity-db, property: connectionString }
-      - key: POSTGRES_TENANT_DATABASE_URL
-        fromDatabase: { name: tenant-db, property: connectionString }
-      - key: POSTGRES_STUDENT_DATABASE_URL
-        fromDatabase: { name: student-db, property: connectionString }
-      - key: POSTGRES_STAFF_DATABASE_URL
-        fromDatabase: { name: staff-db, property: connectionString }
-      - key: POSTGRES_ACADEMIC_DATABASE_URL
-        fromDatabase: { name: academic-db, property: connectionString }
-      - key: POSTGRES_ATTENDANCE_DATABASE_URL
-        fromDatabase: { name: attendance-db, property: connectionString }
-      - key: POSTGRES_ASSESSMENT_DATABASE_URL
-        fromDatabase: { name: assessment-db, property: connectionString }
-      - key: POSTGRES_REPORT_DATABASE_URL
-        fromDatabase: { name: report-db, property: connectionString }
-      - key: POSTGRES_FEES_DATABASE_URL
-        fromDatabase: { name: fees-db, property: connectionString }
-      - key: POSTGRES_PAYMENT_DATABASE_URL
-        fromDatabase: { name: payment-db, property: connectionString }
-      - key: POSTGRES_NOTIFICATION_DATABASE_URL
-        fromDatabase: { name: notification-db, property: connectionString }
-      - key: POSTGRES_WEBSITE_DATABASE_URL
-        fromDatabase: { name: website-db, property: connectionString }
-      - key: POSTGRES_FILE_DATABASE_URL
-        fromDatabase: { name: file-db, property: connectionString }
-      - key: POSTGRES_ANALYTICS_DATABASE_URL
-        fromDatabase: { name: analytics-db, property: connectionString }
-      - key: POSTGRES_BILLING_DATABASE_URL
-        fromDatabase: { name: billing-db, property: connectionString }
-      - key: POSTGRES_CBT_DATABASE_URL
-        fromDatabase: { name: cbt-db, property: connectionString }
-      - key: POSTGRES_AUDIT_DATABASE_URL
-        fromDatabase: { name: audit-db, property: connectionString }
-      - key: POSTGRES_CRM_DATABASE_URL
-        fromDatabase: { name: crm-db, property: connectionString }
-      - key: POSTGRES_KNOWLEDGE_DATABASE_URL
-        fromDatabase: { name: knowledge-db, property: connectionString }
-      - key: POSTGRES_ASSISTANT_DATABASE_URL
-        fromDatabase: { name: assistant-db, property: connectionString }
-      - key: POSTGRES_CAMPAIGN_DATABASE_URL
-        fromDatabase: { name: campaign-db, property: connectionString }
-      - key: POSTGRES_CONTENT_DATABASE_URL
-        fromDatabase: { name: content-db, property: connectionString }
-      - key: POSTGRES_ADMISSIONS_DATABASE_URL
-        fromDatabase: { name: admissions-db, property: connectionString }
-      - key: POSTGRES_INTELLIGENCE_DATABASE_URL
-        fromDatabase: { name: intelligence-db, property: connectionString }
-      - key: POSTGRES_AI_DATABASE_URL
-        fromDatabase: { name: ai-db, property: connectionString }
+        value: auraedu
+      - key: POSTGRES_AURAEDU_DATABASE_URL
+        fromDatabase: { name: auraedu-db, property: connectionString }
       - key: DR_POSTGRES_BACKUP_JOB_TIMEOUT
         value: 55m
       - key: DR_BACKUP_HTTP_TIMEOUT
@@ -592,8 +405,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: identity-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: identity
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -640,8 +457,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: identity-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: identity
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: REDIS_URL
         fromService:
           name: auraedu-cache
@@ -682,8 +503,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: tenant-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: tenant
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -708,8 +533,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: tenant-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: tenant
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -733,8 +562,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: student-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: student
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -769,8 +602,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: student-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: student
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -794,8 +631,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: academic-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: academic
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -834,7 +675,11 @@ services:
         - platform/**
     envVars:
       - key: DATABASE_URL
-        fromDatabase: { name: academic-db, property: connectionString }
+        fromDatabase: { name: auraedu-db, property: connectionString }
+      - key: DATABASE_SCHEMA
+        value: academic
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService: { name: nats, type: pserv, property: hostport }
       - fromGroup: auraedu-shared-config
@@ -855,8 +700,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: staff-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: staff
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -886,8 +735,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: staff-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: staff
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -911,8 +764,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: attendance-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: attendance
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -947,8 +804,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: attendance-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: attendance
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -972,8 +833,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: assessment-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: assessment
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -1007,7 +872,11 @@ services:
         - platform/**
     envVars:
       - key: DATABASE_URL
-        fromDatabase: { name: assessment-db, property: connectionString }
+        fromDatabase: { name: auraedu-db, property: connectionString }
+      - key: DATABASE_SCHEMA
+        value: assessment
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService: { name: nats, type: pserv, property: hostport }
       - fromGroup: auraedu-shared-config
@@ -1030,8 +899,12 @@ services:
         value: cloudinary
       - key: DATABASE_URL
         fromDatabase:
-          name: report-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: report
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -1068,8 +941,12 @@ services:
         value: cloudinary
       - key: DATABASE_URL
         fromDatabase:
-          name: report-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: report
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -1104,8 +981,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: fees-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: fees
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -1140,8 +1021,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: fees-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: fees
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -1177,8 +1062,12 @@ services:
         sync: false
       - key: DATABASE_URL
         fromDatabase:
-          name: payment-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: payment
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -1213,8 +1102,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: payment-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: payment
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -1250,8 +1143,12 @@ services:
         value: https://auraedugh.vercel.app/api/v1/webhooks/twilio
       - key: DATABASE_URL
         fromDatabase:
-          name: notification-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: notification
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -1295,8 +1192,12 @@ services:
         value: https://auraedugh.vercel.app/api/v1/webhooks/twilio
       - key: DATABASE_URL
         fromDatabase:
-          name: notification-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: notification
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -1332,8 +1233,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: billing-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: billing
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -1362,8 +1267,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: billing-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: billing
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -1387,8 +1296,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: website-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: website
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -1417,8 +1330,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: website-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: website
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -1447,8 +1364,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: analytics-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: analytics
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -1489,8 +1410,12 @@ services:
           property: hostport
       - key: DATABASE_URL
         fromDatabase:
-          name: analytics-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: analytics
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - fromGroup: auraedu-shared-config
 
   # ---- CBT Service (private) — computer-based tests/exams -------------------
@@ -1509,8 +1434,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: cbt-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: cbt
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -1545,8 +1474,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: cbt-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: cbt
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -1623,7 +1556,7 @@ services:
     envVars:
       - key: AI_REC_DATABASE_URL
         fromDatabase:
-          name: ai-db
+          name: auraedu-db
           property: connectionString
       - key: AI_REC_NATS_HOST
         fromService:
@@ -1660,7 +1593,7 @@ services:
     envVars:
       - key: AI_PRED_DATABASE_URL
         fromDatabase:
-          name: ai-db
+          name: auraedu-db
           property: connectionString
       - key: AI_PRED_NATS_HOST
         fromService:
@@ -1697,7 +1630,7 @@ services:
     envVars:
       - key: AI_GUIDANCE_DATABASE_URL
         fromDatabase:
-          name: ai-db
+          name: auraedu-db
           property: connectionString
       - key: AI_GUIDANCE_NATS_HOST
         fromService:
@@ -1733,8 +1666,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: file-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: file
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -1766,8 +1703,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: file-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: file
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -1793,8 +1734,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: audit-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: audit
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -1819,8 +1764,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: crm-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: crm
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -1852,8 +1801,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: crm-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: crm
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -1878,8 +1831,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: knowledge-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: knowledge
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -1911,8 +1868,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: knowledge-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: knowledge
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -1937,8 +1898,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: assistant-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: assistant
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -1980,8 +1945,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: assistant-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: assistant
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -2006,8 +1975,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: campaign-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: campaign
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -2044,8 +2017,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: campaign-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: campaign
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -2070,8 +2047,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: content-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: content
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -2108,8 +2089,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: content-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: content
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -2134,8 +2119,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: admissions-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: admissions
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -2172,8 +2161,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: admissions-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: admissions
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -2198,8 +2191,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: intelligence-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: intelligence
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -2231,8 +2228,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: intelligence-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: intelligence
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats
@@ -2257,8 +2258,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: assistant-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: assistant
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - fromGroup: auraedu-shared-config
 
   - name: audit-worker
@@ -2277,8 +2282,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: audit-db
+          name: auraedu-db
           property: connectionString
+      - key: DATABASE_SCHEMA
+        value: audit
+      - key: DATABASE_MAX_CONNS
+        value: "2"
       - key: NATS_URL
         fromService:
           name: nats

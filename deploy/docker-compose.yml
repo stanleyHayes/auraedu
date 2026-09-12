@@ -34,7 +34,8 @@ services:
     ports: ["8081:8081"]
     environment:
       <<: *observability-env
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/identity?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: identity
       REDIS_URL: redis://redis:6379
       NATS_URL: nats://nats:4222
       JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-local-dev-signing-key-change-me}
@@ -57,7 +58,8 @@ services:
     command: ["worker"]
     environment:
       <<: *observability-env
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/identity?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: identity
       NATS_URL: nats://nats:4222
       JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-local-dev-signing-key-change-me}
       SERVICE_TENANT_URL: http://tenant-service:8082
@@ -87,7 +89,8 @@ services:
     ports: ["8082:8082"]
     environment:
       <<: *observability-env
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/tenant?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: tenant
       NATS_URL: nats://nats:4222
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-local-internal-service-token}
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -108,7 +111,8 @@ services:
     command: ["worker"]
     environment:
       <<: *observability-env
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/tenant?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: tenant
       NATS_URL: nats://nats:4222
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
@@ -131,7 +135,8 @@ services:
     environment:
       <<: *observability-env
       PORT: 8090
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/student?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: student
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
       SERVICE_TENANT_URL: http://tenant-service:8082
@@ -157,7 +162,8 @@ services:
     command: ["worker"]
     environment:
       <<: *observability-env
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/student?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: student
       NATS_URL: nats://nats:4222
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
@@ -179,7 +185,8 @@ services:
     environment:
       <<: *observability-env
       PORT: 8091
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/staff?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: staff
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
       SERVICE_TENANT_URL: http://tenant-service:8082
@@ -203,7 +210,8 @@ services:
     command: ["worker"]
     environment:
       <<: *observability-env
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/staff?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: staff
       NATS_URL: nats://nats:4222
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
@@ -225,7 +233,8 @@ services:
     environment:
       <<: *observability-env
       PORT: 8092
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/academic?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: academic
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
       SERVICE_TENANT_URL: http://tenant-service:8082
@@ -251,7 +260,8 @@ services:
     command: ["worker"]
     environment:
       <<: *observability-env
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/academic?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: academic
       NATS_URL: nats://nats:4222
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
@@ -273,7 +283,8 @@ services:
     environment:
       <<: *observability-env
       PORT: 8094
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/attendance?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: attendance
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
       SERVICE_TENANT_URL: http://tenant-service:8082
@@ -298,7 +309,8 @@ services:
     command: ["worker"]
     environment:
       <<: *observability-env
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/attendance?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: attendance
       NATS_URL: nats://nats:4222
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
@@ -320,7 +332,8 @@ services:
     environment:
       <<: *observability-env
       PORT: 8095
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/assessment?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: assessment
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
       SERVICE_TENANT_URL: http://tenant-service:8082
@@ -345,7 +358,8 @@ services:
     command: ["worker"]
     environment:
       <<: *observability-env
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/assessment?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: assessment
       NATS_URL: nats://nats:4222
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
@@ -367,7 +381,8 @@ services:
     environment:
       <<: *observability-env
       PORT: 8096
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/report?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: report
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
       SERVICE_TENANT_URL: http://tenant-service:8082
@@ -396,7 +411,8 @@ services:
     command: ["worker"]
     environment:
       <<: *observability-env
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/report?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: report
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
       SERVICE_TENANT_URL: http://tenant-service:8082
@@ -427,7 +443,8 @@ services:
     environment:
       <<: *observability-env
       PORT: 8097
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/fees?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: fees
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
       SERVICE_TENANT_URL: http://tenant-service:8082
@@ -453,7 +470,8 @@ services:
     command: ["worker"]
     environment:
       <<: *observability-env
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/fees?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: fees
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
       SERVICE_TENANT_URL: http://tenant-service:8082
@@ -480,7 +498,8 @@ services:
     environment:
       <<: *observability-env
       PORT: 8098
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/payment?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: payment
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
       SERVICE_TENANT_URL: http://tenant-service:8082
@@ -510,7 +529,8 @@ services:
     command: ["worker"]
     environment:
       <<: *observability-env
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/payment?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: payment
       NATS_URL: nats://nats:4222
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
@@ -532,7 +552,8 @@ services:
     environment:
       <<: *observability-env
       PORT: 8099
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/notification?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: notification
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
       SERVICE_TENANT_URL: http://tenant-service:8082
@@ -579,7 +600,8 @@ services:
     command: ["worker"]
     environment:
       <<: *observability-env
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/notification?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: notification
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
       SERVICE_TENANT_URL: http://tenant-service:8082
@@ -629,7 +651,8 @@ services:
     environment:
       <<: *observability-env
       PORT: 8100
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/billing?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: billing
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
       SERVICE_TENANT_URL: http://tenant-service:8082
@@ -652,7 +675,8 @@ services:
     command: ["worker"]
     environment:
       <<: *observability-env
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/billing?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: billing
       NATS_URL: nats://nats:4222
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
@@ -674,7 +698,8 @@ services:
     environment:
       <<: *observability-env
       PORT: 8101
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/website?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: website
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
       SERVICE_TENANT_URL: http://tenant-service:8082
@@ -697,7 +722,8 @@ services:
     command: ["worker"]
     environment:
       <<: *observability-env
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/website?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: website
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
       SERVICE_TENANT_URL: http://tenant-service:8082
@@ -722,7 +748,8 @@ services:
     environment:
       <<: *observability-env
       PORT: 8102
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/analytics?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: analytics
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
       SERVICE_TENANT_URL: http://tenant-service:8082
@@ -749,7 +776,8 @@ services:
     environment:
       <<: *observability-env
       PORT: 8105
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/crm?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: crm
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features.yaml
       SERVICE_TENANT_URL: http://tenant-service:8082
@@ -774,7 +802,8 @@ services:
     command: ["worker"]
     environment:
       <<: *observability-env
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/crm?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: crm
       NATS_URL: nats://nats:4222
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
@@ -796,7 +825,8 @@ services:
     environment:
       <<: *observability-env
       PORT: 8110
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/knowledge?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: knowledge
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features.yaml
       SERVICE_TENANT_URL: http://tenant-service:8082
@@ -821,7 +851,8 @@ services:
     command: ["worker"]
     environment:
       <<: *observability-env
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/knowledge?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: knowledge
       NATS_URL: nats://nats:4222
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
@@ -843,7 +874,8 @@ services:
     environment:
       <<: *observability-env
       PORT: 8111
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/assistant?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: assistant
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features.yaml
       SERVICE_TENANT_URL: http://tenant-service:8082
@@ -872,7 +904,8 @@ services:
     command: ["worker"]
     environment:
       <<: *observability-env
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/assistant?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: assistant
       NATS_URL: nats://nats:4222
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
@@ -894,7 +927,8 @@ services:
     environment:
       <<: *observability-env
       PORT: 8113
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/campaign?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: campaign
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features.yaml
       SERVICE_TENANT_URL: http://tenant-service:8082
@@ -918,7 +952,8 @@ services:
     command: ["worker"]
     environment:
       <<: *observability-env
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/campaign?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: campaign
       NATS_URL: nats://nats:4222
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
@@ -940,7 +975,8 @@ services:
     environment:
       <<: *observability-env
       PORT: 8116
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/content?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: content
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features.yaml
       SERVICE_TENANT_URL: http://tenant-service:8082
@@ -968,7 +1004,8 @@ services:
     command: ["worker"]
     environment:
       <<: *observability-env
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/content?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: content
       NATS_URL: nats://nats:4222
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
@@ -990,7 +1027,8 @@ services:
     environment:
       <<: *observability-env
       PORT: 8114
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/admissions?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: admissions
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features.yaml
       SERVICE_TENANT_URL: http://tenant-service:8082
@@ -1017,7 +1055,8 @@ services:
     command: ["worker"]
     environment:
       <<: *observability-env
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/admissions?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: admissions
       NATS_URL: nats://nats:4222
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
@@ -1039,7 +1078,8 @@ services:
     environment:
       <<: *observability-env
       PORT: 8115
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/intelligence?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: intelligence
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features.yaml
       SERVICE_TENANT_URL: http://tenant-service:8082
@@ -1063,7 +1103,8 @@ services:
     command: ["worker"]
     environment:
       <<: *observability-env
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/intelligence?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: intelligence
       NATS_URL: nats://nats:4222
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
@@ -1086,7 +1127,8 @@ services:
       <<: *observability-env
       # analytics-worker is the only worker that hard-requires NATS_URL (MustGetenv).
       NATS_URL: nats://nats:4222
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/analytics?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: analytics
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ../apps/analytics-service/migrations:/migrations:ro
@@ -1107,7 +1149,8 @@ services:
     environment:
       <<: *observability-env
       PORT: 8103
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/cbt?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: cbt
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
       SERVICE_TENANT_URL: http://tenant-service:8082
@@ -1132,7 +1175,8 @@ services:
     command: ["worker"]
     environment:
       <<: *observability-env
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/cbt?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: cbt
       NATS_URL: nats://nats:4222
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
@@ -1230,7 +1274,8 @@ services:
     environment:
       <<: *observability-env
       PORT: 8093
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/file?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: file
       NATS_URL: nats://nats:4222
       FEATURES_REGISTRY: /contracts/features/features.yaml
       SERVICE_TENANT_URL: http://tenant-service:8082
@@ -1258,7 +1303,8 @@ services:
     command: ["worker"]
     environment:
       <<: *observability-env
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/file?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: file
       NATS_URL: nats://nats:4222
       FILE_STORAGE_DIR: /tmp/auraedu-files
       CLOUDINARY_URL: ${CLOUDINARY_URL:-}
@@ -1281,7 +1327,7 @@ services:
     ports: ["8200:8200"]
     environment:
       <<: *observability-env
-      AI_REC_DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/ai?sslmode=disable
+      AI_REC_DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
       AI_REC_NATS_HOST: nats:4222
       AI_REC_PORT: 8200
       AI_REC_STUDENT_SERVICE_URL: http://student-service:8090
@@ -1313,7 +1359,7 @@ services:
     ports: ["8201:8201"]
     environment:
       <<: *observability-env
-      AI_PRED_DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/ai?sslmode=disable
+      AI_PRED_DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
       AI_PRED_NATS_HOST: nats:4222
       AI_PRED_PORT: 8201
       AI_PRED_STUDENT_SERVICE_URL: http://student-service:8090
@@ -1345,7 +1391,7 @@ services:
     ports: ["8112:8112"]
     environment:
       <<: *observability-env
-      AI_GUIDANCE_DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/ai?sslmode=disable
+      AI_GUIDANCE_DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
       AI_GUIDANCE_NATS_HOST: nats:4222
       AI_GUIDANCE_PORT: 8112
       AI_GUIDANCE_STUDENT_SERVICE_URL: http://student-service:8090
@@ -1383,7 +1429,8 @@ services:
     environment:
       <<: *observability-env
       PORT: 8104
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/audit?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: audit
       NATS_URL: nats://nats:4222
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
@@ -1401,7 +1448,8 @@ services:
     working_dir: /
     environment:
       <<: *observability-env
-      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/audit?sslmode=disable
+      DATABASE_URL: postgres://auraedu:auraedu@postgres:5432/auraedu?sslmode=disable
+      DATABASE_SCHEMA: audit
       NATS_URL: nats://nats:4222
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
