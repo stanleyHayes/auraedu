@@ -221,12 +221,14 @@ func run() error {
 	ctx := context.Background()
 
 	dbs := map[string]*pgxpool.Pool{}
+	// One database with a schema per service (AURA-9.9); search_path travels in the
+	// URL so each pool lands in its own schema without a per-service database.
 	for name, dsn := range map[string]string{
-		"identity": envOr("IDENTITY_DATABASE_URL", "postgres://auraedu:auraedu@localhost:5432/identity?sslmode=disable"),
-		"tenant":   envOr("TENANT_DATABASE_URL", "postgres://auraedu:auraedu@localhost:5432/tenant?sslmode=disable"),
-		"billing":  envOr("BILLING_DATABASE_URL", "postgres://auraedu:auraedu@localhost:5432/billing?sslmode=disable"),
-		"student":  envOr("STUDENT_DATABASE_URL", "postgres://auraedu:auraedu@localhost:5432/student?sslmode=disable"),
-		"staff":    envOr("STAFF_DATABASE_URL", "postgres://auraedu:auraedu@localhost:5432/staff?sslmode=disable"),
+		"identity": envOr("IDENTITY_DATABASE_URL", localSchemaDSN("identity")),
+		"tenant":   envOr("TENANT_DATABASE_URL", localSchemaDSN("tenant")),
+		"billing":  envOr("BILLING_DATABASE_URL", localSchemaDSN("billing")),
+		"student":  envOr("STUDENT_DATABASE_URL", localSchemaDSN("student")),
+		"staff":    envOr("STAFF_DATABASE_URL", localSchemaDSN("staff")),
 	} {
 		pool, err := openPool(ctx, dsn)
 		if err != nil {
@@ -655,6 +657,10 @@ func repoRoot() string {
 		return "."
 	}
 	return filepath.Join(filepath.Dir(filename), "..", "..")
+}
+
+func localSchemaDSN(schema string) string {
+	return "postgres://auraedu:auraedu@localhost:5432/auraedu?sslmode=disable&options=-csearch_path%3D" + schema
 }
 
 func envOr(key, fallback string) string {

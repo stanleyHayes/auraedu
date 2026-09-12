@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -88,24 +89,24 @@ func TestSchemaPinnedServicesShareOneDatabaseWithoutColliding(t *testing.T) {
 
 func TestSchemaIsResolvedFromEnvironmentAndFailsClosedOnInjection(t *testing.T) {
 	for _, bad := range []string{"public; DROP SCHEMA public", "Identity", "1svc", "svc-name", "sv'c"} {
-		if _, err := resolveSchema(bad); err == nil {
+		if _, err := ResolveSchema(bad); err == nil {
 			t.Fatalf("invalid schema name was accepted: %q", bad)
 		}
 	}
 	for _, good := range []string{"identity_svc", "_x", "s1"} {
-		got, err := resolveSchema(good)
+		got, err := ResolveSchema(good)
 		if err != nil || got != good {
 			t.Fatalf("valid schema rejected: %q got=%q err=%v", good, got, err)
 		}
 	}
 
 	t.Setenv("DATABASE_SCHEMA", "billing_svc")
-	got, err := resolveSchema("")
+	got, err := ResolveSchema("")
 	if err != nil || got != "billing_svc" {
 		t.Fatalf("schema not resolved from environment: got=%q err=%v", got, err)
 	}
 	// An explicit config value must win over the environment.
-	got, err = resolveSchema("fees_svc")
+	got, err = ResolveSchema("fees_svc")
 	if err != nil || got != "fees_svc" {
 		t.Fatalf("explicit schema did not take precedence: got=%q err=%v", got, err)
 	}
@@ -136,5 +137,66 @@ func TestMaxConnsIsBoundedByDeploymentConfiguration(t *testing.T) {
 		if _, err := resolveMaxConns(0); err == nil {
 			t.Fatalf("invalid DATABASE_MAX_CONNS accepted: %q", bad)
 		}
+	}
+}
+
+// Services own separate schemas but share one catalog. CREATE EXTENSION IF NOT EXISTS
+// is not atomic against a concurrent creator, so schema-scoped migration locking let
+// simultaneously booting services race and one died on pg_extension_name_index. This
+// reproduces that boot: many schemas, all migrating an extension at once.
+func TestConcurrentSchemaMigrationsShareTheCatalogSafely(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping PostgreSQL shared-catalog migration test")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	defer cancel()
+	dsn := startPostgresContainer(ctx, t)
+
+	const services = 8
+	migration := "-- +goose Up\n" +
+		"CREATE EXTENSION IF NOT EXISTS \"pgcrypto\";\n" +
+		"CREATE TABLE records (id UUID PRIMARY KEY DEFAULT gen_random_uuid());\n\n" +
+		"-- +goose Down\nDROP TABLE records;\n"
+
+	dirs := make([]string, services)
+	for i := range dirs {
+		dirs[i] = t.TempDir()
+		if err := os.WriteFile(filepath.Join(dirs[i], "00001_probe.sql"), []byte(migration), 0o600); err != nil {
+			t.Fatalf("write migration: %v", err)
+		}
+	}
+
+	start := make(chan struct{})
+	errs := make(chan error, services)
+	handles := make(chan *DB, services)
+	for i := range services {
+		go func() {
+			<-start
+			database, err := Open(ctx, Config{
+				DSN:        dsn,
+				Migrations: dirs[i],
+				Schema:     fmt.Sprintf("svc_%d", i),
+			})
+			if err == nil {
+				handles <- database
+			}
+			errs <- err
+		}()
+	}
+	close(start)
+
+	var failures []error
+	for range services {
+		if err := <-errs; err != nil {
+			failures = append(failures, err)
+		}
+	}
+	close(handles)
+	for h := range handles {
+		defer h.Close()
+	}
+	if len(failures) > 0 {
+		t.Fatalf("%d/%d services failed to migrate concurrently against the shared catalog: %v",
+			len(failures), services, failures)
 	}
 }

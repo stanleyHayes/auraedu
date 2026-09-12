@@ -55,7 +55,7 @@ func New(ctx context.Context, dsn string) (*DB, error) {
 // Open opens a PostgreSQL pool, runs migrations when configured and returns a
 // shared DB handle.
 func Open(ctx context.Context, cfg Config) (*DB, error) {
-	schema, err := resolveSchema(cfg.Schema)
+	schema, err := ResolveSchema(cfg.Schema)
 	if err != nil {
 		return nil, err
 	}
@@ -109,10 +109,12 @@ func Open(ctx context.Context, cfg Config) (*DB, error) {
 // are accepted and anything else fails closed.
 var schemaPattern = regexp.MustCompile(`^[a-z_][a-z0-9_]{0,62}$`)
 
-// resolveSchema prefers the explicit config value and otherwise falls back to
+// ResolveSchema prefers the explicit config value and otherwise falls back to
 // DATABASE_SCHEMA, so the single-database topology is a deployment choice
-// rather than a code change in each service.
-func resolveSchema(configured string) (string, error) {
+// rather than a code change in each service. It is exported because
+// identity-service owns its own migration runner and must resolve the schema
+// identically rather than keep a second copy of this rule.
+func ResolveSchema(configured string) (string, error) {
 	schema := strings.TrimSpace(configured)
 	if schema == "" {
 		schema = strings.TrimSpace(os.Getenv("DATABASE_SCHEMA"))
@@ -174,6 +176,13 @@ func (d *DB) Migrate(ctx context.Context, dir string) error {
 	return d.RunMigrations(ctx, dir)
 }
 
+// MigrationLockKey names the advisory lock every service takes before migrating.
+// It is shared, and database-wide rather than per-schema, because services own
+// separate schemas but one catalog: `CREATE EXTENSION IF NOT EXISTS` is not atomic
+// against a concurrent creator. Any service with its own migration runner must take
+// this same lock or it will race the rest of the fleet on boot.
+const MigrationLockKey = "auraedu.migrations"
+
 // gooseMu guards Goose's process-global dialect and version-table settings so
 // that services migrating different schemas concurrently in one process cannot
 // apply one another's migration history.
@@ -207,10 +216,12 @@ func (d *DB) RunMigrations(ctx context.Context, dir string) (returnErr error) {
 		return fmt.Errorf("acquire migration lock connection: %w", err)
 	}
 	defer func() { returnErr = errors.Join(returnErr, lockConn.Close()) }()
-	lockKey := "auraedu.migrations"
-	if d.schema != "" {
-		lockKey = d.schema + ":" + lockKey
-	}
+	// The lock is deliberately database-wide, not per-schema. Services own separate
+	// schemas but share one catalog, and `CREATE EXTENSION IF NOT EXISTS` is not
+	// atomic against a concurrent creator — two services migrating at once raced and
+	// one died on pg_extension_name_index. Boot migrations are short and idempotent,
+	// so serialising them across the fleet is the cheap side of that trade.
+	lockKey := MigrationLockKey
 	const migrationLock = "hashtextextended(current_database() || ':' || $1, 0)"
 	if _, err := lockConn.ExecContext(ctx, "SELECT pg_advisory_lock("+migrationLock+")", lockKey); err != nil {
 		return fmt.Errorf("acquire migration advisory lock: %w", err)

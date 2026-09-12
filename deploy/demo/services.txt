@@ -1,0 +1,27 @@
+# The demo footprint: every Go service except the growth/marketing suite, which is
+# switched off for all tenants anyway (see deploy/undeployed-services.txt).
+# Measured at ~106 MiB for the core set, so the free tier's 512 MiB leaves room to
+# run the full feature surface rather than a stripped-down one.
+#
+# The three Python AI services are omitted: they need a separate runtime in the
+# image, and their features are ai_plus tier.
+#
+# name                  port   why
+identity-service        8081   # authentication; required by everything
+tenant-service          8082   # branding, feature flags, billing (core)
+student-service         8090   # student_management (starter)
+staff-service           8091   # staff_management (starter)
+academic-service        8092   # academic_management (core)
+file-service            8093   # file_management (core)
+attendance-service      8094   # attendance (starter)
+assessment-service      8095   # assessments (growth)
+report-service          8096   # report_cards (starter)
+fees-service            8097   # fees (growth)
+payment-service         8098   # online_payments (professional)
+notification-service    8099   # notifications/announcements/email (starter)
+billing-service         8100   # billing (core)
+website-service         8101   # public_website (starter)
+analytics-service       8102   # analytics (professional)
+cbt-service             8103   # cbt_exams (professional)
+audit-service           8104   # audit trail behind the admin console
+admissions-service      8114   # admissions (growth)

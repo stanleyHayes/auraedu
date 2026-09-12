@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	platformdb "github.com/auraedu/platform/db"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -25,7 +26,27 @@ func Open(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse database url: %w", err)
 	}
-	return pgxpool.NewWithConfig(ctx, cfg)
+	// Identity owns its migration runner, so it has to honour the shared-database
+	// topology itself; platform/db resolves the schema for every other service.
+	schema, err := platformdb.ResolveSchema("")
+	if err != nil {
+		return nil, err
+	}
+	if schema != "" {
+		cfg.ConnConfig.RuntimeParams["search_path"] = schema + ", public"
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	if schema != "" {
+		// schema is validated by ResolveSchema before it reaches this DDL.
+		if _, err := pool.Exec(ctx, "CREATE SCHEMA IF NOT EXISTS "+schema); err != nil {
+			pool.Close()
+			return nil, fmt.Errorf("create schema %s: %w", schema, err)
+		}
+	}
+	return pool, nil
 }
 
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
@@ -42,11 +63,16 @@ func MigrateFS(ctx context.Context, pool *pgxpool.Pool, fsys embed.FS, dir strin
 		return fmt.Errorf("acquire migration connection: %w", err)
 	}
 	defer conn.Release()
-	if _, err := conn.Exec(ctx, `SELECT pg_advisory_lock(hashtext('auraedu.identity.migrations'))`); err != nil {
+	// The lock is the fleet-wide one from platform/db, not a private key: services
+	// own separate schemas but share a catalog, and CREATE EXTENSION IF NOT EXISTS
+	// is not atomic against a concurrent creator.
+	const lockSQL = `SELECT pg_advisory_lock(hashtextextended(current_database() || ':' || $1, 0))`
+	const unlockSQL = `SELECT pg_advisory_unlock(hashtextextended(current_database() || ':' || $1, 0))`
+	if _, err := conn.Exec(ctx, lockSQL, platformdb.MigrationLockKey); err != nil {
 		return fmt.Errorf("acquire migration lock: %w", err)
 	}
 	defer func() {
-		_, unlockErr := conn.Exec(context.Background(), `SELECT pg_advisory_unlock(hashtext('auraedu.identity.migrations'))`)
+		_, unlockErr := conn.Exec(context.Background(), unlockSQL, platformdb.MigrationLockKey)
 		if unlockErr != nil {
 			returnErr = errors.Join(returnErr, fmt.Errorf("release migration lock: %w", unlockErr))
 		}
