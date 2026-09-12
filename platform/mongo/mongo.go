@@ -221,6 +221,37 @@ func (s *Scope) UpdateOne(ctx context.Context, query bson.M, update bson.M, opts
 	return s.coll.UpdateOne(ctx, s.filter(query), update, opts...)
 }
 
+// UpsertOne inserts or updates exactly one document within the scope.
+//
+// The tenant is stamped here, into $setOnInsert, rather than being supplied by
+// the caller: guardUpdate refuses a caller-supplied owner field, and an upsert
+// must not become the one path that can write a record into another tenant.
+func (s *Scope) UpsertOne(ctx context.Context, query bson.M, update bson.M) (*mongo.UpdateResult, error) {
+	if err := guardUpdate(update, s.tenantKey()); err != nil {
+		return nil, err
+	}
+	if s.tenantID == "" {
+		// A platform caller has no tenant to stamp, and an upsert cannot infer
+		// one from a filter that may match nothing.
+		return nil, ErrTenantRequired
+	}
+
+	merged := bson.M{}
+	for k, v := range update {
+		merged[k] = v
+	}
+	onInsert := bson.M{}
+	if existing, ok := merged["$setOnInsert"].(bson.M); ok {
+		for k, v := range existing {
+			onInsert[k] = v
+		}
+	}
+	onInsert[s.tenantKey()] = s.tenantID
+	merged["$setOnInsert"] = onInsert
+
+	return s.coll.UpdateOne(ctx, s.filter(query), merged, options.UpdateOne().SetUpsert(true))
+}
+
 func (s *Scope) UpdateMany(ctx context.Context, query bson.M, update bson.M, opts ...options.Lister[options.UpdateManyOptions]) (*mongo.UpdateResult, error) {
 	if err := guardUpdate(update, s.tenantKey()); err != nil {
 		return nil, err
