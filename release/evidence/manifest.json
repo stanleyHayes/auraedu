@@ -135,6 +135,13 @@
       "owner": "Design QA",
       "requirement": "Retain authenticated browser proof for teacher learning analytics across populated, empty, and dependency-failure states.",
       "artifacts": []
+    },
+    {
+      "id": "AURA-9.12",
+      "status": "pending",
+      "owner": "Platform",
+      "requirement": "Port the remaining 26 services to the MongoDB adapter set, prove each against the cross-driver conformance suite, and retain a deployed run on the target MongoDB tier.",
+      "artifacts": []
     }
   ]
 }

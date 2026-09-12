@@ -54,6 +54,17 @@ const performanceExpectations = {
 };
 
 const operationalExpectations = {
+  "AURA-9.12": {
+    name: "auraedu-mongodb-driver-migration",
+    environment: "staging",
+    checks: [
+      "all-services-ported",
+      "conformance-suite-green",
+      "tenant-isolation-proved",
+      "outbox-delivery-proved",
+      "deployed-run-retained",
+    ],
+  },
   "AURA-8.1": {
     name: "auraedu-staging-observability",
     environment: "staging",
