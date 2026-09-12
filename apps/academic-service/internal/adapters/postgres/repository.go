@@ -125,9 +125,14 @@ func (r *Repository) Update(ctx context.Context, tenantID string, y *domain.Acad
 
 func (r *Repository) Delete(ctx context.Context, tenantID, id string) error {
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `DELETE FROM academic_years WHERE id = $1 AND tenant_id = $2`, id, tenantID)
+		tag, err := tx.Exec(ctx, `DELETE FROM academic_years WHERE id = $1 AND tenant_id = $2`, id, tenantID)
 		if err != nil {
 			return fmt.Errorf("academic: delete year: %w", err)
+		}
+		// Deleting nothing is not success. Without this, a delete aimed at
+		// another tenant's record reports that it worked.
+		if tag.RowsAffected() != 1 {
+			return domain.ErrNotFound
 		}
 		return nil
 	})
