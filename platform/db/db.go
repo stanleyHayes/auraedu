@@ -7,6 +7,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
+	"regexp"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/auraedu/platform/auth"
@@ -15,14 +19,15 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	// Register the pgx database/sql driver used by Goose migrations.
-	_ "github.com/jackc/pgx/v5/stdlib"
+	// Registers the pgx database/sql driver used by Goose migrations.
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 )
 
 type DB struct {
-	pool *pgxpool.Pool
-	dsn  string
+	pool   *pgxpool.Pool
+	dsn    string
+	schema string
 }
 
 type Config struct {
@@ -30,6 +35,13 @@ type Config struct {
 	MaxConns   int32
 	MinConns   int32
 	Migrations string
+	// Schema pins this service's tables, migration history and every pooled
+	// connection to one PostgreSQL schema so that many services can share a
+	// single database instance without colliding. Empty (the default) keeps
+	// the server's own search_path, which is the dedicated-database topology.
+	// When empty, DATABASE_SCHEMA is consulted so the topology can be chosen
+	// by deployment configuration without touching service code.
+	Schema string
 }
 
 // New opens a PostgreSQL pool from a DSN, runs migrations from the relative
@@ -42,6 +54,11 @@ func New(ctx context.Context, dsn string) (*DB, error) {
 // Open opens a PostgreSQL pool, runs migrations when configured and returns a
 // shared DB handle.
 func Open(ctx context.Context, cfg Config) (*DB, error) {
+	schema, err := resolveSchema(cfg.Schema)
+	if err != nil {
+		return nil, err
+	}
+
 	poolCfg, err := pgxpool.ParseConfig(cfg.DSN)
 	if err != nil {
 		return nil, fmt.Errorf("db: parse DSN: %w", err)
@@ -52,6 +69,11 @@ func Open(ctx context.Context, cfg Config) (*DB, error) {
 	if cfg.MinConns > 0 {
 		poolCfg.MinConns = cfg.MinConns
 	}
+	if schema != "" {
+		// Every pooled connection starts in the service's own schema. public
+		// stays on the path so shared extension functions remain reachable.
+		poolCfg.ConnConfig.RuntimeParams["search_path"] = schema + ", public"
+	}
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
@@ -61,7 +83,13 @@ func Open(ctx context.Context, cfg Config) (*DB, error) {
 		return nil, fmt.Errorf("db: ping: %w", err)
 	}
 
-	d := &DB{pool: pool, dsn: cfg.DSN}
+	d := &DB{pool: pool, dsn: cfg.DSN, schema: schema}
+	if schema != "" {
+		if err := d.ensureSchema(ctx, schema); err != nil {
+			pool.Close()
+			return nil, err
+		}
+	}
 	if cfg.Migrations != "" {
 		if err := d.RunMigrations(ctx, cfg.Migrations); err != nil {
 			pool.Close()
@@ -69,6 +97,36 @@ func Open(ctx context.Context, cfg Config) (*DB, error) {
 		}
 	}
 	return d, nil
+}
+
+// schemaPattern is deliberately strict: the schema name is interpolated into
+// DDL that cannot be parameterized, so only unquoted lower-case identifiers
+// are accepted and anything else fails closed.
+var schemaPattern = regexp.MustCompile(`^[a-z_][a-z0-9_]{0,62}$`)
+
+// resolveSchema prefers the explicit config value and otherwise falls back to
+// DATABASE_SCHEMA, so the single-database topology is a deployment choice
+// rather than a code change in each service.
+func resolveSchema(configured string) (string, error) {
+	schema := strings.TrimSpace(configured)
+	if schema == "" {
+		schema = strings.TrimSpace(os.Getenv("DATABASE_SCHEMA"))
+	}
+	if schema == "" {
+		return "", nil
+	}
+	if !schemaPattern.MatchString(schema) {
+		return "", fmt.Errorf("db: invalid schema name %q: expected an unquoted lower-case identifier", schema)
+	}
+	return schema, nil
+}
+
+func (d *DB) ensureSchema(ctx context.Context, schema string) error {
+	// schema is validated against schemaPattern before reaching this point.
+	if _, err := d.pool.Exec(ctx, "CREATE SCHEMA IF NOT EXISTS "+schema); err != nil {
+		return fmt.Errorf("db: create schema %s: %w", schema, err)
+	}
+	return nil
 }
 
 func (d *DB) Close() {
@@ -91,9 +149,27 @@ func (d *DB) Migrate(ctx context.Context, dir string) error {
 	return d.RunMigrations(ctx, dir)
 }
 
+// gooseMu guards Goose's process-global dialect and version-table settings so
+// that services migrating different schemas concurrently in one process cannot
+// apply one another's migration history.
+var gooseMu sync.Mutex
+
 // RunMigrations applies Goose migration scripts from dir using a dedicated sql.DB.
+// When the handle is pinned to a schema, both the migration statements and the
+// recorded migration history are confined to that schema, and the advisory lock
+// is scoped to it so sibling services migrate independently.
 func (d *DB) RunMigrations(ctx context.Context, dir string) (returnErr error) {
-	sqlDB, err := sql.Open("pgx", d.dsn)
+	dsn := d.dsn
+	if d.schema != "" {
+		connCfg, err := pgx.ParseConfig(d.dsn)
+		if err != nil {
+			return fmt.Errorf("parse DSN for migrations: %w", err)
+		}
+		connCfg.RuntimeParams["search_path"] = d.schema + ", public"
+		dsn = stdlib.RegisterConnConfig(connCfg)
+		defer stdlib.UnregisterConnConfig(dsn)
+	}
+	sqlDB, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return fmt.Errorf("open sql db for migrations: %w", err)
 	}
@@ -106,18 +182,31 @@ func (d *DB) RunMigrations(ctx context.Context, dir string) (returnErr error) {
 		return fmt.Errorf("acquire migration lock connection: %w", err)
 	}
 	defer func() { returnErr = errors.Join(returnErr, lockConn.Close()) }()
-	const migrationLock = "hashtextextended(current_database() || ':auraedu.migrations', 0)"
-	if _, err := lockConn.ExecContext(ctx, "SELECT pg_advisory_lock("+migrationLock+")"); err != nil {
+	lockKey := "auraedu.migrations"
+	if d.schema != "" {
+		lockKey = d.schema + ":" + lockKey
+	}
+	const migrationLock = "hashtextextended(current_database() || ':' || $1, 0)"
+	if _, err := lockConn.ExecContext(ctx, "SELECT pg_advisory_lock("+migrationLock+")", lockKey); err != nil {
 		return fmt.Errorf("acquire migration advisory lock: %w", err)
 	}
 	defer func() {
 		unlockCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_, unlockErr := lockConn.ExecContext(unlockCtx, "SELECT pg_advisory_unlock("+migrationLock+")")
+		_, unlockErr := lockConn.ExecContext(unlockCtx, "SELECT pg_advisory_unlock("+migrationLock+")", lockKey)
 		returnErr = errors.Join(returnErr, unlockErr)
 	}()
+
+	gooseMu.Lock()
+	defer gooseMu.Unlock()
 	if err := goose.SetDialect("postgres"); err != nil {
 		return fmt.Errorf("set dialect: %w", err)
+	}
+	// Goose records history in a process-global table name; restore the default
+	// so an unpinned handle in the same process is unaffected.
+	if d.schema != "" {
+		goose.SetTableName(d.schema + ".goose_db_version")
+		defer goose.SetTableName("goose_db_version")
 	}
 	return goose.Up(sqlDB, dir)
 }
