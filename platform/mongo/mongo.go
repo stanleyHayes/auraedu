@@ -19,6 +19,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/auraedu/platform/auth"
@@ -66,9 +67,10 @@ func Open(ctx context.Context, cfg Config) (*Store, error) {
 		timeout = 10 * time.Second
 	}
 	opts := options.Client().ApplyURI(cfg.URI).SetConnectTimeout(timeout)
-	if cfg.MaxPoolSize > 0 {
-		opts = opts.SetMaxPoolSize(cfg.MaxPoolSize)
+	if cfg.MaxPoolSize == 0 {
+		cfg.MaxPoolSize = 2
 	}
+	opts = opts.SetMaxPoolSize(cfg.MaxPoolSize)
 
 	client, err := mongo.Connect(opts)
 	if err != nil {
@@ -241,9 +243,13 @@ func (s *Scope) UpsertOne(ctx context.Context, query bson.M, update bson.M) (*mo
 		merged[k] = v
 	}
 	onInsert := bson.M{}
-	if existing, ok := merged["$setOnInsert"].(bson.M); ok {
-		for k, v := range existing {
-			onInsert[k] = v
+	if existing, ok := merged["$setOnInsert"]; ok {
+		fields, err := documentFields(existing)
+		if err != nil {
+			return nil, err
+		}
+		for _, f := range fields {
+			onInsert[f.Key] = f.Value
 		}
 	}
 	onInsert[s.tenantKey()] = s.tenantID
@@ -269,6 +275,9 @@ func (s *Scope) DeleteMany(ctx context.Context, query bson.M, opts ...options.Li
 
 // Aggregate prepends a tenant $match so a pipeline cannot start unscoped.
 func (s *Scope) Aggregate(ctx context.Context, pipeline []bson.M, opts ...options.Lister[options.AggregateOptions]) (*mongo.Cursor, error) {
+	if err := guardAggregation(pipeline); err != nil {
+		return nil, err
+	}
 	scoped := make([]bson.M, 0, len(pipeline)+1)
 	scoped = append(scoped, bson.M{"$match": s.filter(bson.M{})})
 	scoped = append(scoped, pipeline...)
@@ -296,17 +305,83 @@ func (s *Scope) stamp(doc bson.M) (bson.M, error) {
 // Re-homing a record is not an operation this system has, and allowing it here
 // would turn a single careless $set into a cross-tenant write.
 func guardUpdate(update bson.M, tenantKey string) error {
-	for _, op := range []string{"$set", "$setOnInsert", "$unset", "$rename"} {
-		fields, ok := update[op].(bson.M)
-		if !ok {
-			continue
+	touches := func(path string) bool {
+		return path == tenantKey || strings.HasPrefix(path, tenantKey+".") || strings.HasPrefix(tenantKey, path+".")
+	}
+	for op, value := range update {
+		if !strings.HasPrefix(op, "$") {
+			return fmt.Errorf("mongo: replacement updates are not permitted")
 		}
-		if _, touching := fields[tenantKey]; touching {
-			return fmt.Errorf("mongo: update may not modify %s", tenantKey)
+		fields, err := documentFields(value)
+		if err != nil {
+			return err
+		}
+		for _, f := range fields {
+			if touches(f.Key) {
+				return fmt.Errorf("mongo: update may not modify %s", tenantKey)
+			}
+			if op == "$rename" {
+				dest, ok := f.Value.(string)
+				if !ok || touches(dest) {
+					return fmt.Errorf("mongo: rename may not modify %s", tenantKey)
+				}
+			}
 		}
 	}
-	if _, replacing := update[tenantKey]; replacing {
-		return fmt.Errorf("mongo: update may not modify %s", tenantKey)
+	return nil
+}
+
+func documentFields(value any) (bson.D, error) {
+	data, err := bson.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("mongo: invalid update document: %w", err)
+	}
+	var fields bson.D
+	if err := bson.Unmarshal(data, &fields); err != nil {
+		return nil, err
+	}
+	return fields, nil
+}
+
+// Cross-collection stages can bypass the initial tenant match, including inside
+// facets and nested pipelines. Reject them throughout the supplied structure.
+func guardAggregation(value any) error {
+	data, err := bson.Marshal(bson.M{"pipeline": value})
+	if err != nil {
+		return fmt.Errorf("mongo: invalid pipeline: %w", err)
+	}
+	var normalized bson.M
+	if err := bson.Unmarshal(data, &normalized); err != nil {
+		return err
+	}
+	return inspectAggregation(normalized["pipeline"])
+}
+
+func inspectAggregation(value any) error {
+	switch value := value.(type) {
+	case bson.D:
+		for _, field := range value {
+			if err := inspectAggregation(bson.M{field.Key: field.Value}); err != nil {
+				return err
+			}
+		}
+	case bson.M:
+		for key, nested := range value {
+			switch key {
+			case "$lookup", "$unionWith", "$graphLookup", "$out", "$merge", "$changeStream",
+				"$documents", "$collStats", "$indexStats", "$currentOp", "$listSessions", "$listLocalSessions":
+				return fmt.Errorf("mongo: aggregation stage %s is not tenant-safe", key)
+			}
+			if err := inspectAggregation(nested); err != nil {
+				return err
+			}
+		}
+	case bson.A:
+		for _, nested := range value {
+			if err := inspectAggregation(nested); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 )
@@ -16,9 +17,43 @@ type Claims struct {
 	Subject     string   `json:"sub"`
 	TenantID    string   `json:"tenant_id,omitempty"`
 	Role        string   `json:"role"`
-	Permissions []string `json:"perms,omitempty"`
+	Permissions []string `json:"permissions,omitempty"`
 	IssuedAt    int64    `json:"iat"`
 	ExpiresAt   int64    `json:"exp"`
+}
+
+// UnmarshalJSON accepts the canonical Identity claim and the legacy platform
+// spelling. Conflicting aliases are rejected rather than combining grants.
+func (c *Claims) UnmarshalJSON(data []byte) error {
+	type plainClaims Claims
+	var wire struct {
+		plainClaims
+		Canonical json.RawMessage `json:"permissions"`
+		Legacy    json.RawMessage `json:"perms"`
+	}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	var canonical, legacy []string
+	if len(wire.Canonical) > 0 {
+		if err := json.Unmarshal(wire.Canonical, &canonical); err != nil {
+			return err
+		}
+	}
+	if len(wire.Legacy) > 0 {
+		if err := json.Unmarshal(wire.Legacy, &legacy); err != nil {
+			return err
+		}
+	}
+	if len(wire.Canonical) > 0 && len(wire.Legacy) > 0 && !slices.Equal(canonical, legacy) {
+		return ErrInvalidToken
+	}
+	*c = Claims(wire.plainClaims)
+	c.Permissions = canonical
+	if len(wire.Canonical) == 0 {
+		c.Permissions = legacy
+	}
+	return nil
 }
 
 var (

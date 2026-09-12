@@ -16,9 +16,10 @@ import (
 //
 // On PostgreSQL the domain row and its outbox row commit together, so an event
 // cannot exist for a change that rolled back, and a change cannot be invisible
-// to consumers. MongoDB's free tier has no multi-document transactions, so a
-// separate outbox collection would need two writes and could lose or invent an
-// event at every crash between them.
+// to consumers. On standalone MongoDB, a separate outbox collection requires
+// two writes without a transaction and can lose or invent an event at a crash
+// between them. Replica sets support transactions, but embedding also works on
+// standalone servers.
 //
 // Single-document writes ARE atomic on every MongoDB tier, so the event is kept
 // inside the aggregate it describes: the domain change and its events are one
@@ -101,9 +102,9 @@ func (s *Scope) UpdateWithEvents(ctx context.Context, query bson.M, update bson.
 		merged[k] = v
 	}
 	if len(pending) > 0 {
-		push, ok := merged["$push"].(bson.M)
-		if !ok {
-			push = bson.M{}
+		push, err := copyOperatorDocument(merged["$push"])
+		if err != nil {
+			return nil, err
 		}
 		if _, taken := push[PendingField]; taken {
 			return nil, errors.New("mongo outbox: update already pushes to " + PendingField)
@@ -129,9 +130,9 @@ func (s *Scope) UpsertWithEvents(ctx context.Context, query bson.M, update bson.
 		merged[k] = v
 	}
 	if len(pending) > 0 {
-		push, ok := merged["$push"].(bson.M)
-		if !ok {
-			push = bson.M{}
+		push, err := copyOperatorDocument(merged["$push"])
+		if err != nil {
+			return nil, err
 		}
 		if _, taken := push[PendingField]; taken {
 			return nil, errors.New("mongo outbox: update already pushes to " + PendingField)
@@ -228,4 +229,21 @@ func (r *Relay) Drain(ctx context.Context) (int, error) {
 		failures = append(failures, fmt.Errorf("iterate pending: %w", err))
 	}
 	return published, errors.Join(failures...)
+}
+
+// copyOperatorDocument preserves BSON-supported document shapes without mutating
+// the caller's map when the outbox adds its own array push.
+func copyOperatorDocument(value any) (bson.M, error) {
+	result := bson.M{}
+	if value == nil {
+		return result, nil
+	}
+	fields, err := documentFields(value)
+	if err != nil {
+		return nil, err
+	}
+	for _, field := range fields {
+		result[field.Key] = field.Value
+	}
+	return result, nil
 }

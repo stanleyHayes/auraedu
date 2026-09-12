@@ -2,7 +2,7 @@
 
 Shared actor, JWT and authorization-registry primitives for Go services.
 
-- `Sign` and `Verify` handle the internal HMAC JWT claims format and reject expired or tampered tokens.
+- `Sign` and `Verify` handle the internal HMAC JWT claims format and reject expired or tampered tokens. Permissions use Identity's canonical `permissions` claim. Verification also accepts legacy `perms`; if both appear, their lists must match. Malformed or conflicting permission claims are rejected.
 - `Actor` represents the authenticated user, tenant, role and permission set; `WithActor` and `ActorFromContext` carry it through a request.
 - `KnownPermissions`, `KnownRoles`, and `RoleScope` expose the generated authorization registry.
 

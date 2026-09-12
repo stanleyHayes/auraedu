@@ -2,6 +2,7 @@ package testkit
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	pmongo "github.com/auraedu/platform/mongo"
@@ -19,13 +20,26 @@ type MongoTestDB struct {
 // the counterpart to NewPostgres so a service's adapter tests can run the same
 // assertions against either driver.
 //
-// The image is a single node without a replica set, which is what the free
-// Atlas tier gives you: no multi-document transactions. Adapters that work here
-// work there, and one that quietly depends on a transaction fails here first.
+// This standalone fixture exercises single-document atomicity. Use
+// NewMongoReplicaSet for multi-document transactions (including Atlas Free).
 func NewMongo(ctx context.Context, tb testing.TB) *MongoTestDB {
 	tb.Helper()
+	return newMongo(ctx, tb, false)
+}
 
-	ctr, err := tcmongo.Run(ctx, "mongo:8.0")
+func NewMongoReplicaSet(ctx context.Context, tb testing.TB) *MongoTestDB {
+	tb.Helper()
+	return newMongo(ctx, tb, true)
+}
+
+func newMongo(ctx context.Context, tb testing.TB, replica bool) *MongoTestDB {
+	tb.Helper()
+
+	var opts []testcontainers.ContainerCustomizer
+	if replica {
+		opts = append(opts, tcmongo.WithReplicaSet("rs0"))
+	}
+	ctr, err := tcmongo.Run(ctx, "mongo:8.0", opts...)
 	if err != nil {
 		tb.Fatalf("start mongodb container: %v", err)
 	}
@@ -40,6 +54,13 @@ func NewMongo(ctx context.Context, tb testing.TB) *MongoTestDB {
 		tb.Fatalf("mongodb connection string: %v", err)
 	}
 
+	if replica {
+		separator := "?"
+		if strings.Contains(uri, "?") {
+			separator = "&"
+		}
+		uri += separator + "directConnection=true"
+	}
 	store, err := pmongo.Open(ctx, pmongo.Config{URI: uri, Database: "auraedu_test"})
 	if err != nil {
 		tb.Fatalf("open mongo store: %v", err)
