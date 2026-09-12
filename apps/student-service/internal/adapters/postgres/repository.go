@@ -252,7 +252,7 @@ func listQuery(ctx context.Context, tx pgx.Tx, tenantID string, classID *string,
 
 func (r *Repository) Update(ctx context.Context, tenantID string, s *domain.Student) error {
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `
+		tag, err := tx.Exec(ctx, `
 			UPDATE students
 			SET first_name = $3, last_name = $4, student_code = $5, date_of_birth = $6,
 			    gender = $7, status = $8, user_id = $9, updated_at = $10
@@ -260,6 +260,11 @@ func (r *Repository) Update(ctx context.Context, tenantID string, s *domain.Stud
 		`, s.ID, tenantID, s.FirstName, s.LastName, s.StudentCode, s.DateOfBirth, s.Gender, s.Status, s.UserID, s.UpdatedAt)
 		if err != nil {
 			return fmt.Errorf("student: update: %w", err)
+		}
+		// Changing nothing is not success. Without this an update aimed at
+		// another tenant's record reports that it worked.
+		if tag.RowsAffected() != 1 {
+			return domain.ErrNotFound
 		}
 		return nil
 	})
