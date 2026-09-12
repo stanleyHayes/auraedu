@@ -1,79 +1,105 @@
-# AuraEDU demo — the whole stack for $0/month
+# AuraEDU single-container demo
 
-This runs every Go backend service in **one container** so a working demo fits a
-single free instance. It is not the production topology: `render.yaml` still runs
-one service per process, and that is what you deploy for real schools.
+AURA-9.12 runs the 18 Go domain/identity services in `services.txt`, their 18
+worker commands, the gateway, Redis and NATS in one container. PostgreSQL remains
+the default; MongoDB is an explicit configuration choice. This is a development
+demo topology, not the production deployment or a guarantee of hosted free-tier
+capacity. Historical server-only memory figures do not measure the worker fleet.
 
-## Why one container
+## Build and configure
 
-Render's free tier grants **750 instance-hours per workspace per month**. One
-always-on service uses ~730 of them, so "all services free" is not a configuration
-problem — the arithmetic only allows one service. Collapsing the processes into one
-container is what makes the demo free; nothing about the service code changes, each
-still listens on its own port and talks to its siblings over HTTP as in production.
+```sh
+docker build -f deploy/demo/Dockerfile -t auraedu-demo:mongo-local .
+```
 
-## The free stack
+Provide fresh `JWT_SIGNING_KEY` and `INTERNAL_SERVICE_TOKEN` secrets explicitly.
+The entrypoint refuses to substitute predictable demo credentials.
 
-| Piece | Provider | Free tier |
+| Driver | Required environment | Database isolation |
 |---|---|---|
-| Backend (18 services + gateway) | Render web service | 750 instance-hours/mo, sleeps after 15 min idle |
-| PostgreSQL | Neon | permanent, 0.5 GB, scales to zero |
-| Redis + NATS | inside the container | ephemeral by design |
-| Web + marketing | Vercel | Hobby |
+| PostgreSQL (default) | `DATABASE_URL` | Service-specific `DATABASE_SCHEMA`, unchanged |
+| MongoDB | `DATABASE_DRIVER=mongodb`, `MONGODB_URI` | `${MONGODB_DATABASE_PREFIX}_${service}`, prefix defaults to `auraedu_demo` |
 
-Measured footprint: **~120 MiB of the 512 MiB** limit with all 18 services running.
+For example, student and identity own `auraedu_demo_student` and
+`auraedu_demo_identity`. Every Mongo server/worker pool defaults to two connections.
+The **full demo requires a replica set or mongos**: billing, admissions and other
+multi-document operations require transactions and refuse standalone MongoDB.
+Atlas Free uses a replica set; standalone MongoDB test fixtures are a separate
+single-document-atomicity test configuration, not an Atlas emulator.
 
-Redis and NATS run in-container deliberately. The instance sleeps and restarts
-freely, so only PostgreSQL holds anything worth keeping — and that lives in Neon.
-
-## Deploy
-
-1. **Database.** Create a Neon project and copy its connection string. Every service
-   gets its own schema inside that one database automatically.
-2. **Backend.** On Render, create a *Web Service* from this repo — not a Blueprint,
-   which would deploy the full production topology:
-   - Dockerfile path: `deploy/demo/Dockerfile`
-   - Docker context: the repository root
-   - Instance type: Free
-   - Environment: `DATABASE_URL` = the Neon string.
-     Optionally set `JWT_SIGNING_KEY` and `INTERNAL_SERVICE_TOKEN`; both fall back to
-     development values that are fine for a demo and unsafe for anything else.
-3. **Frontends.** Deploy `apps/web` and `apps/marketing` to Vercel and point their
-   gateway origin at the Render URL.
-4. **Seed.** From a machine that can reach the database:
-
-   ```
-   B="<neon-url>&options=-csearch_path%3D"
-   IDENTITY_DATABASE_URL="${B}identity" TENANT_DATABASE_URL="${B}tenant" \
-   BILLING_DATABASE_URL="${B}billing" STUDENT_DATABASE_URL="${B}student" \
-   STAFF_DATABASE_URL="${B}staff" go run ./tools/seed
-   ```
-
-   Sign-in details are written to `credentials.txt`.
-
-## Run it locally
-
-```
-docker build -f deploy/demo/Dockerfile -t auraedu-demo .
-docker run --rm -p 8080:8080 -e DATABASE_URL="postgres://...@host:5432/auraedu?sslmode=disable" auraedu-demo
-curl localhost:8080/ready
+```sh
+docker run --name auraedu-demo -p 127.0.0.1:8080:8080 \
+  -e DATABASE_DRIVER=mongodb -e MONGODB_URI \
+  -e JWT_SIGNING_KEY -e INTERNAL_SERVICE_TOKEN \
+  -e NOTIFICATION_PROVIDER=mock auraedu-demo:mongo-local
 ```
 
-## What the demo leaves out
+Set the exported variables before running the command. For PostgreSQL replace the
+Mongo variables with `-e DATABASE_URL`. Do not enable external notification
+providers for synthetic fixtures. Only the gateway binds externally; internal
+HTTP, Redis and NATS listeners bind loopback. Services run as an unprivileged user.
+The supervisor waits for all HTTP readiness endpoints, launches workers on distinct
+ports, monitors actual child PIDs, and stops the entire instance when any exits.
+Shutdown grants 15 seconds before terminating remaining processes.
 
-The growth/marketing suite (CRM, campaigns, content AI, the website assistant and
-its knowledge base, market intelligence) is not included — every feature it serves is
-off for all tenants. See `deploy/undeployed-services.txt`.
+## Repeatable local Mongo verification and fixture bootstrap
 
-The three Python AI services are also omitted; they need a second runtime in the
-image and their features are `ai_plus` tier.
+```sh
+python3 tools/smoke/demo-mongodb.py
+```
 
-## Known limits
+This creates an isolated Docker internal network and Mongo replica set, seeds two
+synthetic tenant/feature fixtures, starts the built demo, creates explicit random
+school-admin credentials with identity's `seed-demo` command, and checks real
+login, student creation, tenant isolation, a disabled feature, durable outbox
+processing and audit consumption, refresh rotation/replay denial, logout revocation, and record
+persistence across a demo restart. It also submits and approves a real onboarding request, captures the invitation
+through the real Notification service and a local SMTP receiver, accepts it,
+logs in as the activated administrator, and checks billing worker provisioning.
+The internal Docker network and SMTP capture prevent external sends. Gateway
+requests run through a local HTTP test client using `docker exec`; the smoke
+publishes no host ports. The demo is capped at 512 MiB and reports measured
+memory, worker count and listener isolation. A final
+worker termination verifies that the supervisor fails the entire container. The script cleans only the resources whose random names it created.
+`KEEP_DEMO_SMOKE=1` retains those resources for diagnosis; `DEMO_IMAGE` overrides
+the image. These are smoke fixtures, not a complete seeded school. The smoke creates one synthetic billing plan
+before onboarding; real onboarding requires a configured billing plan catalog.
 
-- **It sleeps.** After 15 minutes idle the instance spins down and the next request
-  waits ~1 minute while 18 processes and their migrations start.
-- **No backups.** Neon's free tier and an ephemeral NATS do not satisfy the recovery
-  policy in `tools/ci/check-disaster-recovery.sh`. That gate guards production and
-  this image is not production.
-- **One instance.** No per-service scaling; a process that dies takes the instance
-  down so the platform restarts it.
+To create a login for an existing development tenant manually:
+
+```sh
+docker exec \
+  -e MONGODB_DATABASE=auraedu_demo_identity \
+  -e DEMO_TENANT_ID -e DEMO_USER_EMAIL -e DEMO_USER_PASSWORD \
+  -e DEMO_USER_ROLE=school_admin auraedu-demo identity-service seed-demo
+```
+
+`docker exec -e NAME` forwards that variable from your shell. Use a unique email
+and a password of at least 12 characters. `seed-demo` is development-only and
+never replaces an existing account's credentials. It creates identity records;
+it does not create the tenant, billing catalog or academic setup. Login through
+`POST /api/v1/auth/login` with `X-Tenant-ID` and JSON `email`/`password`.
+
+The existing PostgreSQL bootstrap remains `go run ./tools/seed`, configured with
+its service-specific database URLs; it does not bootstrap MongoDB.
+
+## Local verification
+
+On 2026-09-12 the complete smoke passed with all 18 servers, all 18 workers and
+the gateway. The demo container reported **174.9 MiB under its 512 MiB cap** at
+startup, with listener isolation and every workflow assertion passing. This is a
+synthetic local workload measurement, not a hosted capacity guarantee.
+
+## Limits and verification scope
+
+Mongo/PostgreSQL business records live in the configured external database.
+Redis, NATS and local uploaded/generated file bytes are ephemeral in this image;
+record persistence does **not** prove file persistence. Configure the appropriate
+external media/storage adapter for durable files. NATS is not a permanent audit
+log, and an outbox acknowledged before NATS state disappears cannot recreate
+that lost broker history. Consumers must maintain their own durable state.
+
+The growth/marketing services listed in `deploy/undeployed-services.txt` and the
+Python AI services are omitted. Their features must remain disabled for demo
+tenants. No hosted Atlas, Render, provider-delivery, backup/recovery or complete
+school-workflow verification is implied by a local Mongo smoke.

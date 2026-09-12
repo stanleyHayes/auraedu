@@ -8,6 +8,7 @@ FROM golang:1.26.5-alpine@sha256:0178a641fbb4858c5f1b48e34bdaabe0350a330a1b1149a
 WORKDIR /src
 COPY platform/ ./platform/
 COPY contracts/ ./contracts/
+COPY tools/smoke/helpers/demo-smtp-capture.go ./tools/demo-smtp-capture.go
 COPY apps/api-gateway/ ./apps/api-gateway/
 COPY apps/identity-service/ ./apps/identity-service/
 COPY apps/tenant-service/ ./apps/tenant-service/
@@ -35,8 +36,9 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
     set -eux; \
     for svc in api-gateway identity-service tenant-service student-service staff-service academic-service file-service attendance-service assessment-service report-service fees-service payment-service notification-service billing-service website-service analytics-service cbt-service audit-service admissions-service; do \
       cd "/src/apps/$svc"; \
-      go build -ldflags "-s -w -X main.version=${GIT_SHA}" -o "/out/$svc" "./cmd/$svc"; \
-    done
+      go build -p 1 -ldflags "-s -w -X main.version=${GIT_SHA}" -o "/out/$svc" "./cmd/$svc"; \
+    done; \
+    go build -p 1 -o /out/demo-smtp-capture /src/tools/demo-smtp-capture.go
 
 FROM alpine:3.22
 RUN apk add --no-cache nats-server redis ca-certificates tini
@@ -63,7 +65,9 @@ COPY apps/audit-service/migrations /srv/audit-service/migrations
 COPY apps/admissions-service/migrations /srv/admissions-service/migrations
 COPY deploy/demo/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY deploy/demo/services.txt /srv/services.txt
-RUN chmod +x /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh && addgroup -S auraedu && adduser -S -G auraedu auraedu
+USER auraedu
+HEALTHCHECK --interval=15s --timeout=5s --start-period=180s CMD wget -q -O /dev/null http://127.0.0.1:${PORT:-8080}/ready || exit 1
 ENV FEATURES_REGISTRY=/contracts/features/features.yaml
 EXPOSE 8080
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/entrypoint.sh"]

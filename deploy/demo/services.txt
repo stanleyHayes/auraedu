@@ -1,7 +1,7 @@
 # The demo footprint: every Go service except the growth/marketing suite, which is
 # switched off for all tenants anyway (see deploy/undeployed-services.txt).
-# Measured at ~106 MiB for the core set, so the free tier's 512 MiB leaves room to
-# run the full feature surface rather than a stripped-down one.
+# Both the HTTP server and worker command run for every service below.
+# Capacity must be measured with workers and the intended workload, not servers alone.
 #
 # The three Python AI services are omitted: they need a separate runtime in the
 # image, and their features are ai_plus tier.

@@ -26,7 +26,8 @@ Schools are **tenants** on one platform — never separate codebases. First tena
 
 ## Stack (locked — do not re-litigate)
 - Go 1.26.5 (hexagonal) domain services · Python 3.14.6 / FastAPI AI services · Next.js 16 web + marketing · Expo/React Native mobile (teacher/parent/student only).
-- PostgreSQL 18 (DB-per-service + RLS) · NATS JetStream (CloudEvents) · **Render** deploy (Blueprints) · **Cloudinary** media · Render Key Value (Redis).
+- PostgreSQL 18 is the default (DB-per-service + RLS). AURA-9.12 adds selectable MongoDB 8 persistence for the demo services; the complete Mongo demo requires a replica set. See [migration evidence and scope](docs/qa/mongo-demo-continuation.md).
+- NATS JetStream (CloudEvents) · **Render** deploy (Blueprints) · **Cloudinary** media · Render Key Value (Redis).
 - Exact versions are pinned in the repository and updated through reviewed Renovate changes.
 
 ## Git conventions
