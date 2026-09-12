@@ -2,11 +2,13 @@ package gateway
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -104,5 +106,41 @@ func TestProxyReturns404ForUnknownRoute(t *testing.T) {
 
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("status: got %d, want %d", rr.Code, http.StatusNotFound)
+	}
+}
+
+// A route whose service is not deployed in this environment must still answer with
+// the canonical error envelope rather than httputil's bare, bodyless 502.
+func TestUnreachableUpstreamReturnsCanonicalErrorEnvelope(t *testing.T) {
+	registry := ServiceRegistry{
+		// Port 1 is reserved and never listening, so the dial fails immediately.
+		{Prefix: "/api/v1/intelligence", Target: "http://127.0.0.1:1"},
+	}
+	proxy, err := NewReverseProxy(registry, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatalf("new reverse proxy: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/intelligence/sources", nil)
+	rr := httptest.NewRecorder()
+	proxy.Handler(registry).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("expected 502 for an unreachable upstream, got %d", rr.Code)
+	}
+	if ct := rr.Header().Get("Content-Type"); !strings.Contains(ct, "application/json") {
+		t.Fatalf("error envelope must be JSON, got content-type %q", ct)
+	}
+	var body struct {
+		Error struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatalf("error envelope is not valid JSON: %v body=%s", err, rr.Body.String())
+	}
+	if body.Error.Code != "upstream_unavailable" {
+		t.Fatalf("unexpected error code %q (body=%s)", body.Error.Code, rr.Body.String())
 	}
 }

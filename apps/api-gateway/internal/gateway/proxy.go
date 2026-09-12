@@ -23,12 +23,27 @@ func NewReverseProxy(registry ServiceRegistry, log *slog.Logger) (*ReverseProxy,
 		if err != nil {
 			return nil, err
 		}
+		prefix := rt.Prefix
 		proxy := &httputil.ReverseProxy{
 			Rewrite: rewriteForRoute(target),
 			Transport: &http.Transport{
 				MaxIdleConns:        100,
 				MaxIdleConnsPerHost: 10,
 				IdleConnTimeout:     90 * time.Second,
+			},
+			// Without this, an unreachable upstream gets httputil's bare 502 with no
+			// body, which breaks the canonical error envelope every other failure
+			// path uses. A service that is not deployed in this environment is the
+			// ordinary way to reach it.
+			ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+				log.WarnContext(r.Context(), "upstream request failed",
+					"route", prefix,
+					"method", r.Method,
+					"tenant_id", TenantIDFrom(r.Context()),
+					"error", err.Error(),
+				)
+				writeJSONError(w, http.StatusBadGateway, "upstream_unavailable",
+					"the downstream service is unavailable")
 			},
 		}
 		transports[rt.Prefix] = proxy

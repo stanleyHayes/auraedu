@@ -20,7 +20,24 @@ Dir.glob("apps/*-service/**/*.{go,py}").sort.each do |path|
 end
 
 failures = []
+
+# Services deliberately not deployed in this environment. The default invariant —
+# every service in apps/ must have a Render deployment — stays in force for
+# everything absent from this reviewed list.
+undeployed = {}
+undeployed_path = 'deploy/undeployed-services.txt'
+if File.exist?(undeployed_path)
+  File.readlines(undeployed_path).each do |line|
+    text = line.split('#').first.to_s.strip
+    next if text.empty?
+
+    undeployed[text] = true
+  end
+end
+
 required.sort.each do |name, sources|
+  next if undeployed[name]
+
   service = services[name]
   unless service
     failures << "#{name}: no Render service exists (referenced by #{sources.join(', ')})"

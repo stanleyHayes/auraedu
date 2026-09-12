@@ -5,6 +5,20 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
 
 ruby -ryaml <<'RUBY'
+# Services deliberately not deployed in this environment. The default invariant —
+# every service in apps/ must have a Render deployment — stays in force for
+# everything absent from this reviewed list.
+undeployed = {}
+undeployed_path = 'deploy/undeployed-services.txt'
+if File.exist?(undeployed_path)
+  File.readlines(undeployed_path).each do |line|
+    text = line.split('#').first.to_s.strip
+    next if text.empty?
+
+    undeployed[text] = true
+  end
+end
+
 require "json"
 
 render = YAML.load_file("render.yaml")
@@ -129,6 +143,8 @@ runtime_gate_deployments = Dir.glob("apps/*-service/cmd/**/*.go").each_with_obje
 end.uniq.sort
 
 runtime_gate_deployments.each do |name|
+  next if undeployed[name]
+
   service = services[name]
   unless service
     failures << "#{name}: live feature gate has no Render deployment"
@@ -184,6 +200,8 @@ twilio_callback = "https://auraedugh.vercel.app/api/v1/webhooks/twilio"
 end
 
 required.sort.each do |name, variables|
+  next if undeployed[name]
+
   service = services[name]
   unless service
     failures << "#{name}: no Render service exists"

@@ -26,6 +26,21 @@ services.each do |service|
   end
 end
 
+# The same applies to fromService: removing a service must also remove every
+# reference to it, or Render rejects the blueprint at deploy time.
+declared_services = services.map { |service| service['name'] }
+services.each do |service|
+  (service['envVars'] || []).each do |entry|
+    reference = entry['fromService']
+    next unless reference.is_a?(Hash)
+
+    name = reference['name'].to_s
+    next if declared_services.include?(name)
+
+    failures << "#{service['name']}: #{entry['key']} references undeclared service #{name}"
+  end
+end
+
 
 databases.each do |database|
   name = database.fetch('name', '<unnamed-database>')

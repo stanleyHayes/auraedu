@@ -1,0 +1,26 @@
+# Services that exist in apps/ but are deliberately NOT deployed in the current
+# Render environment. CI otherwise requires every service in the source tree to
+# have a deployment, which is the right default — this file is the reviewed
+# exception list, so an omission stays a conscious decision rather than drift.
+#
+# Format: <render-service-name>  # reason
+#
+# The growth/marketing suite. Every feature these serve is off for both
+# configured tenants (contracts/features/features.yaml), so they would run and
+# bill without serving a request. Re-deploy by deleting the line and restoring
+# the service block plus its SERVICE_*_URL reference in api-gateway.
+#
+#   growth_crm, growth_campaigns, growth_content_ai, growth_website_chat,
+#   growth_autonomous_actions, growth_reputation_monitor, growth_competitor_monitor
+crm-service                     # growth_crm off for all tenants
+crm-worker                      # growth_crm off for all tenants
+knowledge-service               # only consumer is ai-orchestrator-service
+knowledge-worker                # only consumer is ai-orchestrator-service
+ai-orchestrator-service         # growth_website_chat + growth_autonomous_actions off
+ai-orchestrator-worker          # growth_website_chat + growth_autonomous_actions off
+campaign-service                # growth_campaigns off for all tenants
+campaign-worker                 # growth_campaigns off for all tenants
+content-service                 # growth_content_ai off for all tenants
+content-worker                  # growth_content_ai off for all tenants
+market-intelligence-service     # reputation/competitor monitors are enterprise, off
+market-intelligence-worker      # reputation/competitor monitors are enterprise, off
