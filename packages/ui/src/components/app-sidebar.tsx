@@ -86,6 +86,14 @@ export function AppSidebar({
   className,
 }: AppSidebarProps) {
   const [openState, setOpenState] = React.useState<Record<string, boolean>>({});
+  const activeHref = React.useMemo(
+    () =>
+      groups
+        .flatMap((group) => group.items)
+        .filter((item) => isActive(pathname, item.href))
+        .sort((a, b) => b.href.length - a.href.length)[0]?.href,
+    [groups, pathname],
+  );
 
   React.useEffect(() => {
     try {
@@ -137,7 +145,7 @@ export function AppSidebar({
       </div>
       <nav className="relative z-10 flex-1 pb-4">
         {groups.map((group) => {
-          const hasActive = group.items.some((i) => isActive(pathname, i.href));
+          const hasActive = group.items.some((item) => item.href === activeHref);
           const isOpen = hasActive || (openState[group.heading] ?? true);
           const panelId = `nav-${group.heading.replace(/\s+/g, "-").toLowerCase()}`;
           return (
@@ -170,7 +178,7 @@ export function AppSidebar({
               >
                 <div className="min-h-0 overflow-hidden">
                   {group.items.map((item, i) => {
-                    const active = isActive(pathname, item.href);
+                    const active = item.href === activeHref;
                     return (
                       <a
                         key={item.href}

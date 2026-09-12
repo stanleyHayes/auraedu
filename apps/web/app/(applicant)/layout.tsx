@@ -1,12 +1,11 @@
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { StudentShell } from "@/components/student-shell";
 import { RouteFeatureGuard } from "@/components/route-feature-guard";
-import { APPLICANT_NAV, fetchTenantBranding, getTenantCodeFromHeaders } from "@/lib/tenant";
+import { APPLICANT_NAV, fetchTenantBranding } from "@/lib/tenant";
 import { isApplicant, requireAuth } from "@/lib/auth";
+import { getCurrentTenantCode } from "@/lib/api";
 export default async function ApplicantLayout({ children }: { children: React.ReactNode }) {
-  const requestHeaders = await headers();
-  const code = getTenantCodeFromHeaders(requestHeaders);
+  const code = await getCurrentTenantCode();
   const [tenant, session] = await Promise.all([
     fetchTenantBranding(code),
     requireAuth().catch(() => null),

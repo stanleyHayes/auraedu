@@ -1,13 +1,12 @@
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { ParentShell } from "@/components/parent-shell";
 import { RouteFeatureGuard } from "@/components/route-feature-guard";
-import { fetchTenantBranding, getTenantCodeFromHeaders, PARENT_NAV } from "@/lib/tenant";
+import { fetchTenantBranding, PARENT_NAV } from "@/lib/tenant";
 import { requireAuth, isParent } from "@/lib/auth";
+import { getCurrentTenantCode } from "@/lib/api";
 
 export default async function ParentLayout({ children }: { children: React.ReactNode }) {
-  const requestHeaders = await headers();
-  const tenantCode = getTenantCodeFromHeaders(requestHeaders);
+  const tenantCode = await getCurrentTenantCode();
 
   const [tenant, session] = await Promise.all([
     fetchTenantBranding(tenantCode),

@@ -28,6 +28,7 @@ func testBuilder() *Builder {
 		RateLimitBurst: 20,
 	}
 	cfg.Registry = ServiceRegistry{
+		{Prefix: "/api/v1/auth/login", Target: "http://localhost:8081", Public: true, TenantOptional: true},
 		{Prefix: "/api/v1/public/onboarding-requests", Target: "http://localhost:8082", Public: true, TenantOptional: true},
 		{Prefix: "/api/v1/public/invites", Target: "http://localhost:8081", Public: true, TenantOptional: true},
 		{Prefix: "/api/v1/public/assistant", Target: "http://localhost:8111", Public: true, FeatureKey: "growth_website_chat"},
@@ -451,6 +452,40 @@ func TestTenantRequired(t *testing.T) {
 	body := rr.Body.String()
 	if !strings.Contains(body, "unauthorized") {
 		t.Fatalf("expected tenant_required error, got %q", body)
+	}
+}
+
+func TestPlatformLoginDoesNotRequireTenant(t *testing.T) {
+	b := testBuilder()
+	reached := false
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reached = true
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/auth/login", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK || !reached {
+		t.Fatalf("tenantless platform login was blocked: status=%d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestSchoolLoginStillResolvesExplicitTenant(t *testing.T) {
+	b := testBuilder()
+	var tenant string
+	handler := b.chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tenant = TenantIDFrom(r.Context())
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/auth/login", nil)
+	req.Header.Set("X-Tenant-Code", "upshs")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK || tenant != "upshs" {
+		t.Fatalf("school login lost tenant resolution: status=%d tenant=%q body=%s", rr.Code, tenant, rr.Body.String())
 	}
 }
 

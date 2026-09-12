@@ -100,6 +100,7 @@ export const SUPERADMIN_NAV: NavGroupDef[] = [
     items: [
       { label: "Tenants", href: "/superadmin/tenants" },
       { label: "Onboarding", href: "/superadmin/onboarding" },
+      { label: "Users & access", href: "/superadmin/users" },
       { label: "Feature flags", href: "/superadmin/flags" },
       { label: "System Health", href: "/superadmin/system-health" },
     ],
@@ -114,6 +115,10 @@ export const SUPERADMIN_NAV: NavGroupDef[] = [
   {
     heading: "Compliance",
     items: [{ label: "Audit Logs", href: "/superadmin/audit-logs" }],
+  },
+  {
+    heading: "Personal",
+    items: [{ label: "Account & preferences", href: "/superadmin/settings" }],
   },
 ];
 

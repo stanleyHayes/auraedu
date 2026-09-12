@@ -12,6 +12,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(function Inp
   return (
     <input
       ref={ref}
+      data-ui="input"
       className={cn(
         "h-11 w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--input)] px-3.5 text-sm text-[var(--foreground)] shadow-sm",
         "placeholder:text-[var(--muted-foreground)]",

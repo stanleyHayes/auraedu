@@ -15,7 +15,13 @@ const MFA_ENFORCED_ROLES = new Set([
   "support_agent",
 ]);
 
-export function AdminUserInviteSheet({ roles }: { roles: string[] }) {
+export function AdminUserInviteSheet({
+  roles,
+  platformScope = false,
+}: {
+  roles: string[];
+  platformScope?: boolean;
+}) {
   const [open, setOpen] = React.useState(false);
   const [selectedRole, setSelectedRole] = React.useState(roles[0] ?? "");
   const [state, formAction, pending] = React.useActionState<AdminUserActionResult, FormData>(
@@ -49,6 +55,22 @@ export function AdminUserInviteSheet({ roles }: { roles: string[] }) {
           </div>
           <div className="flex-1 overflow-y-auto p-6">
             <form action={formAction} className="space-y-6">
+              {platformScope ? (
+                <div className="space-y-2">
+                  <Label htmlFor="invite_tenant">Tenant code</Label>
+                  <Input
+                    id="invite_tenant"
+                    name="tenant_id"
+                    placeholder="upshs"
+                    pattern="[a-z0-9][a-z0-9-]{1,62}"
+                    aria-describedby="invite_tenant_help"
+                  />
+                  <p id="invite_tenant_help" className="text-xs leading-5 text-muted-foreground">
+                    Required for school roles. Leave empty only when inviting a platform-scoped
+                    role.
+                  </p>
+                </div>
+              ) : null}
               <div className="space-y-2">
                 <Label htmlFor="invite_email">Email address</Label>
                 <Input

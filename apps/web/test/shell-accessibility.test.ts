@@ -26,6 +26,15 @@ void test("skip links become visible on keyboard focus", () => {
   assert.match(styles, /transform: translateY\(0\)/);
 });
 
+void test("portal pages preserve mobile safe-area and bottom breathing room", () => {
+  const portal = source("../components/portal-shell.tsx");
+
+  assert.match(portal, /h-\[100dvh\]/);
+  assert.match(portal, /env\(safe-area-inset-bottom\)/);
+  assert.match(portal, /sm:pb-16/);
+  assert.match(portal, /lg:pb-20/);
+});
+
 void test("the portal applies baseline browser security headers to every route", () => {
   const config = source("../next.config.ts");
   for (const header of [

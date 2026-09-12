@@ -117,6 +117,43 @@ func tenantAdmins() []user {
 	}
 }
 
+func portalUsers() []user {
+	password := seedPassword()
+	tenantID := strPtr("upshs")
+	return []user{
+		{
+			ID: deterministicUUID("auraedu:user:upshs:teacher"), TenantID: tenantID,
+			Email: "teacher@upshs.edu", Name: "John Doe", Role: "teacher", Password: password,
+			Permissions: []string{
+				"students.read", "academic.read", "attendance.read", "attendance.mark",
+				"assessments.read", "assessments.record_scores", "reports.read",
+				"notifications.read", "analytics.view", "cbt.read", "cbt.author", "cbt.grade",
+				"ai.view_recommendations", "ai.approve_recommendations", "ai.view_predictions",
+				"ai.view_guidance", "ai.approve_guidance",
+			},
+		},
+		{
+			ID: deterministicUUID("auraedu:user:upshs:parent"), TenantID: tenantID,
+			Email: "parent@upshs.edu", Name: "Akosua Asante", Role: "parent", Password: password,
+			Permissions: []string{
+				"students.read", "academic.read", "attendance.read", "assessments.read",
+				"reports.read", "fees.read", "payments.read", "payments.initiate",
+				"notifications.read", "ai.view_recommendations", "ai.view_predictions",
+				"ai.view_guidance",
+			},
+		},
+		{
+			ID: deterministicUUID("auraedu:user:upshs:student"), TenantID: tenantID,
+			Email: "student@upshs.edu", Name: "Kwame Asante", Role: "student", Password: password,
+			Permissions: []string{
+				"academic.read", "attendance.read", "assessments.read", "reports.read",
+				"notifications.read", "cbt.read", "cbt.take", "ai.view_recommendations",
+				"ai.view_predictions", "ai.view_guidance",
+			},
+		},
+	}
+}
+
 func loadFeatureDefaults(path, tenantCode string) ([]featureDefault, error) {
 	contents, err := os.ReadFile(path) //nolint:gosec // repository-owned feature registry
 	if err != nil {
@@ -239,6 +276,7 @@ func seedIdentity(ctx context.Context, db *pgxpool.Pool) error {
 	}
 
 	allUsers := append([]user{platformSuperAdmin()}, tenantAdmins()...)
+	allUsers = append(allUsers, portalUsers()...)
 	for _, u := range allUsers {
 		cred, err := hashPassword(u.Password)
 		if err != nil {
@@ -472,12 +510,13 @@ func seedStudents(ctx context.Context, db *pgxpool.Pool) error {
 		gender    string
 		dob       string
 		tenant    string
+		userID    *string
 	}{
-		{"UPS-001", "Kwame", "Asante", "male", "2008-03-15", "upshs"},
-		{"UPS-002", "Ama", "Owusu", "female", "2007-07-22", "upshs"},
-		{"UPS-003", "Kofi", "Mensah", "male", "2008-11-05", "upshs"},
-		{"ABM-001", "Yaa", "Darko", "female", "2007-05-10", "aboom"},
-		{"ABM-002", "Ebenezer", "Agyemang", "male", "2008-01-30", "aboom"},
+		{"UPS-001", "Kwame", "Asante", "male", "2008-03-15", "upshs", strPtr(deterministicUUID("auraedu:user:upshs:student"))},
+		{"UPS-002", "Ama", "Owusu", "female", "2007-07-22", "upshs", nil},
+		{"UPS-003", "Kofi", "Mensah", "male", "2008-11-05", "upshs", nil},
+		{"ABM-001", "Yaa", "Darko", "female", "2007-05-10", "aboom", nil},
+		{"ABM-002", "Ebenezer", "Agyemang", "male", "2008-01-30", "aboom", nil},
 	}
 
 	for _, s := range students {
@@ -487,18 +526,49 @@ func seedStudents(ctx context.Context, db *pgxpool.Pool) error {
 			return fmt.Errorf("clean legacy student %s: %w", s.code, err)
 		}
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO students (id, tenant_id, first_name, last_name, student_code, date_of_birth, gender, status, created_at, updated_at)
-			VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'active', now(), now())
+			INSERT INTO students (id, tenant_id, first_name, last_name, student_code, date_of_birth, gender, status, user_id, created_at, updated_at)
+			VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'active', $7, now(), now())
 			ON CONFLICT (tenant_id, student_code) DO UPDATE SET
 			  first_name = EXCLUDED.first_name,
 			  last_name = EXCLUDED.last_name,
 			  date_of_birth = EXCLUDED.date_of_birth,
 			  gender = EXCLUDED.gender,
 			  status = EXCLUDED.status,
+			  user_id = EXCLUDED.user_id,
 			  updated_at = now()
-		`, s.tenant, s.firstName, s.lastName, s.code, s.dob, s.gender); err != nil {
+		`, s.tenant, s.firstName, s.lastName, s.code, s.dob, s.gender, s.userID); err != nil {
 			return fmt.Errorf("upsert student %s: %w", s.code, err)
 		}
+	}
+
+	var studentID string
+	if err := tx.QueryRow(ctx, `SELECT id FROM students WHERE tenant_id = 'upshs' AND student_code = 'UPS-001'`).Scan(&studentID); err != nil {
+		return fmt.Errorf("load UPS-001 for guardian seed: %w", err)
+	}
+	guardianID := deterministicUUID("auraedu:guardian:upshs:akosua-asante")
+	parentUserID := deterministicUUID("auraedu:user:upshs:parent")
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO guardians (id, tenant_id, first_name, last_name, relationship, phone, email, user_id, created_at, updated_at)
+		VALUES ($1::uuid, 'upshs', 'Akosua', 'Asante', 'mother', '+233240000001', 'parent@upshs.edu', $2::uuid, now(), now())
+		ON CONFLICT (id) DO UPDATE SET
+		  first_name = EXCLUDED.first_name,
+		  last_name = EXCLUDED.last_name,
+		  relationship = EXCLUDED.relationship,
+		  phone = EXCLUDED.phone,
+		  email = EXCLUDED.email,
+		  user_id = EXCLUDED.user_id,
+		  updated_at = now()
+	`, guardianID, parentUserID); err != nil {
+		return fmt.Errorf("upsert UPSHS demo guardian: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO student_guardians (id, tenant_id, student_id, guardian_id, relationship, is_primary, created_at)
+		VALUES ($1::uuid, 'upshs', $2::uuid, $3::uuid, 'mother', true, now())
+		ON CONFLICT (tenant_id, student_id, guardian_id) DO UPDATE SET
+		  relationship = EXCLUDED.relationship,
+		  is_primary = EXCLUDED.is_primary
+	`, deterministicUUID("auraedu:student-guardian:upshs:kwame-akosua"), studentID, guardianID); err != nil {
+		return fmt.Errorf("link UPSHS demo guardian: %w", err)
 	}
 
 	return tx.Commit(ctx)
@@ -522,11 +592,12 @@ func seedStaff(ctx context.Context, db *pgxpool.Pool) error {
 		staffType string
 		email     string
 		tenant    string
+		userID    *string
 	}{
-		{"UPS-T01", "John", "Doe", "teacher", "john.doe@upshs.edu", "upshs"},
-		{"UPS-N01", "Jane", "Smith", "non_teaching", "jane.smith@upshs.edu", "upshs"},
-		{"ABM-T01", "Peter", "Brown", "teacher", "peter.brown@aboom.edu", "aboom"},
-		{"ABM-N01", "Mary", "Johnson", "non_teaching", "mary.johnson@aboom.edu", "aboom"},
+		{"UPS-T01", "John", "Doe", "teacher", "teacher@upshs.edu", "upshs", strPtr(deterministicUUID("auraedu:user:upshs:teacher"))},
+		{"UPS-N01", "Jane", "Smith", "non_teaching", "jane.smith@upshs.edu", "upshs", nil},
+		{"ABM-T01", "Peter", "Brown", "teacher", "peter.brown@aboom.edu", "aboom", nil},
+		{"ABM-N01", "Mary", "Johnson", "non_teaching", "mary.johnson@aboom.edu", "aboom", nil},
 	}
 
 	for _, s := range staff {
@@ -536,16 +607,17 @@ func seedStaff(ctx context.Context, db *pgxpool.Pool) error {
 			return fmt.Errorf("clean legacy staff %s: %w", s.code, err)
 		}
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO staff (id, tenant_id, first_name, last_name, staff_type, email, staff_code, status, created_at, updated_at)
-			VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'active', now(), now())
+			INSERT INTO staff (id, tenant_id, first_name, last_name, staff_type, email, staff_code, status, user_id, created_at, updated_at)
+			VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'active', $7, now(), now())
 			ON CONFLICT (tenant_id, staff_code) DO UPDATE SET
 			  first_name = EXCLUDED.first_name,
 			  last_name = EXCLUDED.last_name,
 			  staff_type = EXCLUDED.staff_type,
 			  email = EXCLUDED.email,
 			  status = EXCLUDED.status,
+			  user_id = EXCLUDED.user_id,
 			  updated_at = now()
-		`, s.tenant, s.firstName, s.lastName, s.staffType, s.email, s.code); err != nil {
+		`, s.tenant, s.firstName, s.lastName, s.staffType, s.email, s.code, s.userID); err != nil {
 			return fmt.Errorf("upsert staff %s: %w", s.code, err)
 		}
 	}
@@ -561,6 +633,9 @@ func writeCredentials(path string) error {
 	admin := platformSuperAdmin()
 	fmt.Fprintf(&b, "%-30s %-30s %s\n", admin.Email, admin.Role, admin.Password)
 	for _, u := range tenantAdmins() {
+		fmt.Fprintf(&b, "%-30s %-30s %s\n", u.Email, u.Role+" ("+*u.TenantID+")", u.Password)
+	}
+	for _, u := range portalUsers() {
 		fmt.Fprintf(&b, "%-30s %-30s %s\n", u.Email, u.Role+" ("+*u.TenantID+")", u.Password)
 	}
 	return os.WriteFile(path, []byte(b.String()), 0o600)

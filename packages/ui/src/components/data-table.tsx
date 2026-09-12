@@ -32,6 +32,7 @@ export function DataTable<T>({
 
   return (
     <div
+      data-ui="data-table"
       className={cn(
         "overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[0_10px_32px_color-mix(in_oklab,var(--color-navy)_5%,transparent)]",
         className,

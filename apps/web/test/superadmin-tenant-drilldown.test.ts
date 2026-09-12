@@ -45,6 +45,14 @@ void test("drill-down subpages call the documented tenant-scoped endpoints", () 
   assert.match(source(`${drilldown}/delivery/page.tsx`), /\/api\/v1\/messages\?/);
 });
 
+void test("optional online payments cannot take down the tenant finance page", () => {
+  const finance = source(`${drilldown}/finance/page.tsx`);
+  assert.match(finance, /const invoicePage = await client\.get/);
+  assert.match(finance, /let paymentsNotice: string \| null = null/);
+  assert.match(finance, /Online payments are not enabled for this school\./);
+  assert.doesNotMatch(finance, /Promise\.all\(\[/);
+});
+
 void test("per-tenant audit feed sends the documented filter params", () => {
   const page = source(`${drilldown}/audit/page.tsx`);
   for (const param of ["event_type", "actor_id", "source_service"]) {

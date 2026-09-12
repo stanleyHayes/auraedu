@@ -27,7 +27,7 @@ function ForgotPasswordForm() {
       <Watermark className="pointer-events-none absolute -right-20 -top-28 text-[11rem] opacity-[0.04]">
         Reset
       </Watermark>
-      <div className="relative rounded-[28px] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[0_28px_80px_rgba(6,22,49,0.12)] sm:p-7">
+      <div className="auth-panel relative rounded-[28px] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[0_28px_80px_rgba(6,22,49,0.12)] sm:p-7">
         {state.success ? (
           <div role="status" className="py-4 text-center">
             <span className="mx-auto grid size-16 place-items-center rounded-2xl bg-[var(--color-positive)]/12 text-[var(--color-positive)]">

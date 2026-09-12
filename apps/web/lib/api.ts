@@ -43,7 +43,9 @@ export async function getCurrentToken(): Promise<string | undefined> {
 
 export async function getCurrentTenantCode(): Promise<string> {
   const jar = await cookies();
-  return jar.get(TENANT_COOKIE)?.value ?? "";
+  const remembered = jar.get(TENANT_COOKIE)?.value;
+  if (remembered) return remembered;
+  return (await getSession())?.tenant_id ?? "";
 }
 
 export { getSession };

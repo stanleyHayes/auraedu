@@ -19,6 +19,7 @@ const toneClass: Record<NonNullable<StatCardProps["tone"]>, string> = {
 export function StatCard({ label, value, unit, tone = "default", className }: StatCardProps) {
   return (
     <div
+      data-ui="stat-card"
       className={cn(
         "portal-stat-card group relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 transition-[transform,box-shadow,border-color] duration-300 hover:-translate-y-1 hover:border-[var(--portal-accent,var(--color-brand))]/25 hover:shadow-[0_18px_42px_rgba(6,22,49,0.09)]",
         className,

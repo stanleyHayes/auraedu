@@ -65,8 +65,6 @@ export default function proxy(request: NextRequest) {
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 30,
     });
-  } else {
-    response.cookies.delete(TENANT_COOKIE);
   }
 
   if (!isProtectedPath(pathname)) {

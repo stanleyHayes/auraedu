@@ -1,13 +1,12 @@
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { TeacherShell } from "@/components/teacher-shell";
 import { RouteFeatureGuard } from "@/components/route-feature-guard";
-import { fetchTenantBranding, getTenantCodeFromHeaders, TEACHER_NAV } from "@/lib/tenant";
+import { fetchTenantBranding, TEACHER_NAV } from "@/lib/tenant";
 import { requireAuth, isTeacher } from "@/lib/auth";
+import { getCurrentTenantCode } from "@/lib/api";
 
 export default async function TeacherLayout({ children }: { children: React.ReactNode }) {
-  const requestHeaders = await headers();
-  const tenantCode = getTenantCodeFromHeaders(requestHeaders);
+  const tenantCode = await getCurrentTenantCode();
 
   const [tenant, session] = await Promise.all([
     fetchTenantBranding(tenantCode),

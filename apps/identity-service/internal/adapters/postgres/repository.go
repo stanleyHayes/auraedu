@@ -392,7 +392,7 @@ func (r *Repository) ResetPasswordWithToken(ctx context.Context, tokenHash, tena
 			UPDATE password_resets
 			SET used_at = NOW()
 			WHERE token_hash = $1
-			  AND tenant_id = NULLIF($2, '')
+			  AND tenant_id IS NOT DISTINCT FROM NULLIF($2, '')
 			  AND used_at IS NULL AND revoked_at IS NULL
 			  AND expires_at > NOW()
 			RETURNING user_id
@@ -623,7 +623,7 @@ func (r *Repository) SavePasswordResetToken(ctx context.Context, tenantID, userI
 		if _, err := tx.Exec(ctx, `
 			UPDATE password_resets
 			SET revoked_at = NOW()
-			WHERE tenant_id = NULLIF($1, '') AND user_id = $2
+			WHERE tenant_id IS NOT DISTINCT FROM NULLIF($1, '') AND user_id = $2
 			  AND used_at IS NULL AND revoked_at IS NULL
 		`, tenantID, userID); err != nil {
 			return err

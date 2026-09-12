@@ -26,6 +26,7 @@ export { EmptyState, type EmptyStateProps } from "./components/empty-state";
 export { DataTable, type DataTableProps, type DataTableColumn } from "./components/data-table";
 export { Sheet, type SheetProps } from "./components/sheet";
 export { Input, type InputProps } from "./components/input";
+export { PasswordInput, type PasswordInputProps } from "./components/password-input";
 export { Label, type LabelProps } from "./components/label";
 export { Select, type SelectProps } from "./components/select";
 export { Watermark, type WatermarkProps } from "./components/watermark";

@@ -355,11 +355,20 @@ func TestDefaultRegistryRoutePolicies(t *testing.T) {
 	}
 }
 
-func TestPublicCredentialRoutesRequireResolvedTenant(t *testing.T) {
+func TestPublicCredentialRoutesSupportPlatformAndExplicitTenantContexts(t *testing.T) {
 	for _, path := range []string{"/api/v1/auth/forgot-password", "/api/v1/auth/reset-password", "/api/v1/auth/mfa/verify"} {
 		route, ok := DefaultRegistry().Match(path)
-		if !ok || !route.Public || route.TenantOptional {
-			t.Fatalf("credential route must be public but tenant-bound: path=%s route=%+v", path, route)
+		if !ok || !route.Public || !route.TenantOptional {
+			t.Fatalf("credential route must allow tenantless platform identities: path=%s route=%+v", path, route)
+		}
+	}
+}
+
+func TestIdentityAdministrationSupportsPlatformAndExplicitTenantContexts(t *testing.T) {
+	for _, path := range []string{"/api/v1/users", "/api/v1/roles", "/api/v1/permissions"} {
+		route, ok := DefaultRegistry().Match(path)
+		if !ok || route.Public || !route.TenantOptional {
+			t.Fatalf("identity administration must remain protected and platform-capable: path=%s route=%+v", path, route)
 		}
 	}
 }

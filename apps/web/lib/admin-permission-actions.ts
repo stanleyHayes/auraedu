@@ -24,7 +24,7 @@ function permissionKeys(data: FormData): string[] {
 }
 
 /**
- * Replace a user's explicit permission grants via PATCH /api/v1/users/{id}.
+ * Replace a user's explicit permission grants via PUT /api/v1/users/{id}.
  * The identity service validates the grant server-side: the actor can only grant
  * permissions they hold themselves, so a 403 here is an honest answer, not a bug.
  */
@@ -36,8 +36,9 @@ export async function updateUserPermissionsAction(
   const body: UpdateUserRequest = { permissions: permissionKeys(data) };
   try {
     const client = await createServerClient();
-    await client.patch(`/api/v1/users/${encodeURIComponent(userId)}`, body);
+    await client.put(`/api/v1/users/${encodeURIComponent(userId)}`, body);
     revalidatePath("/admin/users");
+    revalidatePath("/superadmin/users");
     return { success: true };
   } catch (error) {
     if (error instanceof ApiError && error.status === 403) {

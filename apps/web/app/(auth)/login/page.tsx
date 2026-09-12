@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { KeyRound, ShieldCheck } from "lucide-react";
-import { Button, PageHeader, Watermark } from "@auraedu/ui";
+import { Button, PageHeader, PasswordInput, Watermark } from "@auraedu/ui";
 import { loginAction, verifyMFAAction, type LoginResult } from "./actions";
 import { WorkspaceField } from "@/components/workspace-field";
 
@@ -42,7 +42,7 @@ function LoginForm() {
       <Watermark className="pointer-events-none absolute -right-20 -top-28 text-[12rem] opacity-[0.04]">
         Aura
       </Watermark>
-      <div className="relative rounded-[28px] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[0_28px_80px_rgba(6,22,49,0.12)] sm:p-7">
+      <div className="auth-panel relative rounded-[28px] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[0_28px_80px_rgba(6,22,49,0.12)] sm:p-7">
         <PageHeader
           icon={<KeyRound className="size-7" />}
           title="Welcome back"
@@ -71,16 +71,14 @@ function LoginForm() {
             <label htmlFor="password" className="mb-1.5 block text-sm font-semibold">
               Password
             </label>
-            <input
+            <PasswordInput
               id="password"
               name="password"
-              type="password"
               autoComplete="current-password"
               placeholder="••••••••"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="h-11 w-full rounded-[var(--radius-md)] border border-border bg-[var(--input)] px-3.5 text-sm text-[var(--foreground)] shadow-sm placeholder:text-[var(--muted-foreground)] focus-visible:border-[var(--color-brand)] focus-visible:bg-[var(--input-focus)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]/40"
             />
           </div>
           {state.error ? (
@@ -131,7 +129,7 @@ function MFAForm({ challenge }: { challenge: NonNullable<LoginResult["mfa"]> }) 
       <Watermark className="pointer-events-none absolute -right-20 -top-28 text-[12rem] opacity-[0.04]">
         Safe
       </Watermark>
-      <div className="relative overflow-hidden rounded-[28px] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[0_28px_80px_rgba(6,22,49,0.12)] sm:p-7">
+      <div className="auth-panel relative overflow-hidden rounded-[28px] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[0_28px_80px_rgba(6,22,49,0.12)] sm:p-7">
         <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[var(--color-brand)] via-[var(--color-accent)] to-[var(--color-brand)]" />
         <PageHeader
           icon={<ShieldCheck className="size-7" />}

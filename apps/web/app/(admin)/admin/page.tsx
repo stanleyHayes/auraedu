@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { headers } from "next/headers";
 import {
   ArrowRight,
   CalendarDays,
@@ -10,9 +9,9 @@ import {
 } from "lucide-react";
 import { Reveal, StatCard, Watermark } from "@auraedu/ui";
 import type { OpenAPI } from "@auraedu/shared-types";
-import { createServerClient } from "@/lib/api";
+import { createServerClient, getCurrentTenantCode } from "@/lib/api";
 import { getSession, requireAuth } from "@/lib/auth";
-import { fetchTenantBranding, getTenantCodeFromHeaders } from "@/lib/tenant";
+import { fetchTenantBranding } from "@/lib/tenant";
 import { enabledFeatureKeys, getRouteFeature, isNavigationFeatureVisible } from "@/lib/features";
 
 type StudentList = OpenAPI.student_v1.components["schemas"]["StudentList"];
@@ -35,11 +34,11 @@ function eventLabel(eventType: string) {
 
 export default async function AdminOverview() {
   await requireAuth();
-  const requestHeaders = await headers();
+  const tenantCode = await getCurrentTenantCode();
   const [session, client, tenant] = await Promise.all([
     getSession(),
     createServerClient(),
-    fetchTenantBranding(getTenantCodeFromHeaders(requestHeaders)),
+    fetchTenantBranding(tenantCode),
   ]);
   const enabled = enabledFeatureKeys(tenant.features);
   const quickLinks = [

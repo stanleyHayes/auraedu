@@ -17,9 +17,9 @@ void test("users page loads the permission catalogue alongside users and roles",
   assert.match(page, /The permission catalogue is unavailable/);
 });
 
-void test("permission action replaces grants through PATCH /users/{id}", () => {
+void test("permission action replaces grants through the contracted PUT /users/{id}", () => {
   assert.match(actions, /"use server"/);
-  assert.match(actions, /client\.patch\(`\/api\/v1\/users\/\$\{encodeURIComponent\(userId\)\}`/);
+  assert.match(actions, /client\.put\(`\/api\/v1\/users\/\$\{encodeURIComponent\(userId\)\}`/);
   assert.match(actions, /permissions: permissionKeys\(data\)/);
   assert.match(actions, /revalidatePath\("\/admin\/users"\)/);
 });

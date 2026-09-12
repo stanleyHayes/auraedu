@@ -17,19 +17,25 @@ function value(data: FormData, key: string): string {
   return typeof entry === "string" ? entry.trim() : "";
 }
 
+function revalidateIdentityPages() {
+  revalidatePath("/admin/users");
+  revalidatePath("/superadmin/users");
+}
+
 export async function inviteUserAction(
   _previous: AdminUserActionResult,
   data: FormData,
 ): Promise<AdminUserActionResult> {
   const email = value(data, "email");
   const role = value(data, "role");
+  const tenantId = value(data, "tenant_id");
   if (!email?.includes("@")) return { error: "A valid email address is required." };
   if (!role) return { error: "Choose the role the invite grants." };
-  const body: InviteUserRequest = { email, role };
+  const body: InviteUserRequest = { email, role, ...(tenantId ? { tenant_id: tenantId } : {}) };
   try {
     const client = await createServerClient();
     await client.post("/api/v1/users/invites", body);
-    revalidatePath("/admin/users");
+    revalidateIdentityPages();
     return { success: true };
   } catch (error) {
     return {
@@ -52,7 +58,7 @@ export async function assignRoleAction(
   try {
     const client = await createServerClient();
     await client.post(`/api/v1/users/${encodeURIComponent(userId)}/roles`, body);
-    revalidatePath("/admin/users");
+    revalidateIdentityPages();
     return { success: true };
   } catch (error) {
     return {
@@ -68,7 +74,7 @@ export async function deactivateUserAction(userId: string): Promise<AdminUserAct
   try {
     const client = await createServerClient();
     await client.del(`/api/v1/users/${encodeURIComponent(userId)}`);
-    revalidatePath("/admin/users");
+    revalidateIdentityPages();
     return { success: true };
   } catch (error) {
     return {

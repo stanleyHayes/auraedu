@@ -138,7 +138,7 @@ export function AppTopbar({
         : user?.role === "student"
           ? "/student"
           : user?.role === "platform_super_admin" || user?.role === "superadmin"
-            ? "/superadmin"
+            ? "/superadmin/settings"
             : user?.role === "applicant"
               ? "/applicant"
               : "/admin/settings";

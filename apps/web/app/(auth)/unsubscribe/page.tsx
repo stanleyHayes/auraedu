@@ -24,7 +24,7 @@ export default function UnsubscribePage() {
       <Watermark className="pointer-events-none absolute -right-20 -top-28 text-[10rem] opacity-[0.04]">
         Choice
       </Watermark>
-      <div className="relative overflow-hidden rounded-[28px] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[0_28px_80px_rgba(6,22,49,0.12)] sm:p-7">
+      <div className="auth-panel relative overflow-hidden rounded-[28px] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[0_28px_80px_rgba(6,22,49,0.12)] sm:p-7">
         <span
           aria-hidden="true"
           className="absolute -right-20 -top-20 size-44 rounded-full bg-[var(--color-teal-bright)]/10 blur-3xl motion-safe:animate-pulse"

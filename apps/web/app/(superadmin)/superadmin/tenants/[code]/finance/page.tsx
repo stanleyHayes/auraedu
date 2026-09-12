@@ -31,18 +31,26 @@ export default async function TenantFinancePage({ params, searchParams }: Tenant
   let payments: Payment[] = [];
   let nextCursor: string | null = null;
   let error: string | null = null;
+  let paymentsNotice: string | null = null;
 
   try {
     const client = await createServerClientForTenant(code);
-    const [invoicePage, paymentPage] = await Promise.all([
-      client.get<{ data?: Invoice[]; next_cursor?: string | null }>(
-        `/api/v1/invoices?${drilldownQuery({}, cursor)}`,
-      ),
-      client.get<{ data?: Payment[] }>("/api/v1/payments?limit=10"),
-    ]);
+    const invoicePage = await client.get<{ data?: Invoice[]; next_cursor?: string | null }>(
+      `/api/v1/invoices?${drilldownQuery({}, cursor)}`,
+    );
     invoices = invoicePage.data ?? [];
-    payments = paymentPage.data ?? [];
     nextCursor = invoicePage.next_cursor ?? null;
+
+    try {
+      const paymentPage = await client.get<{ data?: Payment[] }>("/api/v1/payments?limit=10");
+      payments = paymentPage.data ?? [];
+    } catch (paymentError) {
+      const message =
+        paymentError instanceof Error ? paymentError.message : "Failed to load payment data";
+      paymentsNotice = message.includes("feature is not enabled")
+        ? "Online payments are not enabled for this school."
+        : "Recent payment activity could not be loaded.";
+    }
   } catch (e) {
     error = e instanceof Error ? e.message : "Failed to load finance data";
   }
@@ -225,6 +233,9 @@ export default async function TenantFinancePage({ params, searchParams }: Tenant
                   />
                 }
               />
+              {paymentsNotice ? (
+                <p className="text-sm text-[var(--muted-foreground)]">{paymentsNotice}</p>
+              ) : null}
             </section>
           </Reveal>
         </>

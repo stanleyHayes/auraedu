@@ -274,8 +274,14 @@ func bearerToken(r *http.Request) (string, bool) {
 func (b *Builder) tenant(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if route, ok := b.Registry.Match(r.URL.Path); ok && route.TenantOptional {
-			next.ServeHTTP(w, r)
-			return
+			// Platform identities have no tenant by design. Optional routes still
+			// resolve an explicitly supplied school tenant so the same login and
+			// recovery contracts remain tenant-bound for ordinary users.
+			if strings.TrimSpace(r.Header.Get("X-Tenant-Code")) == "" &&
+				strings.TrimSpace(r.Header.Get("X-Tenant-ID")) == "" {
+				next.ServeHTTP(w, r)
+				return
+			}
 		}
 		if b.Tenant == nil {
 			writeJSONError(w, http.StatusInternalServerError, "tenant_resolver_unavailable", "tenant resolution is not configured")

@@ -1,13 +1,12 @@
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
 import { RouteFeatureGuard } from "@/components/route-feature-guard";
-import { ADMIN_NAV, fetchTenantBranding, getTenantCodeFromHeaders } from "@/lib/tenant";
+import { ADMIN_NAV, fetchTenantBranding } from "@/lib/tenant";
 import { requireAuth, isAdmin } from "@/lib/auth";
+import { getCurrentTenantCode } from "@/lib/api";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const requestHeaders = await headers();
-  const tenantCode = getTenantCodeFromHeaders(requestHeaders);
+  const tenantCode = await getCurrentTenantCode();
 
   const [tenant, session] = await Promise.all([
     fetchTenantBranding(tenantCode),

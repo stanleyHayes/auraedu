@@ -19,7 +19,15 @@ import { useFeatureSnapshot } from "@auraedu/flags";
 import { AppTour } from "@/components/app-tour";
 import { getPageGuide } from "@/lib/page-guides";
 
-function Brand({ tenant, className }: { tenant?: TenantData; className?: string }) {
+function Brand({
+  tenant,
+  platform,
+  className,
+}: {
+  tenant?: TenantData;
+  platform?: boolean;
+  className?: string;
+}) {
   return (
     <span className={cn("flex min-w-0 items-center gap-3", className)}>
       <span className="grid size-11 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/[0.07] shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]">
@@ -28,7 +36,7 @@ function Brand({ tenant, className }: { tenant?: TenantData; className?: string 
       <span className="min-w-0">
         <AuraEduLogo tone="light" className="h-5" />
         <span className="mt-1 block truncate font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-white/45">
-          {tenant?.short ?? "Education OS"}
+          {tenant?.short ?? (platform ? "Platform" : "Education OS")}
         </span>
       </span>
     </span>
@@ -79,20 +87,20 @@ export function PortalShell({
   const groups = filterNav(navGroups, enabled, featuresStub);
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const role = user?.role ?? "member";
-  const roleLabel =
-    role === "superadmin" || role === "platform_super_admin"
-      ? "Platform operations"
-      : role === "admin" || role === "school_admin"
-        ? "School command centre"
-        : role === "teacher"
-          ? "Teaching workspace"
-          : role === "student"
-            ? "Learning workspace"
-            : role === "parent"
-              ? "Family workspace"
-              : role === "applicant"
-                ? "Admissions journey"
-                : "Education workspace";
+  const platformMode = role === "superadmin" || role === "platform_super_admin";
+  const roleLabel = platformMode
+    ? "Platform operations"
+    : role === "admin" || role === "school_admin"
+      ? "School command centre"
+      : role === "teacher"
+        ? "Teaching workspace"
+        : role === "student"
+          ? "Learning workspace"
+          : role === "parent"
+            ? "Family workspace"
+            : role === "applicant"
+              ? "Admissions journey"
+              : "Education workspace";
   const roleHome =
     role === "platform_super_admin" || role === "superadmin"
       ? "/superadmin"
@@ -106,7 +114,7 @@ export function PortalShell({
 
   return (
     <div
-      className="portal-frame grid h-screen grid-cols-[288px_1fr] overflow-hidden max-md:grid-cols-1"
+      className="portal-frame grid h-[100dvh] grid-cols-[288px_1fr] overflow-hidden max-md:grid-cols-1"
       data-role={role}
     >
       <a className="app-skip-link" href="#portal-main">
@@ -116,7 +124,7 @@ export function PortalShell({
         <AppSidebar
           pathname={pathname}
           groups={groups}
-          brand={<Brand tenant={tenant} />}
+          brand={<Brand tenant={tenant} platform={platformMode} />}
           workspaceLabel={roleLabel}
           footer={
             <div className="flex items-center gap-2 text-[11px] text-white/55">
@@ -139,7 +147,7 @@ export function PortalShell({
       >
         <div className="flex h-full flex-col">
           <div className="px-4 pb-3 pt-4">
-            <Brand tenant={tenant} />
+            <Brand tenant={tenant} platform={platformMode} />
           </div>
           <AppSidebar
             pathname={pathname}
@@ -167,7 +175,7 @@ export function PortalShell({
         <PageGuideProvider resolve={resolveGuide}>
           <main
             id="portal-main"
-            className="portal-main relative z-10 flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-7 lg:px-8"
+            className="portal-main relative z-10 flex-1 overflow-y-auto px-4 pb-[max(3.5rem,calc(env(safe-area-inset-bottom)+2rem))] pt-5 sm:px-6 sm:pb-16 sm:pt-7 lg:px-8 lg:pb-20"
             tabIndex={-1}
           >
             <div className="mx-auto max-w-[1440px]">

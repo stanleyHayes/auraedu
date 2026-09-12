@@ -11,9 +11,10 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(function 
   ref,
 ) {
   return (
-    <div className="relative">
+    <div className="relative" data-ui="select-wrap">
       <select
         ref={ref}
+        data-ui="select"
         className={cn(
           "h-11 w-full appearance-none rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--input)] px-3.5 pr-9 text-sm text-[var(--foreground)] shadow-sm",
           "focus-visible:border-[var(--portal-accent,var(--color-brand))] focus-visible:bg-[var(--input-focus)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]/40",

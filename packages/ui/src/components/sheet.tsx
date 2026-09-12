@@ -50,6 +50,7 @@ export function Sheet({
   return (
     <dialog
       ref={ref}
+      data-ui="sheet"
       className={cn(
         "fixed inset-y-0 m-0 h-full max-h-none max-w-full bg-[var(--surface)] p-0 shadow-2xl backdrop:bg-[var(--color-ink-950)]/45",
         side === "left" ? "left-0" : "right-0",

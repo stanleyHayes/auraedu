@@ -31,6 +31,7 @@ export function PageHeader({
   return (
     <div
       data-tour="page-header"
+      data-ui="page-header"
       className={cn(
         "portal-page-header relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm sm:p-7",
         "glass isolate",

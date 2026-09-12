@@ -1,17 +1,10 @@
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { SuperAdminShell } from "@/components/superadmin-shell";
-import { fetchTenantBranding, getTenantCodeFromHeaders, SUPERADMIN_NAV } from "@/lib/tenant";
+import { SUPERADMIN_NAV } from "@/lib/tenant";
 import { requireAuth, isSuperAdmin } from "@/lib/auth";
 
 export default async function SuperAdminLayout({ children }: { children: React.ReactNode }) {
-  const requestHeaders = await headers();
-  const tenantCode = getTenantCodeFromHeaders(requestHeaders);
-
-  const [tenant, session] = await Promise.all([
-    fetchTenantBranding(tenantCode),
-    requireAuth().catch(() => null),
-  ]);
+  const session = await requireAuth().catch(() => null);
 
   if (!session) {
     redirect("/login");
@@ -37,7 +30,7 @@ export default async function SuperAdminLayout({ children }: { children: React.R
   };
 
   return (
-    <SuperAdminShell tenant={tenant} navGroups={SUPERADMIN_NAV} showMobileMenu user={user}>
+    <SuperAdminShell navGroups={SUPERADMIN_NAV} showMobileMenu user={user}>
       {children}
     </SuperAdminShell>
   );

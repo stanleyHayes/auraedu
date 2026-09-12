@@ -28,24 +28,24 @@ type Route struct {
 func DefaultRegistry() ServiceRegistry {
 	// Default targets follow the service port registry in agent_plan.md Appendix D.
 	return ServiceRegistry{
-		{Prefix: "/api/v1/auth/login", Target: envURL("SERVICE_IDENTITY_URL", "http://localhost:8081"), Public: true},
-		{Prefix: "/api/v1/auth/mfa/verify", Target: envURL("SERVICE_IDENTITY_URL", "http://localhost:8081"), Public: true},
-		{Prefix: "/api/v1/auth/refresh", Target: envURL("SERVICE_IDENTITY_URL", "http://localhost:8081"), Public: true},
-		{Prefix: "/api/v1/auth/forgot-password", Target: envURL("SERVICE_IDENTITY_URL", "http://localhost:8081"), Public: true},
-		{Prefix: "/api/v1/auth/reset-password", Target: envURL("SERVICE_IDENTITY_URL", "http://localhost:8081"), Public: true},
+		{Prefix: "/api/v1/auth/login", Target: envURL("SERVICE_IDENTITY_URL", "http://localhost:8081"), Public: true, TenantOptional: true},
+		{Prefix: "/api/v1/auth/mfa/verify", Target: envURL("SERVICE_IDENTITY_URL", "http://localhost:8081"), Public: true, TenantOptional: true},
+		{Prefix: "/api/v1/auth/refresh", Target: envURL("SERVICE_IDENTITY_URL", "http://localhost:8081"), Public: true, TenantOptional: true},
+		{Prefix: "/api/v1/auth/forgot-password", Target: envURL("SERVICE_IDENTITY_URL", "http://localhost:8081"), Public: true, TenantOptional: true},
+		{Prefix: "/api/v1/auth/reset-password", Target: envURL("SERVICE_IDENTITY_URL", "http://localhost:8081"), Public: true, TenantOptional: true},
 		{Prefix: "/api/v1/auth", Target: envURL("SERVICE_IDENTITY_URL", "http://localhost:8081")},
 		{Prefix: "/api/v1/public/invites", Target: envURL("SERVICE_IDENTITY_URL", "http://localhost:8081"), Public: true, TenantOptional: true},
-		{Prefix: "/api/v1/users", Target: envURL("SERVICE_IDENTITY_URL", "http://localhost:8081"), FeatureKey: "", Permissions: map[string]string{
+		{Prefix: "/api/v1/users", Target: envURL("SERVICE_IDENTITY_URL", "http://localhost:8081"), FeatureKey: "", TenantOptional: true, Permissions: map[string]string{
 			http.MethodGet:    "users.read",
 			http.MethodPost:   "users.create",
 			http.MethodPut:    "users.update",
 			http.MethodPatch:  "users.update",
 			http.MethodDelete: "users.delete",
 		}},
-		{Prefix: "/api/v1/roles", Target: envURL("SERVICE_IDENTITY_URL", "http://localhost:8081"), Permissions: map[string]string{
+		{Prefix: "/api/v1/roles", Target: envURL("SERVICE_IDENTITY_URL", "http://localhost:8081"), TenantOptional: true, Permissions: map[string]string{
 			http.MethodGet: "users.read",
 		}},
-		{Prefix: "/api/v1/permissions", Target: envURL("SERVICE_IDENTITY_URL", "http://localhost:8081"), Permissions: map[string]string{
+		{Prefix: "/api/v1/permissions", Target: envURL("SERVICE_IDENTITY_URL", "http://localhost:8081"), TenantOptional: true, Permissions: map[string]string{
 			http.MethodGet: "users.read",
 		}},
 		{Prefix: "/api/v1/public/onboarding-requests", Target: envURL("SERVICE_TENANT_URL", "http://localhost:8082"), Public: true, TenantOptional: true},

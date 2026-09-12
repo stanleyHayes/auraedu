@@ -465,7 +465,14 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email string) error 
 		return err
 	}
 	requestTenant := tenancy.ActorFromContext(ctx).TenantID
-	if !ok || requestTenant == "" || u.TenantID != requestTenant {
+	if !ok {
+		return nil
+	}
+	if requestTenant == "" {
+		if u.TenantID != "" {
+			return nil
+		}
+	} else if u.TenantID != requestTenant {
 		return nil
 	}
 	token, err := domain.RandomToken()
@@ -495,9 +502,6 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 		return err
 	}
 	tenantID := tenancy.ActorFromContext(ctx).TenantID
-	if tenantID == "" {
-		return domain.ErrExpiredToken
-	}
 	if err := s.repo.ResetPasswordWithToken(ctx, tokenHash, tenantID, cred); err != nil {
 		if errors.Is(err, domain.ErrExpiredToken) {
 			return domain.ErrExpiredToken

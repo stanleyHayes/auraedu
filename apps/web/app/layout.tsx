@@ -11,6 +11,7 @@ import {
   fetchTenantBranding,
   toFeatureSnapshot,
 } from "@/lib/tenant";
+import { getCurrentTenantCode } from "@/lib/api";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -27,15 +28,22 @@ export const metadata: Metadata = {
   },
 };
 
-const bootScript = `(function(){try{var r=document.documentElement;var m=localStorage.getItem('auraedu-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');r.classList.toggle('dark',m==='dark');r.style.colorScheme=m;}catch(e){}})();`;
+const bootScript = `(function(){try{var r=document.documentElement;var m=localStorage.getItem('auraedu-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');var d=localStorage.getItem('auraedu-design-system')||'aura';r.classList.toggle('dark',m==='dark');r.style.colorScheme=m;r.dataset.designSystem=d;}catch(e){}})();`;
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const requestHeaders = await headers();
-  const tenantCode = getTenantCodeFromHeaders(requestHeaders);
+  const headerTenantCode = getTenantCodeFromHeaders(requestHeaders);
+  const sessionTenantCode = await getCurrentTenantCode();
+  const tenantCode = headerTenantCode || sessionTenantCode;
   const pathname = requestHeaders.get("x-pathname") ?? "";
+  const platformRoute = pathname === "/superadmin" || pathname.startsWith("/superadmin/");
   const globalAuthEntry = isGlobalAuthEntry(pathname) && !tenantCode;
 
-  if ((!tenantCode || isTenantNotFound(requestHeaders)) && !globalAuthEntry) {
+  if (
+    (!tenantCode || (isTenantNotFound(requestHeaders) && !sessionTenantCode)) &&
+    !globalAuthEntry &&
+    !platformRoute
+  ) {
     notFound();
   }
 
@@ -43,7 +51,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   let brand: string = DEFAULT_BRAND;
   let secondary: string | undefined;
 
-  if (globalAuthEntry) {
+  if (globalAuthEntry || platformRoute) {
     snapshot = { tenantCode: "auraedu", flags: [] };
   } else {
     let tenant;

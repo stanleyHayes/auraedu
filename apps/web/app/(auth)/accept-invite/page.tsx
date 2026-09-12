@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { CheckCircle2, ShieldCheck, UserRoundPlus } from "lucide-react";
-import { Button, PageHeader, Watermark } from "@auraedu/ui";
+import { Button, PageHeader, PasswordInput, Watermark } from "@auraedu/ui";
 import { acceptInviteAction, type AcceptInviteResult } from "./actions";
 
 export default function AcceptInvitePage() {
@@ -31,7 +31,7 @@ function AcceptInviteForm() {
       <Watermark className="pointer-events-none absolute -right-20 -top-28 text-[12rem] opacity-[0.04]">
         Join
       </Watermark>
-      <div className="relative rounded-[28px] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[0_28px_80px_rgba(6,22,49,0.12)] sm:p-7">
+      <div className="auth-panel relative rounded-[28px] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[0_28px_80px_rgba(6,22,49,0.12)] sm:p-7">
         {state.success ? (
           <div role="status" className="py-4 text-center">
             <span className="mx-auto grid size-16 place-items-center rounded-2xl bg-[var(--color-positive)]/12 text-[var(--color-positive)]">
@@ -84,16 +84,14 @@ function AcceptInviteForm() {
                 <label htmlFor="password" className="mb-1.5 block text-sm font-semibold">
                   Create password
                 </label>
-                <input
+                <PasswordInput
                   id="password"
                   name="password"
-                  type="password"
                   autoComplete="new-password"
                   minLength={12}
                   maxLength={256}
                   required
                   aria-describedby="password-help"
-                  className="h-11 w-full rounded-[var(--radius-md)] border border-border bg-[var(--input)] px-3.5 text-sm shadow-sm focus-visible:border-[var(--color-brand)] focus-visible:bg-[var(--input-focus)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]/40"
                 />
                 <p id="password-help" className="mt-1.5 text-xs text-muted-foreground">
                   Use 12–256 characters and avoid a password used elsewhere.
@@ -106,15 +104,15 @@ function AcceptInviteForm() {
                 >
                   Confirm password
                 </label>
-                <input
+                <PasswordInput
                   id="password_confirmation"
                   name="password_confirmation"
-                  type="password"
                   autoComplete="new-password"
                   minLength={12}
                   maxLength={256}
                   required
-                  className="h-11 w-full rounded-[var(--radius-md)] border border-border bg-[var(--input)] px-3.5 text-sm shadow-sm focus-visible:border-[var(--color-brand)] focus-visible:bg-[var(--input-focus)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]/40"
+                  showLabel="Show password confirmation"
+                  hideLabel="Hide password confirmation"
                 />
               </div>
               {!token ? (
